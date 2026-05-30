@@ -1,0 +1,8 @@
+on_http_request:
+  - name: "Fix Host Header"
+    actions:
+      - type: "add-headers"
+        config:
+          headers:
+            host: "localhost:5000"
+            ngrok-skip-browser-warning: "true"

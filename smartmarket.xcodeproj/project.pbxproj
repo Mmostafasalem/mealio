@@ -6,8 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		ADMAP0012FCA0F6400433335 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADMAP0002FCA0F6400433335 /* MapKit.framework */; };
+		ADMAP0022FCA0F6400433335 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADMAP0012FCA0F6400433336 /* CoreLocation.framework */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		ADF8148C2FCA0F6400433335 /* smartmarket.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = smartmarket.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		ADMAP0002FCA0F6400433335 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
+		ADMAP0012FCA0F6400433336 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -36,6 +43,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ADMAP0012FCA0F6400433335 /* MapKit.framework in Frameworks */,
+				ADMAP0022FCA0F6400433335 /* CoreLocation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -46,6 +55,7 @@
 			isa = PBXGroup;
 			children = (
 				ADF8148E2FCA0F6400433335 /* smartmarket */,
+				ADMAP0032FCA0F6400433335 /* Frameworks */,
 				ADF8148D2FCA0F6400433335 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -56,6 +66,15 @@
 				ADF8148C2FCA0F6400433335 /* smartmarket.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		ADMAP0032FCA0F6400433335 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				ADMAP0002FCA0F6400433335 /* MapKit.framework */,
+				ADMAP0012FCA0F6400433336 /* CoreLocation.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -143,8 +162,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8KMJT7ZMH2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -157,8 +178,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.smartmarket.agent.smartmarket;
+				PRODUCT_BUNDLE_IDENTIFIER = com.smartmarket.agent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -174,8 +196,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -188,8 +212,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.smartmarket.agent.smartmarket;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
