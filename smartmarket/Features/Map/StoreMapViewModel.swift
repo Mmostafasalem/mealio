@@ -1,90 +1,127 @@
-import Foundation
+import SwiftUI
 import MapKit
 import CoreLocation
-import SwiftUI
 
 @MainActor
 @Observable
 final class StoreMapViewModel {
 
-    var deals: [MarketDeal] = []
-    var selectedStore: Store?
+    // MARK: - State
+    var cameraPosition: MapCameraPosition = .region(MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 54.6872, longitude: 25.2797),
+        latitudinalMeters: 8_000,
+        longitudinalMeters: 8_000
+    ))
+    var stores: [Store] = []
+    var selectedStore: Store? = nil
     var storeDeals: [MarketDeal] = []
-    var cameraPosition: MapCameraPosition = .automatic
-    var isLoadingDeals = false
-    var errorMessage: String?
-
-    // MARK: - Computed
-
-    var uniqueStores: [Store] {
-        var seen = Set<String>()
-        return deals.compactMap { deal in
-            guard seen.insert(deal.store.id).inserted else { return nil }
-            return deal.store
-        }
-    }
+    var showNearbyOnly: Bool = true
+    var hasCentredOnUser = false
 
     // MARK: - Load
 
-    func load() async {
-        isLoadingDeals = true
-        defer { isLoadingDeals = false }
+    func load(appState: AppState) {
+        // Start location updates
+        LocationService.shared.startUpdating()
+        // Build stores and watch location for camera update
+        refreshDeals(appState: appState)
+        observeLocation()
+    }
 
-        do {
-            deals = try await APIService.shared.fetchMarketDeals()
-        } catch {
-            deals = MarketDeal.mocked
-            errorMessage = nil
+    private func observeLocation() {
+        // Poll for first location fix to snap camera
+        Task {
+            for _ in 0..<30 {      // try for up to 15 s
+                if let loc = LocationService.shared.userLocation, !hasCentredOnUser {
+                    centreOn(loc.coordinate, zoom: 5_000)
+                    hasCentredOnUser = true
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
         }
+    }
 
-        // Centre camera on the user's current location if available,
-        // otherwise default to Vilnius city centre.
-        let vilnius = CLLocationCoordinate2D(latitude: 54.6872, longitude: 25.2797)
-        let centre = LocationService.shared.userLocation?.coordinate ?? vilnius
-        cameraPosition = MapCameraPosition.region(MKCoordinateRegion(
-            center: centre,
-            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-        ))
+    // MARK: - Refresh deals/stores from AppState
+
+    func refreshDeals(appState: AppState) {
+        Task {
+            let allMarket = (try? await APIService.shared.fetchMarketDeals()) ?? []
+
+            let userLoc = LocationService.shared.userLocation
+            let filtered: [MarketDeal]
+            if showNearbyOnly, let loc = userLoc {
+                filtered = allMarket.filter { deal in
+                    let storeLoc = CLLocation(latitude: deal.store.latitude, longitude: deal.store.longitude)
+                    return loc.distance(from: storeLoc) <= 8_000  // 8 km
+                }
+            } else {
+                filtered = allMarket
+            }
+
+            storeDeals = filtered
+
+            // Deduplicate stores preserving order
+            var seen = Set<String>()
+            stores = filtered.compactMap { deal -> Store? in
+                let id = deal.store.id
+                guard !seen.contains(id) else { return nil }
+                seen.insert(id)
+                return deal.store
+            }
+        }
+    }
+
+    // MARK: - Camera
+
+    func centreOnUser() {
+        guard let loc = LocationService.shared.userLocation else {
+            // Permission not yet granted or no fix — request
+            LocationService.shared.requestPermission()
+            return
+        }
+        centreOn(loc.coordinate, zoom: 5_000)
+    }
+
+    private func centreOn(_ coord: CLLocationCoordinate2D, zoom: CLLocationDistance) {
+        withAnimation(.easeInOut(duration: 0.6)) {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: coord,
+                latitudinalMeters: zoom,
+                longitudinalMeters: zoom
+            ))
+        }
     }
 
     // MARK: - Store selection
 
     func selectStore(_ store: Store) {
         selectedStore = store
+        // Animate map to selected store
+        centreOn(CLLocationCoordinate2D(latitude: store.latitude, longitude: store.longitude), zoom: 2_000)
+    }
 
-        // Favourite food IDs are stored as catalog string IDs (e.g. "visc-file").
-        // Deal.productId is the backend integer ID as a string (e.g. "3").
-        // Bridge via Food.catalog.backendId so the comparison is apples-to-apples.
-        let favCatalogIDs = Set(
-            (UserDefaults.standard.array(forKey: Constants.Storage.favoriteFoodIDs) as? [String]) ?? []
-        )
-        let favProductIDs = Set(
+    // MARK: - Deal helpers
+
+    func dealCount(for store: Store) -> Int {
+        storeDeals.filter { $0.store.id == store.id }.count
+    }
+
+    func deals(for store: Store) -> [MarketDeal] {
+        storeDeals.filter { $0.store.id == store.id }
+    }
+
+    func favouriteDeals(for store: Store, favIDs: Set<String>) -> [MarketDeal] {
+        let backendIDs: Set<String> = Set(
             Food.catalog
-                .filter { favCatalogIDs.contains($0.id) }
-                .compactMap { $0.backendId }
-                .map { String($0) }
+                .filter { favIDs.contains($0.id) }
+                .compactMap { $0.backendId.map { String($0) } }
         )
-
-        let forStore = deals.filter { $0.store.id == store.id }
-        let favs    = forStore.filter { favProductIDs.contains($0.productId) }
-                               .sorted { $0.productName < $1.productName }
-        let rest    = forStore.filter { !favProductIDs.contains($0.productId) }
-                               .sorted { $0.productName < $1.productName }
-        storeDeals = favs + rest
+        return deals(for: store).filter { backendIDs.contains($0.productId) }
     }
 
-    func dismissStore() {
-        selectedStore = nil
-        storeDeals = []
-    }
-
-    // MARK: - Recipes
-
-    func recipesForStore(_ store: Store) -> [StoreRecipe] {
-        let discountedIDs = Set(
-            deals.filter { $0.store.id == store.id }.map { $0.productId }
-        )
-        return StoreRecipe.recipesMatching(discountedIDs: discountedIDs)
+    func otherDeals(for store: Store, favIDs: Set<String>) -> [MarketDeal] {
+        let favSet = Set(favouriteDeals(for: store, favIDs: favIDs).map(\.id))
+        return deals(for: store).filter { !favSet.contains($0.id) }
     }
 }
-

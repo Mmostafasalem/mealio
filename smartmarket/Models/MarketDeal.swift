@@ -9,6 +9,8 @@ struct Store: Codable, Identifiable {
     let latitude: Double
     let longitude: Double
 
+    var chainIcon: String { String(chain.prefix(1)) }
+
     var chainColor: String {
         switch chain {
         case "Maxima": return "#0044FF"

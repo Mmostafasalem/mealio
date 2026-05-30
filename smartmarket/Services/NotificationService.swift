@@ -1,96 +1,82 @@
+import Foundation
 import UserNotifications
-import Observation
 
 @MainActor
-@Observable
 final class NotificationService {
 
     static let shared = NotificationService()
-
-    var permissionGranted = false
-
-    static let categoryID   = "DEAL_ALERT"
-    static let actionBuyID  = "DEAL_BUY"
-    static let actionSkipID = "DEAL_SKIP"
-
     private init() {}
 
-    // MARK: - Permission
+    static let categoryID  = "DEAL_ALERT"
+    static let actionBuyID = "BUY_DEAL"
+    static let actionSkipID = "SKIP_DEAL"
 
-    func requestPermission() async {
-        do {
-            let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .sound, .badge])
-            permissionGranted = granted
-            if granted { registerActionCategories() }
-        } catch {
-            permissionGranted = false
-        }
-    }
+    var authorizationStatus: UNAuthorizationStatus = .notDetermined
+
+    // MARK: - Setup
 
     func checkPermission() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
-        permissionGranted = settings.authorizationStatus == .authorized
+        authorizationStatus = settings.authorizationStatus
+        if settings.authorizationStatus == .authorized {
+            registerActions()
+        }
     }
 
-    // MARK: - Action categories
+    func requestPermission() async -> Bool {
+        do {
+            let granted = try await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound, .badge])
+            authorizationStatus = granted ? .authorized : .denied
+            if granted { registerActions() }
+            return granted
+        } catch {
+            return false
+        }
+    }
 
-    private func registerActionCategories() {
-        let buyAction = UNNotificationAction(
-            identifier: NotificationService.actionBuyID,
-            title: "Yes, add to list",
-            options: [.foreground]
-        )
-        let skipAction = UNNotificationAction(
-            identifier: NotificationService.actionSkipID,
-            title: "No thanks",
-            options: [.destructive]
-        )
-        let category = UNNotificationCategory(
-            identifier: NotificationService.categoryID,
-            actions: [buyAction, skipAction],
-            intentIdentifiers: [],
-            options: []
-        )
+    private func registerActions() {
+        let buy  = UNNotificationAction(identifier: Self.actionBuyID,
+                                        title: "✅ Yes, add to list",
+                                        options: [.foreground])
+        let skip = UNNotificationAction(identifier: Self.actionSkipID,
+                                        title: "❌ No thanks",
+                                        options: [])
+        let category = UNNotificationCategory(identifier: Self.categoryID,
+                                              actions: [buy, skip],
+                                              intentIdentifiers: [],
+                                              options: [])
         UNUserNotificationCenter.current().setNotificationCategories([category])
     }
 
-    // MARK: - Schedule
+    // MARK: - Schedule a deal push (fires immediately; works from background)
 
-    func scheduleDealNotification(for deal: MarketDeal) async {
-        guard permissionGranted else { return }
-
+    func scheduleDealNotification(for deal: Deal, storeName: String, storeId: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Deal on \(deal.productName)"
-        content.body = "\(deal.store.chain) · \(deal.quantity) — now €\(String(format: "%.2f", deal.discountPrice)) (−\(deal.discountPercent)%)"
-        content.sound = .default
-        content.categoryIdentifier = NotificationService.categoryID
+        content.title  = "\(deal.emoji) Deal near you: \(deal.name)"
+        content.body   = "\(deal.brand) at \(storeName) — €\(String(format: "%.2f", deal.discountedPrice)) (\(deal.discount)% off). Add to your list?"
+        content.sound  = .default
+        content.categoryIdentifier = Self.categoryID
         content.userInfo = [
-            "deal_id":        deal.id,
-            "product_name":   deal.productName,
-            "store_name":     deal.store.name,
-            "store_id":       deal.store.id,
-            "food_id":        deal.productId,
-            "discount_price": deal.discountPrice,
-            "quantity":       deal.quantity
+            "food_id":       String(deal.id),
+            "product_name":  deal.name,
+            "store_name":    storeName,
+            "store_id":      storeId,
+            "discount_price": deal.discountedPrice,
+            "quantity":      "\(deal.weeklyQty) \(deal.unit)"
         ]
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(
-            identifier: "deal-\(deal.id)",
+            identifier: "deal_\(deal.id)",
             content: content,
             trigger: trigger
         )
-
-        do {
-            try await UNUserNotificationCenter.current().add(request)
-        } catch {
-            print("[NotificationService] Failed to schedule: \(error.localizedDescription)")
-        }
+        UNUserNotificationCenter.current().add(request)
     }
 
-    func cancelDealNotification(dealID: String) {
+    func cancelDealNotification(dealID: Int) {
         UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: ["deal-\(dealID)"])
+            .removePendingNotificationRequests(withIdentifiers: ["deal_\(dealID)"])
     }
 }

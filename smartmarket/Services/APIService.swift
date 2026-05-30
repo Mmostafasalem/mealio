@@ -22,7 +22,16 @@ actor APIService {
     // MARK: - Deals
 
     func getDeals() async throws -> [Deal] {
-        let req = try await get(Constants.API.Endpoint.deals)
+        let req = try get(Constants.API.Endpoint.deals)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateResponse(response)
+        return try decoder.decode([Deal].self, from: data)
+    }
+
+    /// Fetches deals pre-filtered by proximity on the backend.
+    func getDeals(near lat: Double, lon: Double, radiusKm: Double = 8) async throws -> [Deal] {
+        let path = Constants.API.Endpoint.deals + "?lat=\(lat)&lon=\(lon)&radius=\(radiusKm)"
+        let req = try get(path)
         let (data, response) = try await URLSession.shared.data(for: req)
         try validateResponse(response)
         return try decoder.decode([Deal].self, from: data)
@@ -67,7 +76,7 @@ actor APIService {
     // MARK: - Legacy shims (used by HomeViewModel / GroceryListViewModel)
 
     // Vilnius store coordinates keyed by lowercased chain name.
-    private static let storeCoordinates: [String: (lat: Double, lon: Double)] = [
+    static let storeCoordinates: [String: (lat: Double, lon: Double)] = [
         "maxima":     (54.7154, 25.2539),
         "iki":        (54.6891, 25.2012),
         "rimi":       (54.6634, 25.2897),
@@ -83,14 +92,16 @@ actor APIService {
         let deals = try await getDeals()
         return deals.map { d in
             let key = d.store.lowercased()
-            let coords = Self.storeCoordinates[key] ?? (54.6872, 25.2797)
+            let fallback = Self.storeCoordinates[key] ?? (54.6872, 25.2797)
+            let lat = d.latitude ?? fallback.lat
+            let lon = d.longitude ?? fallback.lon
             let store = Store(
                 id: key,
                 chain: d.store,
                 name: d.store,
                 address: "",
-                latitude: coords.lat,
-                longitude: coords.lon
+                latitude: lat,
+                longitude: lon
             )
             let expiryDate: Date = {
                 if d.expiresIn.lowercased() == "today" {
@@ -138,6 +149,11 @@ actor APIService {
         req.httpBody = try JSONEncoder().encode(body)
         req.timeoutInterval = timeout
         return req
+    }
+
+    /// Returns coordinates for a store name (case-insensitive), defaulting to Vilnius centre.
+    static func storeCoordinates(for storeName: String) -> (lat: Double, lon: Double) {
+        storeCoordinates[storeName.lowercased()] ?? (54.6872, 25.2797)
     }
 
     private func validateResponse(_ response: URLResponse) throws {

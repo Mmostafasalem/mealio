@@ -20,6 +20,8 @@ struct Deal: Codable, Identifiable, Hashable {
     let unit: String
     let expiresIn: String
     let allergens: [String]
+    let latitude: Double?
+    let longitude: Double?
 }
 
 // MARK: - BMR (POST /api/bmr request)
