@@ -10,12 +10,21 @@ struct SmartMarketAgentApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if appState.isOnboarded {
+                if !appState.hasSeenWelcome {
+                    WelcomeView {
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            appState.hasSeenWelcome = true
+                            UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
+                        }
+                    }
+                } else if appState.isOnboarded {
                     MainTabView()
                 } else {
                     OnboardingFlow()
                 }
             }
+            .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
+            .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
             .environment(appState)
             .task {
                 await NotificationService.shared.checkPermission()
@@ -42,42 +51,29 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         guard let foodIdStr  = info["food_id"]       as? String,
               let foodId     = Int(foodIdStr),
               let name       = info["product_name"]   as? String,
-              let storeName  = info["store_name"]      as? String,
-              let price      = info["discount_price"]  as? Double
+              let storeName  = info["store_name"]      as? String
         else { return }
 
+        // discount_price is serialised as NSNumber by UNNotification; cast via NSNumber
+        let price    = (info["discount_price"] as? NSNumber)?.doubleValue ?? 0.0
         let quantity = info["quantity"] as? String ?? "1"
 
         if response.actionIdentifier == NotificationService.actionBuyID {
-            // Reconstruct a minimal Deal and add to grocery list
             await MainActor.run {
-                let appState = AppState.shared
-                // Find the full deal in activeDeals if possible; otherwise synthesise one
-                if let full = appState.activeDeals.first(where: { $0.id == foodId }) {
-                    appState.addDealToGrocery(full)
-                } else {
-                    // Minimal synthetic deal so it shows in grocery list
-                    let deal = Deal(
-                        id: foodId,
-                        name: name,
-                        brand: storeName,
-                        emoji: "🛒",
-                        store: storeName,
-                        category: "grocery",
-                        originalPrice: price,
-                        discountedPrice: price,
-                        discount: 0,
-                        kcalPer100g: 0,
-                        proteinPer100g: 0,
-                        carbsPer100g: 0,
-                        fatPer100g: 0,
-                        weeklyQty: 1,
-                        unit: quantity,
-                        expiresIn: "7d",
-                        allergens: []
-                    )
-                    appState.addDealToGrocery(deal)
-                }
+                // GroceryStorage is the single source of truth for the grocery list UI.
+                // Build a GroceryItem and write directly to it, then notify observers.
+                let item = GroceryItem(
+                    id: UUID().uuidString,
+                    foodId: String(foodId),
+                    foodName: name,
+                    quantity: quantity,
+                    estimatedPrice: price,
+                    storeId: info["store_id"] as? String ?? storeName.lowercased(),
+                    storeName: storeName,
+                    isBought: false
+                )
+                GroceryStorage.add(item)
+                NotificationCenter.default.post(name: .groceryListDidChange, object: nil)
             }
         }
         // Skip = do nothing

@@ -1,0 +1,37 @@
+# Environment / secrets — NEVER commit these
+.env
+*.env
+smartmarket/smartmarket-backend/.env
+
+# Xcode
+*.xcworkspace/xcuserdata
+*.xcodeproj/xcuserdata
+xcuserdata/
+DerivedData/
+
+# Local tooling settings
+**/.claude/settings.local.json
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Open Food Facts on-disk nutrition cache (regenerated at runtime)
+off_cache.json
+smartmarket/smartmarket-backend/off_cache.json
+
+# macOS
+.DS_Store
+
+# Pytest
+.pytest_cache/
+
+# CI workflow — add later via GitHub web UI or a workflow-scoped token
+.github/

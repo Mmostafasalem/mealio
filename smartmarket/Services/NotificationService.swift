@@ -12,6 +12,7 @@ final class NotificationService {
     static let actionSkipID = "SKIP_DEAL"
 
     var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    var permissionGranted: Bool { authorizationStatus == .authorized }
 
     // MARK: - Setup
 
@@ -38,7 +39,7 @@ final class NotificationService {
     private func registerActions() {
         let buy  = UNNotificationAction(identifier: Self.actionBuyID,
                                         title: "✅ Yes, add to list",
-                                        options: [.foreground])
+                                        options: [])
         let skip = UNNotificationAction(identifier: Self.actionSkipID,
                                         title: "❌ No thanks",
                                         options: [])

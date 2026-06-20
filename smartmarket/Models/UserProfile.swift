@@ -160,18 +160,24 @@ extension UserProfile {
     }
 }
 
-// MARK: - Persistence helper
+// MARK: - Persistence helper (Keychain — health data is sensitive)
 extension UserProfile {
     static func load() -> UserProfile {
-        guard
-            let data = UserDefaults.standard.data(forKey: Constants.Storage.userProfile),
-            let profile = try? JSONDecoder().decode(UserProfile.self, from: data)
-        else { return UserProfile() }
-        return profile
+        // Keychain is the source of truth
+        if let profile = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) {
+            return profile
+        }
+        // Migrate from UserDefaults on first run after update
+        if let data = UserDefaults.standard.data(forKey: Constants.Storage.userProfile),
+           let profile = try? JSONDecoder().decode(UserProfile.self, from: data) {
+            KeychainHelper.save(profile, key: Constants.Storage.userProfile)
+            UserDefaults.standard.removeObject(forKey: Constants.Storage.userProfile)
+            return profile
+        }
+        return UserProfile()
     }
 
     func save() {
-        guard let data = try? JSONEncoder().encode(self) else { return }
-        UserDefaults.standard.set(data, forKey: Constants.Storage.userProfile)
+        KeychainHelper.save(self, key: Constants.Storage.userProfile)
     }
 }

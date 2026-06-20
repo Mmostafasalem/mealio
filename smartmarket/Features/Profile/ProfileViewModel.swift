@@ -45,15 +45,47 @@ final class ProfileViewModel {
         }
     }
 
-    func toggleFavorite(_ food: Food) {
-        if favoriteFoodIDs.contains(food.id) {
-            favoriteFoodIDs.remove(food.id)
+    func toggleFavorite(_ item: CatalogItem) {
+        if favoriteFoodIDs.contains(item.id) {
+            favoriteFoodIDs.remove(item.id)
         } else {
-            favoriteFoodIDs.insert(food.id)
+            favoriteFoodIDs.insert(item.id)
         }
     }
 
     func resetOnboarding() {
-        UserDefaults.standard.set(false, forKey: Constants.Storage.hasCompletedOnboarding)
+        let keys: [String] = [
+            Constants.Storage.hasCompletedOnboarding,
+            Constants.Storage.userProfile,
+            Constants.Storage.bmrResponse,
+            Constants.Storage.favoriteFoodIDs,
+            Constants.Storage.selectedDietaryFilters,
+            Constants.Storage.groceryList,
+            Constants.Storage.groceryDeals,
+            Constants.Storage.caloriesConsumedToday,
+            Constants.Storage.loggedMealEntries,
+            Constants.Storage.currentMealPlan,
+            Constants.Storage.lang
+        ]
+        keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        UserDefaults.standard.removeObject(forKey: "hasSeenWelcome")
+        UserDefaults.standard.removeObject(forKey: "lastMealPlanGeneratedDate")
+        UserDefaults.standard.removeObject(forKey: "foodLogEntries")
+        UserDefaults.standard.removeObject(forKey: "recentFoodIDs")
+        FoodLogStore.shared.clearToday()
+
+        // Wipe active global runtime architecture states safely
+        AppState.shared.weeklyMealPlan = nil
+        AppState.shared.activeDeals = []
+        AppState.shared.groceryList = []
+        AppState.shared.favoriteFoodIDs = []
+        AppState.shared.isOnboarded = false
+        AppState.shared.hasSeenWelcome = false
+        
+        // Reset local memory states immediately
+        profile = UserProfile()
+        selectedPreferences = []
+        favoriteFoodIDs = []
+        didLoad = false
     }
 }

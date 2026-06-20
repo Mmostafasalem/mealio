@@ -3,25 +3,22 @@ import SwiftUI
 struct StoreDetailSheet: View {
 
     let store: Store
-    @State var vm: StoreMapViewModel
+    @Bindable var vm: StoreMapViewModel
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    // Bridge: catalog string IDs → backend int product IDs
-    private var favProductIDs: Set<String> {
-        let strIDs = appState.favoriteFoodIDs
-        let intIDs = Food.catalog
-            .filter { strIDs.contains($0.id) }
-            .compactMap { $0.backendId.map { String($0) } }
-        return Set(intIDs)
-    }
-
+    // Deals whose name matches any favorited product name (name-based, works across all stores)
     private var favDeals: [MarketDeal] {
-        vm.storeDeals.filter { favProductIDs.contains($0.productId) }
+        let favNames = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
+        return vm.storeDeals.filter { deal in
+            let dn = deal.productName.lowercased()
+            return favNames.contains { fav in dn.contains(fav) || fav.contains(dn.prefix(8)) }
+        }
     }
 
     private var otherDeals: [MarketDeal] {
-        vm.storeDeals.filter { !favProductIDs.contains($0.productId) }
+        let favDealIDs = Set(favDeals.map(\.id))
+        return vm.storeDeals.filter { !favDealIDs.contains($0.id) }
     }
 
     var body: some View {
@@ -39,7 +36,7 @@ struct StoreDetailSheet: View {
                     Section {
                         ForEach(favDeals) { deal in
                             DealRow(deal: deal, isFav: true) {
-                                vm.addDealToList(deal)
+                                addToGrocery(deal)
                             }
                         }
                     } header: {
@@ -53,7 +50,7 @@ struct StoreDetailSheet: View {
                     Section {
                         ForEach(otherDeals) { deal in
                             DealRow(deal: deal, isFav: false) {
-                                vm.addDealToList(deal)
+                                addToGrocery(deal)
                             }
                         }
                     } header: {
@@ -99,16 +96,23 @@ struct StoreDetailSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    private func addToGrocery(_ marketDeal: MarketDeal) {
+        if let deal = appState.activeDeals.first(where: { "\($0.id)" == marketDeal.productId }) {
+            appState.addDealToGrocery(deal)
+        }
+    }
+
     private func mealPlanMatches() -> [String] {
         guard let plan = appState.weeklyMealPlan else { return [] }
         let dealNames = Set(vm.storeDeals.map { $0.productName.lowercased() })
         let today = Calendar.current.weekdaySymbols[Calendar.current.component(.weekday, from: Date()) - 1].lowercased()
-        let dayPlan = [
+        let lookup: [String: DayPlan?] = [
             "monday": plan.pirmadienis, "tuesday": plan.antradienis,
             "wednesday": plan.treciadienis, "thursday": plan.ketvirtadienis,
             "friday": plan.pentadienis, "saturday": plan.sestadienis,
             "sunday": plan.sekmadienis
-        ][today] ?? plan.pirmadienis
+        ]
+        guard let dayPlan = lookup[today] ?? plan.pirmadienis else { return [] }
 
         var matches: [String] = []
         for meal in [dayPlan.pusryciai, dayPlan.pietus, dayPlan.vakariene, dayPlan.uzkandziai].compactMap({ $0 }) {

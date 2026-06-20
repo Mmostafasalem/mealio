@@ -2,7 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>NSLocationWhenInUseUsageDescription</key>
-    <string>SmartMarket uses your location to find discount deals at stores within 1 km of you.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Backend base URL. Replace with your deployed Render URL before release,
+	     e.g. https://mealio-backend.onrender.com -->
+	<key>API_BASE_URL</key>
+	<string>https://mealio-backend.onrender.com</string>
+	<!-- Shared secret. Must match the backend's APP_API_KEY env var.
+	     Leave empty to disable auth (dev only). For production, inject this at
+	     build time via a gitignored xcconfig rather than committing it. -->
+	<key>API_KEY</key>
+	<string></string>
 </dict>
 </plist>

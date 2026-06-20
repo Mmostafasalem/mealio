@@ -22,7 +22,7 @@ struct LocationPermissionView: View {
                 VStack(spacing: 8) {
                     Text("Find deals near you")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("SmartMarket checks stores within 1 km of you for discounts on your favourite foods.")
+                    Text("Mealio checks nearby stores for discounts on your favourite foods.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

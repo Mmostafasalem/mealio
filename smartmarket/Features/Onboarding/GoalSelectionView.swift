@@ -13,16 +13,28 @@ struct GoalSelectionView: View {
                     .padding(.top, 8)
 
                 // Header with BMR result
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Your BMR")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Text("\(vm.liveBMR) kcal")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle().fill(Color.brandPrimary.opacity(0.12)).frame(width: 40, height: 40)
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(Color.brandPrimary)
+                        }
+                        Text("Step 3 of 5")
+                            .font(.caption).fontWeight(.semibold)
+                            .foregroundStyle(Color.brandPrimary)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(Color.brandPrimary.opacity(0.1), in: Capsule())
+                    }
+                    Text("Your base burn")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                    Text("\(vm.liveBMR) kcal / day")
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.brandPrimary)
-                    Text("What do you want to achieve?")
-                        .font(.title2).fontWeight(.semibold)
-                        .padding(.top, 4)
+                    Text("What's your goal?")
+                        .font(.title2).fontWeight(.bold)
+                        .padding(.top, 2)
                 }
                 .padding(.horizontal, 24)
 

@@ -11,12 +11,13 @@ final class AppState {
     var userProfile: UserProfile = UserProfile.load()
     var bmrData: BMRResponse? = AppState.loadBMR()
     var isOnboarded: Bool = UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
+    var hasSeenWelcome: Bool = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
     var lang: String = UserDefaults.standard.string(forKey: Constants.Storage.lang) ?? "en"
 
     // MARK: - Market
     var activeDeals: [Deal] = []
     var groceryList: [Deal] = AppState.loadGroceryDeals()
-    var notifiedDealIds: Set<Int> = []
+    var notifiedDealIds: Set<Int> = AppState.loadNotifiedDealIds()
     var dealNotifications: [Deal] = []
 
     // MARK: - Meal Plan
@@ -42,9 +43,14 @@ final class AppState {
 
     func saveBMR(_ bmr: BMRResponse) {
         bmrData = bmr
-        if let data = try? JSONEncoder().encode(bmr) {
-            UserDefaults.standard.set(data, forKey: Constants.Storage.bmrResponse)
-        }
+        KeychainHelper.save(bmr, key: Constants.Storage.bmrResponse)
+        // Remove legacy UserDefaults entry if migrating
+        UserDefaults.standard.removeObject(forKey: Constants.Storage.bmrResponse)
+    }
+
+    func saveNotifiedDealId(_ id: Int) {
+        notifiedDealIds.insert(id)
+        UserDefaults.standard.set(Array(notifiedDealIds), forKey: Constants.Storage.notifiedDealIds)
     }
 
     func saveMealPlan(_ plan: WeeklyMealPlan) {
@@ -82,8 +88,20 @@ final class AppState {
     // MARK: - Static loaders
 
     private static func loadBMR() -> BMRResponse? {
-        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.bmrResponse) else { return nil }
-        return try? JSONDecoder().decode(BMRResponse.self, from: data)
+        // Keychain first, fall back to UserDefaults for migration
+        if let bmr = KeychainHelper.load(BMRResponse.self, key: Constants.Storage.bmrResponse) {
+            return bmr
+        }
+        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.bmrResponse),
+              let bmr = try? JSONDecoder().decode(BMRResponse.self, from: data) else { return nil }
+        KeychainHelper.save(bmr, key: Constants.Storage.bmrResponse)
+        UserDefaults.standard.removeObject(forKey: Constants.Storage.bmrResponse)
+        return bmr
+    }
+
+    private static func loadNotifiedDealIds() -> Set<Int> {
+        let arr = UserDefaults.standard.array(forKey: Constants.Storage.notifiedDealIds) as? [Int] ?? []
+        return Set(arr)
     }
 
     private static func loadWeeklyMealPlan() -> WeeklyMealPlan? {

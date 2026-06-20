@@ -1,6 +1,7 @@
 import Foundation
 
-actor APIService {
+@MainActor
+final class APIService {
 
     static let shared = APIService()
     private init() {}
@@ -11,10 +12,25 @@ actor APIService {
         return d
     }()
 
+    // MARK: - Product catalog (all markets, with/without discount)
+
+    func fetchProducts(store: String? = nil, category: String? = nil, query: String? = nil) async throws -> [Product] {
+        var path = Constants.API.Endpoint.products
+        var params: [String] = []
+        if let store    = store,    !store.isEmpty    { params.append("store=\(store)") }
+        if let category = category, !category.isEmpty { params.append("category=\(category)") }
+        if let query    = query,    !query.isEmpty    { params.append("q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)") }
+        if !params.isEmpty { path += "?" + params.joined(separator: "&") }
+        let req = try get(path)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateResponse(response)
+        return try decoder.decode([Product].self, from: data)
+    }
+
     // MARK: - Health
 
     func checkHealth() async throws -> Bool {
-        let req = try await get(Constants.API.Endpoint.health)
+        let req = try get(Constants.API.Endpoint.health)
         let (_, response) = try await URLSession.shared.data(for: req)
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
@@ -22,37 +38,65 @@ actor APIService {
     // MARK: - Deals
 
     func getDeals() async throws -> [Deal] {
-        let req = try get(Constants.API.Endpoint.deals)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
-        return try decoder.decode([Deal].self, from: data)
+        do {
+            let req = try get(Constants.API.Endpoint.deals)
+            let (data, response) = try await URLSession.shared.data(for: req)
+            try validateResponse(response)
+            let deals = try decoder.decode([Deal].self, from: data)
+            return deals.isEmpty ? FallbackData.deals : deals
+        } catch {
+            appLog("[API] getDeals failed — using offline fallback:", error)
+            return FallbackData.deals
+        }
     }
 
     /// Fetches deals pre-filtered by proximity on the backend.
     func getDeals(near lat: Double, lon: Double, radiusKm: Double = 8) async throws -> [Deal] {
-        let path = Constants.API.Endpoint.deals + "?lat=\(lat)&lon=\(lon)&radius=\(radiusKm)"
-        let req = try get(path)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
-        return try decoder.decode([Deal].self, from: data)
+        do {
+            let path = Constants.API.Endpoint.deals + "?lat=\(lat)&lon=\(lon)&radius=\(radiusKm)"
+            let req = try get(path)
+            let (data, response) = try await URLSession.shared.data(for: req)
+            try validateResponse(response)
+            let deals = try decoder.decode([Deal].self, from: data)
+            return deals.isEmpty ? FallbackData.deals : deals
+        } catch {
+            appLog("[API] getDeals(near:) failed — using offline fallback:", error)
+            return FallbackData.deals
+        }
     }
 
     // MARK: - BMR
 
     func calculateBMR(_ request: BMRRequest) async throws -> BMRResponse {
-        let req = try post(Constants.API.Endpoint.bmr, body: request, timeout: 15)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
-        return try decoder.decode(BMRResponse.self, from: data)
+        do {
+            let req = try post(Constants.API.Endpoint.bmr, body: request, timeout: 15)
+            let (data, response) = try await URLSession.shared.data(for: req)
+            try validateResponse(response)
+            return try decoder.decode(BMRResponse.self, from: data)
+        } catch {
+            appLog("[API] calculateBMR failed — using local Mifflin-St Jeor fallback:", error)
+            return FallbackData.bmr(for: request)
+        }
     }
 
     // MARK: - Meal Plan (AI — allow up to 60s)
 
     func generateMealPlan(_ request: MealPlanRequest) async throws -> WeeklyMealPlan {
-        let req = try post(Constants.API.Endpoint.mealPlan, body: request, timeout: 60)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
-        return try decoder.decode(WeeklyMealPlan.self, from: data)
+        do {
+            let req = try post(Constants.API.Endpoint.mealPlan, body: request, timeout: 60)
+            let (data, response) = try await URLSession.shared.data(for: req)
+            try validateResponse(response)
+            return try decoder.decode(WeeklyMealPlan.self, from: data)
+        } catch {
+            appLog("[API] generateMealPlan failed — using offline fallback:", error)
+            let target: Int
+            switch request.goal {
+            case "lose": target = request.bmrData.loseCalories
+            case "gain": target = request.bmrData.gainCalories
+            default:     target = request.bmrData.maintainCalories
+            }
+            return FallbackData.mealPlan(targetKcal: target, pantry: request.groceryList)
+        }
     }
 
     // MARK: - Gap Fillers (AI)
@@ -71,6 +115,31 @@ actor APIService {
         let (data, response) = try await URLSession.shared.data(for: req)
         try validateResponse(response)
         return try decoder.decode([ShoppingAdvice].self, from: data)
+    }
+
+    func agentChat(_ request: AgentChatRequest) async throws -> AgentChatResponse {
+        let req = try post(Constants.API.Endpoint.agentChat, body: request, timeout: 30)
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateResponse(response)
+        return try decoder.decode(AgentChatResponse.self, from: data)
+    }
+
+    func fetchRecipe(mealName: String) async throws -> Recipe {
+        do {
+            let req = try post(Constants.API.Endpoint.recipe,
+                               body: RecipeRequest(mealName: mealName), timeout: 30)
+            let (data, response) = try await URLSession.shared.data(for: req)
+            try validateResponse(response)
+            return try decoder.decode(Recipe.self, from: data)
+        } catch {
+            appLog("[API] fetchRecipe failed — using offline fallback:", error)
+            return Recipe(
+                mealName: mealName, prepTime: 10, cookTime: 20, servings: 2,
+                ingredients: [RecipeIngredient(name: mealName, amount: "1 serving")],
+                steps: ["Prep your ingredients.", "Cook until done.", "Season to taste and serve."],
+                tip: "Connect to the internet for an AI-tailored recipe."
+            )
+        }
     }
 
     // MARK: - Legacy shims (used by HomeViewModel / GroceryListViewModel)
@@ -126,18 +195,20 @@ actor APIService {
 
     // MARK: - Helpers
 
-    /// GET request pre-stamped with the ngrok bypass header.
+    /// GET request with API key header.
     private func get(_ path: String) throws -> URLRequest {
         guard let url = URL(string: Constants.API.baseURL + path) else {
             throw APIError.invalidURL
         }
         var req = URLRequest(url: url)
         req.timeoutInterval = 15
-        req.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
+        if !Constants.API.appKey.isEmpty {
+            req.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key")
+        }
         return req
     }
 
-    /// POST request with JSON body, timeout, and ngrok bypass header.
+    /// POST request with JSON body, timeout, and API key header.
     private func post<T: Encodable>(_ path: String, body: T, timeout: TimeInterval) throws -> URLRequest {
         guard let url = URL(string: Constants.API.baseURL + path) else {
             throw APIError.invalidURL
@@ -145,7 +216,9 @@ actor APIService {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("true", forHTTPHeaderField: "ngrok-skip-browser-warning")
+        if !Constants.API.appKey.isEmpty {
+            req.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key")
+        }
         req.httpBody = try JSONEncoder().encode(body)
         req.timeoutInterval = timeout
         return req

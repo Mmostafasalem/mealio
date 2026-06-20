@@ -1,0 +1,4 @@
+# Mealio backend dependencies
+groq>=1.4,<2
+flask>=3.0,<4
+gunicorn>=21,<24

@@ -21,7 +21,7 @@ struct AgentMessageCardView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("SmartMarket Agent")
+                Text("Mealio Agent")
                     .font(.caption).fontWeight(.semibold)
                     .foregroundStyle(Color.brandDark)
 

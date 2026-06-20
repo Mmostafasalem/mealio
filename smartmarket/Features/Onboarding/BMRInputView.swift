@@ -17,10 +17,24 @@ struct BMRInputView: View {
                     .padding(.top, 8)
 
                 // Header
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Tell us about yourself")
-                        .font(.largeTitle).fontWeight(.bold)
-                    Text("We use this to calculate your daily calorie needs.")
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            Circle().fill(Color.brandPrimary.opacity(0.12)).frame(width: 40, height: 40)
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(Color.brandPrimary)
+                        }
+                        Text("Step 1 of 5")
+                            .font(.caption).fontWeight(.semibold)
+                            .foregroundStyle(Color.brandPrimary)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(Color.brandPrimary.opacity(0.1), in: Capsule())
+                    }
+                    Text("Tell us about\nyourself")
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .lineSpacing(2)
+                    Text("We use this to calculate your personal daily calorie needs.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -168,7 +182,6 @@ private struct SliderRow: View {
                 Text(label)
                     .font(.subheadline).fontWeight(.medium)
                 Spacer()
-                // Editable text field showing the current value
                 HStack(spacing: 4) {
                     TextField("", text: $textValue)
                         .keyboardType(.decimalPad)
@@ -177,16 +190,7 @@ private struct SliderRow: View {
                         .foregroundStyle(Color.brandPrimary)
                         .focused($focused)
                         .frame(width: 56)
-                        .onChange(of: textValue) { _, new in
-                            let normalised = new.replacingOccurrences(of: ",", with: ".")
-                            if let v = Double(normalised) {
-                                let clamped = min(max(v, range.lowerBound), range.upperBound)
-                                // Round to step
-                                let rounded = (clamped / step).rounded() * step
-                                if rounded != value { value = rounded }
-                            }
-                        }
-                        .onSubmit { syncText() }
+                        .onSubmit { commitText() }
                     Text(unit)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -208,9 +212,8 @@ private struct SliderRow: View {
         }
         .padding(.horizontal, 24)
         .onAppear { syncText() }
-        // When focus leaves the field, snap to nearest valid value
         .onChange(of: focused) { _, isFocused in
-            if !isFocused { syncText() }
+            if !isFocused { commitText() }
         }
     }
 
@@ -218,6 +221,16 @@ private struct SliderRow: View {
         textValue = step < 1
             ? String(format: "%.1f", value)
             : String(format: "%.0f", value)
+    }
+
+    private func commitText() {
+        let normalised = textValue.replacingOccurrences(of: ",", with: ".")
+        if let v = Double(normalised) {
+            let clamped = min(max(v, range.lowerBound), range.upperBound)
+            let rounded = (clamped / step).rounded() * step
+            value = rounded
+        }
+        syncText()
     }
 }
 

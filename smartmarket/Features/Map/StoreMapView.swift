@@ -31,7 +31,7 @@ struct StoreMapView: View {
             .mapControls { }                     // suppress default controls — we add our own
             .ignoresSafeArea()
             .onAppear { vm.load(appState: appState) }
-            .onChange(of: appState.activeDeals) { vm.refreshDeals(appState: appState) }
+            .onChange(of: appState.activeDeals) { _, _ in vm.refreshDeals(appState: appState) }
 
             // MARK: Overlay controls (bottom-right, above tab bar)
             VStack(spacing: 12) {
@@ -48,7 +48,7 @@ struct StoreMapView: View {
                         .shadow(radius: 4)
                 }
 
-                // Nearby / All toggle
+                // Nearby / All toggle (disabled when no location fix yet)
                 Button {
                     vm.showNearbyOnly.toggle()
                     vm.refreshDeals(appState: appState)

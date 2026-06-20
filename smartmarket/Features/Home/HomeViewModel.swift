@@ -8,23 +8,53 @@ final class HomeViewModel {
     var deals: [MarketDeal] = []
     var mealPlan: MealPlan?
     var isLoading = false
+    var isRefreshing = false  // true while background fetch is running over stale data
     var errorMessage: String?
     var profile: UserProfile = .load()
-    var consumed: Int = UserDefaults.standard.integer(forKey: Constants.Storage.caloriesConsumedToday)
     var groceryList: [GroceryItem] = GroceryStorage.load()
     var activeDealBanner: MarketDeal?
     var showLogSheet = false
-    var loggedMealEntries: Set<String> = {
-        Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.loggedMealEntries) ?? [])
-    }()
+    var logSheetSlot: MealSlot?          // pre-selects a slot when opening the log sheet
+    var showAgentChat = false
+    var chatMessages: [ChatMessage] = []
+    var chatInput = ""
+    var isChatLoading = false
 
-    private var favoriteFoodIDs: Set<String> = Set(
-        UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? []
-    )
+    private let log = FoodLogStore.shared
+
+    private var favoriteFoodIDs: Set<String> = {
+        Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+    }()
 
     var goal: Int { max(profile.dailyCalorieGoal, 1) }
 
-    // Cached — recomputed only in load(), not on every render pass.
+    // MARK: - Logged totals (single source of truth = FoodLogStore)
+
+    var consumed: Int { log.totalCalories }
+    var remaining: Int { max(goal - log.totalCalories, 0) }
+    var proteinCurrent: Double { log.totalProtein }
+    var carbsCurrent: Double { log.totalCarbs }
+    var fatCurrent: Double { log.totalFat }
+
+    func entries(for slot: MealSlot) -> [FoodLogEntry] { log.entries(for: slot) }
+    func calories(for slot: MealSlot) -> Int { log.calories(for: slot) }
+
+    /// Today's generated plan meals for a slot — for one-tap logging.
+    func plannedEntries(for slot: MealSlot) -> [MealEntry] {
+        guard let plan = mealPlan else { return [] }
+        switch slot {
+        case .breakfast: return plan.breakfast
+        case .lunch:     return plan.lunch
+        case .dinner:    return plan.dinner
+        case .snack:     return plan.snacks
+        }
+    }
+
+    var recentFoods: [Food] {
+        log.recentFoodIDs.compactMap { id in Food.catalog.first { $0.id == id } }
+    }
+
+    // Cached macro targets — recomputed in load(), not on every render pass.
     private(set) var proteinGoal: Double = 0
     private(set) var carbsGoal: Double   = 0
     private(set) var fatGoal: Double     = 0
@@ -37,27 +67,21 @@ final class HomeViewModel {
         fatGoal     = Double(t.fatG)
     }
 
-    var proteinCurrent: Double { mealPlan?.totalProteinG ?? 0 }
-    var carbsCurrent: Double { mealPlan?.totalCarbsG ?? 0 }
-    var fatCurrent: Double { mealPlan?.totalFatG ?? 0 }
-
-    /// Deals filtered to stores within 1 km of the user. Falls back to all when location is unavailable.
+    /// Deals filtered to stores within 8 km. Falls back to all deals when location is unavailable.
     var nearbyDeals: [MarketDeal] {
-        deals.filter { LocationService.shared.isNearby($0.store, radius: 1000) }
+        guard let _ = LocationService.shared.userLocation else { return deals }
+        return deals.filter { LocationService.shared.isNearby($0.store, radius: 8_000) }
     }
 
     init() {
         NotificationCenter.default.addObserver(
-            forName: .groceryListDidChange,
-            object: nil,
-            queue: .main
+            forName: .groceryListDidChange, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.groceryList = GroceryStorage.load()
+            Task { @MainActor [weak self] in self?.groceryList = GroceryStorage.load() }
         }
+
         NotificationCenter.default.addObserver(
-            forName: .mealPlanDidUpdate,
-            object: nil,
-            queue: .main
+            forName: .mealPlanDidUpdate, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 if let weekly = AppState.shared.weeklyMealPlan {
@@ -70,43 +94,57 @@ final class HomeViewModel {
     // MARK: - Loading
 
     func load() async {
-        guard deals.isEmpty && mealPlan == nil else { return }
-
-        // Read from UserDefaults only once — at cold start.
-        profile = .load()
+        log.reload()                       // daily reset handled by the store
+        if profile.name.isEmpty { profile = .load() }
         groceryList = GroceryStorage.load()
         favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
-        consumed = UserDefaults.standard.integer(forKey: Constants.Storage.caloriesConsumedToday)
-        loggedMealEntries = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.loggedMealEntries) ?? [])
         refreshMacroTargets()
         errorMessage = nil
 
-        isLoading = true
+        // Stale-while-revalidate: show cached data instantly, fetch fresh in background
+        if deals.isEmpty {
+            if let cached = await CacheService.shared.getStale([MarketDeal].self, key: CacheService.Keys.deals) {
+                deals = cached
+            }
+        }
+        if mealPlan == nil, let weekly = AppState.shared.weeklyMealPlan {
+            mealPlan = MealPlan.from(weekly: weekly)
+        }
+
+        isLoading = deals.isEmpty
+        isRefreshing = !deals.isEmpty
 
         async let dealsResult = loadDeals()
         async let planResult = loadPlan()
         let (loadedDeals, loadedPlan) = await (dealsResult, planResult)
 
         deals = loadedDeals
-        mealPlan = loadedPlan
+        if mealPlan == nil { mealPlan = loadedPlan }
         isLoading = false
+        isRefreshing = false
 
         pickBanner()
         await checkAndNotifyFavouriteDeals()
     }
 
     func refresh() async {
+        await CacheService.shared.invalidate(key: CacheService.Keys.deals)
         deals = []
         mealPlan = nil
         await load()
     }
 
-    /// Network failures fall back to mocked deals silently.
+    /// Fetches fresh deals and updates the cache; falls back to stale cache then mocks.
     private func loadDeals() async -> [MarketDeal] {
         do {
-            return try await APIService.shared.fetchMarketDeals()
+            let result = try await APIService.shared.fetchMarketDeals()
+            await CacheService.shared.set(result, key: CacheService.Keys.deals, ttl: CacheService.TTL.deals)
+            return result
         } catch {
-            print("[Home] deals fetch failed, using mock:", error)
+            appLog("[Home] deals fetch failed:", error)
+            if let stale = await CacheService.shared.getStale([MarketDeal].self, key: CacheService.Keys.deals) {
+                return stale
+            }
             return MarketDeal.mocked
         }
     }
@@ -126,16 +164,55 @@ final class HomeViewModel {
         activeDealBanner = deals.first { favorites.contains($0.productId) } ?? deals.first
     }
 
+    // MARK: - Food logging (local, optimistic)
+
+    func logFood(_ food: Food, slot: MealSlot, grams: Int) {
+        let f = Double(grams) / 100.0
+        let entry = FoodLogEntry(
+            foodId:   food.id,
+            name:     food.displayName,
+            slot:     slot,
+            servingG: grams,
+            calories: Int((Double(food.caloriesPer100g) * f).rounded()),
+            proteinG: (food.proteinPer100g * f).rounded(),
+            carbsG:   (food.carbsPer100g * f).rounded(),
+            fatG:     (food.fatPer100g * f).rounded()
+        )
+        log.add(entry)   // observable → ring + macros update instantly
+    }
+
+    /// Logs a meal-plan entry straight from the plan preview.
+    func logPlanned(_ entry: MealEntry, slot: MealSlot) {
+        log.add(FoodLogEntry(
+            name: entry.foodName, slot: slot, servingG: entry.portionG,
+            calories: entry.calories, proteinG: entry.proteinG,
+            carbsG: entry.carbsG, fatG: entry.fatG
+        ))
+    }
+
+    func removeLog(_ entry: FoodLogEntry) { log.remove(entry) }
+
+    func openLog(slot: MealSlot? = nil) {
+        logSheetSlot = slot
+        showLogSheet = true
+    }
+
     // MARK: - Deal notifications
 
     private func checkAndNotifyFavouriteDeals() async {
         guard UserDefaults.standard.bool(forKey: "dealAlertsEnabled") else { return }
         await NotificationService.shared.checkPermission()
-        guard NotificationService.shared.permissionGranted else { return }
+        guard NotificationService.shared.authorizationStatus == .authorized else { return }
 
         let nearby = nearbyDeals
         for deal in nearby where favoriteFoodIDs.contains(deal.productId) {
-            await NotificationService.shared.scheduleDealNotification(for: deal)
+            if let backingDeal = AppState.shared.activeDeals.first(where: { "\($0.id)" == deal.productId }) {
+                NotificationService.shared.scheduleDealNotification(
+                    for: backingDeal,
+                    storeName: deal.store.name,
+                    storeId: deal.store.id
+                )
+            }
         }
     }
 
@@ -161,51 +238,40 @@ final class HomeViewModel {
         activeDealBanner = nil
     }
 
-    func dismissBanner() {
-        activeDealBanner = nil
-    }
+    func dismissBanner() { activeDealBanner = nil }
 
-    // MARK: - Calorie logging
+    // MARK: - Agent Chat Interaction
 
-    func logMealEntry(_ entry: MealEntry) {
-        guard !loggedMealEntries.contains(entry.id) else { return }
-        loggedMealEntries.insert(entry.id)
-        consumed += entry.calories
-        UserDefaults.standard.set(consumed, forKey: Constants.Storage.caloriesConsumedToday)
-        UserDefaults.standard.set(Array(loggedMealEntries), forKey: Constants.Storage.loggedMealEntries)
-    }
+    func sendChatMessage() async {
+        let text = chatInput.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty, !isChatLoading else { return }
 
-    func isLogged(_ entry: MealEntry) -> Bool {
-        loggedMealEntries.contains(entry.id)
-    }
+        chatInput = ""
+        chatMessages.append(ChatMessage(role: "user", content: text))
+        isChatLoading = true
+        defer { isChatLoading = false }
 
-    func resetDailyLog() {
-        consumed = 0
-        loggedMealEntries = []
-        UserDefaults.standard.set(0, forKey: Constants.Storage.caloriesConsumedToday)
-        UserDefaults.standard.set([String](), forKey: Constants.Storage.loggedMealEntries)
-    }
-}
+        let appState = AppState.shared
+        let goalStr = appState.userProfile.weightGoal.rawValue
+        let target = appState.bmrData?.maintainCalories ?? 2000
+        let favNames = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
 
-/// Shared encode/decode for the grocery list stored in UserDefaults.
-enum GroceryStorage {
-    static func load() -> [GroceryItem] {
-        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.groceryList),
-              let items = try? JSONDecoder().decode([GroceryItem].self, from: data)
-        else { return [] }
-        return items
-    }
+        let history = chatMessages.dropLast().map {
+            AgentChatHistoryItem(role: $0.role, content: $0.content)
+        }
+        let context = AgentUserContext(
+            goal: goalStr,
+            targetCalories: target,
+            caloriesConsumed: consumed,
+            favoriteFoods: favNames
+        )
+        let request = AgentChatRequest(message: text, history: Array(history), userContext: context)
 
-    static func save(_ items: [GroceryItem]) {
-        guard let data = try? JSONEncoder().encode(items) else { return }
-        UserDefaults.standard.set(data, forKey: Constants.Storage.groceryList)
-    }
-
-    static func add(_ item: GroceryItem) {
-        var list = load()
-        guard !list.contains(where: { $0.id == item.id }) else { return }
-        list.append(item)
-        save(list)
+        do {
+            let response = try await APIService.shared.agentChat(request)
+            chatMessages.append(ChatMessage(role: "assistant", content: response.reply))
+        } catch {
+            chatMessages.append(ChatMessage(role: "assistant", content: "Sorry, I couldn't reach the agent. Please try again."))
+        }
     }
 }
-

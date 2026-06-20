@@ -26,13 +26,25 @@ final class MealPlanViewModel {
     // MARK: - Today's plan
 
     func loadTodaysPlan() async {
-        guard todaysPlan == nil else { return }
-        await fetchTodaysPlan()
+        // Always apply the latest plan from AppState (covers agent-regenerated plans).
+        if let weekly = AppState.shared.weeklyMealPlan {
+            todaysPlan = MealPlan.from(weekly: weekly)
+            return
+        }
+        // Only hit the network if we have no plan at all yet.
+        if todaysPlan == nil {
+            await fetchTodaysPlan()
+        }
     }
 
     func regenerate() async {
-        todaysPlan = nil
+        todaysPlan  = nil
+        weekPlans   = []
         errorMessage = nil
+        // Clear cache and daily-refresh gate so backend is always hit fresh
+        UserDefaults.standard.removeObject(forKey: Constants.Storage.currentMealPlan)
+        UserDefaults.standard.removeObject(forKey: "lastMealPlanGeneratedDate")
+        AppState.shared.weeklyMealPlan = nil
         await fetchTodaysPlan()
     }
 
@@ -44,13 +56,13 @@ final class MealPlanViewModel {
         defer { isGenerating = false }
         do {
             // Read actual user preferences
-            let favStringIDs = AppState.shared.favoriteFoodIDs
-            let favBackendIDs: [Int] = Food.catalog
-                .filter { favStringIDs.contains($0.id) }
-                .compactMap { $0.backendId }
+            let favNames = ProductCatalogService.shared.nameFor(ids: AppState.shared.favoriteFoodIDs)
             let dietaryPrefs = Set<DietaryPreference>.load()
-            let dietOptions = dietaryPrefs.map { $0.rawValue }
+            let dietOptions = dietaryPrefs.filter { !$0.isAllergy }.map { $0.rawValue }
             let allergies = dietaryPrefs.filter { $0.isAllergy }.map { $0.rawValue }
+            // Prefer the Shop cart (what the user is buying) for the plan.
+            let cartDeals = ShoppingCartService.shared.planDeals()
+            let groceriesForPlan = cartDeals.isEmpty ? AppState.shared.groceryList : cartDeals
 
             let request = MealPlanRequest(
                 user: MealPlanUser(
@@ -63,7 +75,7 @@ final class MealPlanViewModel {
                     activityLevel:  profile.activityLevel.rawValue,
                     dietaryOptions: dietOptions,
                     allergies:      allergies,
-                    favoriteFoods:  favBackendIDs
+                    favoriteFoods:  favNames
                 ),
                 bmrData: AppState.shared.bmrData ?? BMRResponse(
                     bmr:              Int(profile.bmr),
@@ -73,7 +85,7 @@ final class MealPlanViewModel {
                     gainCalories:     Int(profile.tdee) + 350,
                     macros: BMRResponse.MacroTargets(protein: 150, carbs: 200, fat: 60)
                 ),
-                groceryList: AppState.shared.groceryList,
+                groceryList: groceriesForPlan,
                 goal: profile.weightGoal.rawValue,
                 lang: AppState.shared.lang
             )
@@ -81,7 +93,7 @@ final class MealPlanViewModel {
             todaysPlan = MealPlan.from(weekly: weekly)
             AppState.shared.saveMealPlan(weekly)
         } catch {
-            print("[MealPlan] load failed:", error)
+            appLog("[MealPlan] load failed:", error)
             errorMessage = "Could not load your meal plan. Tap to retry."
         }
     }
@@ -114,7 +126,7 @@ final class MealPlanViewModel {
                 )
             }
         } catch {
-            print("[MealPlan] recommendations failed:", error)
+            appLog("[MealPlan] recommendations failed:", error)
             recommendations = []
         }
     }
@@ -128,14 +140,14 @@ final class MealPlanViewModel {
         let targets = BMRCalculator.macroTargets(calories: goal, isKeto: isKeto)
 
         var calories = 0.0, protein = 0.0, carbs = 0.0, fat = 0.0
-        let catalog = Self.foodCatalogIndex
+        let index = productCatalogIndex
         for item in groceryList {
-            guard let food = catalog[item.foodId] else { continue }
-            let factor = Double(food.servingSizeG) / 100.0
-            calories += Double(food.caloriesPer100g) * factor
-            protein  += food.proteinPer100g * factor
-            carbs    += food.carbsPer100g * factor
-            fat      += food.fatPer100g * factor
+            guard let product = index[item.foodId] else { continue }
+            let factor = 200.0 / 100.0  // assume 200g serving if not specified
+            calories += Double(product.kcalPer100g) * factor
+            protein  += product.proteinPer100g * factor
+            carbs    += product.carbsPer100g * factor
+            fat      += product.fatPer100g * factor
         }
 
         return NutritionalGaps(
@@ -148,16 +160,61 @@ final class MealPlanViewModel {
 
     // MARK: - Week plan
 
-    private static let foodCatalogIndex = Dictionary(uniqueKeysWithValues: Food.catalog.map { ($0.id, $0) })
+    // Nutritional gap computation uses the live catalog for accurate macro data
+    private var productCatalogIndex: [String: Product] {
+        Dictionary(uniqueKeysWithValues: ProductCatalogService.shared.products.map { ($0.id, $0) })
+    }
 
     func loadWeekPlans() async {
-        guard weekPlans.isEmpty else { return }
-        // Use persisted plan if available, falling back to mocks in DEBUG
+
+        func buildWeekPlans(from weekly: WeeklyMealPlan) -> [MealPlan] {
+            let dayPlans: [DayPlan?] = [
+                weekly.sekmadienis,
+                weekly.pirmadienis,
+                weekly.antradienis,
+                weekly.treciadienis,
+                weekly.ketvirtadienis,
+                weekly.pentadienis,
+                weekly.sestadienis
+            ]
+            let _ = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+            return dayPlans.enumerated().compactMap { idx, day in
+                guard let day else { return nil }
+                func entry(_ item: MealItem?) -> [MealEntry] {
+                    guard let item else { return [] }
+                    return [MealEntry(id: UUID().uuidString,
+                                     foodName: item.pavadinimas,
+                                     portionG: 0,
+                                     calories: item.kcal,
+                                     proteinG: 0,
+                                     carbsG:   0,
+                                     fatG:     0,
+                                     notes:    item.ingredientai.joined(separator: ", "))]
+                }
+                return MealPlan(id: UUID().uuidString,
+                                date: Calendar.current.date(byAdding: .day, value: idx, to: Date()) ?? Date(),
+                                breakfast: entry(day.pusryciai),
+                                lunch:     entry(day.pietus),
+                                dinner:    entry(day.vakariene),
+                                snacks:    entry(day.uzkandziai),
+                                totalCalories:  day.visoKcal ?? 0,
+                                totalProteinG:  0,
+                                totalCarbsG:    0,
+                                totalFatG:      0,
+                                agentNotes:     weekly.agentMessage ?? "")
+            }
+        }
+
+        // Try persisted WeeklyMealPlan
         if let data = UserDefaults.standard.data(forKey: Constants.Storage.currentMealPlan),
-           let saved = try? JSONDecoder().decode([MealPlan].self, from: data),
-           !saved.isEmpty {
-            weekPlans = saved
-            return
+           let weekly = try? JSONDecoder().decode(WeeklyMealPlan.self, from: data) {
+            let plans = buildWeekPlans(from: weekly)
+            if !plans.isEmpty { weekPlans = plans; return }
+        }
+        // Try in-memory AppState
+        if let weekly = AppState.shared.weeklyMealPlan {
+            let plans = buildWeekPlans(from: weekly)
+            if !plans.isEmpty { weekPlans = plans; return }
         }
         #if DEBUG
         weekPlans = Self.mockedWeekPlans(goal: goal)
@@ -165,7 +222,7 @@ final class MealPlanViewModel {
     }
 
     private static func mockedWeekPlans(goal: Int) -> [MealPlan] {
-        let template: [(String, [(String, Int, Double, Double, Double, String?)])] = [
+        let _: [(String, [(String, Int, Double, Double, Double, String?)])] = [
             ("Breakfast", [("Oats with banana", 350, 12, 55, 6, nil)]),
             ("Lunch",     [("Chicken breast with rice", 550, 45, 60, 10, "Grilled")]),
             ("Dinner",    [("Salmon with vegetables", 480, 38, 30, 18, "Baked")]),

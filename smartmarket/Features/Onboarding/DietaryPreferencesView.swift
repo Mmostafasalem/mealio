@@ -39,8 +39,9 @@ struct DietaryPreferencesView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Other allergies or restrictions", systemImage: "square.and.pencil")
                         .font(.subheadline).fontWeight(.medium)
-                    TextField("e.g. sesame, mustard, sulfites...", text: $vm.otherAllergies, axis: .vertical)
-                        .lineLimit(2...4)
+                    TextField("e.g. sesame, mustard, sulfites...", text: $vm.otherAllergies)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
                         .padding(12)
                         .background(Color.surfaceSecondary)
                         .clipShape(RoundedRectangle(cornerRadius: 12))

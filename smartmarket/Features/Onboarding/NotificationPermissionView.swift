@@ -41,7 +41,7 @@ struct NotificationPermissionView: View {
             VStack(spacing: 12) {
                 Button {
                     Task {
-                        await NotificationService.shared.requestPermission()
+                        _ = await NotificationService.shared.requestPermission()
                         vm.path.append(OnboardingStep.favorites)
                     }
                 } label: {

@@ -1,7 +1,7 @@
 import Foundation
 
 // MARK: - Store
-struct Store: Codable, Identifiable {
+struct Store: Codable, Identifiable, Hashable {
     let id: String
     let chain: String          // "Maxima", "Iki", "Rimi", "Lidl", "Norfa"
     let name: String
@@ -9,7 +9,16 @@ struct Store: Codable, Identifiable {
     let latitude: Double
     let longitude: Double
 
-    var chainIcon: String { String(chain.prefix(1)) }
+    var chainIcon: String {
+        switch chain {
+        case "Rimi":   return "🛒"
+        case "Maxima": return "🏪"
+        case "Lidl":   return "🛍️"
+        case "Iki":    return "🥬"
+        case "Norfa":  return "🧺"
+        default:       return "🏬"
+        }
+    }
 
     var chainColor: String {
         switch chain {
@@ -24,7 +33,7 @@ struct Store: Codable, Identifiable {
 }
 
 // MARK: - Market deal
-struct MarketDeal: Codable, Identifiable {
+struct MarketDeal: Codable, Identifiable, Hashable {
     let id: String
     let store: Store
     let productId: String

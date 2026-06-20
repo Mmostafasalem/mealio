@@ -25,13 +25,13 @@ final class OnboardingViewModel {
     var selectedPreferences: Set<DietaryPreference> = []
     var otherAllergies: String = ""
 
-    // MARK: - Step 4: Favorite foods
+    // MARK: - Step 4: Favorite foods (static catalog, no network required)
     var favoriteFoodIDs: Set<String> = []
-    var selectedCategory: FoodCategory = .all
+    var selectedCategory: CatalogCategory? = nil   // nil = show all
     var foodSearchQuery: String = "" {
         didSet { scheduleFilter() }
     }
-    private(set) var filteredFoods: [Food] = Food.catalog
+    private(set) var filteredItems: [CatalogItem] = CatalogItem.all
     @ObservationIgnored private var filterTask: Task<Void, Never>?
 
     // MARK: - Backend BMR (fetched after user fills in stats)
@@ -70,33 +70,32 @@ final class OnboardingViewModel {
         return liveDailyGoal <= floor
     }
 
-    // MARK: - Filtered food list
-    func applyFilter(category: FoodCategory? = nil) {
-        let cat = category ?? selectedCategory
-        if let category { selectedCategory = category }
-        scheduleFilter(category: cat)
+    // MARK: - Catalog filtering (synchronous — catalog is static)
+
+    func applyFilter(category: CatalogCategory?) {
+        selectedCategory = category
+        scheduleFilter()
     }
 
-    private func scheduleFilter(category: FoodCategory? = nil) {
+    private func scheduleFilter() {
         filterTask?.cancel()
         filterTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
-            let cat  = category ?? selectedCategory
             let q    = foodSearchQuery.lowercased()
-            let base = cat == .all ? Food.catalog : Food.catalog.filter { $0.category == cat }
-            filteredFoods = q.isEmpty ? base : base.filter {
-                $0.name.lowercased().contains(q) || $0.nameEn.lowercased().contains(q)
-            }
+            var base = CatalogItem.all
+            if let cat = selectedCategory { base = base.filter { $0.category == cat } }
+            if !q.isEmpty { base = base.filter { $0.name.lowercased().contains(q) } }
+            filteredItems = base
         }
     }
 
     var favoritesCount: Int { favoriteFoodIDs.count }
     var canFinish: Bool { favoritesCount >= Constants.Onboarding.minimumFavorites }
 
-    func toggleFavorite(_ food: Food) {
-        if favoriteFoodIDs.contains(food.id) { favoriteFoodIDs.remove(food.id) }
-        else { favoriteFoodIDs.insert(food.id) }
+    func toggleFavorite(_ item: CatalogItem) {
+        if favoriteFoodIDs.contains(item.id) { favoriteFoodIDs.remove(item.id) }
+        else { favoriteFoodIDs.insert(item.id) }
     }
 
     func togglePreference(_ pref: DietaryPreference) {
@@ -148,7 +147,7 @@ final class OnboardingViewModel {
                         lastName.trimmingCharacters(in: .whitespaces)]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        profile.name          = fullName.isEmpty ? "SmartMarket User" : fullName
+        profile.name          = fullName.isEmpty ? "Mealio User" : fullName
         profile.weight        = weight
         profile.height        = height
         profile.age           = age

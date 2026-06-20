@@ -27,37 +27,53 @@ struct ProfileView: View {
                 Text("This will clear all your data. Continue?")
             }
         }
-        .onAppear { vm.load() }
+        .onAppear {
+            vm.load()
+        }
     }
 
     private var headerSection: some View {
         Section {
-            HStack(spacing: 14) {
-                Text(vm.initials)
-                    .font(.title2).fontWeight(.bold)
-                    .foregroundStyle(.white)
-                    .frame(width: 56, height: 56)
-                    .background(Color.brandPrimary)
-                    .clipShape(Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(vm.profile.name.isEmpty ? "SmartMarket User" : vm.profile.name)
+            HStack(spacing: 16) {
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.brandPrimary, Color.brandDark],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    Text(vm.initials)
+                        .font(.title2).fontWeight(.bold)
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 60, height: 60)
+                .clipShape(Circle())
+                .shadow(color: Color.brandPrimary.opacity(0.4), radius: 8, x: 0, y: 4)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(vm.profile.name.isEmpty ? "Mealio User" : vm.profile.name)
                         .font(.headline)
-                    Text(vm.profile.email.isEmpty ? "Vilnius, Lithuania" : vm.profile.email)
-                        .font(.caption).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.brandPrimary)
+                        Text(vm.profile.email.isEmpty ? "Vilnius, Lithuania" : vm.profile.email)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 6)
         }
     }
 
     private var statsSection: some View {
         Section {
-            HStack(spacing: 12) {
-                MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal")
-                MetricTile(title: "Daily Goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal")
-                MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "")
+            HStack(spacing: 10) {
+                MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
+                MetricTile(title: "Daily Goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
+                MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            .listRowBackground(Color.clear)
         }
     }
 
@@ -102,22 +118,33 @@ private struct MetricTile: View {
     let title: String
     let value: String
     let unit: String
+    var icon: String = ""
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 6) {
+            if !icon.isEmpty {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.brandPrimary)
+            }
             Text(value)
-                .font(.headline)
+                .font(.system(.headline, design: .rounded))
+                .fontWeight(.bold)
                 .foregroundStyle(Color.brandPrimary)
-                .lineLimit(1).minimumScaleFactor(0.6)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             if !unit.isEmpty {
                 Text(unit).font(.caption2).foregroundStyle(.secondary)
             }
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(title)
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(Color.brandPrimary.opacity(0.07))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.vertical, 16)
+        .background(Color.brandPrimary.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

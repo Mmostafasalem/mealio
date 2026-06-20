@@ -115,14 +115,32 @@ extension MealPlan {
         ]
         guard today >= 1 && today <= 7, let day = dayPlans[today - 1] else { return nil }
 
-        func entry(_ item: MealItem?) -> [MealEntry] {
+        // Use stored BMR macro targets to estimate per-meal macros proportionally
+        let bmrMacros = AppState.shared.bmrData?.macros
+        let targetKcal = Double(AppState.shared.bmrData?.loseCalories ?? AppState.shared.bmrData?.maintainCalories ?? 1800)
+        let dayKcal = Double(day.visoKcal ?? Int(targetKcal))
+
+        func scaledMacro(_ target: Double) -> Double {
+            guard targetKcal > 0 else { return 0 }
+            return (target * dayKcal / targetKcal).rounded()
+        }
+
+        let totalProtein = scaledMacro(Double(bmrMacros?.protein ?? 150))
+        let totalCarbs   = scaledMacro(Double(bmrMacros?.carbs   ?? 200))
+        let totalFat     = scaledMacro(Double(bmrMacros?.fat     ?? 60))
+
+        func entry(_ item: MealItem?, mealFraction: Double) -> [MealEntry] {
             guard let item else { return [] }
+            let kcal = item.kcal
+            let fraction = dayKcal > 0 ? Double(kcal) / dayKcal : mealFraction
             return [MealEntry(
                 id: UUID().uuidString,
                 foodName: item.pavadinimas,
-                portionG: 0,
-                calories: item.kcal,
-                proteinG: 0, carbsG: 0, fatG: 0,
+                portionG: Int((Double(kcal) / 2.0).rounded()),
+                calories: kcal,
+                proteinG: (totalProtein * fraction).rounded(),
+                carbsG:   (totalCarbs   * fraction).rounded(),
+                fatG:     (totalFat     * fraction).rounded(),
                 notes: item.ingredientai.joined(separator: ", ")
             )]
         }
@@ -130,14 +148,14 @@ extension MealPlan {
         return MealPlan(
             id: UUID().uuidString,
             date: Date(),
-            breakfast: entry(day.pusryciai),
-            lunch:     entry(day.pietus),
-            dinner:    entry(day.vakariene),
-            snacks:    entry(day.uzkandziai),
+            breakfast: entry(day.pusryciai, mealFraction: 0.25),
+            lunch:     entry(day.pietus,    mealFraction: 0.35),
+            dinner:    entry(day.vakariene, mealFraction: 0.30),
+            snacks:    entry(day.uzkandziai, mealFraction: 0.10),
             totalCalories:  day.visoKcal ?? 0,
-            totalProteinG:  0,
-            totalCarbsG:    0,
-            totalFatG:      0,
+            totalProteinG:  totalProtein,
+            totalCarbsG:    totalCarbs,
+            totalFatG:      totalFat,
             agentNotes:     weekly.agentMessage ?? ""
         )
     }

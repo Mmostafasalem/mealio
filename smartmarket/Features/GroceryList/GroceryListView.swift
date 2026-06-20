@@ -2,7 +2,7 @@ import SwiftUI
 
 struct GroceryListView: View {
 
-    @Binding var selectedTab: Int
+    @Environment(\.dismiss) private var dismiss
     @State private var vm = GroceryListViewModel()
     @State private var showClearAlert = false
 
@@ -10,7 +10,7 @@ struct GroceryListView: View {
         NavigationStack {
             Group {
                 if vm.items.isEmpty {
-                    EmptyGroceryView { selectedTab = 0 }
+                    EmptyGroceryView { dismiss() }
                 } else {
                     listContent
                 }
@@ -48,7 +48,7 @@ struct GroceryListView: View {
                     Section {
                         ForEach(vm.groupedByStore[store] ?? []) { item in
                             GroceryRow(item: item) { vm.toggleBought(item) }
-                                .swipeActions {
+                                .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
                                         vm.deleteItem(item)
                                     } label: {
@@ -69,6 +69,16 @@ struct GroceryListView: View {
 
             FooterBar(total: vm.totalEstimatedCost, count: vm.items.count)
         }
+        .overlay(alignment: .bottom) {
+            if let deleted = vm.recentlyDeletedItem {
+                UndoToast(message: "\(deleted.foodName) removed") {
+                    vm.undoDelete()
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 90)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: vm.recentlyDeletedItem?.id)
     }
 }
 
@@ -99,9 +109,8 @@ private struct GroceryRow: View {
             }
             Spacer()
             Text(String(format: "€%.2f", item.estimatedPrice))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(item.isBought ? .tertiary : .secondary)
         }
         .padding(.vertical, 2)
     }
@@ -114,9 +123,23 @@ private struct StoreHeaderView: View {
     let count: Int
     let cost: Double
 
+    private var storeColor: Color {
+        switch store.lowercased() {
+        case let s where s.contains("rimi"):   return Color(hex: "#DC2626")
+        case let s where s.contains("maxima"): return Color(hex: "#0055A5")
+        case let s where s.contains("lidl"):   return Color(hex: "#0050AA")
+        case let s where s.contains("iki"):    return Color(hex: "#8B5CF6")
+        default:                               return Color.brandPrimary
+        }
+    }
+
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(storeColor)
+                .frame(width: 8, height: 8)
             Text(store)
+                .fontWeight(.semibold)
             Spacer()
             Text("\(count) item\(count == 1 ? "" : "s") · ~€\(cost, specifier: "%.2f")")
         }
@@ -132,24 +155,28 @@ private struct FooterBar: View {
     let count: Int
 
     var body: some View {
-        HStack {
+        HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Estimated total")
                     .font(.caption).foregroundStyle(.secondary)
                 Text(String(format: "€%.2f", total))
-                    .font(.title3).fontWeight(.bold)
+                    .font(.title2).fontWeight(.bold)
                     .foregroundStyle(Color.brandPrimary)
                     .monospacedDigit()
             }
             Spacer()
-            Text("\(count) item\(count == 1 ? "" : "s")")
-                .font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Items")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("\(count)")
+                    .font(.title2).fontWeight(.bold)
+                    .monospacedDigit()
+            }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(
-            Color.surfaceGrouped.overlay(Divider(), alignment: .top)
-        )
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .background(.ultraThinMaterial)
+        .overlay(Divider(), alignment: .top)
     }
 }
 
@@ -165,7 +192,7 @@ private struct EmptyGroceryView: View {
                 .foregroundStyle(Color.brandPrimary.opacity(0.5))
             Text("Your grocery list is empty")
                 .font(.headline)
-            Button(action: onBrowse) {
+            Button(action: onBrowse) { // goes back to shop
                 Text("Browse deals")
                     .font(.subheadline).fontWeight(.semibold)
                     .padding(.horizontal, 20).padding(.vertical, 10)
@@ -179,5 +206,5 @@ private struct EmptyGroceryView: View {
 }
 
 #Preview {
-    GroceryListView(selectedTab: .constant(2))
+    GroceryListView()
 }

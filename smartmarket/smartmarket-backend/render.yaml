@@ -1,0 +1,22 @@
+# Render blueprint for the Mealio backend.
+# Deploy: push to GitHub, then in Render → "New +" → "Blueprint" → pick this repo.
+# Render reads this file and provisions the service automatically.
+services:
+  - type: web
+    name: mealio-backend
+    runtime: python
+    plan: free
+    # Path to the backend within the repo (repo root is the iOS project root).
+    rootDir: smartmarket/smartmarket-backend
+    buildCommand: pip install -r requirements.txt
+    # 1 worker keeps the in-process scraper caches shared; threads give concurrency.
+    # 120s timeout covers the slow AI meal-plan endpoint.
+    startCommand: gunicorn server:app --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # set in the Render dashboard — never commit
+      - key: APP_API_KEY
+        sync: false          # shared secret with the iOS app (recommended)
+      - key: PYTHON_VERSION
+        value: "3.11.9"
