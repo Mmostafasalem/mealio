@@ -50,16 +50,10 @@ struct RecipeSheet: View {
     // MARK: - Error
 
     private var errorView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.brandAmber)
-            Text("Couldn't load recipe")
-                .font(.headline)
-            Button("Try Again") { Task { await loadRecipe() } }
-                .buttonStyle(.borderedProminent)
-                .tint(.brandPrimary)
-        }
+        ErrorStateView(
+            title: "Couldn't load recipe",
+            message: "We couldn't reach the kitchen. Check your connection and try again."
+        ) { Task { await loadRecipe() } }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 

@@ -48,11 +48,12 @@ struct NotificationPermissionView: View {
                     Label("Enable notifications", systemImage: "bell.fill")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.brandAmber)
+                        .frame(minHeight: 52)
                         .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .background(Color.brandAmber,
+                                    in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
+                .buttonStyle(ScalePressStyle())
 
                 Button {
                     vm.path.append(OnboardingStep.favorites)
@@ -62,8 +63,8 @@ struct NotificationPermissionView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.bottom, Spacing.xxl)
         }
         .navigationBarHidden(true)
         .background(Color.surfaceGrouped.ignoresSafeArea())

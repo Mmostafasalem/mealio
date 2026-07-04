@@ -6,21 +6,22 @@ struct MealPlanView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: Spacing.xl) {
                 Picker("View", selection: $vm.selectedTab) {
                     ForEach(MealPlanTab.allCases) { tab in
                         Text(tab.displayName).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
+                .padding(.horizontal, Spacing.lg)
 
                 switch vm.selectedTab {
                 case .today: todayContent
                 case .week:  weekContent
                 }
             }
-            .padding(.vertical, 16)
+            .padding(.vertical, Spacing.lg)
+            .animation(.smoothCard, value: vm.selectedTab)
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("Meal Plan")
@@ -45,9 +46,10 @@ struct MealPlanView: View {
         if vm.isGenerating && vm.todaysPlan == nil {
             SkeletonMealPlanContent()
         } else if let errorMessage = vm.errorMessage, vm.todaysPlan == nil {
-            ErrorStateCard(message: errorMessage) { Task { await vm.loadTodaysPlan() } }
+            ErrorStateView(message: errorMessage) { Task { await vm.loadTodaysPlan() } }
+                .padding(.top, Spacing.xxl)
         } else if let plan = vm.todaysPlan {
-            VStack(spacing: 16) {
+            VStack(spacing: Spacing.lg) {
                 ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
                     MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries)
                 }
@@ -71,9 +73,12 @@ struct MealPlanView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, Spacing.lg)
         } else {
-            EmptyPlanView { Task { await vm.loadTodaysPlan() } }
+            EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
+                           message: "Generate a plan tailored to your goals and this week's deals.",
+                           actionTitle: "Generate Plan") { Task { await vm.loadTodaysPlan() } }
+                .padding(.top, Spacing.xxl)
         }
     }
 
@@ -141,11 +146,12 @@ private struct MealSectionCard: View {
                 Text("\(entries.reduce(0) { $0 + $1.calories }) kcal")
                     .font(.subheadline).foregroundStyle(.secondary)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
         }
         .tint(.primary)
-        .padding(16)
-        .premiumCard(radius: 16)
+        .padding(Spacing.lg)
+        .premiumCard(radius: Radius.tile)
     }
 }
 
@@ -289,24 +295,12 @@ private struct RegenerateButton: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack {
-                if isGenerating {
-                    ProgressView().tint(.white)
-                    Text("Agent is thinking...")
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Regenerate plan")
-                }
-            }
-            .font(.headline)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .foregroundStyle(.white)
-            .background(Color.brandPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-        }
-        .disabled(isGenerating)
+        PrimaryButton(
+            title: isGenerating ? "Agent is thinking…" : "Regenerate plan",
+            systemImage: isGenerating ? nil : "arrow.clockwise",
+            isLoading: isGenerating,
+            action: onTap
+        )
     }
 }
 
@@ -402,68 +396,6 @@ private struct SkeletonWeekDayCard: View {
         .background(Color.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
-    }
-}
-
-private struct GeneratingView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            ProgressView().controlSize(.large).tint(.brandPrimary)
-            Text("Agent is thinking...")
-                .font(.subheadline).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
-    }
-}
-
-private struct EmptyPlanView: View {
-    let onGenerate: () -> Void
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "fork.knife")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.brandPrimary.opacity(0.5))
-            Text("No meal plan yet")
-                .font(.headline)
-            Button(action: onGenerate) {
-                Text("Generate Plan")
-                    .font(.subheadline).fontWeight(.semibold)
-                    .padding(.horizontal, 20).padding(.vertical, 10)
-                    .foregroundStyle(.white)
-                    .background(Color.brandPrimary)
-                    .clipShape(Capsule())
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
-    }
-}
-
-private struct ErrorStateCard: View {
-    let message: String
-    let onRetry: () -> Void
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "wifi.exclamationmark")
-                .font(.system(size: 30))
-                .foregroundStyle(Color.brandDanger)
-            Text(message)
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            Button("Retry", action: onRetry)
-                .font(.subheadline).fontWeight(.semibold)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 24).padding(.vertical, 10)
-                .background(Color.brandPrimary)
-                .clipShape(Capsule())
-        }
-        .frame(maxWidth: .infinity)
-        .padding(24)
-        .background(Color.brandDanger.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .padding(.horizontal, 16)
     }
 }
 

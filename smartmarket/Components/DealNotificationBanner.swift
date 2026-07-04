@@ -56,13 +56,14 @@ struct DealNotificationBanner: View {
                     Text("Skip")
                         .font(.subheadline).fontWeight(.medium)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, Spacing.md)
                         .foregroundStyle(.primary)
                         .background(
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                                 .strokeBorder(Color(.separator), lineWidth: 1)
                         )
                 }
+                .buttonStyle(ScalePressStyle())
                 .sensoryFeedback(.warning, trigger: skipTrigger)
 
                 Button {
@@ -72,11 +73,12 @@ struct DealNotificationBanner: View {
                     Label("Buy it", systemImage: "cart.badge.plus")
                         .font(.subheadline).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, Spacing.md)
                         .foregroundStyle(.white)
-                        .background(Color.brandPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .background(Color.brandPrimary,
+                                    in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 }
+                .buttonStyle(ScalePressStyle())
                 .sensoryFeedback(.success, trigger: buyTrigger)
             }
 
@@ -92,11 +94,11 @@ struct DealNotificationBanner: View {
                 .accessibilityHidden(true)
             }
         }
-        .padding(16)
+        .padding(Spacing.lg)
         .background(Color.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
-        .padding(.horizontal, 16)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .elevation(Elevation.high)
+        .padding(.horizontal, Spacing.lg)
         .onAppear { startDate = .now }
         .task {
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))

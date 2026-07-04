@@ -87,15 +87,10 @@ struct GoalSelectionView: View {
                 // Continue
                 NavigationLink(value: OnboardingStep.diet) {
                     Label("Set My Goal", systemImage: "checkmark")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.brandPrimary)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .primaryButtonLabel()
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.horizontal, Spacing.xl)
+                .padding(.bottom, Spacing.xxl)
             }
         }
         .navigationBarHidden(true)

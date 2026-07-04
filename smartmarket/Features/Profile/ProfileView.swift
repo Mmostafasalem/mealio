@@ -121,7 +121,7 @@ private struct MetricTile: View {
     var icon: String = ""
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Spacing.xs) {
             if !icon.isEmpty {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .semibold))
@@ -133,6 +133,7 @@ private struct MetricTile: View {
                 .foregroundStyle(Color.brandPrimary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
             if !unit.isEmpty {
                 Text(unit).font(.caption2).foregroundStyle(.secondary)
             }
@@ -142,9 +143,11 @@ private struct MetricTile: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(.vertical, Spacing.lg)
         .background(Color.brandPrimary.opacity(0.10),
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title): \(value) \(unit)")
     }
 }
 

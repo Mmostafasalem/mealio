@@ -74,15 +74,10 @@ struct DietaryPreferencesView: View {
                 // Continue — no minimum required, dietary prefs are optional
                 NavigationLink(value: OnboardingStep.notifications) {
                     Label("Next", systemImage: "arrow.right")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.brandPrimary)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .primaryButtonLabel()
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.horizontal, Spacing.xl)
+                .padding(.bottom, Spacing.xxl)
             }
         }
         .navigationBarHidden(true)

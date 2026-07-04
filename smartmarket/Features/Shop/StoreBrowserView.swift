@@ -9,14 +9,15 @@ struct StoreBrowserView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
+                VStack(spacing: Spacing.xl) {
                     budgetCard
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                .padding(.horizontal, Spacing.xl)
+                .padding(.top, Spacing.sm)
+                .padding(.bottom, Spacing.xxl)
+                .animation(.snappyValue, value: cart.itemCount)
             }
             .background(Color.surfaceGrouped.ignoresSafeArea())
             .navigationTitle("Shop")
@@ -241,11 +242,11 @@ private struct StoreCard: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: Radius.tile))
         .shadow(color: store.color.opacity(0.18), radius: 8, x: 0, y: 4)
         .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 8)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: Radius.tile)
                 .strokeBorder(store.color.opacity(0.15), lineWidth: 1)
         )
     }

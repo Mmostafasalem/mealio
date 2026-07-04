@@ -52,13 +52,9 @@ struct LocationPermissionView: View {
                     }
                 } label: {
                     Label("Allow Location", systemImage: "location.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.brandPrimary)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .primaryButtonLabel()
                 }
+                .buttonStyle(ScalePressStyle())
 
                 Button {
                     vm.path.append(OnboardingStep.goal)
@@ -68,8 +64,8 @@ struct LocationPermissionView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.bottom, Spacing.xxl)
         }
         .navigationBarHidden(true)
         .background(Color.surfaceGrouped.ignoresSafeArea())

@@ -143,16 +143,11 @@ struct BMRInputView: View {
                 let inputValid = vm.weight > 0 && vm.height > 0 && vm.age > 0 && vm.age < 130
                 NavigationLink(value: OnboardingStep.location) {
                     Label("Continue", systemImage: "arrow.right")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(inputValid ? Color.brandPrimary : Color.gray.opacity(0.4))
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .primaryButtonLabel(enabled: inputValid)
                 }
                 .disabled(!inputValid)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.horizontal, Spacing.xl)
+                .padding(.bottom, Spacing.xxl)
             }
         }
         .navigationBarHidden(true)

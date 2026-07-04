@@ -10,7 +10,10 @@ struct GroceryListView: View {
         NavigationStack {
             Group {
                 if vm.items.isEmpty {
-                    EmptyGroceryView { dismiss() }
+                    EmptyStateView(icon: "cart",
+                                   title: "Your grocery list is empty",
+                                   message: "Add deals and cart items to build your shopping list.",
+                                   actionTitle: "Browse deals") { dismiss() }
                 } else {
                     listContent
                 }
@@ -163,6 +166,7 @@ private struct FooterBar: View {
                     .font(.title2).fontWeight(.bold)
                     .foregroundStyle(Color.brandPrimary)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
@@ -171,37 +175,14 @@ private struct FooterBar: View {
                 Text("\(count)")
                     .font(.title2).fontWeight(.bold)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.lg)
         .background(.ultraThinMaterial)
         .overlay(Divider(), alignment: .top)
-    }
-}
-
-// MARK: - Empty state
-
-private struct EmptyGroceryView: View {
-    let onBrowse: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "cart")
-                .font(.system(size: 44))
-                .foregroundStyle(Color.brandPrimary.opacity(0.5))
-            Text("Your grocery list is empty")
-                .font(.headline)
-            Button(action: onBrowse) { // goes back to shop
-                Text("Browse deals")
-                    .font(.subheadline).fontWeight(.semibold)
-                    .padding(.horizontal, 20).padding(.vertical, 10)
-                    .foregroundStyle(.white)
-                    .background(Color.brandPrimary)
-                    .clipShape(Capsule())
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.snappyValue, value: total)
     }
 }
 

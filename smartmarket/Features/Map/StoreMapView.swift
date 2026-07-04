@@ -34,7 +34,7 @@ struct StoreMapView: View {
             .onChange(of: appState.activeDeals) { _, _ in vm.refreshDeals(appState: appState) }
 
             // MARK: Overlay controls (bottom-right, above tab bar)
-            VStack(spacing: 12) {
+            VStack(spacing: Spacing.md) {
                 // Re-centre on user location
                 Button {
                     vm.centreOnUser()
@@ -65,7 +65,7 @@ struct StoreMapView: View {
                 .accessibilityLabel(vm.showNearbyOnly ? "Showing nearby deals only" : "Showing all deals")
                 .accessibilityHint("Toggles between nearby and all deals")
             }
-            .padding(.trailing, 16)
+            .padding(.trailing, Spacing.lg)
             .padding(.bottom, 100)   // clears tab bar (≈ 83pt) + safe area
 
             // MARK: Store detail sheet

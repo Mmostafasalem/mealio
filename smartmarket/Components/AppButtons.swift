@@ -85,6 +85,27 @@ struct SecondaryButton: View {
     }
 }
 
+// MARK: - Primary CTA label styling
+//
+// For use inside a NavigationLink (where a Button action isn't available) so its
+// label matches PrimaryButton's filled look. Pass `enabled: false` for a disabled
+// appearance.
+
+extension View {
+    func primaryButtonLabel(enabled: Bool = true) -> some View {
+        self
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 52)
+            .foregroundStyle(.white)
+            .background(
+                Color.brandPrimary,
+                in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+            )
+            .opacity(enabled ? 1 : 0.45)
+    }
+}
+
 #Preview {
     VStack(spacing: Spacing.lg) {
         PrimaryButton(title: "Get Started", systemImage: "arrow.right") {}

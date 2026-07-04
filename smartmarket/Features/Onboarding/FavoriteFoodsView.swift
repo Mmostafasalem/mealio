@@ -114,10 +114,10 @@ struct FavoriteFoodsView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
+                .padding(.horizontal, Spacing.xl)
+                .padding(.vertical, Spacing.lg)
                 .background(vm.canFinish ? Color.brandPrimary : Color(.systemFill),
-                            in: RoundedRectangle(cornerRadius: 16))
+                            in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 .foregroundStyle(vm.canFinish ? .white : Color(.secondaryLabel))
             }
             .disabled(!vm.canFinish)
