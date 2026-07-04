@@ -1,0 +1,78 @@
+import SwiftUI
+
+/// Horizontal carousel of nearby deals with loading / empty states.
+struct HomeDealsSection: View {
+    let vm: HomeViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "tag.fill").foregroundStyle(Color.brandPrimary)
+                    Text("Deals Near You").font(.sectionTitle)
+                }
+                Spacer()
+                if !vm.nearbyDeals.isEmpty {
+                    Text("\(vm.nearbyDeals.count) deals")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, 3)
+                        .background(Color.brandPrimary, in: Capsule())
+                        .contentTransition(.numericText())
+                }
+            }
+            .accessibilityAddTraits(.isHeader)
+
+            if vm.isLoading {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.md) {
+                        ForEach(0..<3, id: \.self) { _ in SkeletonDealCard() }
+                    }
+                    .padding(.horizontal, 1)
+                }
+            } else if vm.nearbyDeals.isEmpty {
+                emptyDeals
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.md) {
+                        ForEach(vm.nearbyDeals) { deal in
+                            DealCardView(deal: deal) { vm.activeDealBanner = deal }
+                        }
+                    }
+                    .padding(.horizontal, 1)
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding(Spacing.lg)
+        .premiumCard()
+    }
+
+    private var emptyDeals: some View {
+        HStack(spacing: Spacing.md) {
+            Image(systemName: "location.magnifyingglass")
+                .font(.system(size: 32))
+                .foregroundStyle(Color.brandPrimary.opacity(0.35))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("No nearby deals found")
+                    .font(.subheadline).fontWeight(.semibold)
+                Text("Pull down to refresh and check for new discounts.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, Spacing.sm)
+    }
+}
+
+/// Shimmer placeholder shown while deals load.
+struct SkeletonDealCard: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+            .fill(Color(.systemFill))
+            .frame(width: 160, height: 100)
+            .shimmer(active: true)
+            .accessibilityHidden(true)
+    }
+}
