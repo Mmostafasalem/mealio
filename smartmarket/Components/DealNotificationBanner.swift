@@ -27,7 +27,7 @@ struct DealNotificationBanner: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Deal on \(deal.productName)")
+                    Text(deal.productName)
                         .font(.subheadline).fontWeight(.semibold)
                         .lineLimit(1)
                     Text("\(deal.store.chain) · \(deal.quantity)")
@@ -37,12 +37,9 @@ struct DealNotificationBanner: View {
                         Text(String(format: "€%.2f", deal.discountPrice))
                             .font(.subheadline).fontWeight(.bold)
                             .foregroundStyle(Color.brandPrimary)
-                        Text(String(format: "€%.2f", deal.originalPrice))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .strikethrough()
-                        Text("−\(deal.discountPercent)%")
-                            .font(.caption2).fontWeight(.bold)
-                            .foregroundStyle(Color.brandAmber)
+                        Text("est. price")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Spacer(minLength: 0)
@@ -53,7 +50,7 @@ struct DealNotificationBanner: View {
                     skipTrigger.toggle()
                     onSkip()
                 } label: {
-                    Text("Skip")
+                    Text("Dismiss")
                         .font(.subheadline).fontWeight(.medium)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Spacing.md)
@@ -70,7 +67,7 @@ struct DealNotificationBanner: View {
                     buyTrigger.toggle()
                     onBuy()
                 } label: {
-                    Label("Buy it", systemImage: "cart.badge.plus")
+                    Label("Add to list", systemImage: "cart.badge.plus")
                         .font(.subheadline).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Spacing.md)
@@ -106,7 +103,7 @@ struct DealNotificationBanner: View {
             onSkip()
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Deal alert for \(deal.productName)")
+        .accessibilityLabel("\(deal.productName) at \(deal.store.chain), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
     }
 }
 

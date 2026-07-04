@@ -18,7 +18,7 @@ struct HomeAgentCard: View {
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Mealio Agent").font(.subheadline).fontWeight(.semibold)
-                    Text("AI-powered meal & deal assistant")
+                    Text("AI-powered meal & grocery assistant")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()

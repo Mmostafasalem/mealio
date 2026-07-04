@@ -86,8 +86,8 @@ struct HomeHeaderView: View {
             statDivider
             quickStat(label: "Goal", value: "\(vm.goal) kcal", icon: "target", color: .white)
             statDivider
-            quickStat(label: "Deals", value: "\(vm.nearbyDeals.count) near you",
-                      icon: "tag.fill", color: Color(hex: "#86EFAC"), isRefreshing: vm.isRefreshing)
+            quickStat(label: "Nearby", value: "\(vm.nearbyDeals.count) items",
+                      icon: "basket.fill", color: Color(hex: "#86EFAC"), isRefreshing: vm.isRefreshing)
         }
     }
 

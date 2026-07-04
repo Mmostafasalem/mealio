@@ -23,7 +23,7 @@ struct FavoriteFoodsView: View {
             OnboardingProgressBar(currentStep: 5).padding(.top, 8)
             Text("Build your fridge")
                 .font(.title2).fontWeight(.bold)
-            Text("Pick everything you buy regularly. We'll alert you when any item is on sale across all Lithuanian markets.")
+            Text("Pick everything you buy regularly. We'll use these to tailor your meal plans and grocery suggestions.")
                 .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 20)

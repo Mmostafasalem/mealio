@@ -40,7 +40,7 @@ struct StoreDetailSheet: View {
                             }
                         }
                     } header: {
-                        Label("Your Favourites On Discount", systemImage: "heart.fill")
+                        Label("Your Favourites Here", systemImage: "heart.fill")
                             .foregroundStyle(Color.brandPrimary)
                     }
                 }
@@ -54,7 +54,7 @@ struct StoreDetailSheet: View {
                             }
                         }
                     } header: {
-                        Label("All Deals", systemImage: "tag.fill")
+                        Label("All Products", systemImage: "basket.fill")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -75,9 +75,9 @@ struct StoreDetailSheet: View {
                 if vm.storeDeals.isEmpty {
                     Section {
                         ContentUnavailableView(
-                            "No deals",
-                            systemImage: "tag.slash",
-                            description: Text("No active deals at this store right now.")
+                            "No products",
+                            systemImage: "basket",
+                            description: Text("No products listed for this store yet.")
                         )
                         .listRowBackground(Color.clear)
                     }
@@ -181,21 +181,12 @@ private struct DealRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(String(format: "%.2f€", deal.discountPrice))
-                        .font(.subheadline).fontWeight(.bold)
-                        .foregroundStyle(Color.brandPrimary)
-                    Text("-\(deal.discountPercent)%")
-                        .font(.caption2).fontWeight(.semibold)
-                        .padding(.horizontal, 5).padding(.vertical, 2)
-                        .background(Color.brandPrimary.opacity(0.12))
-                        .foregroundStyle(Color.brandPrimary)
-                        .clipShape(Capsule())
-                }
-                Text(String(format: "%.2f€", deal.originalPrice))
+                Text(String(format: "%.2f€", deal.discountPrice))
+                    .font(.subheadline).fontWeight(.bold)
+                    .foregroundStyle(Color.brandPrimary)
+                Text("est. price")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .strikethrough()
             }
             Button(action: onAdd) {
                 Image(systemName: "plus.circle.fill")

@@ -20,9 +20,9 @@ struct LocationPermissionView: View {
                     .foregroundStyle(Color.brandPrimary)
 
                 VStack(spacing: 8) {
-                    Text("Find deals near you")
+                    Text("Find stores near you")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("Mealio checks nearby stores for discounts on your favourite foods.")
+                    Text("Mealio shows grocery prices at stores near you to help plan your shop.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -30,7 +30,7 @@ struct LocationPermissionView: View {
                 }
 
                 VStack(spacing: 12) {
-                    FeatureRow(symbol: "map.fill",    text: "Only shows deals at stores you can reach")
+                    FeatureRow(symbol: "map.fill",    text: "Only shows stores you can reach")
                     FeatureRow(symbol: "battery.100", text: "Uses one-shot location — no background drain")
                     FeatureRow(symbol: "lock.shield", text: "Location never leaves your device")
                 }

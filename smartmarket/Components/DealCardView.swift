@@ -11,7 +11,7 @@ struct DealCardView: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
 
-                // ── Header: store stripe + discount badge ──────────────────
+                // ── Header: store stripe ───────────────────────────────────
                 HStack(spacing: 0) {
                     Rectangle()
                         .fill(storeColor)
@@ -26,7 +26,6 @@ struct DealCardView: View {
                             .foregroundStyle(storeColor)
                             .kerning(0.8)
                         Spacer()
-                        discountBadge
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
@@ -51,27 +50,14 @@ struct DealCardView: View {
 
                 Spacer(minLength: 6)
 
-                // ── Price row ──────────────────────────────────────────────
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(String(format: "€%.2f", deal.discountPrice))
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.brandPrimary)
-                        Text(String(format: "€%.2f", deal.originalPrice))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .strikethrough(true, color: Color(.tertiaryLabel))
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down")
-                            .font(.system(size: 9, weight: .bold))
-                        Text(String(format: "Save €%.2f", deal.savings))
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(Color.brandPrimary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                // ── Price row (estimated) ─────────────────────────────────
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: "€%.2f", deal.discountPrice))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.brandPrimary)
+                    Text("est. price")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 14)
@@ -99,19 +85,7 @@ struct DealCardView: View {
             )
         }
         .buttonStyle(PressableButtonStyle())
-        .accessibilityLabel("\(deal.productName) at \(deal.store.chain), \(deal.discountPercent) percent off, now \(String(format: "%.2f", deal.discountPrice)) euros")
-    }
-
-    private var discountBadge: some View {
-        Text("−\(deal.discountPercent)%")
-            .font(.system(size: 11, weight: .black, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                deal.discountPercent >= 30 ? Color.brandDanger : Color.brandAmber,
-                in: Capsule()
-            )
+        .accessibilityLabel("\(deal.productName) at \(deal.store.chain), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
     }
 }
 

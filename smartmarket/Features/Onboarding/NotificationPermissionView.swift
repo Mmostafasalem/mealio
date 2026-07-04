@@ -19,9 +19,9 @@ struct NotificationPermissionView: View {
                     .foregroundStyle(Color.brandAmber)
 
                 VStack(spacing: 8) {
-                    Text("Never miss a deal")
+                    Text("Stay on track")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("We'll ping you the moment a discount appears on one of your favourite foods — with a one-tap option to add it to your grocery list.")
+                    Text("Optional reminders to log your meals and keep your grocery list up to date. You can change this anytime in Settings.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

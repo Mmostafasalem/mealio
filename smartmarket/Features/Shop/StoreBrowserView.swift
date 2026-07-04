@@ -82,15 +82,10 @@ struct StoreBrowserView: View {
             }
             .frame(height: 8)
 
-            if cart.totalSavings > 0 {
-                HStack {
-                    Image(systemName: "tag.fill").font(.caption2).foregroundStyle(Color.brandAmber)
-                    Text("Saving \(String(format: "€%.2f", cart.totalSavings)) on sales")
-                        .font(.caption).foregroundStyle(Color.brandAmber)
-                    Spacer()
-                    Text("\(String(format: "€%.2f", max(cart.budgetRemaining, 0))) left")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+            HStack {
+                Spacer()
+                Text("\(String(format: "€%.2f", max(cart.budgetRemaining, 0))) left")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(18)
@@ -221,7 +216,7 @@ private struct StoreCard: View {
                     Text(store.name)
                         .font(.title3).fontWeight(.bold)
                         .foregroundStyle(.white)
-                    Text("\(dealCount) on sale")
+                    Text("\(dealCount) items")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.75))
                 }
@@ -304,13 +299,6 @@ struct CartView: View {
                             Text("Subtotal")
                             Spacer()
                             Text(String(format: "€%.2f", cart.total)).fontWeight(.semibold).monospacedDigit()
-                        }
-                        if cart.totalSavings > 0 {
-                            HStack {
-                                Text("You save").foregroundStyle(Color.brandAmber)
-                                Spacer()
-                                Text(String(format: "-€%.2f", cart.totalSavings)).foregroundStyle(Color.brandAmber).monospacedDigit()
-                            }
                         }
                         HStack {
                             Text("Budget remaining")

@@ -54,8 +54,8 @@ final class NotificationService {
 
     func scheduleDealNotification(for deal: Deal, storeName: String, storeId: String) {
         let content = UNMutableNotificationContent()
-        content.title  = "\(deal.emoji) Deal near you: \(deal.name)"
-        content.body   = "\(deal.brand) at \(storeName) — €\(String(format: "%.2f", deal.discountedPrice)) (\(deal.discount)% off). Add to your list?"
+        content.title  = "\(deal.emoji) \(deal.name) nearby"
+        content.body   = "\(deal.brand) at \(storeName) — about €\(String(format: "%.2f", deal.discountedPrice)). Add to your grocery list?"
         content.sound  = .default
         content.categoryIdentifier = Self.categoryID
         content.userInfo = [

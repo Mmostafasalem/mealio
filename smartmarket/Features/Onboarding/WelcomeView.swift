@@ -14,10 +14,10 @@ struct WelcomeView: View {
     @State private var bgShift         = false
 
     private let features: [(String, String, String, Color)] = [
-        ("tag.fill",        "Live Discounts",    "Real Rimi deals updated every 30 sec",  Color.brandPrimary),
-        ("brain.head.profile","AI Meal Plans",   "Weekly plan built around today's sales", Color(hex: "#6366F1")),
-        ("chart.bar.fill",  "Macro Tracking",    "Protein, carbs and fat — all automatic", Color(hex: "#0EA5E9")),
-        ("bell.badge.fill", "Deal Alerts",       "Notified the moment your fav goes on sale", Color(hex: "#D97706")),
+        ("brain.head.profile","AI Meal Plans",     "A weekly plan built around your goals",     Color(hex: "#6366F1")),
+        ("chart.bar.fill",  "Calorie & Macro Tracking", "Log food and hit your targets",        Color(hex: "#0EA5E9")),
+        ("basket.fill",     "Budget Grocery Lists", "Plan your shop with estimated prices",     Color.brandPrimary),
+        ("fork.knife",      "Recipes On Tap",      "Turn any planned meal into a recipe",       Color(hex: "#D97706")),
     ]
 
     var body: some View {

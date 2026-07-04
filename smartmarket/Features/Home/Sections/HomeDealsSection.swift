@@ -8,12 +8,12 @@ struct HomeDealsSection: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
                 HStack(spacing: Spacing.xs) {
-                    Image(systemName: "tag.fill").foregroundStyle(Color.brandPrimary)
-                    Text("Deals Near You").font(.sectionTitle)
+                    Image(systemName: "basket.fill").foregroundStyle(Color.brandPrimary)
+                    Text("Nearby Groceries").font(.sectionTitle)
                 }
                 Spacer()
                 if !vm.nearbyDeals.isEmpty {
-                    Text("\(vm.nearbyDeals.count) deals")
+                    Text("\(vm.nearbyDeals.count) items")
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(.white)
                         .padding(.horizontal, Spacing.sm)
@@ -55,9 +55,9 @@ struct HomeDealsSection: View {
                 .font(.system(size: 32))
                 .foregroundStyle(Color.brandPrimary.opacity(0.35))
             VStack(alignment: .leading, spacing: 3) {
-                Text("No nearby deals found")
+                Text("No nearby groceries")
                     .font(.subheadline).fontWeight(.semibold)
-                Text("Pull down to refresh and check for new discounts.")
+                Text("Pull down to refresh.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()

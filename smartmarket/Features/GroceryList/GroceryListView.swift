@@ -12,8 +12,8 @@ struct GroceryListView: View {
                 if vm.items.isEmpty {
                     EmptyStateView(icon: "cart",
                                    title: "Your grocery list is empty",
-                                   message: "Add deals and cart items to build your shopping list.",
-                                   actionTitle: "Browse deals") { dismiss() }
+                                   message: "Add items from the Shop tab to build your shopping list.",
+                                   actionTitle: "Browse groceries") { dismiss() }
                 } else {
                     listContent
                 }

@@ -168,10 +168,7 @@ struct ProductShopRow: View {
     @State private var priceInput = ""
 
     private var isEstimated: Bool  { cart.isEstimated(item.id) }
-    private var onSale: Bool       { !isEstimated && item.isOnSale(for: store) }
     private var price: Double      { cart.effectivePrice(for: item, store: store) }
-    private var original: Double   { item.regularPrice(for: store) }
-    private var pct: Int           { item.discountPercent(for: store) }
     private var qty: Int           { cart.quantity(of: item.id, store: store.name) }
 
     var body: some View {
@@ -192,30 +189,16 @@ struct ProductShopRow: View {
                     Text(item.name)
                         .font(.subheadline).fontWeight(.medium)
                         .lineLimit(1)
-                    if onSale {
-                        Text("−\(pct)%")
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.brandDanger, in: Capsule())
-                    }
                 }
 
-                // Price row — tap to enter real price
+                // Price row — tap to enter the real price you paid
                 Button {
                     priceInput = String(format: "%.2f", price)
                     showPriceEditor = true
                 } label: {
                     HStack(spacing: 5) {
-                        if onSale {
-                            Text(String(format: "€%.2f", price))
-                                .fontWeight(.semibold).foregroundStyle(Color.brandPrimary)
-                            Text(String(format: "€%.2f", original))
-                                .strikethrough().foregroundStyle(Color(.tertiaryLabel))
-                        } else {
-                            Text(String(format: "€%.2f", price))
-                                .foregroundStyle(.primary)
-                        }
+                        Text(String(format: "€%.2f", price))
+                            .foregroundStyle(.primary)
                         if isEstimated {
                             Text("est.")
                                 .foregroundStyle(Color.brandAmber)

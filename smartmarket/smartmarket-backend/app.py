@@ -639,7 +639,7 @@ def handle_meal_plan(body):
     active      = _active_deals()
     avail_deals = deals_summary(active)
 
-    system_prompt = """7-day meal plan JSON for Mealio (Vilnius). Keys: pirmadienis-sekmadienis. Each day: pusryčiai,pietūs,vakarienė,užkandis. Each meal: {pavadinimas,kalorijų,baltymai,angliavandeniai,riebalai,porcija}. Add agentMessage (1 sentence). PRIORITISE ingredients the user already bought (their shopping list), then this week's deals. Hit targets. IMPORTANT: every day MUST have a completely different breakfast, lunch, dinner and snack — no meal name should repeat across days. Return ONLY JSON."""
+    system_prompt = """7-day meal plan JSON for Mealio (Vilnius). Keys: pirmadienis-sekmadienis. Each day: pusryčiai,pietūs,vakarienė,užkandis. Each meal: {pavadinimas,kalorijų,baltymai,angliavandeniai,riebalai,porcija}. Add agentMessage (1 sentence). PRIORITISE ingredients the user already bought (their shopping list), then common affordable groceries. Do NOT claim items are on sale or discounted. Hit targets. IMPORTANT: every day MUST have a completely different breakfast, lunch, dinner and snack — no meal name should repeat across days. Return ONLY JSON."""
 
     seed = int(time.time()) % 10000
     user_prompt = (
@@ -648,7 +648,7 @@ def handle_meal_plan(body):
         f"Favourite food names: {fav_names}\n"
         f"Already bought (use these first): {in_stock}\n"
         f"Dietary preferences: {dietary}\n"
-        f"Available discounted deals this week: {json.dumps(avail_deals)}\n"
+        f"Available groceries this week: {json.dumps(avail_deals)}\n"
         f"Variation seed: {seed}\n"
         "Generate the full 7-day meal plan JSON now. Make each day's meals unique."
     )
@@ -662,7 +662,7 @@ def handle_meal_plan(body):
     )
     result = _normalize_meal_plan(result, target_kcal)
     if not result.get("agentMessage"):
-        result["agentMessage"] = f"This week's plan targets {target_kcal} kcal/day using this week's deals."
+        result["agentMessage"] = f"This week's plan targets {target_kcal} kcal/day using your favourite foods and everyday groceries."
     return result
 
 def handle_gap_fillers(body):
@@ -676,7 +676,7 @@ def handle_gap_fillers(body):
         f"You are a nutrition assistant. Suggest 3 simple snack or food additions to fill a daily nutrition gap.\n"
         f"Current intake: {current_kcal} kcal. Target: {target_kcal} kcal.\n"
         f"Gaps — Protein: {protein_gap}g, Carbs: {carbs_gap}g, Fat: {fat_gap}g.\n"
-        f"Available deals: {json.dumps(deals_summary(_active_deals()))}\n\n"
+        f"Available groceries: {json.dumps(deals_summary(_active_deals()))}\n\n"
         'Return a JSON array of 3 objects, each with: {"name": string, "calories": int, "protein": float, "carbs": float, "fat": float, "reason": string}\n'
         "Return ONLY the JSON array."
     )
@@ -705,7 +705,7 @@ def handle_shopping_advice(body):
         f"You are a smart grocery advisor for a health-focused shopper in Vilnius, Lithuania.\n"
         f"Current grocery list: {json.dumps(grocery_list)}\n"
         f"Weekly budget: €{budget}\n"
-        f"Available deals this week: {json.dumps(deals_summary(_active_deals()))}\n\n"
+        f"Available groceries this week: {json.dumps(deals_summary(_active_deals()))}\n\n"
         'Return a JSON array of up to 5 shopping recommendations, each with EXACTLY these keys:\n'
         '{"produktas": string, "priezastis": string, "apytiksleCena": string (e.g. "3.99 €"), "kurPirkti": string, "makroNauda": string}\n'
         "Sort best-value first. Return ONLY the JSON array, no markdown."
@@ -739,7 +739,7 @@ def handle_recipe(body):
 
     prompt = (
         f"Write a simple home recipe for: {meal_name}\n"
-        f"Available cheap deals to use as ingredients: {json.dumps(deals)}\n"
+        f"Available affordable groceries to use as ingredients: {json.dumps(deals)}\n"
         "Return ONLY this JSON:\n"
         '{"prepTime":int,"cookTime":int,"servings":int,'
         '"ingredients":[{"name":str,"amount":str}],'
@@ -784,8 +784,8 @@ def handle_agent_chat(body):
         "Mealio AI — nutrition & grocery assistant, Vilnius.\n"
         f"User: {goal} goal, {target_kcal} kcal/day, {consumed} consumed today.\n"
         f"Favourite foods: {fav_str}\n"
-        f"Top deals: {json.dumps(deals_summary(_active_deals(), max_items=8))}\n"
-        "Reply in 2-3 short sentences. Suggest deals when relevant."
+        f"Popular groceries: {json.dumps(deals_summary(_active_deals(), max_items=8))}\n"
+        "Reply in 2-3 short sentences. Suggest affordable groceries when relevant. Do not claim items are on sale or discounted."
     )
 
     messages = [{"role": "system", "content": system_prompt}]

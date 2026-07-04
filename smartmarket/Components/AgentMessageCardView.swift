@@ -79,7 +79,7 @@ private struct TypingDotsView: View {
 
 #Preview {
     VStack(spacing: 16) {
-        AgentMessageCardView(message: "I built your plan around discounted salmon at Iki and chicken at Maxima to hit your protein target while saving €4.20.", isLoading: false)
+        AgentMessageCardView(message: "I built your plan around salmon and chicken to hit your protein target while staying within your budget.", isLoading: false)
         AgentMessageCardView(message: nil, isLoading: true)
     }
     .padding()

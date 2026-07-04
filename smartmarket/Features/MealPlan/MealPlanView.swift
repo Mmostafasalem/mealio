@@ -76,7 +76,7 @@ struct MealPlanView: View {
             .padding(.horizontal, Spacing.lg)
         } else {
             EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
-                           message: "Generate a plan tailored to your goals and this week's deals.",
+                           message: "Generate a plan tailored to your goals and favourite foods.",
                            actionTitle: "Generate Plan") { Task { await vm.loadTodaysPlan() } }
                 .padding(.top, Spacing.xxl)
         }

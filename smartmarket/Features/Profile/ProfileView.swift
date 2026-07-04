@@ -95,7 +95,7 @@ struct ProfileView: View {
 
     private var notificationSection: some View {
         Section("Notifications") {
-            Toggle("Deal alerts", isOn: $dealAlertsEnabled)
+            Toggle("Favourite item reminders", isOn: $dealAlertsEnabled)
             Toggle("Daily meal plan digest", isOn: $mealDigestEnabled)
         }
         .tint(.brandPrimary)

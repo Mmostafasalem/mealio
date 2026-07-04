@@ -98,8 +98,8 @@ struct OfflineBadge: View {
     VStack(spacing: Spacing.xl) {
         OfflineBadge()
         LoadingStateView(rows: 2)
-        EmptyStateView(icon: "tag", title: "No deals nearby",
-                       message: "Check back soon for fresh discounts.",
+        EmptyStateView(icon: "basket", title: "No groceries nearby",
+                       message: "Pull down to refresh.",
                        actionTitle: "Refresh") {}
     }
     .padding()
