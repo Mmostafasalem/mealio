@@ -643,6 +643,7 @@ private struct MealSlotRow: View {
                             .foregroundStyle(Color.brandDanger.opacity(0.7))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Remove logged food")
                 }
                 .padding(.leading, 40)
             }
@@ -741,6 +742,7 @@ struct AgentChatSheet: View {
                             .foregroundStyle(localInput.trimmingCharacters(in: .whitespaces).isEmpty || vm.isChatLoading
                                 ? Color.secondary : Color.brandPrimary)
                     }
+                    .accessibilityLabel("Send message")
                     .disabled(localInput.trimmingCharacters(in: .whitespaces).isEmpty || vm.isChatLoading)
                 }
                 .padding(.horizontal, 16)

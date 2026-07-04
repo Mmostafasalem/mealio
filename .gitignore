@@ -3,6 +3,11 @@
 *.env
 smartmarket/smartmarket-backend/.env
 
+# iOS build secrets — the real API key is injected via this xcconfig at build
+# time and must never be committed (see Secrets.xcconfig.example / SETUP.md).
+Secrets.xcconfig
+*.secrets.xcconfig
+
 # Xcode
 *.xcworkspace/xcuserdata
 *.xcodeproj/xcuserdata

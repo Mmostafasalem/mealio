@@ -292,6 +292,7 @@ struct QuantityStepper: View {
                     .foregroundStyle(Color.brandPrimary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Add to cart")
             .sensoryFeedback(.impact, trigger: quantity)
         } else {
             HStack(spacing: 12) {
@@ -301,6 +302,7 @@ struct QuantityStepper: View {
                         .foregroundStyle(quantity == 1 ? Color.brandDanger : Color.brandPrimary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Decrease quantity")
 
                 Text("\(quantity)")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -314,6 +316,7 @@ struct QuantityStepper: View {
                         .foregroundStyle(Color.brandPrimary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Increase quantity")
             }
             .sensoryFeedback(.selection, trigger: quantity)
         }

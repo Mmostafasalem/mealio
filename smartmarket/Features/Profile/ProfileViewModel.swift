@@ -74,6 +74,11 @@ final class ProfileViewModel {
         UserDefaults.standard.removeObject(forKey: "recentFoodIDs")
         FoodLogStore.shared.clearToday()
 
+        // Health data (BMR + body stats) lives in the Keychain, which survives a
+        // UserDefaults wipe — clear it too so "clear all data" truly deletes
+        // everything (correctness + GDPR/CCPA right-to-erasure).
+        KeychainHelper.deleteAll()
+
         // Wipe active global runtime architecture states safely
         AppState.shared.weeklyMealPlan = nil
         AppState.shared.activeDeals = []

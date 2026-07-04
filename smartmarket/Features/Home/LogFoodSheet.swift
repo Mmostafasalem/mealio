@@ -97,6 +97,7 @@ struct LogFoodSheet: View {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                 }
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 12)
@@ -145,6 +146,7 @@ struct LogFoodSheet: View {
                     .foregroundStyle(slot.accent)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Add \(food.displayName)")
         }
         .padding(.vertical, 2)
     }
@@ -208,6 +210,7 @@ struct LogFoodSheet: View {
                     .foregroundStyle(slot.accent)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Log \(entry.foodName)")
         }
         .padding(.vertical, 2)
     }

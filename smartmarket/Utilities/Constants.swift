@@ -37,9 +37,17 @@ enum Constants {
         /// Base URL of the backend.
         /// Read from the `API_BASE_URL` key in Info.plist so it can be set per
         /// build configuration (via an xcconfig) without touching code.
-        /// Falls back to the local dev server if the key is absent/empty.
-        static let baseURL: String = infoPlistValue("API_BASE_URL")
-            ?? "http://localhost:5000"
+        static let baseURL: String = infoPlistValue("API_BASE_URL") ?? defaultBaseURL
+
+        /// Fallback used only when `API_BASE_URL` is absent/empty. In DEBUG this
+        /// is the local dev server; in release we fall back to the production
+        /// HTTPS backend rather than a cleartext localhost URL, so a misconfigured
+        /// build can never silently downgrade the connection to HTTP.
+        #if DEBUG
+        private static let defaultBaseURL = "http://localhost:5000"
+        #else
+        private static let defaultBaseURL = "https://mealio-backend-17qg.onrender.com"
+        #endif
 
         /// Shared secret that must match the backend's `APP_API_KEY` env var.
         /// Read from the `API_KEY` key in Info.plist. Empty string disables auth

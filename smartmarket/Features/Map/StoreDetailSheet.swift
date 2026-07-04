@@ -203,6 +203,7 @@ private struct DealRow: View {
                     .foregroundStyle(Color.brandPrimary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Add \(deal.productName) to cart")
         }
         .padding(.vertical, 2)
     }

@@ -85,6 +85,14 @@ def test_rate_limiter_triggers():
     assert hits[-1] is True
 
 
+def test_handlers_tolerate_wrong_types():
+    # Malformed field types must degrade gracefully, never raise (would be a 500).
+    app.handle_bmr({"gender": 123, "weight": 80, "height": 180, "age": 30})
+    app.handle_meal_plan({"user": "not-a-dict",
+                          "bmrData": {"maintainCalories": "abc", "macros": "x"},
+                          "goal": "lose"})
+
+
 @pytest.mark.skipif(not HAS_FLASK, reason="flask not installed")
 def test_server_security():
     c = server.app.test_client()
@@ -96,3 +104,30 @@ def test_server_security():
     assert ok.headers.get("X-Content-Type-Options") == "nosniff"
     assert c.post("/api/bmr", data=b"x" * 300_000, headers=H).status_code == 413
     assert c.get("/api/nope", headers=H).status_code == 404
+
+
+@pytest.mark.skipif(not HAS_FLASK, reason="flask not installed")
+def test_malformed_json_is_rejected():
+    c = server.app.test_client()
+    H = {"X-API-Key": "testkey", "Content-Type": "application/json"}
+    assert c.post("/api/bmr", data=b"garbage", headers=H).status_code == 400
+    assert c.post("/api/bmr", data=b'"a-string"', headers=H).status_code == 400
+    # Malformed types reach the handler and must NOT 500.
+    assert c.post("/api/bmr", data=b'{"gender":123,"weight":80,"height":180,"age":30}',
+                  headers=H).status_code == 200
+
+
+@pytest.mark.skipif(not HAS_FLASK, reason="flask not installed")
+def test_spoofed_forwarded_for_cannot_bypass_rate_limit():
+    """An attacker rotating the client-controlled left part of X-Forwarded-For
+    must still be rate-limited: the real (rightmost, proxy-appended) IP is used."""
+    c = server.app.test_client()
+    H = {"X-API-Key": "testkey"}
+    app._rate_buckets.clear()
+    codes = [
+        c.get("/api/health",
+              headers={**H, "X-Forwarded-For": f"9.9.9.{i}, 203.0.113.99"}).status_code
+        for i in range(app._RATE_MAX + 10)
+    ]
+    assert 429 in codes
+    app._rate_buckets.clear()

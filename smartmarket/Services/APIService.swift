@@ -144,13 +144,16 @@ final class APIService {
 
     // MARK: - Legacy shims (used by HomeViewModel / GroceryListViewModel)
 
-    // Vilnius store coordinates keyed by lowercased chain name.
+    // Vilnius store coordinates keyed by lowercased chain name. Used only as a
+    // fallback when the backend omits per-product lat/lon. The five real chains
+    // are kept in sync with the backend's STORES table (app.py) so the map pins
+    // agree whichever source supplies them.
     static let storeCoordinates: [String: (lat: Double, lon: Double)] = [
-        "maxima":     (54.7154, 25.2539),
-        "iki":        (54.6891, 25.2012),
-        "rimi":       (54.6634, 25.2897),
-        "lidl":       (54.7032, 25.2205),
-        "norfa":      (54.7021, 25.3221),
+        "maxima":     (54.6872, 25.2797),
+        "rimi":       (54.6989, 25.2730),
+        "iki":        (54.6750, 25.2800),
+        "lidl":       (54.6680, 25.2750),
+        "norfa":      (54.7100, 25.2600),
         "barbora":    (54.6872, 25.2797),
         "senukai":    (54.6960, 25.2690),
         "prisma":     (54.6920, 25.2750),

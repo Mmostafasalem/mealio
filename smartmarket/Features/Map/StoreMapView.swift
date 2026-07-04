@@ -47,6 +47,7 @@ struct StoreMapView: View {
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
+                .accessibilityLabel("Centre map on my location")
 
                 // Nearby / All toggle (disabled when no location fix yet)
                 Button {
@@ -61,6 +62,8 @@ struct StoreMapView: View {
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
+                .accessibilityLabel(vm.showNearbyOnly ? "Showing nearby deals only" : "Showing all deals")
+                .accessibilityHint("Toggles between nearby and all deals")
             }
             .padding(.trailing, 16)
             .padding(.bottom, 100)   // clears tab bar (≈ 83pt) + safe area

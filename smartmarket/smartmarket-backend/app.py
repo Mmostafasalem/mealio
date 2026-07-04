@@ -1,12 +1,9 @@
 import collections
-import hmac
-import http.server
 import json
 import math
 import os
 import re
 import time
-from urllib.parse import urlparse, parse_qs
 from groq import Groq
 
 from openfoodfacts import nutrition_for
@@ -68,6 +65,26 @@ class RequestError(Exception):
         super().__init__(message)
         self.message = message
         self.status  = status
+
+# ---------------------------------------------------------------------------
+# Defensive coercion helpers — request bodies come from clients and may contain
+# wrong types. These never raise, so a malformed field degrades to a sensible
+# default (HTTP 400/200) instead of crashing a handler with a 500.
+# ---------------------------------------------------------------------------
+
+def _as_int(val, default: int) -> int:
+    try:
+        if isinstance(val, bool) or val is None:
+            return default
+        return int(round(float(val)))
+    except (TypeError, ValueError):
+        return default
+
+def _as_dict(val) -> dict:
+    return val if isinstance(val, dict) else {}
+
+def _as_str(val, default: str = "") -> str:
+    return val if isinstance(val, str) else (default if val is None else str(val))
 
 # ---------------------------------------------------------------------------
 # Static store locations
@@ -571,8 +588,8 @@ def handle_bmr(body):
     if not (13 <= a <= 100):
         raise RequestError("age must be between 13 and 100")
 
-    g  = body.get("gender", "male").lower()
-    al = body.get("activityLevel", "moderate").lower()
+    g  = _as_str(body.get("gender"), "male").lower()
+    al = _as_str(body.get("activityLevel"), "moderate").lower()
 
     bmr = 10*w + 6.25*h - 5*a + (5 if g == "male" else -161)
     multipliers = {"sedentary": 1.2, "light": 1.375, "moderate": 1.55, "active": 1.725, "veryActive": 1.9}
@@ -592,9 +609,11 @@ def handle_bmr(body):
     }
 
 def handle_meal_plan(body):
-    user        = body.get("user", {})
-    bmr_data    = body.get("bmrData", {})
-    goal        = body.get("goal", "maintain")
+    # Bodies are client-controlled — coerce every field to the expected type so a
+    # malformed payload degrades gracefully instead of 500-ing a handler.
+    user        = _as_dict(body.get("user"))
+    bmr_data    = _as_dict(body.get("bmrData"))
+    goal        = _as_str(body.get("goal"), "maintain")
 
     # favoriteFoods is now a list of name strings sent directly from the iOS app.
     # All user-controlled lists are clamped to bound prompt size / token cost.
@@ -606,15 +625,16 @@ def handle_meal_plan(body):
     grocery     = grocery if isinstance(grocery, list) else []
     in_stock    = [g.get("name") for g in grocery[:100]
                    if isinstance(g, dict) and g.get("name")]
-    target_kcal = bmr_data.get("maintainCalories", 2000)
-    protein_g   = bmr_data.get("macros", {}).get("protein", 120)
-    carbs_g     = bmr_data.get("macros", {}).get("carbs", 225)
-    fat_g       = bmr_data.get("macros", {}).get("fat", 56)
+    macros      = _as_dict(bmr_data.get("macros"))
+    target_kcal = _as_int(bmr_data.get("maintainCalories"), 2000)
+    protein_g   = _as_int(macros.get("protein"), 120)
+    carbs_g     = _as_int(macros.get("carbs"), 225)
+    fat_g       = _as_int(macros.get("fat"), 56)
 
     if goal == "lose":
-        target_kcal = bmr_data.get("loseCalories", target_kcal - 500)
+        target_kcal = _as_int(bmr_data.get("loseCalories"), target_kcal - 500)
     elif goal == "gain":
-        target_kcal = bmr_data.get("gainCalories", target_kcal + 500)
+        target_kcal = _as_int(bmr_data.get("gainCalories"), target_kcal + 500)
 
     active      = _active_deals()
     avail_deals = deals_summary(active)
@@ -699,8 +719,11 @@ def handle_shopping_advice(body):
         raw = []
     return [x for x in (_normalize_advice_item(r) for r in raw) if x]
 
-# Simple in-memory recipe cache — avoids re-generating the same meal
-_recipe_cache: dict = {}
+# Simple in-memory LRU recipe cache — avoids re-generating the same meal while
+# staying bounded so a caller sending many distinct mealNames can't grow it without
+# limit (memory-exhaustion). Oldest entry is evicted once the cap is reached.
+_RECIPE_CACHE_MAX = 500
+_recipe_cache: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
 
 def handle_recipe(body):
     meal_name = str(body.get("mealName", "")).strip()[:120]
@@ -709,6 +732,7 @@ def handle_recipe(body):
 
     cache_key = meal_name.lower()
     if cache_key in _recipe_cache:
+        _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
         return _recipe_cache[cache_key]
 
     deals = deals_summary(_active_deals(), max_items=10)
@@ -736,6 +760,9 @@ def handle_recipe(body):
     )
     result["mealName"] = meal_name
     _recipe_cache[cache_key] = result
+    _recipe_cache.move_to_end(cache_key)
+    while len(_recipe_cache) > _RECIPE_CACHE_MAX:
+        _recipe_cache.popitem(last=False)      # evict least-recently used
     return result
 
 
@@ -772,97 +799,16 @@ def handle_agent_chat(body):
     return {"reply": groq_text(messages)}
 
 # ---------------------------------------------------------------------------
-# HTTP handler
+# Local dev entrypoint
 # ---------------------------------------------------------------------------
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        print(f"[{self.address_string()}] {fmt % args}")
-
-    def _send_json(self, data, status=200):
-        body = json.dumps(data).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", len(body))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _read_body(self):
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        if length > 256 * 1024:           # 256 KB cap — DoS protection
-            raise RequestError("Request body too large", 413)
-        return json.loads(self.rfile.read(length)) if length else {}
-
-    def _check_auth(self) -> bool:
-        if not APP_API_KEY:
-            return True  # No key configured — open (dev mode)
-        # Constant-time compare avoids leaking the key via timing.
-        return hmac.compare_digest(self.headers.get("X-API-Key", ""), APP_API_KEY)
-
-    def _check_rate_and_auth(self) -> bool:
-        ip = self.client_address[0]
-        if _is_rate_limited(ip):
-            self._send_json({"error": "Too many requests"}, 429)
-            return False
-        if not self._check_auth():
-            self._send_json({"error": "Unauthorized"}, 401)
-            return False
-        return True
-
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-API-Key")
-        self.end_headers()
-
-    def do_GET(self):
-        if not self._check_rate_and_auth():
-            return
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
-        path   = parsed.path
-        if path == "/api/health":
-            self._send_json(handle_health())
-        elif path == "/api/products":
-            self._send_json(handle_products(params))
-        elif path == "/api/deals":
-            self._send_json(handle_deals(params))
-        else:
-            self._send_json({"error": "not found"}, 404)
-
-    def do_POST(self):
-        if not self._check_rate_and_auth():
-            return
-        path = urlparse(self.path).path
-        try:
-            body = self._read_body()
-            if path == "/api/bmr":
-                self._send_json(handle_bmr(body))
-            elif path == "/api/meal-plan":
-                self._send_json(handle_meal_plan(body))
-            elif path == "/api/gap-fillers":
-                self._send_json(handle_gap_fillers(body))
-            elif path == "/api/shopping-advice":
-                self._send_json(handle_shopping_advice(body))
-            elif path == "/api/agent-chat":
-                self._send_json(handle_agent_chat(body))
-            elif path == "/api/recipe":
-                self._send_json(handle_recipe(body))
-            else:
-                self._send_json({"error": "not found"}, 404)
-        except RequestError as e:
-            self._send_json({"error": e.message}, e.status)
-        except Exception as e:
-            print(f"[Error] {path}: {e}")
-            self._send_json({"error": "Internal server error"}, 500)
+# `python app.py` runs the SAME Flask app that gunicorn serves in production
+# (see server.py), so auth / rate limiting / validation live in exactly one
+# place and can't drift between dev and prod. The import is deferred to here so
+# importing app.py for tests never pulls in Flask.
 
 if __name__ == "__main__":
+    from server import app as flask_app
+
     port = int(os.environ.get("PORT", 5000))
-    server = http.server.HTTPServer(("", port), Handler)
-    print(f"Mealio backend running on port {port} — model: {GROQ_MODEL}")
-    server.serve_forever()
+    print(f"Mealio backend (dev) running on port {port} — model: {GROQ_MODEL}")
+    flask_app.run(host="0.0.0.0", port=port)

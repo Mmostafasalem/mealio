@@ -13,6 +13,7 @@ Production (Render / any WSGI host):
 """
 
 import hmac
+import os
 
 from flask import Flask, request, jsonify
 
@@ -42,11 +43,20 @@ app.config["MAX_CONTENT_LENGTH"] = 256 * 1024  # 256 KB
 # CORS + rate limiting + auth (mirrors the stdlib Handler in app.py)
 # ---------------------------------------------------------------------------
 
+# Number of trusted reverse proxies in front of the app (Render = 1). The real
+# client IP is the entry our OWN trusted proxy appended to X-Forwarded-For — i.e.
+# counting from the RIGHT. Anything further left is attacker-controlled and must
+# never be trusted, otherwise rate limiting can be bypassed by spoofing XFF.
+_TRUSTED_PROXIES = max(1, int(os.environ.get("TRUSTED_PROXY_COUNT", "1")))
+
+
 def _client_ip() -> str:
-    # Render/most PaaS put the real client IP first in X-Forwarded-For.
-    fwd = request.headers.get("X-Forwarded-For", "")
+    fwd = [p.strip() for p in request.headers.get("X-Forwarded-For", "").split(",") if p.strip()]
     if fwd:
-        return fwd.split(",")[0].strip()
+        # Take the hop our trusted proxy set: index (len - _TRUSTED_PROXIES) from
+        # the left. Clamp to the leftmost real entry if fewer hops than expected.
+        idx = max(0, len(fwd) - _TRUSTED_PROXIES)
+        return fwd[idx]
     return request.remote_addr or "unknown"
 
 
@@ -91,7 +101,15 @@ def _query_params() -> dict:
 
 
 def _body() -> dict:
-    return request.get_json(force=True, silent=True) or {}
+    # No body at all → treat as empty object (handlers apply their own defaults).
+    if not request.data:
+        return {}
+    data = request.get_json(force=True, silent=True)
+    if data is None:
+        raise RequestError("Invalid JSON body")
+    if not isinstance(data, dict):
+        raise RequestError("Request body must be a JSON object")
+    return data
 
 
 # ---------------------------------------------------------------------------
