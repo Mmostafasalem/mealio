@@ -15,7 +15,7 @@ export function Nav() {
   const path = usePathname();
   return (
     <div className="sticky top-4 z-20 px-4">
-      <nav className="glass mx-auto flex w-max max-w-full items-center gap-1 overflow-x-auto rounded-full px-2 py-1.5">
+      <nav className="soft-shadow mx-auto flex w-max max-w-full items-center gap-1 overflow-x-auto rounded-full border border-black/5 bg-surface/70 px-2 py-1.5 backdrop-blur-xl dark:border-white/10">
         <Link href="/" className="px-3 text-base font-bold text-brand">Mealio</Link>
         {LINKS.map((l) => {
           const active = l.href === "/" ? path === "/" : path.startsWith(l.href);
