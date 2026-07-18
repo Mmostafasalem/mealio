@@ -1,174 +1,107 @@
 "use client";
 
 import { useState } from "react";
-import { api, type BMRRequest, type BMRResponse } from "@/lib/api";
+import Link from "next/link";
+import {
+  useLocalStorage, STORAGE, goalCalories,
+  type Profile, type LogEntry,
+} from "@/lib/store";
+import { Card, PageHeader, Button, CalorieRing, MacroBar, EmptyState } from "@/components/ui";
 
-const ACTIVITY = [
-  { id: "sedentary", label: "Sedentary" },
-  { id: "light", label: "Light" },
-  { id: "moderate", label: "Moderate" },
-  { id: "active", label: "Active" },
-  { id: "veryActive", label: "Very active" },
+const PRESETS: Omit<LogEntry, "id">[] = [
+  { name: "Chicken breast (150g)", calories: 248, protein: 46, carbs: 0, fat: 5 },
+  { name: "Eggs (2)", calories: 156, protein: 13, carbs: 1, fat: 11 },
+  { name: "Oats (60g)", calories: 233, protein: 8, carbs: 40, fat: 4 },
+  { name: "Greek yogurt (200g)", calories: 118, protein: 20, carbs: 8, fat: 1 },
+  { name: "Banana", calories: 105, protein: 1, carbs: 27, fat: 0 },
+  { name: "Salmon (150g)", calories: 312, protein: 38, carbs: 0, fat: 18 },
 ];
 
-export default function Home() {
-  const [form, setForm] = useState<BMRRequest>({
-    weight: 75,
-    height: 178,
-    age: 30,
-    gender: "male",
-    activityLevel: "moderate",
-  });
-  const [result, setResult] = useState<BMRResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function Dashboard() {
+  const [profile, , profileLoaded] = useLocalStorage<Profile | null>(STORAGE.profile, null);
+  const [log, setLog] = useLocalStorage<LogEntry[]>(STORAGE.log, []);
 
-  async function calculate() {
-    setLoading(true);
-    setError(null);
-    try {
-      setResult(await api<BMRResponse>("bmr", form));
-    } catch {
-      setError("Couldn't reach the server. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  if (!profileLoaded) return null;
+
+  if (!profile) {
+    return (
+      <Card>
+        <EmptyState icon="🎯" title="Set your targets first"
+          message="Tell us your body stats and goal to get daily calorie & macro targets, then start tracking."
+          action={<Link href="/setup"><span className="inline-block rounded-full bg-brand px-5 py-2 font-semibold text-white">Set up targets</span></Link>} />
+      </Card>
+    );
+  }
+
+  const goal = goalCalories(profile);
+  const consumed = log.reduce((s, e) => s + e.calories, 0);
+  const protein = log.reduce((s, e) => s + e.protein, 0);
+  const carbs = log.reduce((s, e) => s + e.carbs, 0);
+  const fat = log.reduce((s, e) => s + e.fat, 0);
+
+  function add(entry: Omit<LogEntry, "id">) {
+    setLog([...log, { ...entry, id: crypto.randomUUID() }]);
+  }
+  function remove(id: string) {
+    setLog(log.filter((e) => e.id !== id));
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-2xl px-5 py-10">
-      <header className="mb-8 text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-brand">Mealio</h1>
-        <p className="mt-1 text-muted">Eat well. Spend less.</p>
-      </header>
+    <>
+      <PageHeader title="Today" subtitle="Your calories and macros for the day." />
 
-      {/* Body stats */}
-      <section className="rounded-[var(--radius-card)] bg-surface p-6 shadow-sm">
-        <h2 className="mb-1 text-lg font-semibold">Your body stats</h2>
-        <p className="mb-5 text-sm text-muted">
-          Get your daily calorie &amp; macro targets in one tap.
-        </p>
-
-        <div className="grid grid-cols-3 gap-3">
-          <NumberField label="Weight (kg)" value={form.weight}
-            onChange={(v) => setForm({ ...form, weight: v })} />
-          <NumberField label="Height (cm)" value={form.height}
-            onChange={(v) => setForm({ ...form, height: v })} />
-          <NumberField label="Age" value={form.age}
-            onChange={(v) => setForm({ ...form, age: v })} />
+      <Card>
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
+          <CalorieRing consumed={consumed} goal={goal} />
+          <div className="flex-1 space-y-3 self-stretch">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold tabular-nums">{consumed}</span>
+              <span className="text-muted">/ {goal} kcal</span>
+            </div>
+            <MacroBar name="Protein" grams={protein} goal={profile.bmr.macros.protein} color="var(--protein)" />
+            <MacroBar name="Carbs" grams={carbs} goal={profile.bmr.macros.carbs} color="var(--carbs)" />
+            <MacroBar name="Fat" grams={fat} goal={profile.bmr.macros.fat} color="var(--fat)" />
+          </div>
         </div>
+      </Card>
 
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-muted">Gender</p>
-          <div className="flex gap-2">
-            {(["male", "female"] as const).map((g) => (
-              <Chip key={g} active={form.gender === g}
-                onClick={() => setForm({ ...form, gender: g })}>
-                {g[0].toUpperCase() + g.slice(1)}
-              </Chip>
+      <Card className="mt-6">
+        <h2 className="mb-3 text-lg font-semibold">Quick add</h2>
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <button key={p.name} onClick={() => add(p)}
+              className="rounded-full bg-surface-elevated px-3 py-1.5 text-sm ring-1 ring-black/10 transition hover:bg-brand/10 hover:text-brand dark:ring-white/10">
+              + {p.name}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Today&apos;s log</h2>
+          <span className="text-sm font-semibold text-calorie">{Math.max(goal - consumed, 0)} kcal left</span>
+        </div>
+        {log.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted">Nothing logged yet — add something above.</p>
+        ) : (
+          <ul className="divide-y divide-black/5 dark:divide-white/5">
+            {log.map((e) => (
+              <li key={e.id} className="flex items-center gap-3 py-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{e.name}</p>
+                  <p className="text-xs text-muted tabular-nums">
+                    P{e.protein} · C{e.carbs} · F{e.fat}
+                  </p>
+                </div>
+                <span className="text-sm font-semibold tabular-nums">{e.calories} kcal</span>
+                <button onClick={() => remove(e.id)} aria-label={`Remove ${e.name}`}
+                  className="text-brand-danger/70 transition hover:text-brand-danger">✕</button>
+              </li>
             ))}
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-medium text-muted">Activity level</p>
-          <div className="flex flex-wrap gap-2">
-            {ACTIVITY.map((a) => (
-              <Chip key={a.id} active={form.activityLevel === a.id}
-                onClick={() => setForm({ ...form, activityLevel: a.id })}>
-                {a.label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-
-        <button onClick={calculate} disabled={loading}
-          className="mt-6 h-12 w-full rounded-[var(--radius-tile)] bg-brand font-semibold text-white transition active:scale-[0.99] disabled:opacity-50">
-          {loading ? "Calculating…" : "Calculate my targets"}
-        </button>
-        {error && <p className="mt-3 text-center text-sm text-brand-danger">{error}</p>}
-      </section>
-
-      {/* Results */}
-      {result && (
-        <section className="mt-6 rounded-[var(--radius-card)] bg-surface p-6 shadow-sm">
-          <h2 className="mb-4 text-lg font-semibold">Your daily targets</h2>
-
-          <div className="grid grid-cols-3 gap-3">
-            <GoalCard label="Lose" kcal={result.loseCalories} />
-            <GoalCard label="Maintain" kcal={result.maintainCalories} highlight />
-            <GoalCard label="Gain" kcal={result.gainCalories} />
-          </div>
-
-          <p className="mt-6 mb-3 text-sm font-medium text-muted">
-            Macros at maintenance
-          </p>
-          <div className="space-y-3">
-            <MacroBar name="Protein" grams={result.macros.protein} color="var(--protein)" />
-            <MacroBar name="Carbs" grams={result.macros.carbs} color="var(--carbs)" />
-            <MacroBar name="Fat" grams={result.macros.fat} color="var(--fat)" />
-          </div>
-
-          <p className="mt-5 text-xs text-muted">
-            BMR {result.bmr} kcal · TDEE {result.tdee} kcal. Estimates; individual
-            needs vary.
-          </p>
-        </section>
-      )}
-    </main>
-  );
-}
-
-function NumberField({ label, value, onChange }: {
-  label: string; value: number; onChange: (v: number) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted">{label}</span>
-      <input type="number" value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-[var(--radius-chip)] bg-surface-elevated px-3 py-2 text-lg font-semibold outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-brand" />
-    </label>
-  );
-}
-
-function Chip({ active, onClick, children }: {
-  active: boolean; onClick: () => void; children: React.ReactNode;
-}) {
-  return (
-    <button onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-        active ? "bg-brand text-white" : "bg-surface-elevated text-muted ring-1 ring-black/10"
-      }`}>
-      {children}
-    </button>
-  );
-}
-
-function GoalCard({ label, kcal, highlight }: {
-  label: string; kcal: number; highlight?: boolean;
-}) {
-  return (
-    <div className={`rounded-[var(--radius-tile)] p-4 text-center ${
-      highlight ? "bg-brand text-white" : "bg-surface-elevated"
-    }`}>
-      <div className="text-2xl font-bold tabular-nums">{kcal}</div>
-      <div className={`text-xs ${highlight ? "text-white/80" : "text-muted"}`}>{label} · kcal</div>
-    </div>
-  );
-}
-
-function MacroBar({ name, grams, color }: { name: string; grams: number; color: string }) {
-  const pct = Math.min((grams / 250) * 100, 100);
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-sm">
-        <span className="font-medium">{name}</span>
-        <span className="tabular-nums text-muted">{grams} g</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-black/10">
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
-      </div>
-    </div>
+          </ul>
+        )}
+      </Card>
+    </>
   );
 }
