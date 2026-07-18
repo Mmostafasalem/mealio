@@ -7,12 +7,12 @@ import {
 
 const SPRING = { type: "spring", stiffness: 240, damping: 26 } as const;
 
-export function Card({ children, className = "", delay = 0, hover = true }: {
-  children: ReactNode; className?: string; delay?: number; hover?: boolean;
+export function Card({ children, className = "", delay = 0, hover = true, edge = false }: {
+  children: ReactNode; className?: string; delay?: number; hover?: boolean; edge?: boolean;
 }) {
   return (
     <motion.section
-      className={`soft-shadow rounded-[var(--radius-card)] bg-surface p-6 ring-1 ring-black/5 dark:ring-white/5 ${className}`}
+      className={`${edge ? "glass-edge" : "glass"} rounded-[var(--radius-card)] p-6 ${className}`}
       initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
       whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
       viewport={{ once: true, margin: "-40px" }}

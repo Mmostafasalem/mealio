@@ -51,7 +51,7 @@ export default function Dashboard() {
     <>
       <PageHeader eyebrow="Dashboard" title="Today" subtitle="Your calories and macros for the day." />
 
-      <Card>
+      <Card edge>
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
           <CalorieRing consumed={consumed} goal={goal} />
           <div className="flex-1 space-y-3 self-stretch">

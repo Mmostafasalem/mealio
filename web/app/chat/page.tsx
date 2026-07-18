@@ -44,7 +44,7 @@ export default function ChatPage() {
     <>
       <PageHeader eyebrow="AI" title="Assistant" subtitle="Ask about meals, groceries, or your nutrition goals." />
 
-      <div className="flex min-h-[60vh] flex-col rounded-[var(--radius-card)] bg-surface p-4 shadow-sm">
+      <div className="glass flex min-h-[60vh] flex-col rounded-[var(--radius-card)] p-4">
         <div className="flex-1 space-y-3 overflow-y-auto">
           {messages.length === 0 && !loading && (
             <EmptyState icon={Sparkle} title="Ask me anything"

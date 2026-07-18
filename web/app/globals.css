@@ -1,49 +1,33 @@
 @import "tailwindcss";
 
+/* Force the dark-glass aesthetic regardless of system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
-  Mealio web design system.
-  Palette: neutral zinc base + ONE calibrated green accent (no teal tint, no
-  purple/blue "AI glow"). Depth from soft tinted shadows, not gradients.
+  Mealio web — "Dark glass / aurora".
+  OLED-near-black base, a restrained emerald aurora, frosted-glass surfaces with
+  hairline edges. One emerald accent. No AI-purple, no muddy tints.
 */
 
 :root {
-  --background: #fafafa;
-  --surface: #ffffff;
-  --surface-elevated: #f4f4f5; /* zinc-100 */
-  --foreground: #18181b;       /* zinc-900 */
-  --muted: #71717a;            /* zinc-500 */
-  --hairline: rgba(0, 0, 0, 0.06);
+  color-scheme: dark;
 
-  --brand: #16a34a;            /* green-600 */
-  --brand-dark: #15803d;       /* green-700 */
-  --brand-amber: #d97706;
-  --brand-danger: #dc2626;
+  --background: #050507;
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-elevated: rgba(255, 255, 255, 0.07);
+  --foreground: #ededf1;
+  --muted: #8a8a95;
+  --hairline: rgba(255, 255, 255, 0.09);
 
-  --calorie: #16a34a;
-  --protein: #ea580c;
-  --carbs: #d97706;
-  --fat: #7c3aed;
-}
+  --brand: #34d399;         /* emerald-400 */
+  --brand-dark: #10b981;    /* emerald-500 */
+  --brand-amber: #fbbf24;
+  --brand-danger: #f87171;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #09090b;        /* zinc-950 */
-    --surface: #161619;
-    --surface-elevated: #202024;
-    --foreground: #fafafa;
-    --muted: #a1a1aa;            /* zinc-400 */
-    --hairline: rgba(255, 255, 255, 0.08);
-
-    --brand: #22c55e;            /* green-500 */
-    --brand-dark: #16a34a;
-    --brand-amber: #f59e0b;
-    --brand-danger: #ef4444;
-
-    --calorie: #22c55e;
-    --protein: #fb923c;
-    --carbs: #fbbf24;
-    --fat: #a78bfa;
-  }
+  --calorie: #34d399;
+  --protein: #fb923c;
+  --carbs: #fbbf24;
+  --fat: #a78bfa;
 }
 
 @theme inline {
@@ -63,30 +47,32 @@
   --color-carbs: var(--carbs);
   --color-fat: var(--fat);
 
-  --radius-card: 20px;
-  --radius-tile: 14px;
-  --radius-chip: 10px;
+  --radius-card: 22px;
+  --radius-tile: 16px;
+  --radius-chip: 11px;
 }
 
 body {
   color: var(--foreground);
   font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: -0.011em;
-  /* Subtle graph-paper dot grid over a flat neutral — texture without slop. */
+  min-height: 100dvh;
   background-color: var(--background);
-  background-image: radial-gradient(
-    circle at 1px 1px,
-    color-mix(in oklab, var(--foreground) 6%, transparent) 1px,
-    transparent 0
-  );
-  background-size: 24px 24px;
+  /* Aurora: two off-center emerald glows + a faint floor glow over black.
+     Restrained and single-hue — the opposite of centered purple mesh slop. */
+  background-image:
+    radial-gradient(48rem 30rem at 12% -6%, rgba(52, 211, 153, 0.16), transparent 62%),
+    radial-gradient(42rem 34rem at 98% 6%, rgba(16, 185, 129, 0.11), transparent 60%),
+    radial-gradient(60rem 40rem at 50% 116%, rgba(52, 211, 153, 0.07), transparent 60%);
   background-attachment: fixed;
 }
 
 h1, h2, h3 {
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
   text-wrap: balance;
 }
+
+::selection { background: rgba(52, 211, 153, 0.25); }
 
 :focus-visible {
   outline: 2px solid var(--brand);
@@ -94,31 +80,35 @@ h1, h2, h3 {
   border-radius: 6px;
 }
 
-/* ---- Motion ---- */
-:root {
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.press {
-  transition: transform 0.12s var(--ease-out-soft);
-}
-.press:active {
-  transform: scale(0.97);
-}
-
-/* Soft, hue-tinted ambient shadow — floating, not a harsh drop. */
-.soft-shadow {
+/* ---- Frosted glass surface ---- */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid var(--hairline);
   box-shadow:
-    0 1px 2px rgba(24, 24, 27, 0.04),
-    0 14px 36px -20px rgba(24, 24, 27, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 60px -28px rgba(0, 0, 0, 0.9);
 }
-@media (prefers-color-scheme: dark) {
-  .soft-shadow {
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.4),
-      0 16px 40px -22px rgba(0, 0, 0, 0.7);
-  }
+/* Emerald-edged glass for hero / focal surfaces. */
+.glass-edge {
+  border-color: rgba(52, 211, 153, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(52, 211, 153, 0.05),
+    0 24px 60px -26px rgba(0, 0, 0, 0.9),
+    0 0 40px -12px rgba(52, 211, 153, 0.18);
 }
+
+/* Fallback for reduced-transparency users. */
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-edge { background: #121316; backdrop-filter: none; }
+}
+
+/* ---- Motion ---- */
+:root { --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1); }
+.press { transition: transform 0.12s var(--ease-out-soft); }
+.press:active { transform: scale(0.97); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
