@@ -14,23 +14,21 @@ const LINKS = [
 export function Nav() {
   const path = usePathname();
   return (
-    <nav className="sticky top-0 z-10 border-b border-black/5 bg-surface/80 backdrop-blur dark:border-white/5">
-      <div className="mx-auto flex max-w-3xl items-center gap-1 px-4 py-3">
-        <Link href="/" className="mr-2 text-xl font-bold text-brand">Mealio</Link>
-        <div className="flex flex-1 items-center gap-1 overflow-x-auto">
-          {LINKS.map((l) => {
-            const active = l.href === "/" ? path === "/" : path.startsWith(l.href);
-            return (
-              <Link key={l.href} href={l.href}
-                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                  active ? "bg-brand/10 text-brand" : "text-muted hover:text-foreground"
-                }`}>
-                {l.label}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </nav>
+    <div className="sticky top-4 z-20 px-4">
+      <nav className="soft-shadow mx-auto flex w-max max-w-full items-center gap-1 overflow-x-auto rounded-full border border-black/5 bg-surface/70 px-2 py-1.5 backdrop-blur-xl dark:border-white/10">
+        <Link href="/" className="px-3 text-base font-bold text-brand">Mealio</Link>
+        {LINKS.map((l) => {
+          const active = l.href === "/" ? path === "/" : path.startsWith(l.href);
+          return (
+            <Link key={l.href} href={l.href}
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                active ? "bg-brand text-white" : "text-muted hover:text-foreground"
+              }`}>
+              {l.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
   );
 }

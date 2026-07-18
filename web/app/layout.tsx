@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { Geist } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
   title: "Mealio — Eat well. Spend less.",
@@ -14,10 +17,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full">
         <Nav />
-        <div className="mx-auto max-w-3xl px-4 py-8">{children}</div>
+        <div className="mx-auto max-w-3xl px-4 pb-16 pt-6">{children}</div>
       </body>
     </html>
   );

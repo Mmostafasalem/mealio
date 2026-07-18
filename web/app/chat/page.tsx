@@ -41,7 +41,7 @@ export default function ChatPage() {
 
   return (
     <>
-      <PageHeader title="Assistant" subtitle="Ask about meals, groceries, or your nutrition goals." />
+      <PageHeader eyebrow="AI" title="Assistant" subtitle="Ask about meals, groceries, or your nutrition goals." />
 
       <div className="flex min-h-[60vh] flex-col rounded-[var(--radius-card)] bg-surface p-4 shadow-sm">
         <div className="flex-1 space-y-3 overflow-y-auto">

@@ -43,7 +43,7 @@ export default function ShopPage() {
 
   return (
     <>
-      <PageHeader title="Shop" subtitle="Grocery prices to plan and budget your shop." />
+      <PageHeader eyebrow="Groceries" title="Shop" subtitle="Grocery prices to plan and budget your shop." />
 
       {/* Budget */}
       <Card className="mb-6">

@@ -51,7 +51,7 @@ export default function Setup() {
 
   return (
     <>
-      <PageHeader title="Your targets"
+      <PageHeader eyebrow="Setup" title="Your targets"
         subtitle="Set your body stats to get daily calorie & macro goals." />
 
       <Card>

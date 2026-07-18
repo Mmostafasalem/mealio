@@ -55,7 +55,7 @@ export default function PlanPage() {
 
   return (
     <>
-      <PageHeader title="Meal Plan" subtitle="A 7-day plan built around your goal." />
+      <PageHeader eyebrow="This week" title="Meal Plan" subtitle="A 7-day plan built around your goal." />
 
       {plan?.agentMessage && (
         <Card className="mb-6 bg-brand/10">

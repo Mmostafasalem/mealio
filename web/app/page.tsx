@@ -48,7 +48,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Today" subtitle="Your calories and macros for the day." />
+      <PageHeader eyebrow="Dashboard" title="Today" subtitle="Your calories and macros for the day." />
 
       <Card>
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">

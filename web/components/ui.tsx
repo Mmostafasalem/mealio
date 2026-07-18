@@ -7,7 +7,7 @@ export function Card({ children, className = "", delay = 0 }: {
 }) {
   return (
     <section
-      className={`rise rounded-[var(--radius-card)] bg-surface p-6 shadow-sm ${className}`}
+      className={`rise soft-shadow rounded-[var(--radius-card)] bg-surface p-6 ring-1 ring-black/5 dark:ring-white/5 ${className}`}
       style={delay ? { animationDelay: `${delay}ms` } : undefined}
     >
       {children}
@@ -15,11 +15,18 @@ export function Card({ children, className = "", delay = 0 }: {
   );
 }
 
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({ title, subtitle, eyebrow }: {
+  title: string; subtitle?: string; eyebrow?: string;
+}) {
   return (
-    <header className="mb-6">
-      <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-      {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+    <header className="mb-7">
+      {eyebrow && (
+        <span className="mb-2.5 inline-block rounded-full bg-brand/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-brand">
+          {eyebrow}
+        </span>
+      )}
+      <h1 className="text-3xl font-bold">{title}</h1>
+      {subtitle && <p className="mt-1.5 max-w-prose text-sm text-muted">{subtitle}</p>}
     </header>
   );
 }
@@ -32,11 +39,11 @@ export function Button({
 }) {
   const styles =
     variant === "primary"
-      ? "bg-brand text-white"
+      ? "bg-brand text-white shadow-[0_8px_24px_-8px_var(--brand)]"
       : "bg-brand/10 text-brand";
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className={`h-12 w-full rounded-[var(--radius-tile)] font-semibold transition active:scale-[0.99] disabled:opacity-50 ${styles}`}>
+      className={`press flex h-12 w-full items-center justify-center gap-2 rounded-full font-semibold disabled:opacity-50 ${styles}`}>
       {children}
     </button>
   );

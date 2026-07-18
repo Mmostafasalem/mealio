@@ -67,9 +67,28 @@
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.011em;
+  /* Soft-structuralism ambient: a single diffused brand glow up top over a
+     tinted base — depth without the AI-gradient cliché. */
+  background:
+    radial-gradient(60rem 40rem at 50% -10rem, color-mix(in oklab, var(--brand) 12%, transparent), transparent 70%),
+    var(--background);
+  background-attachment: fixed;
+}
+
+/* Headings: tighter tracking, no orphans. */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/* Accessible keyboard focus (was missing). */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* ---- Motion ----
@@ -84,17 +103,34 @@ body {
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
+    filter: blur(5px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0);
   }
 }
 
-/* Entrance for cards / list items — runs once on mount. */
+/* Entrance for cards / list items — a gentle, heavy fade-up (runs once on mount). */
 .rise {
-  animation: rise 0.42s var(--ease-out-soft) both;
+  animation: rise 0.5s var(--ease-out-soft) both;
+}
+
+/* Soft, diffused, hue-tinted ambient shadow — the "floating" of soft structuralism.
+   Not a harsh drop shadow; a wide, low-opacity halo tinted toward the base. */
+.soft-shadow {
+  box-shadow:
+    0 1px 2px rgba(16, 24, 32, 0.04),
+    0 18px 44px -22px rgba(16, 24, 32, 0.22);
+}
+@media (prefers-color-scheme: dark) {
+  .soft-shadow {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 20px 48px -22px rgba(0, 0, 0, 0.6);
+  }
 }
 
 /* Tactile press — feedback on the press itself, not on release. */
