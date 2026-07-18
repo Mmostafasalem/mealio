@@ -85,8 +85,8 @@ export default function ShopPage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {filtered.map((p) => (
-          <Card key={`${p.store}-${p.id}`} className="!p-4">
+        {filtered.map((p, i) => (
+          <Card key={`${p.store}-${p.id}`} className="!p-4" delay={Math.min(i * 25, 320)}>
             <div className="flex items-center gap-3">
               <span className="text-2xl">{p.emoji}</span>
               <div className="flex-1">

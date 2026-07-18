@@ -2,9 +2,14 @@
 
 import type { ReactNode } from "react";
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({ children, className = "", delay = 0 }: {
+  children: ReactNode; className?: string; delay?: number;
+}) {
   return (
-    <section className={`rounded-[var(--radius-card)] bg-surface p-6 shadow-sm ${className}`}>
+    <section
+      className={`rise rounded-[var(--radius-card)] bg-surface p-6 shadow-sm ${className}`}
+      style={delay ? { animationDelay: `${delay}ms` } : undefined}
+    >
       {children}
     </section>
   );
@@ -42,7 +47,7 @@ export function Chip({ active, onClick, children }: {
 }) {
   return (
     <button onClick={onClick}
-      className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+      className={`press rounded-full px-4 py-2 text-sm font-medium ${
         active ? "bg-brand text-white" : "bg-surface-elevated text-muted ring-1 ring-black/10 dark:ring-white/10"
       }`}>
       {children}

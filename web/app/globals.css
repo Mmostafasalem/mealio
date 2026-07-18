@@ -71,3 +71,46 @@ body {
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
+
+/* ---- Motion ----
+   Restraint over spectacle (apple-design): a single soft entrance, an
+   ease that decelerates like something settling into place, and press
+   feedback that lands on pointer-down. All disabled under reduced-motion. */
+
+:root {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1); /* decelerate + settle */
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Entrance for cards / list items — runs once on mount. */
+.rise {
+  animation: rise 0.42s var(--ease-out-soft) both;
+}
+
+/* Tactile press — feedback on the press itself, not on release. */
+.press {
+  transition: transform 0.12s var(--ease-out-soft);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

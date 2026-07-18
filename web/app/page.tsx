@@ -65,19 +65,19 @@ export default function Dashboard() {
         </div>
       </Card>
 
-      <Card className="mt-6">
+      <Card className="mt-6" delay={70}>
         <h2 className="mb-3 text-lg font-semibold">Quick add</h2>
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => (
             <button key={p.name} onClick={() => add(p)}
-              className="rounded-full bg-surface-elevated px-3 py-1.5 text-sm ring-1 ring-black/10 transition hover:bg-brand/10 hover:text-brand dark:ring-white/10">
+              className="press rounded-full bg-surface-elevated px-3 py-1.5 text-sm ring-1 ring-black/10 hover:bg-brand/10 hover:text-brand dark:ring-white/10">
               + {p.name}
             </button>
           ))}
         </div>
       </Card>
 
-      <Card className="mt-6">
+      <Card className="mt-6" delay={140}>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Today&apos;s log</h2>
           <span className="text-sm font-semibold text-calorie">{Math.max(goal - consumed, 0)} kcal left</span>

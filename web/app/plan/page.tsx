@@ -79,12 +79,12 @@ export default function PlanPage() {
       {plan && !loading && (
         <>
           <div className="space-y-4">
-            {DAYS.map(([key, label]) => {
+            {DAYS.map(([key, label], i) => {
               const day = plan[key] as Day | undefined;
               if (!day) return null;
               const total = day.visoKcal as number | undefined;
               return (
-                <Card key={key}>
+                <Card key={key} delay={Math.min(i * 50, 300)}>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="font-semibold">{label}</h3>
                     {typeof total === "number" && (
