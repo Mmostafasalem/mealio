@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useLocalStorage, STORAGE, type CartLine } from "@/lib/store";
+import { MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { Card, PageHeader, Spinner, EmptyState, AnimatedNumber } from "@/components/ui";
 
 interface Product {
@@ -68,7 +69,7 @@ export default function ShopPage() {
                 <span className="flex-1">{l.name} <span className="text-muted">×{l.qty}</span></span>
                 <span className="tabular-nums">€{(l.price * l.qty).toFixed(2)}</span>
                 <button onClick={() => removeLine(l.id, l.store)} aria-label={`Remove ${l.name}`}
-                  className="text-brand-danger/70 hover:text-brand-danger">✕</button>
+                  className="press text-brand-danger/70 hover:text-brand-danger"><X size={16} weight="bold" /></button>
               </li>
             ))}
           </ul>
@@ -76,22 +77,25 @@ export default function ShopPage() {
       </Card>
 
       {/* Product list */}
-      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search groceries…"
-        className="mb-4 w-full rounded-[var(--radius-chip)] bg-surface px-4 py-3 outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-brand dark:ring-white/10" />
+      <div className="relative mb-4">
+        <MagnifyingGlass size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search groceries…"
+          className="w-full rounded-[var(--radius-chip)] bg-surface py-3 pl-11 pr-4 outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-brand dark:ring-white/10" />
+      </div>
 
       {error && <p className="text-center text-sm text-brand-danger">Couldn&apos;t load products.</p>}
       {!products && !error && <Spinner />}
       {products && filtered.length === 0 && (
-        <EmptyState icon="🔍" title="No matches" message="Try a different search." />
+        <EmptyState icon={MagnifyingGlass} title="No matches" message="Try a different search." />
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {filtered.map((p, i) => (
           <Card key={`${p.store}-${p.id}`} className="!p-4" delay={Math.min(i * 25, 320)}>
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{p.emoji}</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold leading-tight">{p.name}</p>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-elevated text-xl">{p.emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold leading-tight">{p.name}</p>
                 <p className="text-xs text-muted">{p.store} · {p.weeklyQty}{p.unit}</p>
               </div>
               <div className="text-right">
@@ -99,7 +103,9 @@ export default function ShopPage() {
                 <p className="text-[10px] text-muted">est. price</p>
               </div>
               <button onClick={() => add(p)} aria-label={`Add ${p.name}`}
-                className="ml-1 h-9 w-9 rounded-full bg-brand text-lg font-bold text-white transition active:scale-95">+</button>
+                className="press ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+                <Plus size={18} weight="bold" />
+              </button>
             </div>
           </Card>
         ))}

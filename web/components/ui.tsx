@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, type ComponentType } from "react";
 import {
   motion, useMotionValue, useTransform, useSpring, animate,
 } from "motion/react";
@@ -156,12 +156,15 @@ export function CalorieRing({ consumed, goal, size = 168 }: {
   );
 }
 
-export function EmptyState({ icon, title, message, action }: {
-  icon: string; title: string; message: string; action?: ReactNode;
+export function EmptyState({ icon: Icon, title, message, action }: {
+  icon: ComponentType<{ size?: number; weight?: "regular" | "duotone" | "fill" }>;
+  title: string; message: string; action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2 py-10 text-center">
-      <div className="text-4xl">{icon}</div>
+    <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+        <Icon size={26} weight="duotone" />
+      </div>
       <p className="font-semibold">{title}</p>
       <p className="max-w-xs text-sm text-muted">{message}</p>
       {action && <div className="mt-2">{action}</div>}

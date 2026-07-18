@@ -1,20 +1,21 @@
 @import "tailwindcss";
 
 /*
-  Mealio web design system — mirrors the iOS app's Color+Brand palette so the
-  web and iOS apps read as one product. Green brand, macro accents, adaptive
-  light/dark surfaces.
+  Mealio web design system.
+  Palette: neutral zinc base + ONE calibrated green accent (no teal tint, no
+  purple/blue "AI glow"). Depth from soft tinted shadows, not gradients.
 */
 
 :root {
-  --background: #f2f3f5;
+  --background: #fafafa;
   --surface: #ffffff;
-  --surface-elevated: #ffffff;
-  --foreground: #1a2127;
-  --muted: #6b7d87;
+  --surface-elevated: #f4f4f5; /* zinc-100 */
+  --foreground: #18181b;       /* zinc-900 */
+  --muted: #71717a;            /* zinc-500 */
+  --hairline: rgba(0, 0, 0, 0.06);
 
-  --brand: #1a9e48;
-  --brand-dark: #15803d;
+  --brand: #16a34a;            /* green-600 */
+  --brand-dark: #15803d;       /* green-700 */
   --brand-amber: #d97706;
   --brand-danger: #dc2626;
 
@@ -26,18 +27,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0d1519;
-    --surface: #192430;
-    --surface-elevated: #1c2a33;
-    --foreground: #e2e8ec;
-    --muted: #a8bfc7;
+    --background: #09090b;        /* zinc-950 */
+    --surface: #161619;
+    --surface-elevated: #202024;
+    --foreground: #fafafa;
+    --muted: #a1a1aa;            /* zinc-400 */
+    --hairline: rgba(255, 255, 255, 0.08);
 
-    --brand: #1ed760;
-    --brand-dark: #17b84f;
-    --brand-amber: #f5a623;
-    --brand-danger: #ff6b6b;
+    --brand: #22c55e;            /* green-500 */
+    --brand-dark: #16a34a;
+    --brand-amber: #f59e0b;
+    --brand-danger: #ef4444;
 
-    --calorie: #4ade80;
+    --calorie: #22c55e;
     --protein: #fb923c;
     --carbs: #fbbf24;
     --fat: #a78bfa;
@@ -61,79 +63,42 @@
   --color-carbs: var(--carbs);
   --color-fat: var(--fat);
 
-  --radius-card: 22px;
-  --radius-tile: 16px;
-  --radius-chip: 12px;
+  --radius-card: 20px;
+  --radius-tile: 14px;
+  --radius-chip: 10px;
 }
 
 body {
   color: var(--foreground);
   font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: -0.011em;
-  /* Soft-structuralism ambient: a single diffused brand glow up top over a
-     tinted base — depth without the AI-gradient cliché. */
-  background:
-    radial-gradient(60rem 40rem at 50% -10rem, color-mix(in oklab, var(--brand) 12%, transparent), transparent 70%),
-    var(--background);
+  /* Subtle graph-paper dot grid over a flat neutral — texture without slop. */
+  background-color: var(--background);
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 24px 24px;
   background-attachment: fixed;
 }
 
-/* Headings: tighter tracking, no orphans. */
 h1, h2, h3 {
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
 
-/* Accessible keyboard focus (was missing). */
 :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* ---- Motion ----
-   Restraint over spectacle (apple-design): a single soft entrance, an
-   ease that decelerates like something settling into place, and press
-   feedback that lands on pointer-down. All disabled under reduced-motion. */
-
+/* ---- Motion ---- */
 :root {
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1); /* decelerate + settle */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-    filter: blur(5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-/* Entrance for cards / list items — a gentle, heavy fade-up (runs once on mount). */
-.rise {
-  animation: rise 0.5s var(--ease-out-soft) both;
-}
-
-/* Soft, diffused, hue-tinted ambient shadow — the "floating" of soft structuralism.
-   Not a harsh drop shadow; a wide, low-opacity halo tinted toward the base. */
-.soft-shadow {
-  box-shadow:
-    0 1px 2px rgba(16, 24, 32, 0.04),
-    0 18px 44px -22px rgba(16, 24, 32, 0.22);
-}
-@media (prefers-color-scheme: dark) {
-  .soft-shadow {
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.3),
-      0 20px 48px -22px rgba(0, 0, 0, 0.6);
-  }
-}
-
-/* Tactile press — feedback on the press itself, not on release. */
 .press {
   transition: transform 0.12s var(--ease-out-soft);
 }
@@ -141,12 +106,23 @@ h1, h2, h3 {
   transform: scale(0.97);
 }
 
+/* Soft, hue-tinted ambient shadow — floating, not a harsh drop. */
+.soft-shadow {
+  box-shadow:
+    0 1px 2px rgba(24, 24, 27, 0.04),
+    0 14px 36px -20px rgba(24, 24, 27, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  .soft-shadow {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 16px 40px -22px rgba(0, 0, 0, 0.7);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useLocalStorage, STORAGE, type Profile } from "@/lib/store";
+import { ForkKnife, Sparkle } from "@phosphor-icons/react";
 import { Card, PageHeader, Button, EmptyState, Spinner } from "@/components/ui";
 
 interface Meal { pavadinimas?: string; kcal?: number; ingredientai?: string[] }
@@ -46,7 +47,7 @@ export default function PlanPage() {
   if (!profile) {
     return (
       <Card>
-        <EmptyState icon="🍽️" title="Set your targets first"
+        <EmptyState icon={ForkKnife} title="Set your targets first"
           message="Your meal plan is built around your calorie goal."
           action={<Link href="/setup"><span className="inline-block rounded-full bg-brand px-5 py-2 font-semibold text-white">Set up targets</span></Link>} />
       </Card>
@@ -65,7 +66,7 @@ export default function PlanPage() {
 
       {!plan && !loading && (
         <Card>
-          <EmptyState icon="✨" title="No plan yet"
+          <EmptyState icon={Sparkle} title="No plan yet"
             message="Generate a fresh 7-day plan tailored to your daily targets."
             action={<Button onClick={generate}>Generate plan</Button>} />
         </Card>

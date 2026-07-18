@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
+import { Target } from "@phosphor-icons/react";
 import {
   useLocalStorage, STORAGE, goalCalories,
   type Profile, type LogEntry,
@@ -26,7 +27,7 @@ export default function Dashboard() {
   if (!profile) {
     return (
       <Card>
-        <EmptyState icon="🎯" title="Set your targets first"
+        <EmptyState icon={Target} title="Set your targets first"
           message="Tell us your body stats and goal to get daily calorie & macro targets, then start tracking."
           action={<Link href="/setup"><span className="inline-block rounded-full bg-brand px-5 py-2 font-semibold text-white">Set up targets</span></Link>} />
       </Card>

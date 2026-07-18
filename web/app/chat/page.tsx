@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useLocalStorage, STORAGE, goalCalories, type Profile } from "@/lib/store";
+import { Sparkle, PaperPlaneTilt } from "@phosphor-icons/react";
 import { PageHeader, EmptyState } from "@/components/ui";
 
 interface Msg { role: "user" | "assistant"; content: string }
@@ -46,7 +47,7 @@ export default function ChatPage() {
       <div className="flex min-h-[60vh] flex-col rounded-[var(--radius-card)] bg-surface p-4 shadow-sm">
         <div className="flex-1 space-y-3 overflow-y-auto">
           {messages.length === 0 && !loading && (
-            <EmptyState icon="✨" title="Ask me anything"
+            <EmptyState icon={Sparkle} title="Ask me anything"
               message="e.g. “A high-protein breakfast under 400 kcal” or “What should I buy this week?”" />
           )}
           {messages.map((m, i) => (
@@ -75,7 +76,8 @@ export default function ChatPage() {
             placeholder="Ask about meals, groceries, nutrition…"
             className="flex-1 rounded-full bg-surface-elevated px-4 py-3 outline-none ring-1 ring-black/10 focus:ring-2 focus:ring-brand dark:ring-white/10" />
           <button onClick={send} disabled={!input.trim() || loading} aria-label="Send message"
-            className="h-12 w-12 shrink-0 rounded-full bg-brand text-xl font-bold text-white transition active:scale-95 disabled:opacity-40">↑</button>
+            className="press flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white disabled:opacity-40">
+            <PaperPlaneTilt size={20} weight="fill" /></button>
         </div>
       </div>
     </>
