@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/*
+  Mealio web design system — mirrors the iOS app's Color+Brand palette so the
+  web and iOS apps read as one product. Green brand, macro accents, adaptive
+  light/dark surfaces.
+*/
+
+:root {
+  --background: #f2f3f5;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --foreground: #1a2127;
+  --muted: #6b7d87;
+
+  --brand: #1a9e48;
+  --brand-dark: #15803d;
+  --brand-amber: #d97706;
+  --brand-danger: #dc2626;
+
+  --calorie: #16a34a;
+  --protein: #ea580c;
+  --carbs: #d97706;
+  --fat: #7c3aed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0d1519;
+    --surface: #192430;
+    --surface-elevated: #1c2a33;
+    --foreground: #e2e8ec;
+    --muted: #a8bfc7;
+
+    --brand: #1ed760;
+    --brand-dark: #17b84f;
+    --brand-amber: #f5a623;
+    --brand-danger: #ff6b6b;
+
+    --calorie: #4ade80;
+    --protein: #fb923c;
+    --carbs: #fbbf24;
+    --fat: #a78bfa;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-amber: var(--brand-amber);
+  --color-brand-danger: var(--brand-danger);
+
+  --color-calorie: var(--calorie);
+  --color-protein: var(--protein);
+  --color-carbs: var(--carbs);
+  --color-fat: var(--fat);
+
+  --radius-card: 22px;
+  --radius-tile: 16px;
+  --radius-chip: 12px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
