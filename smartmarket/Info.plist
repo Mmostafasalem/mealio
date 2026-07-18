@@ -9,9 +9,9 @@
 	<key>API_BASE_URL</key>
 	<string>https://mealio-backend-17qg.onrender.com</string>
 	<!-- Shared secret. Must match the backend's APP_API_KEY env var.
-	     Leave empty to disable auth (dev only). For production, inject this at
-	     build time via a gitignored xcconfig rather than committing it. -->
+	     Injected at build time from Secrets.xcconfig (gitignored). Undefined →
+	     empty → auth disabled (dev). See Secrets.xcconfig.example. -->
 	<key>API_KEY</key>
-	<string></string>
+	<string>$(API_KEY)</string>
 </dict>
 </plist>

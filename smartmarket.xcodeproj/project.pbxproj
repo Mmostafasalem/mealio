@@ -12,6 +12,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AD5EC0012FCA0F6400433340 /* smartmarket/Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = smartmarket/Secrets.xcconfig; sourceTree = SOURCE_ROOT; };
 		ADF8148C2FCA0F6400433335 /* smartmarket.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = smartmarket.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADMAP0002FCA0F6400433335 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
 		ADMAP0012FCA0F6400433336 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
@@ -51,12 +52,21 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		30A52A0B300B746100ADB000 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				AD5EC0012FCA0F6400433340 /* smartmarket/Secrets.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		ADF814832FCA0F6400433335 = {
 			isa = PBXGroup;
 			children = (
 				ADF8148E2FCA0F6400433335 /* smartmarket */,
 				ADMAP0032FCA0F6400433335 /* Frameworks */,
 				ADF8148D2FCA0F6400433335 /* Products */,
+				30A52A0B300B746100ADB000 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -159,6 +169,7 @@
 /* Begin XCBuildConfiguration section */
 		ADF814A02FCA0F6600433335 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AD5EC0012FCA0F6400433340 /* smartmarket/Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -170,7 +181,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mealio;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mealio uses your location to find discount grocery deals at stores near you.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mealio uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -195,6 +206,7 @@
 		};
 		ADF814A12FCA0F6600433335 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = AD5EC0012FCA0F6400433340 /* smartmarket/Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -206,7 +218,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mealio;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mealio uses your location to find discount grocery deals at stores near you.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mealio uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
