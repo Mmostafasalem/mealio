@@ -38,5 +38,3 @@ smartmarket/smartmarket-backend/off_cache.json
 # Pytest
 .pytest_cache/
 
-# CI workflow — add later via GitHub web UI or a workflow-scoped token
-.github/
