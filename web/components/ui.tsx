@@ -1,17 +1,54 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import {
+  motion, useMotionValue, useTransform, useSpring, animate,
+} from "motion/react";
 
-export function Card({ children, className = "", delay = 0 }: {
-  children: ReactNode; className?: string; delay?: number;
+const SPRING = { type: "spring", stiffness: 240, damping: 26 } as const;
+
+export function Card({ children, className = "", delay = 0, hover = true }: {
+  children: ReactNode; className?: string; delay?: number; hover?: boolean;
 }) {
   return (
-    <section
-      className={`rise soft-shadow rounded-[var(--radius-card)] bg-surface p-6 ring-1 ring-black/5 dark:ring-white/5 ${className}`}
-      style={delay ? { animationDelay: `${delay}ms` } : undefined}
+    <motion.section
+      className={`soft-shadow rounded-[var(--radius-card)] bg-surface p-6 ring-1 ring-black/5 dark:ring-white/5 ${className}`}
+      initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ ...SPRING, delay: delay / 1000 }}
+      whileHover={hover ? { y: -3, transition: { ...SPRING, damping: 18 } } : undefined}
     >
       {children}
-    </section>
+    </motion.section>
+  );
+}
+
+/** Number that springs from its previous value to the new one. */
+export function AnimatedNumber({ value, className, format }: {
+  value: number; className?: string; format?: (n: number) => string;
+}) {
+  const mv = useMotionValue(value);
+  const spring = useSpring(mv, { stiffness: 90, damping: 20 });
+  const text = useTransform(spring, (v) =>
+    format ? format(v) : Math.round(v).toLocaleString(),
+  );
+  useEffect(() => { mv.set(value); }, [value, mv]);
+  return <motion.span className={className}>{text}</motion.span>;
+}
+
+/** Scroll/mount reveal for non-card content. */
+export function Reveal({ children, delay = 0, className }: {
+  children: ReactNode; delay?: number; className?: string;
+}) {
+  return (
+    <motion.div className={className}
+      initial={{ opacity: 0, y: 14, filter: "blur(5px)" }}
+      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ ...SPRING, delay: delay / 1000 }}>
+      {children}
+    </motion.div>
   );
 }
 
@@ -72,44 +109,50 @@ export function MacroBar({ name, grams, goal, color }: {
       <div className="mb-1 flex justify-between text-sm">
         <span className="font-medium">{name}</span>
         <span className="tabular-nums text-muted">
-          {Math.round(grams)}{goal ? ` / ${Math.round(goal)}` : ""} g
+          <AnimatedNumber value={Math.round(grams)} />{goal ? ` / ${Math.round(goal)}` : ""} g
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-        <div className="h-full rounded-full transition-[width] duration-500"
-          style={{ width: `${pct}%`, background: color }} />
+      <div className="h-2.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+        <motion.div className="h-full rounded-full"
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ type: "spring", stiffness: 90, damping: 20, delay: 0.15 }}
+          style={{ background: color }} />
       </div>
     </div>
   );
 }
 
-/** Calorie progress ring (SVG). */
-export function CalorieRing({ consumed, goal, size = 150 }: {
+/** Calorie progress ring that draws itself in and re-springs when the value changes. */
+export function CalorieRing({ consumed, goal, size = 168 }: {
   consumed: number; goal: number; size?: number;
 }) {
-  const stroke = 12;
+  const stroke = 13;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = goal > 0 ? Math.min(consumed / goal, 1) : 0;
   const over = consumed > goal;
   const color = over ? "var(--brand-danger)" : "var(--calorie)";
   return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke="currentColor" strokeWidth={stroke} className="text-black/10 dark:text-white/10" />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke={color} strokeWidth={stroke} strokeLinecap="round"
-        strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
-        className="transition-[stroke-dashoffset] duration-700" />
-      <g className="rotate-90" style={{ transformOrigin: "center" }}>
-        <text x="50%" y="46%" textAnchor="middle" dominantBaseline="middle"
-          className="fill-foreground text-2xl font-bold" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {Math.max(goal - consumed, 0)}
-        </text>
-        <text x="50%" y="60%" textAnchor="middle" dominantBaseline="middle"
-          className="fill-muted text-xs">kcal left</text>
-      </g>
-    </svg>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke="currentColor" strokeWidth={stroke}
+          className="text-black/[0.07] dark:text-white/[0.08]" />
+        <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c}
+          initial={{ strokeDashoffset: c }}
+          animate={{ strokeDashoffset: c * (1 - pct) }}
+          transition={{ type: "spring", stiffness: 55, damping: 18, delay: 0.1 }}
+          style={{ filter: `drop-shadow(0 0 6px ${over ? "var(--brand-danger)" : "var(--calorie)"}40)` }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <AnimatedNumber value={Math.max(goal - consumed, 0)}
+          className="text-3xl font-bold tabular-nums" />
+        <span className="text-xs text-muted">kcal left</span>
+      </div>
+    </div>
   );
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useLocalStorage, STORAGE, type CartLine } from "@/lib/store";
-import { Card, PageHeader, Spinner, EmptyState } from "@/components/ui";
+import { Card, PageHeader, Spinner, EmptyState, AnimatedNumber } from "@/components/ui";
 
 interface Product {
   id: number; name: string; brand: string; emoji: string; store: string;
@@ -51,7 +51,8 @@ export default function ShopPage() {
           <div>
             <p className="text-xs text-muted">Weekly budget</p>
             <p className="text-2xl font-bold tabular-nums" style={{ color: total > budget ? "var(--brand-danger)" : "var(--brand)" }}>
-              €{total.toFixed(2)} <span className="text-sm font-normal text-muted">/ €{budget}</span>
+              <AnimatedNumber value={total} format={(v) => `€${v.toFixed(2)}`} />
+              <span className="text-sm font-normal text-muted"> / €{budget}</span>
             </p>
           </div>
           <p className="text-sm text-muted">€{remaining.toFixed(2)} left</p>
