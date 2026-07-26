@@ -8,14 +8,11 @@ struct CartItem: Codable, Identifiable, Hashable {
     let catalogId: String
     let name: String
     let store: String
-    let price: Double          // discounted price (or regular if not on sale)
-    let originalPrice: Double
-    let isOnSale: Bool
+    let price: Double          // single estimated price (or the real price the user entered)
     let category: String
     var quantity: Int
 
     var lineTotal: Double { price * Double(quantity) }
-    var savings: Double { isOnSale ? (originalPrice - price) * Double(quantity) : 0 }
 }
 
 // MARK: - Shopping store definition
@@ -179,30 +176,14 @@ extension CatalogItem {
         "cornstarch": 0.89, "vanilla-pod": 2.99,
     ]
 
-    func regularPrice(for store: ShopStore) -> Double {
+    /// A single estimated shelf price. There is no real price feed, so nothing is
+    /// ever presented as a "sale" or compared against a fabricated "regular" price.
+    func estimatedPrice(for store: ShopStore) -> Double {
         let base = CatalogItem.itemBasePrices[id] ?? 1.99
         // ±5% variation per item so identical categories aren't identical prices.
         // Uses a STABLE hash so prices don't change between app launches.
         let nudge = 1.0 + (Double(id.stableHash % 10) - 5) / 100.0
         return (base * store.priceMultiplier * nudge).roundedTo2()
-    }
-
-    /// ~20% of items are on sale at any given time (deterministic per item + store)
-    func isOnSale(for store: ShopStore) -> Bool {
-        (id + store.id).stableHash % 5 == 0
-    }
-
-    func salePrice(for store: ShopStore) -> Double {
-        let reg = regularPrice(for: store)
-        let pct = Double(10 + id.stableHash % 26) / 100.0  // 10–35% off
-        return (reg * (1.0 - pct)).roundedTo2()
-    }
-
-    func discountPercent(for store: ShopStore) -> Int {
-        guard isOnSale(for: store) else { return 0 }
-        let reg  = regularPrice(for: store)
-        let sale = salePrice(for: store)
-        return Int(((reg - sale) / reg * 100).rounded())
     }
 }
 
@@ -243,8 +224,7 @@ final class ShoppingCartService {
             cartItems[i] = CartItem(
                 id: cartItems[i].id, catalogId: catalogId,
                 name: cartItems[i].name, store: cartItems[i].store,
-                price: price, originalPrice: price,
-                isOnSale: false, category: cartItems[i].category,
+                price: price, category: cartItems[i].category,
                 quantity: cartItems[i].quantity
             )
         }
@@ -256,13 +236,10 @@ final class ShoppingCartService {
     }
 
     func effectivePrice(for item: CatalogItem, store: ShopStore) -> Double {
-        priceOverrides[item.id] ?? (item.isOnSale(for: store)
-            ? item.salePrice(for: store)
-            : item.regularPrice(for: store))
+        priceOverrides[item.id] ?? item.estimatedPrice(for: store)
     }
 
     var total: Double { cartItems.reduce(0) { $0 + $1.lineTotal } }
-    var totalSavings: Double { cartItems.reduce(0) { $0 + $1.savings } }
     var itemCount: Int { cartItems.reduce(0) { $0 + $1.quantity } }
     var budgetRemaining: Double { weeklyBudget - total }
     var budgetFraction: Double { min(total / max(weeklyBudget, 1), 1) }
@@ -282,17 +259,13 @@ final class ShoppingCartService {
     }
 
     func add(_ item: CatalogItem, store: ShopStore) {
-        let hasOverride = priceOverrides[item.id] != nil
-        let onSale = !hasOverride && item.isOnSale(for: store)
-        let price  = effectivePrice(for: item, store: store)
-        let orig   = hasOverride ? price : item.regularPrice(for: store)
+        let price = effectivePrice(for: item, store: store)
         if let idx = cartItems.firstIndex(where: { $0.catalogId == item.id && $0.store == store.name }) {
             cartItems[idx].quantity += 1
         } else {
             cartItems.append(CartItem(
                 id: UUID(), catalogId: item.id, name: item.name, store: store.name,
-                price: price, originalPrice: orig, isOnSale: onSale,
-                category: item.category.rawValue, quantity: 1
+                price: price, category: item.category.rawValue, quantity: 1
             ))
         }
         save()
@@ -363,9 +336,8 @@ final class ShoppingCartService {
             Deal(
                 id: ci.catalogId.stableHash % 1_000_000,
                 name: ci.name, brand: "", emoji: "🛒", store: ci.store,
-                originalPrice: ci.originalPrice, discountedPrice: ci.price,
-                discount: ci.isOnSale && ci.originalPrice > 0
-                    ? Int(((ci.originalPrice - ci.price) / ci.originalPrice * 100).rounded()) : 0,
+                originalPrice: ci.price, discountedPrice: ci.price,
+                discount: 0,
                 category: ci.category, kcalPer100g: 0, proteinPer100g: 0,
                 carbsPer100g: 0, fatPer100g: 0, weeklyQty: ci.quantity, unit: "",
                 expiresIn: "7 days", allergens: [], latitude: nil, longitude: nil

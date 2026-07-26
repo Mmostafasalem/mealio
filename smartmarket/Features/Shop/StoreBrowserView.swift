@@ -197,8 +197,8 @@ struct StoreBrowserView: View {
 private struct StoreCard: View {
     let store: ShopStore
 
-    private var dealCount: Int {
-        CatalogItem.all.filter { $0.isOnSale(for: store) }.count
+    private var itemCount: Int {
+        CatalogItem.all.count
     }
 
     var body: some View {
@@ -216,7 +216,7 @@ private struct StoreCard: View {
                     Text(store.name)
                         .font(.title3).fontWeight(.bold)
                         .foregroundStyle(.white)
-                    Text("\(dealCount) items")
+                    Text("\(itemCount) items")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.75))
                 }
@@ -336,14 +336,7 @@ private struct CartItemRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.subheadline).fontWeight(.medium)
-                if item.isOnSale {
-                    HStack(spacing: 4) {
-                        Text(String(format: "€%.2f", item.price)).font(.caption).foregroundStyle(Color.brandPrimary)
-                        Text(String(format: "€%.2f", item.originalPrice)).font(.caption).strikethrough().foregroundStyle(.tertiary)
-                    }
-                } else {
-                    Text(String(format: "€%.2f", item.price)).font(.caption).foregroundStyle(.secondary)
-                }
+                Text(String(format: "est. €%.2f", item.price)).font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
             QuantityStepper(quantity: item.quantity,
