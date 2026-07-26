@@ -100,6 +100,11 @@ STORES = {
 
 # ---------------------------------------------------------------------------
 # Static fallback deals (emergency baseline if deals_data.json is missing)
+#
+# HONESTY CONSTRAINT: originalPrice/discountPrice/discountPercent below are legacy
+# plumbing. They are NOT presented to the user as a real "was -> now" discount
+# (there is no live price feed) — the app renders a single estimated price only.
+# Do not expose these as a savings/percent-off comparison without re-checking that.
 # ---------------------------------------------------------------------------
 
 DEALS = [

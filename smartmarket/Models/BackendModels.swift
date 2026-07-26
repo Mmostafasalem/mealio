@@ -2,6 +2,10 @@ import Foundation
 
 // MARK: - Product (from GET /api/products — full market catalog, on sale or not)
 
+// HONESTY CONSTRAINT: discount/discountedPrice/isOnSale are decoded for wire
+// compatibility but are intentionally NOT rendered as price comparisons in the UI
+// (no real price feed exists). The user only ever sees a single "est. price". Do
+// not surface these as "was €X / −Y%" without re-checking the honesty constraint.
 struct Product: Codable, Identifiable, Hashable {
     let id: String           // store-prefixed e.g. "rimi_12345", "maxima_67890"
     let name: String         // primary name (usually Lithuanian)
