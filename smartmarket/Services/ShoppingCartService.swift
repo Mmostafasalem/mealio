@@ -306,7 +306,7 @@ final class ShoppingCartService {
         let boughtIds = Set(existing.filter { $0.id.hasPrefix("cart_") && $0.isBought }.map(\.id))
         var list = existing.filter { !$0.id.hasPrefix("cart_") }
         for ci in cartItems {
-            let id = "cart_\(ci.catalogId)_\(ci.store)"
+            let id = Self.cartRowId(catalogId: ci.catalogId, store: ci.store)
             list.append(GroceryItem(
                 id: id,
                 foodId: ci.catalogId,
@@ -327,6 +327,26 @@ final class ShoppingCartService {
     func removeLine(catalogId: String, store: String) {
         cartItems.removeAll { $0.catalogId == catalogId && $0.store == store }
         save()
+    }
+
+    /// The grocery-row id format for cart-sourced rows (see `syncToGroceryList`).
+    nonisolated static func cartRowId(catalogId: String, store: String) -> String {
+        "cart_\(catalogId)_\(store)"
+    }
+
+    /// Parses a `cart_<catalogId>_<store>` grocery-row id back into its cart
+    /// coordinates so a Groceries-tab removal can round-trip to the cart. Store
+    /// names contain no underscore and catalog ids use dashes, so the LAST
+    /// underscore is the separator. Returns nil for non-cart ids.
+    nonisolated static func parseCartRowId(_ id: String) -> (catalogId: String, store: String)? {
+        let prefix = "cart_"
+        guard id.hasPrefix(prefix) else { return nil }
+        let body = id.dropFirst(prefix.count)
+        guard let sep = body.lastIndex(of: "_") else { return nil }
+        let catalogId = String(body[..<sep])
+        let store = String(body[body.index(after: sep)...])
+        guard !catalogId.isEmpty, !store.isEmpty else { return nil }
+        return (catalogId, store)
     }
 
     /// The cart expressed as `[Deal]` for the meal-plan request, so the *online*

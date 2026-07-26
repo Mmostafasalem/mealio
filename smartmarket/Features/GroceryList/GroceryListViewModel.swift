@@ -57,13 +57,8 @@ final class GroceryListViewModel {
         items.removeAll { $0.id == item.id }
 
         // Cart-sourced row: round-trip the deletion to the Shop cart (no undo).
-        if item.id.hasPrefix("cart_") {
-            let body = item.id.dropFirst("cart_".count)
-            if let sep = body.lastIndex(of: "_") {
-                let catalogId = String(body[..<sep])
-                let store = String(body[body.index(after: sep)...])
-                ShoppingCartService.shared.removeLine(catalogId: catalogId, store: store)
-            }
+        if let coords = ShoppingCartService.parseCartRowId(item.id) {
+            ShoppingCartService.shared.removeLine(catalogId: coords.catalogId, store: coords.store)
             return
         }
 
@@ -86,6 +81,14 @@ final class GroceryListViewModel {
     }
 
     func clearBought() {
+        // Round-trip any cart-sourced bought rows to the Shop cart first — otherwise
+        // the cart still holds them and the next cart change would silently re-add
+        // them (unbought). Mirrors deleteItem's cart round-trip.
+        for item in items where item.isBought {
+            if let coords = ShoppingCartService.parseCartRowId(item.id) {
+                ShoppingCartService.shared.removeLine(catalogId: coords.catalogId, store: coords.store)
+            }
+        }
         items.removeAll { $0.isBought }
         saveItems()
     }

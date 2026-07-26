@@ -64,6 +64,31 @@ def test_meal_plan_has_all_seven_days():
         assert day in mp
 
 
+def test_meal_plan_includes_grocery_list_in_prompt(monkeypatch):
+    """Regression: the cart / grocery items the client sends must reach the ONLINE
+    meal-plan prompt, so the AI plan is built around what the user is actually
+    buying (previously only the offline fallback used the cart). The iOS client
+    threads ShoppingCartService.planDeals() into MealPlanRequest.groceryList and
+    the backend must surface those names to the model."""
+    captured = {}
+
+    def _capture(messages, fallback=None, **kw):
+        captured["messages"] = messages
+        return fallback
+
+    monkeypatch.setattr(app, "groq_json", _capture)
+    app.handle_meal_plan({
+        "user": {}, "bmrData": {"maintainCalories": 2000}, "goal": "maintain",
+        "groceryList": [
+            {"name": "Zucchini Noodles"},
+            {"name": "Tempeh Strips"},
+        ],
+    })
+    user_prompt = captured["messages"][-1]["content"]
+    assert "Zucchini Noodles" in user_prompt
+    assert "Tempeh Strips" in user_prompt
+
+
 # ---------------------------------------------------------------------------
 # Security / input hardening
 # ---------------------------------------------------------------------------
