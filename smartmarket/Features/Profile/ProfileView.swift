@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
 
     @State private var vm = ProfileViewModel()
+    @State private var sync = PrivateSyncService.shared
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("dealAlertsEnabled") private var dealAlertsEnabled = true
     @AppStorage("mealDigestEnabled") private var mealDigestEnabled = true
@@ -14,18 +15,21 @@ struct ProfileView: View {
                 statsSection
                 editSection
                 notificationSection
+                syncSection
                 dangerSection
             }
             .navigationTitle("Profile")
-            .alert("Reset Onboarding", isPresented: $vm.showResetAlert) {
-                Button("Reset", role: .destructive) {
+            .alert("Delete all Mealio data?", isPresented: $vm.showResetAlert) {
+                Button("Delete Data", role: .destructive) {
                     vm.resetOnboarding()
-                    hasCompletedOnboarding = false
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This will clear all your data. Continue?")
+                Text("Deletes your profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
             }
+            .alert("Deletion could not start", isPresented: Binding(get: { vm.deletionError != nil }, set: { if !$0 { vm.deletionError = nil } })) {
+                Button("OK", role: .cancel) { vm.deletionError = nil }
+            } message: { Text(vm.deletionError ?? "Please try again.") }
         }
         .onAppear {
             vm.load()
@@ -106,10 +110,40 @@ struct ProfileView: View {
             Button(role: .destructive) {
                 vm.showResetAlert = true
             } label: {
-                Label("Reset Onboarding", systemImage: "arrow.counterclockwise")
+                Label("Delete All Data", systemImage: "trash")
             }
         } footer: {
-            Text("Clears your profile and restarts setup.")
+            Text("Deletes local data and requests deletion of your Mealio iCloud data, then restarts setup.")
+        }
+    }
+
+    private var syncSection: some View {
+        Section {
+            Toggle("Sync with iCloud", isOn: Binding(
+                get: { sync.isEnabled },
+                set: { enabled in Task { await sync.setEnabled(enabled) } }
+            ))
+            .disabled(sync.isSyncing)
+            .accessibilityIdentifier("profile.icloudSync")
+            Text(sync.status).font(.footnote).foregroundStyle(.secondary)
+            if let date = sync.lastSync {
+                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if sync.isEnabled || sync.deletionPending {
+                Button { Task { await sync.sync() } } label: {
+                    HStack {
+                        Text(sync.deletionPending ? "Retry iCloud Deletion" : "Sync Now")
+                        if sync.isSyncing { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(sync.isSyncing)
+                .accessibilityIdentifier("profile.syncNow")
+            }
+        } header: {
+            Text("Data & iCloud")
+        } footer: {
+            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Mealio account is needed. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
         }
     }
 }

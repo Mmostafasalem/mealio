@@ -284,6 +284,16 @@ final class ShoppingCartService {
 
     func clear() { cartItems = []; save() }
 
+    func resetAll() {
+        cartItems = []
+        priceOverrides = [:]
+        weeklyBudget = 60.0
+        UserDefaults.standard.removeObject(forKey: cartKey)
+        UserDefaults.standard.removeObject(forKey: budgetKey)
+        UserDefaults.standard.removeObject(forKey: overridesKey)
+        NotificationCenter.default.post(name: .cartDidChange, object: nil)
+    }
+
     // MARK: - Persistence
 
     private let cartKey      = "shoppingCart_v1"
@@ -386,5 +396,11 @@ final class ShoppingCartService {
             priceOverrides = overrides
         }
         syncToGroceryList()   // ensure the Groceries tab reflects the cart on launch
+    }
+
+    func reloadFromStorage() {
+        cartItems = []
+        priceOverrides = [:]
+        load()
     }
 }

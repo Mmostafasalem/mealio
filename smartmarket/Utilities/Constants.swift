@@ -5,6 +5,7 @@ extension Notification.Name {
     static let mealPlanDidUpdate    = Notification.Name("mealPlanDidUpdate")
     static let groceryListDidChange = Notification.Name("groceryListDidChange")
     static let cartDidChange        = Notification.Name("cartDidChange")
+    static let personalDataDidChange = Notification.Name("personalDataDidChange")
 }
 
 // MARK: - Grocery list persistence (used by AppDelegate, ViewModels, and Views)

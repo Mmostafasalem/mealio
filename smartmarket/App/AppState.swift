@@ -6,6 +6,19 @@ import Combine
 final class AppState {
 
     static let shared = AppState()
+    var dataGeneration = UUID()
+
+    func reloadStoredData() {
+        dataGeneration = UUID()
+        agentLoop.invalidateUserData()
+        userProfile = UserProfile.load()
+        bmrData = Self.loadBMR()
+        weeklyMealPlan = Self.loadWeeklyMealPlan()
+        groceryList = Self.loadGroceryDeals()
+        isOnboarded = UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
+        hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
+        lang = UserDefaults.standard.string(forKey: Constants.Storage.lang) ?? "en"
+    }
 
     // MARK: - User
     var userProfile: UserProfile = UserProfile.load()

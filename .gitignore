@@ -38,3 +38,7 @@ smartmarket/smartmarket-backend/off_cache.json
 # Pytest
 .pytest_cache/
 
+# Swift package verification artifacts
+.build/
+.swiftpm/
+

@@ -91,6 +91,7 @@ final class FoodLogStore {
 
     /// Reloads today's entries from disk, pruning any from previous days.
     func reload() {
+        recentFoodIDs = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
         let stored = UserDefaults.standard.data(forKey: key)
             .flatMap { try? JSONDecoder().decode([FoodLogEntry].self, from: $0) } ?? []
         let today = stored.filter { Calendar.current.isDateInToday($0.loggedAt) }
@@ -125,6 +126,13 @@ final class FoodLogStore {
     func clearToday() {
         entries.removeAll()
         persist()
+    }
+
+    func clearAll() {
+        entries.removeAll()
+        recentFoodIDs.removeAll()
+        UserDefaults.standard.removeObject(forKey: key)
+        UserDefaults.standard.removeObject(forKey: recentsKey)
     }
 
     private func persist() {

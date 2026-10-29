@@ -17,6 +17,7 @@ enum KeychainHelper {
 
         var attrs = query
         attrs[kSecValueData as String] = data
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let status = SecItemAdd(attrs as CFDictionary, nil)
         if status != errSecSuccess {
             appLog("[Keychain] save failed for '\(key)': \(status)")
@@ -60,11 +61,13 @@ enum KeychainHelper {
 
     // MARK: - Delete all app data (for "Delete Account" / GDPR)
 
-    static func deleteAll() {
+    @discardableResult
+    static func deleteAll() -> Bool {
         let query: [String: Any] = [
             kSecClass as String:       kSecClassGenericPassword,
             kSecAttrService as String: service,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

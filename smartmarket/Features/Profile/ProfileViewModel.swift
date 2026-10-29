@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import UserNotifications
 
 @MainActor
 @Observable
@@ -10,6 +11,7 @@ final class ProfileViewModel {
     var favoriteFoodIDs: Set<String> = []
     var showResetAlert = false
     var isSaving = false
+    var deletionError: String?
     @ObservationIgnored private var didLoad = false
 
     var initials: String {
@@ -54,34 +56,35 @@ final class ProfileViewModel {
     }
 
     func resetOnboarding() {
-        let keys: [String] = [
-            Constants.Storage.hasCompletedOnboarding,
-            Constants.Storage.userProfile,
-            Constants.Storage.bmrResponse,
-            Constants.Storage.favoriteFoodIDs,
-            Constants.Storage.selectedDietaryFilters,
-            Constants.Storage.groceryList,
-            Constants.Storage.groceryDeals,
-            Constants.Storage.caloriesConsumedToday,
-            Constants.Storage.loggedMealEntries,
-            Constants.Storage.currentMealPlan,
-            Constants.Storage.lang
-        ]
-        keys.forEach { UserDefaults.standard.removeObject(forKey: $0) }
-        UserDefaults.standard.removeObject(forKey: "hasSeenWelcome")
-        UserDefaults.standard.removeObject(forKey: "lastMealPlanGeneratedDate")
-        UserDefaults.standard.removeObject(forKey: "foodLogEntries")
-        UserDefaults.standard.removeObject(forKey: "recentFoodIDs")
-        FoodLogStore.shared.clearToday()
-
-        // Health data (BMR + body stats) lives in the Keychain, which survives a
-        // UserDefaults wipe — clear it too so "clear all data" truly deletes
-        // everything (correctness + GDPR/CCPA right-to-erasure).
-        KeychainHelper.deleteAll()
+        do { try PrivateSyncService.shared.beginDeletion() }
+        catch {
+            deletionError = "Could not safely record deletion. Please try again."
+            return
+        }
+        guard KeychainHelper.deleteAll() else {
+            deletionError = "Could not erase secure storage. Unlock your iPhone and retry deletion."
+            return
+        }
+        AppState.shared.dataGeneration = UUID()
+        AppState.shared.agentLoop.invalidateUserData()
+        // Initialize and reset the cart before clearing grocery storage: cart
+        // initialization can mirror existing cart lines into the grocery list.
+        ShoppingCartService.shared.resetAll()
+        LocalDataEraser.clear(defaults: .standard,
+                              domain: Bundle.main.bundleIdentifier ?? "com.mostafa.mealio")
+        FoodLogStore.shared.clearAll()
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
 
         // Wipe active global runtime architecture states safely
         AppState.shared.weeklyMealPlan = nil
+        AppState.shared.userProfile = UserProfile()
+        AppState.shared.bmrData = nil
         AppState.shared.activeDeals = []
+        AppState.shared.notifiedDealIds = []
+        AppState.shared.dealNotifications = []
+        AppState.shared.lastGroceryCount = 0
+        AppState.shared.lang = "en"
         AppState.shared.groceryList = []
         AppState.shared.favoriteFoodIDs = []
         AppState.shared.isOnboarded = false
@@ -92,5 +95,6 @@ final class ProfileViewModel {
         selectedPreferences = []
         favoriteFoodIDs = []
         didLoad = false
+        PrivateSyncService.shared.finishDeletion()
     }
 }

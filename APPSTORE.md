@@ -1,7 +1,8 @@
 # Mealio — App Store submission checklist
 
 A practical list of what's done and what you must complete in App Store Connect /
-Xcode before submitting. Code is ready; the rest is account/content work.
+Xcode before submitting. Simulator compilation is not release certification;
+signed-device and TestFlight checks remain required.
 
 ## Already done (in code)
 - Bundle ID `com.mostafa.mealio`, display name **Mealio**, iOS 17 deployment target.
@@ -10,6 +11,9 @@ Xcode before submitting. Code is ready; the rest is account/content work.
   not for tracking), UserDefaults reason `CA92.1`, no tracking domains.
 - `ITSAppUsesNonExemptEncryption = false` (no export-compliance prompt).
 - Location usage string set (`NSLocationWhenInUseUsageDescription`).
+- Optional private shopping sync implemented; health/profile/intake/meal-plan
+  data excluded under App Review 5.1.3(ii). See `ICLOUD_SETUP.md` for activation
+  and live acceptance checks. CloudKit production readiness is not yet verified.
 
 ## You must do
 1. **Apple Developer Program** membership; register the App ID `com.mostafa.mealio`.

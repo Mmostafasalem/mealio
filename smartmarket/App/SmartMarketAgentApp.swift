@@ -6,6 +6,7 @@ struct SmartMarketAgentApp: App {
 
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState = AppState.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -26,7 +27,22 @@ struct SmartMarketAgentApp: App {
             .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
             .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
             .environment(appState)
-            .task {
+            .safeAreaInset(edge: .bottom) {
+                if PrivateSyncService.shared.deletionPending {
+                    VStack(spacing: 6) {
+                        Text(PrivateSyncService.shared.status).font(.footnote)
+                        Button("Retry iCloud Deletion") { Task { await PrivateSyncService.shared.sync() } }
+                            .disabled(PrivateSyncService.shared.isSyncing)
+                    }
+                    .padding().frame(maxWidth: .infinity).background(.regularMaterial)
+                }
+            }
+            .id(appState.dataGeneration)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await PrivateSyncService.shared.sync() } }
+            }
+            .task(id: appState.isOnboarded) {
+                PrivateSyncService.shared.start()
                 await NotificationService.shared.checkPermission()
                 appState.agentLoop.start(appState: appState)
             }
@@ -60,6 +76,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
         if response.actionIdentifier == NotificationService.actionBuyID {
             await MainActor.run {
+                guard AppState.shared.isOnboarded else { return }
                 // GroceryStorage is the single source of truth for the grocery list UI.
                 // Build a GroceryItem and write directly to it, then notify observers.
                 let item = GroceryItem(

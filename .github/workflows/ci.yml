@@ -36,6 +36,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Xcode version
         run: xcodebuild -version
+      - name: Sync merge regression tests
+        run: swift test --disable-sandbox
       - name: Build (compile check)
         run: |
           xcodebuild \

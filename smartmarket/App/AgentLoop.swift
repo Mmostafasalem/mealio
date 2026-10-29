@@ -8,6 +8,14 @@ final class AgentLoop {
     private var regenTask: Task<Void, Never>?
     private var cartObserver: NSObjectProtocol?
     private weak var appState: AppState?
+    private var dataGeneration = 0
+
+    /// Invalidates responses that were requested before the user's data was erased.
+    func invalidateUserData() {
+        dataGeneration += 1
+        regenTask?.cancel()
+        regenTask = nil
+    }
 
     func start(appState: AppState) {
         stop()
@@ -49,6 +57,8 @@ final class AgentLoop {
     // MARK: - Tick
 
     private func tick(appState: AppState) async {
+        guard appState.isOnboarded else { return }
+        let generation = dataGeneration
         // 1. Refresh deals — pass user location for server-side proximity filter
         let userLoc = LocationService.shared.userLocation
         let hadNoDeals = appState.activeDeals.isEmpty
@@ -60,6 +70,7 @@ final class AgentLoop {
         } else {
             deals = (try? await APIService.shared.getDeals()) ?? []
         }
+        guard !Task.isCancelled, generation == dataGeneration else { return }
         if !deals.isEmpty { appState.activeDeals = deals }
 
         // 2. Resolve favorited product IDs → lowercase name tokens for fuzzy matching.
@@ -119,6 +130,7 @@ final class AgentLoop {
 
     private func regenerateMealPlan(appState: AppState) async {
         guard let bmr = appState.bmrData else { return }
+        let generation = dataGeneration
         appState.isGeneratingMealPlan = true
         defer { appState.isGeneratingMealPlan = false }
 
@@ -157,6 +169,7 @@ final class AgentLoop {
 
         do {
             let plan = try await APIService.shared.generateMealPlan(request)
+            guard !Task.isCancelled, generation == dataGeneration else { return }
             appState.saveMealPlan(plan)
             appLog("[AgentLoop] meal plan regenerated successfully")
         } catch {

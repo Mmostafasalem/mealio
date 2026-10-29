@@ -49,6 +49,7 @@ final class MealPlanViewModel {
     }
 
     private func fetchTodaysPlan() async {
+        let generation = AppState.shared.dataGeneration
         profile = .load()
         groceryList = GroceryStorage.load()
         isGenerating = true
@@ -90,6 +91,7 @@ final class MealPlanViewModel {
                 lang: AppState.shared.lang
             )
             let weekly = try await APIService.shared.generateMealPlan(request)
+            guard !Task.isCancelled, AppState.shared.dataGeneration == generation else { return }
             todaysPlan = MealPlan.from(weekly: weekly)
             AppState.shared.saveMealPlan(weekly)
         } catch {
