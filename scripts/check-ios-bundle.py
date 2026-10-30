@@ -12,7 +12,8 @@ backend = Path(__file__).resolve().parent.parent / "smartmarket/smartmarket-back
 forbidden = {p.name for p in backend.iterdir() if p.is_file()}
 forbidden.update({"Secrets.xcconfig", "Secrets.xcconfig.example", "Build.xcconfig", ".env"})
 leaks = sorted(str(p.relative_to(args.bundle)) for p in args.bundle.rglob("*")
-               if p.is_file() and (p.name in forbidden or p.suffix in {".py", ".pyc", ".xcconfig"}))
+               if p.is_file() and (p.name in forbidden or p.name.startswith(".env.")
+                                   or p.suffix in {".py", ".pyc", ".xcconfig"}))
 missing = [name for name in ("Privacy.md", "Support.md") if not (args.bundle / name).is_file()]
 if leaks or missing:
     if leaks: print("Unexpected backend/build files in app:", ", ".join(leaks))

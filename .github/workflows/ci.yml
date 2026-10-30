@@ -27,6 +27,9 @@ jobs:
         run: pip install -r requirements.txt pytest
       - name: Run tests
         run: pytest -q
+      - name: Release bundle guard regressions
+        working-directory: .
+        run: python3 -m unittest discover -s scripts -p test_ios_bundle.py -v
 
   ios-build:
     name: iOS tests and release build

@@ -68,6 +68,21 @@ No `.env` or `Secrets.xcconfig` was found in the inspected app. Restore
 Xcode/Simulator services, clean-build, rerun the bundle checker and complete the
 remaining UI checks before TestFlight.
 
+Follow-up verification (2026-10-30): the dedicated simulator is booted and a
+fresh screenshot succeeds when Simulator is accessed outside the sandbox.
+The fresh Release build at `/tmp/MealioReleaseVerified-20261030` still stalled
+before creating DerivedData or producing compiler output and was terminated.
+A process sample at `/tmp/Mealio-xcodebuild-sample.txt` places the main thread
+in Xcode's DVT plug-in/class loading during project initialization. This narrows
+the current blocker to build-tool initialization; it does not certify the code
+or the corrected package. Do not describe the simulator as universally unavailable.
+
+The bundle guard now also rejects arbitrary `.env.*` variants. Four fixture-based
+regression tests pass, including nested backend/build files, missing offline
+policy documents and environment-file variants; these run in CI. The existing
+Debug bundle still fails the guard for backend resources and is unsuitable for
+submission. A successful fresh build and real-bundle check remain required.
+
 Run the commands in `smartmarketTests/README.md` on a dedicated simulator. Runtime
 tests use local ad-hoc signing; unsigned builds are compile-only evidence. Swift
 sync tests also run through `swift test --disable-sandbox`. Result bundles retain
