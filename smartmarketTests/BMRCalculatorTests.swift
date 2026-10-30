@@ -1,6 +1,7 @@
 import XCTest
 @testable import smartmarket
 
+@MainActor
 final class BMRCalculatorTests: XCTestCase {
 
     func testBMRMaleKnownValue() {

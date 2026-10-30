@@ -4,7 +4,8 @@ import Foundation
 final class APIService {
 
     static let shared = APIService()
-    private init() {}
+    private let session: URLSession
+    init(session: URLSession = .shared) { self.session = session }
 
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -22,7 +23,7 @@ final class APIService {
         if let query    = query,    !query.isEmpty    { params.append("q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)") }
         if !params.isEmpty { path += "?" + params.joined(separator: "&") }
         let req = try get(path)
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         try validateResponse(response)
         return try decoder.decode([Product].self, from: data)
     }
@@ -31,7 +32,7 @@ final class APIService {
 
     func checkHealth() async throws -> Bool {
         let req = try get(Constants.API.Endpoint.health)
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (_, response) = try await session.data(for: req)
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
@@ -40,7 +41,7 @@ final class APIService {
     func getDeals() async throws -> [Deal] {
         do {
             let req = try get(Constants.API.Endpoint.deals)
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await session.data(for: req)
             try validateResponse(response)
             let deals = try decoder.decode([Deal].self, from: data)
             return deals.isEmpty ? FallbackData.deals : deals
@@ -55,7 +56,7 @@ final class APIService {
         do {
             let path = Constants.API.Endpoint.deals + "?lat=\(lat)&lon=\(lon)&radius=\(radiusKm)"
             let req = try get(path)
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await session.data(for: req)
             try validateResponse(response)
             let deals = try decoder.decode([Deal].self, from: data)
             return deals.isEmpty ? FallbackData.deals : deals
@@ -70,7 +71,7 @@ final class APIService {
     func calculateBMR(_ request: BMRRequest) async throws -> BMRResponse {
         do {
             let req = try post(Constants.API.Endpoint.bmr, body: request, timeout: 15)
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await session.data(for: req)
             try validateResponse(response)
             return try decoder.decode(BMRResponse.self, from: data)
         } catch {
@@ -84,7 +85,7 @@ final class APIService {
     func generateMealPlan(_ request: MealPlanRequest) async throws -> WeeklyMealPlan {
         do {
             let req = try post(Constants.API.Endpoint.mealPlan, body: request, timeout: 60)
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await session.data(for: req)
             try validateResponse(response)
             return try decoder.decode(WeeklyMealPlan.self, from: data)
         } catch {
@@ -103,7 +104,7 @@ final class APIService {
 
     func getGapFillers(_ request: GapFillerRequest) async throws -> [GapFiller] {
         let req = try post(Constants.API.Endpoint.gapFillers, body: request, timeout: 30)
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         try validateResponse(response)
         return try decoder.decode([GapFiller].self, from: data)
     }
@@ -112,23 +113,24 @@ final class APIService {
 
     func getShoppingAdvice(_ request: ShoppingAdviceRequest) async throws -> [ShoppingAdvice] {
         let req = try post(Constants.API.Endpoint.shoppingAdvice, body: request, timeout: 30)
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         try validateResponse(response)
         return try decoder.decode([ShoppingAdvice].self, from: data)
     }
 
     func agentChat(_ request: AgentChatRequest) async throws -> AgentChatResponse {
         let req = try post(Constants.API.Endpoint.agentChat, body: request, timeout: 30)
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         try validateResponse(response)
         return try decoder.decode(AgentChatResponse.self, from: data)
     }
 
     func fetchRecipe(mealName: String) async throws -> Recipe {
+        guard UserDefaults.standard.bool(forKey: "aiSharingConsent_v1") else { throw APIError.aiConsentRequired }
         do {
             let req = try post(Constants.API.Endpoint.recipe,
                                body: RecipeRequest(mealName: mealName), timeout: 30)
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await session.data(for: req)
             try validateResponse(response)
             return try decoder.decode(Recipe.self, from: data)
         } catch {
@@ -213,6 +215,9 @@ final class APIService {
 
     /// POST request with JSON body, timeout, and API key header.
     private func post<T: Encodable>(_ path: String, body: T, timeout: TimeInterval) throws -> URLRequest {
+        if path != Constants.API.Endpoint.bmr && !UserDefaults.standard.bool(forKey: "aiSharingConsent_v1") {
+            throw APIError.aiConsentRequired
+        }
         guard let url = URL(string: Constants.API.baseURL + path) else {
             throw APIError.invalidURL
         }
@@ -243,12 +248,14 @@ final class APIService {
 // MARK: - Errors
 
 enum APIError: LocalizedError {
+    case aiConsentRequired
     case invalidURL
     case noResponse
     case httpError(Int)
 
     var errorDescription: String? {
         switch self {
+        case .aiConsentRequired: return "Online AI sharing is off. You can enable it in Profile after reviewing the Privacy Policy."
         case .invalidURL:       return "Invalid API URL."
         case .noResponse:       return "No response from server."
         case .httpError(let c): return "Server error \(c)."

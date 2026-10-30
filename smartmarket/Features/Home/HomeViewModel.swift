@@ -271,7 +271,10 @@ final class HomeViewModel {
             let response = try await APIService.shared.agentChat(request)
             chatMessages.append(ChatMessage(role: "assistant", content: response.reply))
         } catch {
-            chatMessages.append(ChatMessage(role: "assistant", content: "Sorry, I couldn't reach the agent. Please try again."))
+            let message: String
+            if case APIError.aiConsentRequired = error { message = error.localizedDescription }
+            else { message = "Sorry, I couldn't reach the agent. Please try again." }
+            chatMessages.append(ChatMessage(role: "assistant", content: message))
         }
     }
 }

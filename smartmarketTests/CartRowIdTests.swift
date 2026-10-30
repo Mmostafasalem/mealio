@@ -9,9 +9,7 @@ import XCTest
 /// deleteItem/clearBought). If parsing were lossy, removals would silently fail to
 /// round-trip and the cart would re-add the item on its next change.
 ///
-/// NOTE: there is currently no wired iOS test target in the Xcode project, so this
-/// file is not executed by `xcodebuild test` yet. It is committed alongside the
-/// existing untargeted tests and will run once a test target is added.
+/// Executed by the native smartmarketTests target in the shared scheme.
 final class CartRowIdTests: XCTestCase {
 
     func testRoundTripsDashedCatalogId() {

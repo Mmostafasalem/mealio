@@ -67,7 +67,7 @@ final class MealPlanViewModel {
 
             let request = MealPlanRequest(
                 user: MealPlanUser(
-                    name:           profile.name,
+                    name:           "",
                     age:            profile.age,
                     gender:         profile.gender == .male ? "male" : "female",
                     weight:         profile.weight,

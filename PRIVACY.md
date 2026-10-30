@@ -33,12 +33,15 @@ cloud data. Apple processes CloudKit data under its own terms and privacy policy
 
 ## Information sent to our servers
 
-When you generate a meal plan, ask the in-app assistant, or request a recipe, we
-send the relevant inputs (e.g. calorie target, dietary preferences, favourite
+Online AI features are optional and require the sharing permission in Profile.
+When enabled and you generate a meal plan, ask the in-app assistant, or request a recipe, we
+send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
 foods, shopping list, your message) to our backend, which uses **Groq** (an AI
 provider) to generate the response. Product nutrition is looked up from **Open
 Food Facts**. We send the minimum needed for the feature and do not attach your
-name or a persistent identifier.
+name or a persistent identifier to AI requests. Chat text may contain personal
+information that you choose to enter. Turning sharing off prevents future AI
+requests; it cannot retract requests already transmitted to a provider.
 
 We do **not**: track you across other apps or websites, sell or rent your data,
 serve advertising, or use third-party analytics.
@@ -74,4 +77,6 @@ preparation. Mealio is not a medical device and does not provide medical advice.
 Consult a professional before making significant dietary changes.
 
 ## Contact
-Questions: **support@mealio.app** _(replace with your real support email)._
+For questions about this pre-release build, contact the person who provided it.
+A verified public support contact and hosted policy URL must be supplied before
+App Store submission.

@@ -1,0 +1,66 @@
+# Mealio — draft App Store metadata
+
+These are reviewable drafts, not a submission. Verify every feature against the
+signed TestFlight build before publishing. No live-price or promotion claims.
+
+## App name
+Mealio
+
+## Subtitle
+Meals, calories & groceries
+
+## Promotional text
+Plan meals, log food and organise your grocery shop. Use estimated prices to
+plan your budget, with optional online AI suggestions and private shopping sync.
+
+## Description
+Mealio brings meal planning, food logging and grocery budgeting into one app.
+
+Track your day
+Log foods and see estimated calories and macros alongside your personal targets.
+
+Plan your meals
+Use local suggestions, or choose to enable online AI for personalised meal plans,
+recipes and chat. Online AI uses Groq through our backend and requires your
+sharing permission in Profile.
+
+Organise your shop
+Build a cart and grocery list, set a budget and enter prices you find in-store.
+Explore store locations around Vilnius. Catalog prices are estimates; they are
+not live shelf prices, verified promotions or guaranteed store availability.
+
+Choose how your data is handled
+No Mealio account is required. Optional private iCloud sync covers shopping data.
+Body measurements, food logs, dietary restrictions and nutrition plans are
+excluded from that sync. Delete All Data is available in Profile.
+
+Mealio is not a medical device and does not provide medical advice. Nutrition
+and calorie values are estimates. AI suggestions can be incorrect. Check all
+ingredients and allergens yourself and consult a qualified professional about
+your individual dietary needs.
+
+## Suggested keywords
+meal planner,food log,calories,macros,grocery,budget,Vilnius,recipes
+
+## Review notes draft
+No Mealio login is required. Online AI is optional and disabled by default; the
+sharing control is in Profile → Privacy & Help. Shopping sync is also optional.
+The nutrition profile and food log remain local to each device. Grocery prices
+are clearly estimates and are not live retailer offers.
+
+Before submission: activate and verify backend authentication and CloudKit
+Production, confirm both features work on the submitted build, and supply working
+privacy/support URLs and a verified support contact in App Store Connect.
+
+## Screenshots to prepare from the verified build
+1. Home with a realistic synthetic profile and logged foods.
+2. Meals with the local/online state correctly labelled.
+3. Shop with estimated prices and a representative budget.
+4. Grocery list with bought/unbought items.
+5. Map showing Vilnius stores without an availability/promotion claim.
+6. Profile privacy controls and optional shopping sync.
+
+Automated simulator screenshots are QA evidence. Select/re-capture final marketing
+screens after account-side services and the sample content have been verified.
+The current pink monogram icon remains unchanged and needs an explicit final
+branding decision; do not describe it as final approved artwork.

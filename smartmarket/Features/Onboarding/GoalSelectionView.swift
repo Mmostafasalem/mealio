@@ -89,6 +89,7 @@ struct GoalSelectionView: View {
                     Label("Set My Goal", systemImage: "checkmark")
                         .primaryButtonLabel()
                 }
+                .accessibilityIdentifier("onboarding.goal.continue")
                 .padding(.horizontal, Spacing.xl)
                 .padding(.bottom, Spacing.xxl)
             }

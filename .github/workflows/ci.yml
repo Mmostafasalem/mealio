@@ -29,21 +29,44 @@ jobs:
         run: pytest -q
 
   ios-build:
-    name: iOS build
+    name: iOS tests and release build
     # macos-15 ships Xcode 16+, required for this project's objectVersion 77.
     runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
       - name: Xcode version
         run: xcodebuild -version
       - name: Sync merge regression tests
         run: swift test --disable-sandbox
-      - name: Build (compile check)
+      - name: Select available iPhone simulator
+        run: |
+          IOS_SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import sys,json; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for group in devices.values() for d in group if d["name"].startswith("iPhone")))')
+          printf 'IOS_SIMULATOR_ID=%s\n' "$IOS_SIMULATOR_ID" >> "$GITHUB_ENV"
+      - name: Native unit and UI tests
+        run: |
+          xcodebuild \
+            -project smartmarket.xcodeproj \
+            -scheme smartmarket \
+            -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_ID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath TestResults.xcresult \
+            test CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-
+      - name: Release compile check
         run: |
           xcodebuild \
             -project smartmarket.xcodeproj \
             -scheme smartmarket \
             -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug \
+            -configuration Release \
             build CODE_SIGNING_ALLOWED=NO
+      - name: Preserve test results and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore

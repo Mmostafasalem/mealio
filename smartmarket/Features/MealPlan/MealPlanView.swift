@@ -3,10 +3,16 @@ import SwiftUI
 struct MealPlanView: View {
 
     @State private var vm = MealPlanViewModel()
+    @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: Spacing.xl) {
+                if !aiSharingConsent {
+                    Label("Online AI sharing is off. Local suggestions are shown. You can enable online AI in Profile.", systemImage: "iphone")
+                        .font(.footnote).foregroundStyle(.secondary)
+                        .padding(.horizontal, Spacing.lg)
+                }
                 Picker("View", selection: $vm.selectedTab) {
                     ForEach(MealPlanTab.allCases) { tab in
                         Text(tab.displayName).tag(tab)

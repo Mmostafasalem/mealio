@@ -99,6 +99,9 @@ private struct TabItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("tab.\(label.lowercased())")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .sensoryFeedback(.selection, trigger: isActive)
     }
 }

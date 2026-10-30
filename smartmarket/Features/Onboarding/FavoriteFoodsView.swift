@@ -121,6 +121,7 @@ struct FavoriteFoodsView: View {
                 .foregroundStyle(vm.canFinish ? .white : Color(.secondaryLabel))
             }
             .disabled(!vm.canFinish)
+            .accessibilityIdentifier("onboarding.favorites.finish")
             .animation(.spring(duration: 0.3), value: vm.canFinish)
             .padding(.horizontal, 20)
         }
@@ -218,6 +219,9 @@ private struct ItemRow: View {
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityIdentifier("favorite.item.\(item.id)")
+        .accessibilityLabel(item.name)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

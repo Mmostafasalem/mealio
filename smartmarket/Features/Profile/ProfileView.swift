@@ -4,9 +4,11 @@ struct ProfileView: View {
 
     @State private var vm = ProfileViewModel()
     @State private var sync = PrivateSyncService.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("dealAlertsEnabled") private var dealAlertsEnabled = true
     @AppStorage("mealDigestEnabled") private var mealDigestEnabled = true
+    @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
 
     var body: some View {
         NavigationStack {
@@ -16,6 +18,7 @@ struct ProfileView: View {
                 editSection
                 notificationSection
                 syncSection
+                privacySection
                 dangerSection
             }
             .navigationTitle("Profile")
@@ -71,14 +74,22 @@ struct ProfileView: View {
 
     private var statsSection: some View {
         Section {
-            HStack(spacing: 10) {
-                MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
-                MetricTile(title: "Daily Goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
-                MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
+            Group {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(spacing: Spacing.md) { metricTiles }
+                } else {
+                    HStack(spacing: 10) { metricTiles }
+                }
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             .listRowBackground(Color.clear)
         }
+    }
+
+    @ViewBuilder private var metricTiles: some View {
+        MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
+        MetricTile(title: "Daily Goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
+        MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
     }
 
     private var editSection: some View {
@@ -144,6 +155,25 @@ struct ProfileView: View {
             Text("Data & iCloud")
         } footer: {
             Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Mealio account is needed. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
+        }
+    }
+
+    private var privacySection: some View {
+        Section {
+            Toggle("Allow online AI suggestions", isOn: $aiSharingConsent)
+                .accessibilityIdentifier("profile.aiConsent")
+            NavigationLink {
+                LegalDocumentView(resource: "Privacy", title: "Privacy Policy")
+            } label: { Label("Privacy Policy", systemImage: "hand.raised") }
+            .accessibilityIdentifier("profile.privacy")
+            NavigationLink {
+                LegalDocumentView(resource: "Support", title: "Help & Support")
+            } label: { Label("Help & Support", systemImage: "questionmark.circle") }
+            .accessibilityIdentifier("profile.support")
+        } header: {
+            Text("Privacy & Help")
+        } footer: {
+            Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
         }
     }
 }

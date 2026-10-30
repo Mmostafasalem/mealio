@@ -173,7 +173,6 @@ private struct DealRow: View {
                         .lineLimit(1)
                 }
                 HStack(spacing: 8) {
-                    DealTypeBadge(type: deal.dealType)
                     Text(deal.quantity)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -197,29 +196,6 @@ private struct DealRow: View {
             .accessibilityLabel("Add \(deal.productName) to cart")
         }
         .padding(.vertical, 2)
-    }
-}
-
-private struct DealTypeBadge: View {
-    let type: MarketDeal.DealType
-
-    private var color: Color {
-        switch type {
-        case .weeklySpecial: return .brandPrimary
-        case .dailyFresh:    return Color(hex: "#10B981")
-        case .loyaltyCard:   return Color.brandAmber
-        case .clearance:     return Color(hex: "#EF4444")
-        case .bulkDeal:      return Color(hex: "#8B5CF6")
-        }
-    }
-
-    var body: some View {
-        Text(type.displayName)
-            .font(.caption2).fontWeight(.semibold)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(color.opacity(0.12))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
     }
 }
 

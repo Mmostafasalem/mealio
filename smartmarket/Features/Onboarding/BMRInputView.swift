@@ -146,6 +146,7 @@ struct BMRInputView: View {
                         .primaryButtonLabel(enabled: inputValid)
                 }
                 .disabled(!inputValid)
+                .accessibilityIdentifier("onboarding.body.continue")
                 .padding(.horizontal, Spacing.xl)
                 .padding(.bottom, Spacing.xxl)
             }

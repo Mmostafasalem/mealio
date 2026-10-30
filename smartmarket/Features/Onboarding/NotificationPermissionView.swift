@@ -5,6 +5,7 @@ struct NotificationPermissionView: View {
     @Bindable var vm: OnboardingViewModel
 
     var body: some View {
+        AdaptiveOnboardingPage {
         VStack(spacing: 0) {
 
             OnboardingProgressBar(currentStep: 4)
@@ -30,7 +31,7 @@ struct NotificationPermissionView: View {
 
                 VStack(spacing: 12) {
                     FeatureRow(symbol: "heart.fill",      text: "Only notifies for your favourite foods")
-                    FeatureRow(symbol: "location.fill",   text: "Only from stores within 1 km")
+                    FeatureRow(symbol: "location.fill",   text: "Nearby reminders when location is available")
                     FeatureRow(symbol: "cart.badge.plus", text: "Tap yes to add to grocery list instantly")
                 }
                 .padding(.horizontal, 32)
@@ -62,9 +63,12 @@ struct NotificationPermissionView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityIdentifier("onboarding.notifications.skip")
+                .frame(minHeight: 44)
             }
             .padding(.horizontal, Spacing.xl)
             .padding(.bottom, Spacing.xxl)
+        }
         }
         .navigationBarHidden(true)
         .background(Color.surfaceGrouped.ignoresSafeArea())

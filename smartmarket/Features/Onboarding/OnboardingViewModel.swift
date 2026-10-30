@@ -23,7 +23,6 @@ final class OnboardingViewModel {
 
     // MARK: - Step 3: Dietary preferences
     var selectedPreferences: Set<DietaryPreference> = []
-    var otherAllergies: String = ""
 
     // MARK: - Step 4: Favorite foods (static catalog, no network required)
     var favoriteFoodIDs: Set<String> = []
@@ -157,6 +156,15 @@ final class OnboardingViewModel {
         profile.lossPace      = lossPace
         BMRCalculator.populate(profile: &profile)
         profile.save()
+        let macros = BMRCalculator.macroTargets(calories: profile.dailyCalorieGoal,
+                                               isKeto: selectedPreferences.contains(.keto))
+        AppState.shared.saveBMR(BMRResponse(
+            bmr: Int(profile.bmr), tdee: Int(profile.tdee),
+            loseCalories: BMRCalculator.dailyGoal(tdee: profile.tdee, goal: .lose, pace: lossPace, gender: gender),
+            maintainCalories: BMRCalculator.dailyGoal(tdee: profile.tdee, goal: .maintain, pace: lossPace, gender: gender),
+            gainCalories: BMRCalculator.dailyGoal(tdee: profile.tdee, goal: .gain, pace: lossPace, gender: gender),
+            macros: BMRResponse.MacroTargets(protein: macros.proteinG, carbs: macros.carbsG, fat: macros.fatG)
+        ))
 
         selectedPreferences.save()
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)

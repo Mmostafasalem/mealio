@@ -16,7 +16,7 @@ struct DietaryPreferencesView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("What do you eat?")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("Select everything that applies. We'll never suggest food that conflicts with your choices.")
+                    Text("Select your preferences. Suggestions can contain mistakes; always check ingredients and allergens before eating.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -35,19 +35,6 @@ struct DietaryPreferencesView: View {
                 }
                 .padding(.horizontal, 24)
 
-                // Other allergies
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Other allergies or restrictions", systemImage: "square.and.pencil")
-                        .font(.subheadline).fontWeight(.medium)
-                    TextField("e.g. sesame, mustard, sulfites...", text: $vm.otherAllergies)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .padding(12)
-                        .background(Color.surfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .padding(.horizontal, 24)
-
                 // Info note
                 if vm.selectedPreferences.isEmpty {
                     HStack(spacing: 8) {
@@ -62,7 +49,7 @@ struct DietaryPreferencesView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.shield.fill")
                             .foregroundStyle(Color.brandPrimary)
-                        Text("\(vm.selectedPreferences.count) restriction\(vm.selectedPreferences.count == 1 ? "" : "s") selected. We've got you covered.")
+                        Text("\(vm.selectedPreferences.count) preference\(vm.selectedPreferences.count == 1 ? "" : "s") selected. Check every suggestion against your dietary needs.")
                             .font(.caption)
                             .foregroundStyle(Color.brandPrimary)
                     }
@@ -76,6 +63,7 @@ struct DietaryPreferencesView: View {
                     Label("Next", systemImage: "arrow.right")
                         .primaryButtonLabel()
                 }
+                .accessibilityIdentifier("onboarding.diet.continue")
                 .padding(.horizontal, Spacing.xl)
                 .padding(.bottom, Spacing.xxl)
             }

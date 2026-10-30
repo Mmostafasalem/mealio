@@ -145,7 +145,7 @@ final class AgentLoop {
 
         let dietaryPrefs = Set<DietaryPreference>.load()
         let planUser = MealPlanUser(
-            name:           profile.name,
+            name:           "",
             age:            profile.age,
             gender:         profile.gender.rawValue,
             weight:         Double(Int(profile.weight)),

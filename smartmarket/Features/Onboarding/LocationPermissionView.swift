@@ -6,6 +6,7 @@ struct LocationPermissionView: View {
     @Bindable var vm: OnboardingViewModel
 
     var body: some View {
+        AdaptiveOnboardingPage {
         VStack(spacing: 0) {
 
             OnboardingProgressBar(currentStep: 2)
@@ -30,9 +31,9 @@ struct LocationPermissionView: View {
                 }
 
                 VStack(spacing: 12) {
-                    FeatureRow(symbol: "map.fill",    text: "Only shows stores you can reach")
+                    FeatureRow(symbol: "map.fill",    text: "Shows estimated prices around your location")
                     FeatureRow(symbol: "battery.100", text: "Uses one-shot location — no background drain")
-                    FeatureRow(symbol: "lock.shield", text: "Location never leaves your device")
+                    FeatureRow(symbol: "lock.shield", text: "Your location is sent to our backend to find nearby stores")
                 }
                 .padding(.horizontal, 32)
             }
@@ -63,9 +64,12 @@ struct LocationPermissionView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityIdentifier("onboarding.location.skip")
+                .frame(minHeight: 44)
             }
             .padding(.horizontal, Spacing.xl)
             .padding(.bottom, Spacing.xxl)
+        }
         }
         .navigationBarHidden(true)
         .background(Color.surfaceGrouped.ignoresSafeArea())

@@ -50,6 +50,7 @@ struct WelcomeView: View {
             .ignoresSafeArea()
 
             // Content
+            AdaptiveOnboardingPage {
             VStack(spacing: 0) {
 
                 Spacer()
@@ -115,6 +116,7 @@ struct WelcomeView: View {
                     }
                     .scaleEffect(ctaVisible ? 1 : 0.9)
                     .opacity(ctaVisible ? 1 : 0)
+                    .accessibilityIdentifier("onboarding.start")
 
                     Text("Free · No credit card required")
                         .font(.caption)
@@ -123,6 +125,7 @@ struct WelcomeView: View {
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 48)
+            }
             }
         }
         .onAppear {
