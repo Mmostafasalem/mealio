@@ -20,7 +20,11 @@ This is a preparation record, not an assertion of App Store readiness.
 - Welcome/permission screens support scrolling at large text sizes. Profile
   metrics stack at accessibility sizes; skip actions have 44-point minimum height.
 - Bundled the reviewed privacy/support documents for offline access from Profile.
-  Backend source/build-secret files are excluded from the app's resource bundle.
+  Build-secret files are excluded from the app's resource bundle. A follow-up
+  check found flattened backend source/bytecode in the existing bundle despite
+  excluding the parent folder. Explicit file/pattern exclusions and
+  `scripts/check-ios-bundle.py` now guard this boundary in CI; a successful clean
+  rebuild and passing bundle check are still required.
 - Prepared `APPSTORE_COPY.md`, with a 6-character name, 27-character subtitle,
   157-character promotional text and 68-character keyword draft.
 
@@ -55,6 +59,14 @@ a complete final UI signoff. Final privacy/support navigation, dark mode,
 largest-text and VoiceOver verification remain outstanding. Direct computer-use
 fallback also failed to start its service. Preserve these limitations when
 handing the project to another developer or preparing a submission.
+
+Final named/generic Release compile attempts stalled in Xcode services and were
+interrupted; they are not successful Release verification. The generic Debug
+rebuild after the packaging correction also stalled. The bundle checker correctly
+fails the old app bundle for backend source/bytecode; do not submit that bundle.
+No `.env` or `Secrets.xcconfig` was found in the inspected app. Restore
+Xcode/Simulator services, clean-build, rerun the bundle checker and complete the
+remaining UI checks before TestFlight.
 
 Run the commands in `smartmarketTests/README.md` on a dedicated simulator. Runtime
 tests use local ad-hoc signing; unsigned builds are compile-only evidence. Swift

@@ -36,6 +36,21 @@
 				Secrets.xcconfig.example,
 				Build.xcconfig,
 				"smartmarket-backend",
+				"smartmarket-backend/.dockerignore",
+				"smartmarket-backend/.env",
+				"smartmarket-backend/.env.example",
+				"smartmarket-backend/DEPLOY.md",
+				"smartmarket-backend/Dockerfile",
+				"smartmarket-backend/Procfile",
+				"smartmarket-backend/SECURITY.md",
+				"smartmarket-backend/app.py",
+				"smartmarket-backend/deals_data.json",
+				"smartmarket-backend/ngrok-policy.yml",
+				"smartmarket-backend/off_cache.json",
+				"smartmarket-backend/openfoodfacts.py",
+				"smartmarket-backend/requirements.txt",
+				"smartmarket-backend/server.py",
+				"smartmarket-backend/test_app.py",
 			);
 			target = ADF8148B2FCA0F6400433335 /* smartmarket */;
 		};
@@ -226,6 +241,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = smartmarket/Mealio.entitlements;
+				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -264,6 +280,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = smartmarket/Mealio.entitlements;
+				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
