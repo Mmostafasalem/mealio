@@ -74,16 +74,8 @@ struct ProfileView: View {
     }
 
     private var statsSection: some View {
-        Section {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(spacing: Spacing.md) { metricTiles }
-                } else {
-                    HStack(spacing: 10) { metricTiles }
-                }
-            }
-            .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-            .listRowBackground(Color.clear)
+        Section("Daily targets") {
+            metricTiles
         }
     }
 
@@ -185,32 +177,21 @@ private struct MetricTile: View {
     let unit: String
     var icon: String = ""
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(spacing: Spacing.xs) {
-            if !icon.isEmpty {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.brandPrimary)
-            }
-            Text(value)
-                .font(.system(.headline, design: .rounded))
-                .fontWeight(.bold)
-                .foregroundStyle(Color.brandPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .contentTransition(.numericText())
-            if !unit.isEmpty {
-                Text(unit).font(.caption2).foregroundStyle(Color.labelSecondary)
-            }
-            Text(title)
-                .font(.caption2)
-                .fontWeight(.medium)
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
+            : AnyLayout(HStackLayout(spacing: Spacing.md))
+        layout {
+            Label(title, systemImage: icon).font(.body)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: Spacing.sm) }
+            Text(unit.isEmpty ? value : "\(value) \(unit)")
+                .font(.subheadline.weight(.semibold).monospacedDigit())
                 .foregroundStyle(Color.labelSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Spacing.lg)
-        .background(Color.brandPrimary.opacity(0.10),
-                    in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .padding(.vertical, Spacing.xs)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title): \(value) \(unit)")
     }

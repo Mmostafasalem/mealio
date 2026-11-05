@@ -14,7 +14,7 @@ struct HomeHeaderView: View {
                          : .dateTime.weekday(.wide).day().month(.wide))
                         .font(.captionText)
                         .foregroundStyle(Color.labelSecondary)
-                    Text(dynamicTypeSize.isAccessibilitySize ? "Your balance." : "Your day,\nyour balance.")
+                    Text("Today")
                         .font(.largeTitle.weight(.bold))
                         .tracking(-1)
                         .foregroundStyle(Color.labelPrimary)
@@ -33,20 +33,11 @@ struct HomeHeaderView: View {
                     .background(Color.dullPink, in: Circle())
                     .accessibilityHidden(true)
             }
-            let layout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
-                : AnyLayout(HStackLayout(spacing: Spacing.lg))
-            layout {
-                Label("Goal · \(vm.goal) kcal", systemImage: "target")
-                Label("Catalog · \(vm.nearbyDeals.count) items", systemImage: "basket")
-                if vm.isRefreshing { ProgressView().accessibilityLabel("Refreshing catalog") }
-            }
-            .font(.captionText)
-            .foregroundStyle(Color.labelSecondary)
+
         }
-        .padding(.horizontal, Spacing.xl)
-        .padding(.top, Spacing.xl)
-        .padding(.bottom, Spacing.lg)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.md)
+        .padding(.bottom, Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

@@ -164,13 +164,17 @@ struct ProductShopRow: View {
     @State private var cart = ShoppingCartService.shared
     @State private var showPriceEditor = false
     @State private var priceInput = ""
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var isEstimated: Bool  { cart.isEstimated(item.id) }
     private var price: Double      { cart.effectivePrice(for: item, store: store) }
     private var qty: Int           { cart.quantity(of: item.id, store: store.name) }
 
     var body: some View {
-        HStack(spacing: 14) {
+        let rowLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.md))
+            : AnyLayout(HStackLayout(spacing: Spacing.md))
+        rowLayout {
             // Category icon
             Circle()
                 .fill(Color.brandPrimary.opacity(0.12))
@@ -186,7 +190,7 @@ struct ProductShopRow: View {
                 HStack(spacing: 6) {
                     Text(item.name)
                         .font(.subheadline).fontWeight(.medium)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // Price row — tap to enter the real price you paid
@@ -205,9 +209,11 @@ struct ProductShopRow: View {
                     .font(.caption)
                 }
                 .buttonStyle(.plain)
+                .frame(minHeight: 44)
+                .accessibilityLabel("Edit price for \(item.name)")
             }
 
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
             QuantityStepper(
                 quantity: qty,

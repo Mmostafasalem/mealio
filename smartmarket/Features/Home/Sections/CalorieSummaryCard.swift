@@ -14,9 +14,12 @@ struct CalorieSummaryCard: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xl))
                 : AnyLayout(HStackLayout(spacing: Spacing.xl))
             layout {
-                CalorieRingView(consumed: vm.consumed, goal: vm.goal, size: 144)
-                    .frame(width: 144, height: 144)
-                    .onTapGesture { showCalorieDetail.toggle() }
+                Button { showCalorieDetail.toggle() } label: {
+                    CalorieRingView(consumed: vm.consumed, goal: vm.goal, size: 128)
+                        .frame(width: 128, height: 128)
+                }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("home.calorieDetails")
                     .popover(isPresented: $showCalorieDetail, attachmentAnchor: .point(.center), arrowEdge: .trailing) {
                         CalorieDetailPopover(vm: vm)
                     }
@@ -24,34 +27,15 @@ struct CalorieSummaryCard: View {
                     .accessibilityHint("Tap for calorie breakdown")
 
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("TODAY’S ENERGY")
-                            .font(.caption).fontWeight(.medium)
-                            .foregroundStyle(Color.labelSecondary)
-                        HStack(alignment: .firstTextBaseline, spacing: 3) {
-                            Text("\(vm.consumed)")
-                                .font(.statValue)
-                                .foregroundStyle(Color.labelPrimary)
-                                .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
-                                .contentTransition(.numericText())
-                            Text("/ \(vm.goal)")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(Color.labelSecondary).minimumScaleFactor(0.7).lineLimit(1)
-                            Text("kcal").font(.caption2).foregroundStyle(Color.labelSecondary)
-                        }
-                    }
-
-                    Button(action: onLog) {
-                        Label("Log Food", systemImage: "plus.circle.fill")
-                            .font(.caption).fontWeight(.semibold)
-                            .foregroundStyle(Color.onAccent)
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.vertical, Spacing.sm)
-                            .frame(minHeight: 44)
-                            .background(Color.dullPink, in: Capsule())
-                    }
-                    .buttonStyle(ScalePressStyle())
-                    .accessibilityLabel("Log food")
+                    Text(vm.consumed > vm.goal ? "Above daily goal" : "Remaining today")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.labelSecondary)
+                    Text("\(abs(vm.goal - vm.consumed))")
+                        .font(.largeTitle.weight(.bold).monospacedDigit())
+                        .contentTransition(.numericText())
+                    Text("kcal")
+                        .font(.captionText)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 Spacer(minLength: 0)
             }
@@ -60,54 +44,50 @@ struct CalorieSummaryCard: View {
 
             Divider().padding(.horizontal, Spacing.lg)
 
-            HStack(spacing: 0) {
-                macroTile(label: "Protein", symbol: "bolt.fill",
-                          current: vm.proteinCurrent, goal: vm.proteinGoal, color: .proteinAccent,
-                          tooltip: "Protein builds and repairs muscle. Your target is \(Int(vm.proteinGoal))g/day based on your weight and goal.")
-                macroSeparator
-                macroTile(label: "Carbs", symbol: "leaf.fill",
-                          current: vm.carbsCurrent, goal: vm.carbsGoal, color: .carbsAccent,
-                          tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
-                macroSeparator
-                macroTile(label: "Fat", symbol: "drop.fill",
-                          current: vm.fatCurrent, goal: vm.fatGoal, color: .fatAccent,
-                          tooltip: "Healthy fats support hormones and brain function. Include olive oil, nuts, and fatty fish.")
+            VStack(spacing: Spacing.xs) {
+                macroRow(label: "Protein", symbol: "bolt.fill",
+                         current: vm.proteinCurrent, goal: vm.proteinGoal,
+                         tooltip: "Protein builds and repairs muscle. Your target is \(Int(vm.proteinGoal))g/day based on your weight and goal.")
+                macroRow(label: "Carbs", symbol: "leaf.fill",
+                         current: vm.carbsCurrent, goal: vm.carbsGoal,
+                         tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
+                macroRow(label: "Fat", symbol: "drop.fill",
+                         current: vm.fatCurrent, goal: vm.fatGoal,
+                         tooltip: "Healthy fats support hormones and brain function. Include olive oil, nuts, and fatty fish.")
             }
-            .padding(.vertical, Spacing.md)
-            .animation(.snappyValue, value: vm.proteinCurrent + vm.carbsCurrent + vm.fatCurrent)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.bottom, Spacing.lg)
+
+            PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
+                .accessibilityIdentifier("home.logFood")
+                .padding([.horizontal, .bottom], Spacing.lg)
         }
         .premiumCard()
     }
 
-    private func macroTile(label: String, symbol: String,
-                           current: Double, goal: Double, color: Color, tooltip: String) -> some View {
-        VStack(spacing: Spacing.xs) {
-            Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 28, height: 28)
-                    .background(color.opacity(0.12), in: Circle())
-                    // The larger hit target must not enlarge the icon layout.
-                    .overlay(alignment: .topTrailing) {
-                        InfoTooltip(text: tooltip).offset(x: 26, y: -24)
-                    }
-            .frame(width: 38, height: 36)
-            Text("\(Int(current))g")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.labelPrimary).monospacedDigit()
-                .contentTransition(.numericText())
-            Text("of \(Int(goal))g").font(.caption2).foregroundStyle(Color.labelSecondary)
-            Text(label).font(.caption2).fontWeight(.semibold).foregroundStyle(color)
+    private func macroRow(label: String, symbol: String,
+                          current: Double, goal: Double, tooltip: String) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            let rowLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+                : AnyLayout(HStackLayout(spacing: Spacing.sm))
+            rowLayout {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: symbol).frame(width: 18)
+                        .accessibilityHidden(true)
+                    Text(label).font(.subheadline.weight(.semibold))
+                    InfoTooltip(text: tooltip)
+                }
+                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+                Text("\(Int(current)) / \(Int(goal)) g")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundStyle(Color.labelSecondary)
+                    .accessibilityLabel("\(label): \(Int(current)) of \(Int(goal)) grams")
+            }
             ProgressView(value: min(max(current, 0), goal), total: max(goal, 1))
-                .tint(color).frame(width: 44).padding(.top, 1)
+                .tint(Color.brandPrimary)
+                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label): \(Int(current)) of \(Int(goal)) grams")
-    }
-
-    private var macroSeparator: some View {
-        Rectangle().fill(Color(.separator).opacity(0.4)).frame(width: 0.5, height: 64)
     }
 }
 

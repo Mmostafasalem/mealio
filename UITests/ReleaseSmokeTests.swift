@@ -108,8 +108,11 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launch()
         let info = app.buttons["More info"].firstMatch
         XCTAssertTrue(info.waitForExistence(timeout: 15))
-        XCTAssertGreaterThanOrEqual(info.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(info.frame.height, 44)
+        // Layout conversion may represent 44pt as 43.99999999999994.
+        // Permit numerical roundoff, not a physically smaller touch target.
+        let geometryTolerance: CGFloat = 0.001
+        XCTAssertGreaterThanOrEqual(info.frame.width, 44 - geometryTolerance)
+        XCTAssertGreaterThanOrEqual(info.frame.height, 44 - geometryTolerance)
     }
 
     func testCustomNavigationHidesSystemTabBar() {

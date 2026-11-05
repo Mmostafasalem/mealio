@@ -115,6 +115,7 @@ private struct MealSectionCard: View {
     let sfSymbol: String
     let entries: [MealEntry]
     @State private var expanded = true
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var accentColor: Color {
         switch sfSymbol {
@@ -140,7 +141,10 @@ private struct MealSectionCard: View {
             }
             .padding(.top, 8)
         } label: {
-            HStack(spacing: 12) {
+            let headerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
+                : AnyLayout(HStackLayout(spacing: Spacing.md))
+            headerLayout {
                 Image(systemName: sfSymbol)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(accentColor)
@@ -148,7 +152,7 @@ private struct MealSectionCard: View {
                     .background(accentColor.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 Text(title).font(.headline)
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Text("\(entries.reduce(0) { $0 + $1.calories }) kcal")
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .monospacedDigit()
@@ -164,22 +168,26 @@ private struct MealSectionCard: View {
 private struct MealEntryRow: View {
     let entry: MealEntry
     @State private var showRecipe = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button {
             showRecipe = true
         } label: {
-            HStack(spacing: 10) {
+            let rowLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
+                : AnyLayout(HStackLayout(spacing: Spacing.md))
+            rowLayout {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.foodName)
                         .font(.subheadline).fontWeight(.medium)
                         .foregroundStyle(Color.labelPrimary)
                     Text(entry.notes?.isEmpty == false ? entry.notes! : "\(entry.portionG)g")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
                     Text("\(entry.calories) kcal")
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
@@ -188,12 +196,17 @@ private struct MealEntryRow: View {
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
                 }
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(Color.labelTertiary)
+                if !dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(Color.labelTertiary)
+                }
             }
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Spacing.xs)
+        .accessibilityHint("Opens the recipe")
         .sheet(isPresented: $showRecipe) {
             RecipeSheet(mealName: entry.foodName)
         }

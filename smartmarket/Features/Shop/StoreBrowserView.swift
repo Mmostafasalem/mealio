@@ -15,7 +15,7 @@ struct StoreBrowserView: View {
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
                 }
-                .padding(.horizontal, Spacing.xl)
+                .padding(.horizontal, Spacing.lg)
                 .padding(.top, Spacing.sm)
                 .padding(.bottom, Spacing.xxl)
                 .animation(.snappyValue, value: cart.itemCount)
@@ -97,7 +97,7 @@ struct StoreBrowserView: View {
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
-        .padding(18)
+        .padding(Spacing.lg)
         .premiumCard()
     }
 
@@ -108,8 +108,11 @@ struct StoreBrowserView: View {
             Text("Stores")
                 .font(.headline)
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
-                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
+            Text("\(CatalogItem.all.count) catalog items · estimated prices, verify in-store")
+                .font(.footnote)
+                .foregroundStyle(Color.labelSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVStack(spacing: Spacing.sm) {
                 ForEach(ShopStore.all) { store in
                     NavigationLink {
                         StoreProductsView(store: store)
@@ -208,50 +211,28 @@ private struct StoreCard: View {
     let store: ShopStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    private var itemCount: Int {
-        CatalogItem.all.count
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Monochrome chain identity
-            ZStack(alignment: .bottomLeading) {
-                RoundedRectangle(cornerRadius: 0)
-                    .fill(Color.rhino)
-                    .frame(minHeight: 80)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(store.name)
-                        .font(.title3).fontWeight(.bold)
-                        .foregroundStyle(Color.almond)
-                    Text("\(itemCount) catalog items")
-                        .font(.caption2)
-                        .foregroundStyle(Color.almond.opacity(0.75))
-                }
-                .padding(12)
+        HStack(spacing: Spacing.md) {
+            Text(store.name.prefix(1))
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Color.almond)
+                .frame(width: 44, height: 44)
+                .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.chip))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(store.name).font(.headline)
+                Text("Browse catalog")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
             }
-
-            // Tagline + arrow
-            HStack {
-                Text("Catalog estimates · verify in-store")
-                    .font(.caption)
-                    .foregroundStyle(Color.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(Color(.tertiaryLabel))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            Spacer(minLength: Spacing.sm)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.labelSecondary)
         }
-        .clipShape(RoundedRectangle(cornerRadius: Radius.tile))
-        .shadow(color: Color.rhino.opacity(0.02), radius: 8, x: 0, y: 4)
-        .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 1)
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.tile)
-                .strokeBorder(Color.hairline, lineWidth: 1)
-        )
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard(radius: Radius.tile)
+        .contentShape(Rectangle())
     }
 }
 

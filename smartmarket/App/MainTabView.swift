@@ -10,20 +10,19 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        TabView(selection: $selection) {
-            HomeView().tag(0).toolbar(.hidden, for: .tabBar)
-            NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
-            StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
-            StoreMapView().tag(3).toolbar(.hidden, for: .tabBar)
-            NavigationStack { ProfileView() }.tag(4).toolbar(.hidden, for: .tabBar)
-        }
-        // Visibility belongs to each tab's content. UIKit appearance alone can
-        // leave an empty floating system bar on iPad.
-        // The floating bar IS the bottom safe-area inset, so it reserves exactly
-        // its own height — content on every screen clears it automatically.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        VStack(spacing: 0) {
+            TabView(selection: $selection) {
+                HomeView().tag(0).toolbar(.hidden, for: .tabBar)
+                NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
+                StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
+                StoreMapView().tag(3).toolbar(.hidden, for: .tabBar)
+                NavigationStack { ProfileView() }.tag(4).toolbar(.hidden, for: .tabBar)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // A sibling reserves real layout space on every tab, including iPad.
             FloatingTabBar(selection: $selection)
         }
+        .background(Color.surfaceGrouped)
         .ignoresSafeArea(.keyboard)
     }
 }

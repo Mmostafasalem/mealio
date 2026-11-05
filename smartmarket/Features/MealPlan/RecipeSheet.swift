@@ -9,6 +9,7 @@ struct RecipeSheet: View {
     @State private var isLoading = false
     @State private var failed = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         NavigationStack {
@@ -65,11 +66,14 @@ struct RecipeSheet: View {
             VStack(alignment: .leading, spacing: 24) {
 
                 // Time + servings strip
-                HStack(spacing: 0) {
+                let statsLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: Spacing.lg))
+                    : AnyLayout(HStackLayout(spacing: 0))
+                statsLayout {
                     statPill(icon: "clock",        label: "Prep",     value: "\(r.prepTime)m")
-                    Divider().frame(height: 32)
+                    if !dynamicTypeSize.isAccessibilitySize { Divider().frame(height: 32) }
                     statPill(icon: "flame",        label: "Cook",     value: "\(r.cookTime)m")
-                    Divider().frame(height: 32)
+                    if !dynamicTypeSize.isAccessibilitySize { Divider().frame(height: 32) }
                     statPill(icon: "person.2",     label: "Serves",   value: "\(r.servings)")
                 }
                 .frame(maxWidth: .infinity)

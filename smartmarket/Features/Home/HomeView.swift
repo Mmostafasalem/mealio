@@ -12,6 +12,15 @@ struct HomeView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: Spacing.md) {
+                        if let deal = vm.activeDealBanner {
+                            DealNotificationBanner(
+                                deal: deal,
+                                onBuy:  { Task { await vm.respondToDeal(deal, bought: true) } },
+                                onSkip: { Task { await vm.respondToDeal(deal, bought: false) } }
+                            )
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+
                         HomeHeaderView(vm: vm)
                         VStack(spacing: Spacing.lg) {
                             CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
@@ -25,18 +34,7 @@ struct HomeView: View {
                     }
                 }
                 .refreshable { await vm.refresh() }
-
-                if let deal = vm.activeDealBanner {
-                    DealNotificationBanner(
-                        deal: deal,
-                        onBuy:  { Task { await vm.respondToDeal(deal, bought: true) } },
-                        onSkip: { Task { await vm.respondToDeal(deal, bought: false) } }
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(10)
-                }
             }
-            .overlay(alignment: .bottomTrailing) { quickLogButton }
             .animation(reduceMotion ? .none : .smoothCard, value: vm.activeDealBanner?.id)
             .navigationBarHidden(true)
         }
@@ -44,25 +42,6 @@ struct HomeView: View {
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
         .task { await vm.load() }
         .onAppear { LocationService.shared.startUpdating() }
-    }
-
-    private var quickLogButton: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            vm.openLog()
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(Color.onAccent)
-                .frame(width: 58, height: 58)
-                .background(Color.dullPink, in: Circle())
-                .elevation(Elevation.high)
-        }
-        .buttonStyle(ScalePressStyle())
-        .padding(.trailing, Spacing.xl)
-        // Keep the floating action clear of the custom bottom navigation.
-        .padding(.bottom, 104)
-        .accessibilityLabel("Log food")
     }
 }
 
