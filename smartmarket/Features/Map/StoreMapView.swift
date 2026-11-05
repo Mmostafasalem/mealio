@@ -15,15 +15,17 @@ struct StoreMapView: View {
                 UserAnnotation()
 
                 // Store pins
-                ForEach(vm.stores) { store in
+                ForEach(vm.visibleStores) { store in
                     Annotation(store.chain, coordinate: CLLocationCoordinate2D(
                         latitude: store.latitude, longitude: store.longitude)) {
-                        StorePinView(
+                        Button { vm.selectStore(store) } label: { StorePinView(
                             store: store,
                             dealCount: vm.dealCount(for: store),
                             isSelected: vm.selectedStore?.id == store.id
-                        )
-                        .onTapGesture { vm.selectStore(store) }
+                        ).frame(minWidth: 44, minHeight: 44) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(store.name), \(store.address)")
+                        .accessibilityHint("Shows catalog estimates for this chain. Branch stock is not verified.")
                     }
                 }
             }
@@ -62,13 +64,35 @@ struct StoreMapView: View {
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
-                .accessibilityLabel(vm.showNearbyOnly ? "Showing nearby deals only" : "Showing all deals")
-                .accessibilityHint("Toggles between nearby and all deals")
+                .disabled(LocationService.shared.userLocation == nil)
+                .opacity(LocationService.shared.userLocation == nil ? 0.5 : 1)
+                .accessibilityLabel(LocationService.shared.userLocation == nil
+                    ? "Location required for nearby stores"
+                    : (vm.showNearbyOnly ? "Showing nearby stores only" : "Showing all stores"))
+                .accessibilityHint("Requires your location. Filters actual Maps branches within eight kilometres.")
             }
             .padding(.trailing, Spacing.lg)
             .padding(.bottom, 100)   // clears tab bar (≈ 83pt) + safe area
 
             // MARK: Store detail sheet
+        }
+        .overlay(alignment: .top) {
+            if vm.isLoadingStores {
+                HStack { ProgressView(); Text("Finding stores…").font(.subheadline) }
+                    .padding(Spacing.lg)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card))
+                    .padding(Spacing.lg)
+            } else if let message = vm.storeLookupMessage {
+                VStack(spacing: Spacing.sm) {
+                    Label(message, systemImage: "mappin.slash.circle")
+                        .font(.subheadline)
+                    Button("Retry") { vm.loadRealStores() }
+                        .frame(minHeight: 44)
+                }
+                .padding(Spacing.lg)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Radius.card))
+                .padding(Spacing.lg)
+            }
         }
         .sheet(item: $vm.selectedStore) { store in
             StoreDetailSheet(store: store, vm: vm)

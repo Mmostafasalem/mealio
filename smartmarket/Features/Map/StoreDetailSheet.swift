@@ -9,16 +9,11 @@ struct StoreDetailSheet: View {
 
     // Deals whose name matches any favorited product name (name-based, works across all stores)
     private var favDeals: [MarketDeal] {
-        let favNames = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
-        return vm.storeDeals.filter { deal in
-            let dn = deal.productName.lowercased()
-            return favNames.contains { fav in dn.contains(fav) || fav.contains(dn.prefix(8)) }
-        }
+        vm.favouriteDeals(for: store, favIDs: appState.favoriteFoodIDs)
     }
 
     private var otherDeals: [MarketDeal] {
-        let favDealIDs = Set(favDeals.map(\.id))
-        return vm.storeDeals.filter { !favDealIDs.contains($0.id) }
+        vm.otherDeals(for: store, favIDs: appState.favoriteFoodIDs)
     }
 
     var body: some View {
@@ -29,6 +24,9 @@ struct StoreDetailSheet: View {
                     StoreHeaderRow(store: store)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                    Text("Catalog estimates for this chain. Check prices and stock at the branch before shopping.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 // Favourite deals
@@ -40,7 +38,7 @@ struct StoreDetailSheet: View {
                             }
                         }
                     } header: {
-                        Label("Your Favourites Here", systemImage: "heart.fill")
+                        Label("Favourite catalog items", systemImage: "heart.fill")
                             .foregroundStyle(Color.brandPrimary)
                     }
                 }
@@ -54,7 +52,7 @@ struct StoreDetailSheet: View {
                             }
                         }
                     } header: {
-                        Label("All Products", systemImage: "basket.fill")
+                        Label("Catalog estimates", systemImage: "basket.fill")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -72,7 +70,7 @@ struct StoreDetailSheet: View {
                     }
                 }
 
-                if vm.storeDeals.isEmpty {
+                if vm.deals(for: store).isEmpty {
                     Section {
                         ContentUnavailableView(
                             "No products",

@@ -17,14 +17,22 @@ final class StoreMapViewModel {
     var storeDeals: [MarketDeal] = []
     var showNearbyOnly: Bool = true
     var hasCentredOnUser = false
+    var isLoadingStores = false
+    var storeLookupMessage: String?
+    private var storeLookupGeneration = UUID()
+
+    var visibleStores: [Store] {
+        guard showNearbyOnly, let location = LocationService.shared.userLocation else { return stores }
+        return stores.filter {
+            location.distance(from: CLLocation(latitude: $0.latitude, longitude: $0.longitude)) <= 8_000
+        }
+    }
 
     // MARK: - Load
 
     func load(appState: AppState) {
         // Start location updates
         LocationService.shared.startUpdating()
-        // Show approximate pins instantly, then refine to real branches via MapKit.
-        if stores.isEmpty { stores = Self.vilniusStores }
         refreshDeals(appState: appState)
         loadRealStores()
         observeLocation()
@@ -48,11 +56,14 @@ final class StoreMapViewModel {
     // MARK: - Real store locations (MapKit local search)
 
     /// Finds actual supermarket branches near the user (or Vilnius centre) via
-    /// MapKit, replacing the approximate hardcoded pins. Falls back to the
-    /// hardcoded list if the search yields nothing.
+    /// MapKit. Catalog/demo coordinates are never used as branch locations.
     func loadRealStores() {
         let center = LocationService.shared.userLocation?.coordinate
             ?? CLLocationCoordinate2D(latitude: 54.6872, longitude: 25.2797)
+        let generation = UUID()
+        storeLookupGeneration = generation
+        isLoadingStores = true
+        storeLookupMessage = nil
         Task {
             var found: [Store] = []
             await withTaskGroup(of: [Store].self) { group in
@@ -61,15 +72,21 @@ final class StoreMapViewModel {
                 }
                 for await result in group { found.append(contentsOf: result) }
             }
-            if !found.isEmpty {
-                // De-dupe by rounded coordinate so the same branch isn't doubled.
-                var seen = Set<String>()
-                stores = found.filter { s in
-                    let key = String(format: "%.4f,%.4f", s.latitude, s.longitude)
-                    return seen.insert(key).inserted
-                }
-            }
+            guard generation == storeLookupGeneration else { return }
+            applyStoreSearchResults(found)
         }
+    }
+
+    func applyStoreSearchResults(_ found: [Store]) {
+        var seen = Set<String>()
+        stores = found.filter { store in
+            let key = String(format: "%.4f,%.4f", store.latitude, store.longitude)
+            return seen.insert(key).inserted
+        }
+        isLoadingStores = false
+        storeLookupMessage = stores.isEmpty
+            ? "Store locations are unavailable. Check your connection and retry."
+            : nil
     }
 
     private static func search(chain: String, near center: CLLocationCoordinate2D) async -> [Store] {
@@ -107,33 +124,12 @@ final class StoreMapViewModel {
         Task {
             let allMarket = (try? await APIService.shared.fetchMarketDeals()) ?? []
 
-            let userLoc = LocationService.shared.userLocation
-            let filtered: [MarketDeal]
-            if showNearbyOnly, let loc = userLoc {
-                filtered = allMarket.filter { deal in
-                    let storeLoc = CLLocation(latitude: deal.store.latitude, longitude: deal.store.longitude)
-                    return loc.distance(from: storeLoc) <= 8_000
-                }
-            } else {
-                filtered = allMarket
-            }
-
-            storeDeals = filtered
+            // Estimates belong to a chain, not a verified branch inventory.
+            // Nearby filtering uses actual Maps branches via visibleStores.
+            storeDeals = allMarket
             // Store pins are managed by loadRealStores(); deals are matched by chain.
         }
     }
-
-    // Hardcoded Vilnius supermarket locations — shown even when backend is offline
-    static let vilniusStores: [Store] = [
-        Store(id: "rimi",   chain: "Rimi",   name: "Rimi Vilnius Centre",    address: "Gedimino pr. 9",          latitude: 54.6869, longitude: 25.2796),
-        Store(id: "rimi2",  chain: "Rimi",   name: "Rimi Panorama",          address: "Saltoniškių g. 9",        latitude: 54.7154, longitude: 25.2630),
-        Store(id: "maxima", chain: "Maxima", name: "Maxima XX Savanoriai",    address: "Savanorių pr. 176",       latitude: 54.6634, longitude: 25.2240),
-        Store(id: "maxima2",chain: "Maxima", name: "Maxima XXX Ozas",         address: "Ozo g. 18",               latitude: 54.7201, longitude: 25.2690),
-        Store(id: "lidl",   chain: "Lidl",   name: "Lidl Vilnius North",      address: "Ukmergės g. 369",         latitude: 54.7321, longitude: 25.2805),
-        Store(id: "lidl2",  chain: "Lidl",   name: "Lidl Šeškinė",            address: "Šeškinės g. 25",          latitude: 54.7032, longitude: 25.2205),
-        Store(id: "iki",    chain: "Iki",    name: "Iki Senamiestis",         address: "Pylimo g. 21",            latitude: 54.6791, longitude: 25.2712),
-        Store(id: "norfa",  chain: "Norfa",  name: "Norfa Pašilaičiai",       address: "Laisvės pr. 75",          latitude: 54.7021, longitude: 25.3221),
-    ]
 
     // MARK: - Camera
 
