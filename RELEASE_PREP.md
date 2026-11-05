@@ -23,8 +23,8 @@ This is a preparation record, not an assertion of App Store readiness.
   Build-secret files are excluded from the app's resource bundle. A follow-up
   check found flattened backend source/bytecode in the existing bundle despite
   excluding the parent folder. Explicit file/pattern exclusions and
-  `scripts/check-ios-bundle.py` now guard this boundary in CI; a successful clean
-  rebuild and passing bundle check are still required.
+  `scripts/check-ios-bundle.py` now guard this boundary in CI. Fresh simulator
+  Release and unsigned device archives pass this check as of 2026-11-05.
 - Prepared `APPSTORE_COPY.md`, with a 6-character name, 27-character subtitle,
   157-character promotional text and 68-character keyword draft.
 
@@ -58,12 +58,24 @@ previously missed `.pytest_cache` files and `.claude/settings.local.json`; expli
 membership exclusions and recursive guard coverage now cover these. Four guard
 tests, 16 Swift sync tests, 13 backend tests and 16 native iOS tests pass.
 
-These builds emit the Xcode App Intents metadata warning about no AppIntents
-framework dependency; they are not zero-warning builds. Signed archiving was
+The first builds emitted Xcode's App Intents metadata warning. Mealio has no App
+Intents declarations, so project configurations now set
+`LM_SKIP_METADATA_EXTRACTION = YES` (remove the opt-out when adding App Intents).
+The [official build-system task producer](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBApplePlatform/AppIntentsMetadataTaskProducer.swift)
+guards extraction with this setting. The fresh build at
+`/tmp/MealioWarningFree-20261105` succeeds with zero warning/error diagnostics and
+passes the real-bundle guard. Compiler warning settings remain enabled.
+Signed archiving was
 retried with provisioning updates on 2026-11-05 and still fails with `No Accounts`
 and no provisioning profile for `com.mostafa.mealio`. The unsigned archive cannot
 be uploaded to TestFlight. UI verification is recorded separately below; the
 first renewed run reproduced an onboarding automation failure and was interrupted.
+
+Live backend check (2026-11-05): `/api/health` returned HTTP 200 without an API
+key. Production authentication has not passed the deferred activation checklist.
+No paid AI call or personal-data request was made for this check.
+
+## Historical checks (2026-10-30)
 
 Verification record (2026-10-30): 16 native iOS unit tests passed in
 `/tmp/Mealio-Verified-20261030.xcresult`, including offline onboarding persistence
