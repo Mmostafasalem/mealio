@@ -48,6 +48,23 @@ This is a preparation record, not an assertion of App Store readiness.
 
 ## Reproducing local checks
 
+Latest build verification (2026-11-05): Xcode initialization is working again.
+The fresh simulator Release build at `/tmp/MealioReleaseClean-20261105` succeeds
+and passes `scripts/check-ios-bundle.py`. The unsigned iPhone archive at
+`/tmp/MealioDevice-20261105.xcarchive` also succeeds and passes the same guard.
+Both contain the offline privacy/support documents and exclude backend source,
+test caches, local tool settings and build-secret files. The first build exposed
+previously missed `.pytest_cache` files and `.claude/settings.local.json`; explicit
+membership exclusions and recursive guard coverage now cover these. Four guard
+tests, 16 Swift sync tests, 13 backend tests and 16 native iOS tests pass.
+
+These builds emit the Xcode App Intents metadata warning about no AppIntents
+framework dependency; they are not zero-warning builds. Signed archiving was
+retried with provisioning updates on 2026-11-05 and still fails with `No Accounts`
+and no provisioning profile for `com.mostafa.mealio`. The unsigned archive cannot
+be uploaded to TestFlight. UI verification is recorded separately below; the
+first renewed run reproduced an onboarding automation failure and was interrupted.
+
 Verification record (2026-10-30): 16 native iOS unit tests passed in
 `/tmp/Mealio-Verified-20261030.xcresult`, including offline onboarding persistence
 and both AI-consent cases. The same run failed to launch the UI test runner:

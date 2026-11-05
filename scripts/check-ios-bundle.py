@@ -9,7 +9,8 @@ if not (args.bundle / "Info.plist").is_file():
     parser.error("Expected a built iOS .app bundle")
 
 backend = Path(__file__).resolve().parent.parent / "smartmarket/smartmarket-backend"
-forbidden = {p.name for p in backend.iterdir() if p.is_file()}
+forbidden = {p.name for p in backend.rglob("*") if p.is_file()}
+forbidden.update({"CACHEDIR.TAG", "nodeids", "lastfailed", "stepwise"})
 forbidden.update({"Secrets.xcconfig", "Secrets.xcconfig.example", "Build.xcconfig", ".env"})
 leaks = sorted(str(p.relative_to(args.bundle)) for p in args.bundle.rglob("*")
                if p.is_file() and (p.name in forbidden or p.name.startswith(".env.")

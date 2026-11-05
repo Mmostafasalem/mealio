@@ -37,7 +37,7 @@ class BundleBoundaryTests(unittest.TestCase):
     def test_nested_backend_and_build_files_are_rejected(self):
         nested = self.bundle / "Resources"
         nested.mkdir()
-        for name in ("server.py", "module.pyc", "Secrets.xcconfig", "deals_data.json"):
+        for name in ("server.py", "module.pyc", "Secrets.xcconfig", "deals_data.json", "CACHEDIR.TAG", "nodeids"):
             with self.subTest(name=name):
                 path = nested / name
                 path.write_text("fixture")
