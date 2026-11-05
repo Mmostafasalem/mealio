@@ -21,6 +21,8 @@ struct ProfileView: View {
                 privacySection
                 dangerSection
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.surfaceGrouped)
             .navigationTitle("Profile")
             .alert("Delete all Mealio data?", isPresented: $vm.showResetAlert) {
                 Button("Delete Data", role: .destructive) {
@@ -43,7 +45,7 @@ struct ProfileView: View {
         Section {
             HStack(spacing: 16) {
                 ZStack {
-                    Color.coral
+                    Color.dullPink
                     Text(vm.initials)
                         .font(.title2).fontWeight(.bold)
                         .lineLimit(1)
@@ -63,7 +65,7 @@ struct ProfileView: View {
                             .font(.caption)
                             .foregroundStyle(Color.brandPrimary)
                         Text(vm.profile.email.isEmpty ? "Vilnius, Lithuania" : vm.profile.email)
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Color.labelSecondary)
                     }
                 }
             }
@@ -135,10 +137,10 @@ struct ProfileView: View {
             ))
             .disabled(sync.isSyncing)
             .accessibilityIdentifier("profile.icloudSync")
-            Text(sync.status).font(.footnote).foregroundStyle(.secondary)
+            Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
             if let date = sync.lastSync {
                 Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             if sync.isEnabled || sync.deletionPending {
                 Button { Task { await sync.sync() } } label: {
@@ -198,12 +200,12 @@ private struct MetricTile: View {
                 .minimumScaleFactor(0.6)
                 .contentTransition(.numericText())
             if !unit.isEmpty {
-                Text(unit).font(.caption2).foregroundStyle(.secondary)
+                Text(unit).font(.caption2).foregroundStyle(Color.labelSecondary)
             }
             Text(title)
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Spacing.lg)

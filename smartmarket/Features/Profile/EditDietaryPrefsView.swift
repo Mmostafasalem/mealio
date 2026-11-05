@@ -9,7 +9,7 @@ struct EditDietaryPrefsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Select everything that applies. We'll never suggest food that conflicts with your choices.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .padding(.horizontal, 16)
 
                 FlowLayout(spacing: 10) {

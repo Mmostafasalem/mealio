@@ -14,7 +14,7 @@ struct OnboardingProgressBar: View {
                     // Dot
                     ZStack {
                         Circle()
-                            .fill(step < currentStep ? Color.coral : step == currentStep ? Color.coral : Color(.systemFill))
+                            .fill(step < currentStep ? Color.dullPink : step == currentStep ? Color.dullPink : Color(.systemFill))
                             .frame(width: 28, height: 28)
                         if step < currentStep {
                             Image(systemName: "checkmark")
@@ -28,7 +28,7 @@ struct OnboardingProgressBar: View {
                     }
                     .overlay(
                         Circle().strokeBorder(
-                            step == currentStep ? Color.coral : Color.clear,
+                            step == currentStep ? Color.dullPink : Color.clear,
                             lineWidth: 2
                         )
                         .scaleEffect(1.3)
@@ -39,7 +39,7 @@ struct OnboardingProgressBar: View {
                     // Connector
                     if step < totalSteps {
                         Rectangle()
-                            .fill(step < currentStep ? Color.coral : Color(.systemFill))
+                            .fill(step < currentStep ? Color.dullPink : Color(.systemFill))
                             .frame(height: 2)
                             .frame(maxWidth: .infinity)
                             .animation(.spring(duration: 0.4), value: currentStep)

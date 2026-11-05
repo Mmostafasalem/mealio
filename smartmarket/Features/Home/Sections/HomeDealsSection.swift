@@ -18,7 +18,7 @@ struct HomeDealsSection: View {
                         .foregroundStyle(Color.onAccent)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, 3)
-                        .background(Color.coral, in: Capsule())
+                        .background(Color.dullPink, in: Capsule())
                         .contentTransition(.numericText())
                 }
             }
@@ -58,7 +58,7 @@ struct HomeDealsSection: View {
                 Text("No catalog estimates")
                     .font(.subheadline).fontWeight(.semibold)
                 Text("Pull down to refresh.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
         }

@@ -88,14 +88,14 @@ struct LogFoodSheet: View {
 
     private var searchField: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
             TextField("Search foods", text: $query)
                 .focused($searchFocused)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
             if !query.isEmpty {
                 Button { query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelSecondary)
                 }
                 .accessibilityLabel("Clear search")
             }
@@ -124,14 +124,14 @@ struct LogFoodSheet: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(food.displayName).font(.subheadline).fontWeight(.medium)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.labelPrimary)
                         Text("\(food.servingSizeG)g · \(food.macroSummary)")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
                     Text("\(kcal(food, grams: food.servingSizeG)) kcal")
                         .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.secondary).monospacedDigit()
+                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 }
                 .contentShape(Rectangle())
             }
@@ -157,9 +157,9 @@ struct LogFoodSheet: View {
         if let msg = addedToast {
             Label(msg, systemImage: "checkmark.circle.fill")
                 .font(.subheadline).fontWeight(.semibold)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.almond)
                 .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Color.ink, in: Capsule())
+                .background(Color.rhino, in: Capsule())
                 .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -193,12 +193,12 @@ struct LogFoodSheet: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.foodName).font(.subheadline).fontWeight(.medium)
-                Text(portionText(entry)).font(.caption2).foregroundStyle(.secondary)
+                Text(portionText(entry)).font(.caption2).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
             Text("\(entry.calories) kcal")
                 .font(.caption).fontWeight(.semibold)
-                .foregroundStyle(.secondary).monospacedDigit()
+                .foregroundStyle(Color.labelSecondary).monospacedDigit()
 
             Button {
                 vm.logPlanned(entry, slot: slot)
@@ -251,9 +251,9 @@ private struct ServingDetailView: View {
                 VStack(spacing: 4) {
                     Text("\(kcal)")
                         .font(.system(size: 52, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary).monospacedDigit()
+                        .foregroundStyle(Color.labelPrimary).monospacedDigit()
                         .contentTransition(.numericText())
-                    Text("kcal · \(Int(grams))g").font(.subheadline).foregroundStyle(.secondary)
+                    Text("kcal · \(Int(grams))g").font(.subheadline).foregroundStyle(Color.labelSecondary)
                     // Household equivalent so users don't have to think in grams.
                     Text(Portion.household(grams: Int(grams), category: food.category.rawValue))
                         .font(.subheadline).fontWeight(.semibold)
@@ -300,9 +300,9 @@ private struct ServingDetailView: View {
                 onAdd(Int(grams))
             } label: {
                 Label("Add to \(slot.title)", systemImage: "plus")
-                    .font(.headline).foregroundStyle(.white)
+                    .font(.headline).foregroundStyle(Color.almond)
                     .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(Color.ink, in: RoundedRectangle(cornerRadius: Radius.pill))
+                    .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.pill))
             }
             .padding(.horizontal, 16).padding(.bottom, 8)
         }
@@ -313,7 +313,7 @@ private struct ServingDetailView: View {
             Text("\(Int(grams.rounded()))g")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(color).monospacedDigit()
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+            Text(label).font(.caption2).foregroundStyle(Color.labelSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)

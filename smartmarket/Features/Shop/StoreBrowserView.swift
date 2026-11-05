@@ -47,7 +47,7 @@ struct StoreBrowserView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Weekly Budget")
                         .font(.subheadline).fontWeight(.semibold)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                     let amountsLayout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                         : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
@@ -60,7 +60,7 @@ struct StoreBrowserView: View {
                             .minimumScaleFactor(0.5)
                             .contentTransition(.numericText())
                         Text("/ \(String(format: "€%.0f", cart.weeklyBudget))")
-                            .font(.subheadline).foregroundStyle(.secondary)
+                            .font(.subheadline).foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                     }
@@ -84,7 +84,7 @@ struct StoreBrowserView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemFill)).frame(height: 8)
                     Capsule()
-                        .fill(Color.coral)
+                        .fill(Color.dullPink)
                         .frame(width: geo.size.width * cart.budgetFraction, height: 8)
                         .animation(.spring(duration: 0.5), value: cart.budgetFraction)
                 }
@@ -94,7 +94,7 @@ struct StoreBrowserView: View {
             HStack {
                 Spacer()
                 Text("\(String(format: "€%.2f", max(cart.budgetRemaining, 0))) left")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
         .padding(18)
@@ -146,11 +146,11 @@ struct StoreBrowserView: View {
                         )
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
-                        Text(item.store).font(.caption2).foregroundStyle(.secondary)
+                        Text(item.store).font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
                     Text("×\(item.quantity)")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                     Text(String(format: "€%.2f", item.lineTotal))
                         .font(.subheadline).fontWeight(.semibold).monospacedDigit()
                 }
@@ -158,7 +158,7 @@ struct StoreBrowserView: View {
 
             if cart.cartItems.count > 3 {
                 Text("+ \(cart.cartItems.count - 3) more items")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
         .padding(16)
@@ -179,7 +179,7 @@ struct StoreBrowserView: View {
                 }
                 Section {
                     Text("We'll warn you as you approach your limit while shopping.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
             }
             .navigationTitle("Set Budget")
@@ -217,16 +217,16 @@ private struct StoreCard: View {
             // Monochrome chain identity
             ZStack(alignment: .bottomLeading) {
                 RoundedRectangle(cornerRadius: 0)
-                    .fill(Color.ink)
+                    .fill(Color.rhino)
                     .frame(minHeight: 80)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.name)
                         .font(.title3).fontWeight(.bold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.almond)
                     Text("\(itemCount) catalog items")
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(Color.almond.opacity(0.75))
                 }
                 .padding(12)
             }
@@ -235,7 +235,7 @@ private struct StoreCard: View {
             HStack {
                 Text("Catalog estimates · verify in-store")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "chevron.right")
@@ -246,7 +246,7 @@ private struct StoreCard: View {
             .padding(.vertical, 10)
         }
         .clipShape(RoundedRectangle(cornerRadius: Radius.tile))
-        .shadow(color: Color.ink.opacity(0.02), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.rhino.opacity(0.02), radius: 8, x: 0, y: 4)
         .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 1)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.tile)
@@ -269,7 +269,7 @@ struct CartBadge: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.onAccent)
                     .padding(3)
-                    .background(Color.coral, in: Circle())
+                    .background(Color.dullPink, in: Circle())
                     .offset(x: 8, y: -8)
             }
         }
@@ -344,7 +344,7 @@ private struct CartItemRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.subheadline).fontWeight(.medium)
-                Text(String(format: "est. €%.2f", item.price)).font(.caption).foregroundStyle(.secondary)
+                Text(String(format: "est. €%.2f", item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
             QuantityStepper(quantity: item.quantity,

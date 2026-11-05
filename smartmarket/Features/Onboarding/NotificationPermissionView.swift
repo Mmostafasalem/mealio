@@ -24,7 +24,7 @@ struct NotificationPermissionView: View {
                         .font(.largeTitle).fontWeight(.bold)
                     Text("Optional reminders to log your meals and keep your grocery list up to date. You can change this anytime in Settings.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
@@ -51,7 +51,7 @@ struct NotificationPermissionView: View {
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 52)
                         .foregroundStyle(Color.onAccent)
-                        .background(Color.coral,
+                        .background(Color.dullPink,
                                     in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
                 .buttonStyle(ScalePressStyle())
@@ -61,7 +61,7 @@ struct NotificationPermissionView: View {
                 } label: {
                     Text("Skip for now")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .accessibilityIdentifier("onboarding.notifications.skip")
                 .frame(minHeight: 44)
@@ -85,7 +85,7 @@ private struct FeatureRow: View {
                 .frame(width: 24)
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
             Spacer()
         }
     }

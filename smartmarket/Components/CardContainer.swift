@@ -33,7 +33,7 @@ struct AppSectionHeader: View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.sectionTitle)
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.labelPrimary)
             Spacer(minLength: Spacing.sm)
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
@@ -63,7 +63,7 @@ struct StatPill: View {
                 .foregroundStyle(tint)
             Text(title)
                 .font(.captionText)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)

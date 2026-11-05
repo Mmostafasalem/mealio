@@ -25,7 +25,7 @@ struct LocationPermissionView: View {
                         .font(.largeTitle).fontWeight(.bold)
                     Text("Mealio shows grocery prices at stores near you to help plan your shop.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
@@ -62,7 +62,7 @@ struct LocationPermissionView: View {
                 } label: {
                     Text("Skip for now")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .accessibilityIdentifier("onboarding.location.skip")
                 .frame(minHeight: 44)
@@ -86,7 +86,7 @@ private struct FeatureRow: View {
                 .frame(width: 24)
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
             Spacer()
         }
     }

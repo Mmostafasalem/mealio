@@ -26,7 +26,7 @@ struct StoreDetailSheet: View {
                         .listRowBackground(Color.clear)
                     Text("Catalog estimates for this chain. Check prices and stock at the branch before shopping.")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
 
                 // Favourite deals
@@ -53,7 +53,7 @@ struct StoreDetailSheet: View {
                         }
                     } header: {
                         Label("Catalog estimates", systemImage: "basket.fill")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                 }
 
@@ -66,7 +66,7 @@ struct StoreDetailSheet: View {
                         }
                     } header: {
                         Label("In Your Meal Plan", systemImage: "fork.knife")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                 }
 
@@ -132,18 +132,18 @@ private struct StoreHeaderRow: View {
         HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.ink)
+                    .fill(Color.rhino)
                     .frame(width: 52, height: 52)
                 Text(store.chainIcon)
                     .font(.title2).fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.almond)
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(store.name)
                     .font(.headline)
                 Text(store.address)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .lineLimit(1)
             }
             Spacer()
@@ -174,7 +174,7 @@ private struct DealRow: View {
                 HStack(spacing: 8) {
                     Text(deal.quantity)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
             }
             Spacer()
@@ -184,7 +184,7 @@ private struct DealRow: View {
                     .foregroundStyle(Color.brandPrimary)
                 Text("est. price")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
             }
             Button(action: onAdd) {
                 Image(systemName: "plus.circle.fill")

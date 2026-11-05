@@ -27,17 +27,17 @@ struct CalorieSummaryCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("TODAY’S ENERGY")
                             .font(.caption).fontWeight(.medium)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text("\(vm.consumed)")
                                 .font(.statValue)
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(Color.labelPrimary)
                                 .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
                                 .contentTransition(.numericText())
                             Text("/ \(vm.goal)")
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary).minimumScaleFactor(0.7).lineLimit(1)
-                            Text("kcal").font(.caption2).foregroundStyle(.secondary)
+                                .foregroundStyle(Color.labelSecondary).minimumScaleFactor(0.7).lineLimit(1)
+                            Text("kcal").font(.caption2).foregroundStyle(Color.labelSecondary)
                         }
                     }
 
@@ -48,7 +48,7 @@ struct CalorieSummaryCard: View {
                             .padding(.horizontal, Spacing.lg)
                             .padding(.vertical, Spacing.sm)
                             .frame(minHeight: 44)
-                            .background(Color.coral, in: Capsule())
+                            .background(Color.dullPink, in: Capsule())
                     }
                     .buttonStyle(ScalePressStyle())
                     .accessibilityLabel("Log food")
@@ -94,9 +94,9 @@ struct CalorieSummaryCard: View {
             .frame(width: 38, height: 36)
             Text("\(Int(current))g")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary).monospacedDigit()
+                .foregroundStyle(Color.labelPrimary).monospacedDigit()
                 .contentTransition(.numericText())
-            Text("of \(Int(goal))g").font(.caption2).foregroundStyle(.secondary)
+            Text("of \(Int(goal))g").font(.caption2).foregroundStyle(Color.labelSecondary)
             Text(label).font(.caption2).fontWeight(.semibold).foregroundStyle(color)
             ProgressView(value: min(max(current, 0), goal), total: max(goal, 1))
                 .tint(color).frame(width: 44).padding(.top, 1)
@@ -128,7 +128,7 @@ private struct CalorieDetailPopover: View {
                 value: "\(over > 0 ? over : remaining) kcal",
                 color: over > 0 ? .brandDanger : .brandPrimary)
             Divider()
-            Text("\(pct)% of daily goal").font(.caption).foregroundStyle(.secondary)
+            Text("\(pct)% of daily goal").font(.caption).foregroundStyle(Color.labelSecondary)
         }
         .font(.subheadline)
         .padding(Spacing.lg)
@@ -138,7 +138,7 @@ private struct CalorieDetailPopover: View {
 
     private func row(_ label: String, value: String, color: Color) -> some View {
         HStack {
-            Text(label).foregroundStyle(.secondary)
+            Text(label).foregroundStyle(Color.labelSecondary)
             Spacer()
             Text(value).bold().foregroundStyle(color)
         }

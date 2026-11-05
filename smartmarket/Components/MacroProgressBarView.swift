@@ -34,7 +34,7 @@ struct MacroProgressBarView: View {
 
             Text("\(Int(current))g / \(Int(goal))g")
                 .font(.caption2).fontWeight(.medium)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
                 .monospacedDigit()
                 .frame(width: 72, alignment: .trailing)
         }

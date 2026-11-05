@@ -13,15 +13,15 @@ struct WelcomeView: View {
     @State private var ctaVisible      = false
 
     private let features: [(String, String, String, Color)] = [
-        ("brain.head.profile","AI Meal Plans",     "A weekly plan built around your goals",     Color.coral),
-        ("chart.bar.fill",  "Calorie & Macro Tracking", "Log food and hit your targets",        Color.coral),
-        ("basket.fill",     "Budget Grocery Lists", "Plan your shop with estimated prices",     Color.coral),
-        ("fork.knife",      "Recipes On Tap",      "Turn any planned meal into a recipe",       Color.coral),
+        ("brain.head.profile","AI Meal Plans",     "A weekly plan built around your goals",     Color.dullPink),
+        ("chart.bar.fill",  "Calorie & Macro Tracking", "Log food and hit your targets",        Color.dullPink),
+        ("basket.fill",     "Budget Grocery Lists", "Plan your shop with estimated prices",     Color.dullPink),
+        ("fork.knife",      "Recipes On Tap",      "Turn any planned meal into a recipe",       Color.dullPink),
     ]
 
     var body: some View {
         ZStack {
-            Color.ink.ignoresSafeArea()
+            Color.rhino.ignoresSafeArea()
 
             // Content
             AdaptiveOnboardingPage {
@@ -33,11 +33,11 @@ struct WelcomeView: View {
                 VStack(spacing: 16) {
                     ZStack {
                         Circle()
-                            .fill(.white.opacity(0.12))
+                            .fill(Color.almond.opacity(0.12))
                             .frame(width: 96, height: 96)
                         Image(systemName: "cart.badge.plus")
                             .font(.system(size: 40, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.almond)
                     }
                     .scaleEffect(headerVisible ? 1 : 0.5)
                     .opacity(headerVisible ? 1 : 0)
@@ -45,10 +45,10 @@ struct WelcomeView: View {
                     VStack(spacing: 8) {
                         Text("Mealio")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.almond)
                         Text("A little more balance. Every day.")
                             .font(.title3)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundStyle(Color.almond.opacity(0.75))
                     }
                     .opacity(headerVisible ? 1 : 0)
                     .offset(y: headerVisible ? 0 : 12)
@@ -83,7 +83,7 @@ struct WelcomeView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
-                        .background(Color.coral)
+                        .background(Color.dullPink)
                         .foregroundStyle(Color.onAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
 
@@ -94,7 +94,7 @@ struct WelcomeView: View {
 
                     Text("Free · No credit card required")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(Color.almond.opacity(0.45))
                         .opacity(ctaVisible ? 1 : 0)
                 }
                 .padding(.horizontal, 28)
@@ -162,20 +162,20 @@ private struct FeaturePill: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline).fontWeight(.semibold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.almond)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(Color.almond.opacity(0.6))
             }
 
             Spacer()
         }
         .padding(14)
-        .background(.white.opacity(0.08))
+        .background(Color.almond.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(Color.almond.opacity(0.12), lineWidth: 1)
         )
     }
 }

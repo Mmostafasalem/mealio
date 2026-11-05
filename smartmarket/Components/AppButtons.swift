@@ -43,7 +43,7 @@ struct PrimaryButton: View {
             .frame(minHeight: 52)
             .foregroundStyle(Color.onAccent)
             .background(
-                Color.coral,
+                Color.dullPink,
                 in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
             )
             .opacity(isEnabled ? 1 : 0.5)
@@ -100,7 +100,7 @@ extension View {
             .frame(minHeight: 52)
             .foregroundStyle(Color.onAccent)
             .background(
-                Color.coral,
+                Color.dullPink,
                 in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
             )
             .opacity(enabled ? 1 : 0.45)

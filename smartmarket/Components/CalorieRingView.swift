@@ -18,11 +18,11 @@ struct CalorieRingView: View {
         ZStack {
             // Background track
             Circle()
-                .stroke(Color(.systemGray5), style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                .stroke(Color.surfaceSecondary, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                 .frame(width: size - 18, height: size - 18)
 
             ProgressArc(progress: animatedProgress)
-                .stroke(Color.coral, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                .stroke(Color.dullPink, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                 .frame(width: size - 18, height: size - 18)
 
             // Center text
@@ -36,7 +36,7 @@ struct CalorieRingView: View {
                     .contentTransition(.numericText())
                 Text("/ \(goal) kcal")
                     .font(.system(size: size * 0.085, weight: .medium, design: .default))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
             }

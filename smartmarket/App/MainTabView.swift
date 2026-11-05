@@ -89,14 +89,14 @@ private struct TabItem: View {
                     }
                     Image(systemName: isActive ? filled : icon)
                         .font(.system(size: 17, weight: isActive ? .semibold : .regular))
-                        .foregroundStyle(isActive ? Color.brandPrimary : .secondary)
+                        .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
                         .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isActive)
                 }
                 .frame(width: 46, height: 30)
 
                 Text(label)
                     .font(.system(size: 10, weight: isActive ? .semibold : .regular))
-                    .foregroundStyle(isActive ? Color.brandPrimary : .secondary)
+                    .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
             }
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())

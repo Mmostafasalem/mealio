@@ -55,7 +55,7 @@ struct HomeView: View {
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(Color.onAccent)
                 .frame(width: 58, height: 58)
-                .background(Color.coral, in: Circle())
+                .background(Color.dullPink, in: Circle())
                 .elevation(Elevation.high)
         }
         .buttonStyle(ScalePressStyle())

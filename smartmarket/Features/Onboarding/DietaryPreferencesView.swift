@@ -18,7 +18,7 @@ struct DietaryPreferencesView: View {
                         .font(.largeTitle).fontWeight(.bold)
                     Text("Select your preferences. Suggestions can contain mistakes; always check ingredients and allergens before eating.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 24)
 
@@ -39,10 +39,10 @@ struct DietaryPreferencesView: View {
                 if vm.selectedPreferences.isEmpty {
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                         Text("No restrictions selected — we'll include all food types.")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                     .padding(.horizontal, 24)
                 } else {

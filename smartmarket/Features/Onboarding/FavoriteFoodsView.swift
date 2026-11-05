@@ -22,7 +22,7 @@ struct FavoriteFoodsView: View {
             Text("Build your fridge")
                 .font(.title2).fontWeight(.bold)
             Text("Pick everything you buy regularly. We'll use these to tailor your meal plans and grocery suggestions.")
-                .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .font(.subheadline).foregroundStyle(Color.labelSecondary).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
@@ -66,7 +66,7 @@ struct FavoriteFoodsView: View {
                 .listRowBackground(Color.clear)
             if vm.filteredItems.isEmpty {
                 Text("No items match your search.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .listRowBackground(Color.clear)
             } else if vm.selectedCategory == nil && vm.foodSearchQuery.isEmpty {
                 // Grouped by category
@@ -109,7 +109,7 @@ struct FavoriteFoodsView: View {
             if !vm.canFinish {
                 let remaining = Constants.Onboarding.minimumFavorites - vm.favoritesCount
                 Text("Pick \(remaining) more to continue")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Button {
                 vm.finish()
@@ -124,7 +124,7 @@ struct FavoriteFoodsView: View {
                 }
                 .padding(.horizontal, Spacing.xl)
                 .padding(.vertical, Spacing.lg)
-                .background(vm.canFinish ? Color.coral : Color(.systemFill),
+                .background(vm.canFinish ? Color.dullPink : Color(.systemFill),
                             in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 .foregroundStyle(vm.canFinish ? Color.onAccent : Color.labelSecondary)
             }
@@ -151,7 +151,7 @@ private struct CategoryChip: View {
             Text(label)
                 .font(.subheadline)
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(isSelected ? Color.coral : Color(.tertiarySystemFill))
+                .background(isSelected ? Color.dullPink : Color(.tertiarySystemFill))
                 .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
         }
@@ -182,11 +182,11 @@ private struct CategorySectionHeader: View {
                     .font(.caption2).fontWeight(.bold)
                     .foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color.coral, in: Capsule())
+                    .background(Color.dullPink, in: Capsule())
             }
         }
         .font(.footnote).fontWeight(.semibold)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.labelSecondary)
         .textCase(nil)
     }
 }
@@ -213,14 +213,14 @@ private struct ItemRow: View {
 
                 Text(item.name)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.labelPrimary)
 
                 Spacer()
 
                 // Checkmark
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.coral : Color(.tertiaryLabel))
+                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
                     .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
             }
             .contentShape(Rectangle())
@@ -253,11 +253,11 @@ struct ProductFavoriteCard: View {
                     )
                 Text(item.name)
                     .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.labelPrimary)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.coral : Color(.tertiaryLabel))
+                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
                     .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
             }
             .contentShape(Rectangle())

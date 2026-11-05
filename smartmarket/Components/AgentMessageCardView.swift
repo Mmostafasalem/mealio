@@ -16,7 +16,7 @@ struct AgentMessageCardView: View {
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(Color.onAccent)
                 .frame(width: 36, height: 36)
-                .background(Color.coral)
+                .background(Color.dullPink)
                 .clipShape(Circle())
                 .accessibilityHidden(true)
 
@@ -30,7 +30,7 @@ struct AgentMessageCardView: View {
                 } else {
                     Text(message ?? "")
                         .font(.subheadline)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.labelPrimary)
                         .transition(.opacity)
                 }
             }

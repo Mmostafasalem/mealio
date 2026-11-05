@@ -28,9 +28,9 @@ struct HomeHeaderView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.4)
                     .padding(8)
-                    .foregroundStyle(Color.ink)
+                    .foregroundStyle(Color.onAccent)
                     .frame(width: 44, height: 44)
-                    .background(Color.coral, in: Circle())
+                    .background(Color.dullPink, in: Circle())
                     .accessibilityHidden(true)
             }
             let layout = dynamicTypeSize.isAccessibilitySize

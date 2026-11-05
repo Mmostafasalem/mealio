@@ -10,7 +10,7 @@ struct MealPlanView: View {
             VStack(spacing: Spacing.xl) {
                 if !aiSharingConsent {
                     Label("Online AI sharing is off. Local suggestions are shown. You can enable online AI in Profile.", systemImage: "iphone")
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundStyle(Color.labelSecondary)
                         .padding(.horizontal, Spacing.lg)
                 }
                 Picker("View", selection: $vm.selectedTab) {
@@ -131,7 +131,7 @@ private struct MealSectionCard: View {
             VStack(spacing: 8) {
                 if entries.isEmpty {
                     Text("Nothing planned")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 ForEach(entries) { entry in
@@ -150,7 +150,7 @@ private struct MealSectionCard: View {
                 Text(title).font(.headline)
                 Spacer()
                 Text("\(entries.reduce(0) { $0 + $1.calories }) kcal")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
@@ -173,16 +173,16 @@ private struct MealEntryRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.foodName)
                         .font(.subheadline).fontWeight(.medium)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.labelPrimary)
                     Text(entry.notes?.isEmpty == false ? entry.notes! : "\(entry.portionG)g")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                         .lineLimit(2)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(entry.calories) kcal")
                         .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.secondary).monospacedDigit()
+                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
                     if entry.proteinG + entry.carbsG + entry.fatG > 0 {
                         Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
@@ -210,7 +210,7 @@ private struct WhyThisPlanCard: View {
         DisclosureGroup("Why this plan?", isExpanded: $expanded) {
             Text(notes.isEmpty ? "No notes provided." : notes)
                 .font(.subheadline).italic()
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 8)
         }
@@ -237,9 +237,9 @@ private struct RecommendationsSection: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.foodName).font(.subheadline).fontWeight(.semibold)
-                        Text(item.reason).font(.caption).foregroundStyle(.secondary)
+                        Text(item.reason).font(.caption).foregroundStyle(Color.labelSecondary)
                         Text("\(item.storeName) · €\(item.estimatedPrice, specifier: "%.2f")")
-                            .font(.caption2).foregroundStyle(.secondary)
+                            .font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
                     PriorityBadge(priority: item.priority)
@@ -256,7 +256,7 @@ private struct RecommendationsSection: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .foregroundStyle(Color.onAccent)
-                    .background(Color.coral)
+                    .background(Color.dullPink)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .sensoryFeedback(.success, trigger: addedTrigger)
@@ -420,7 +420,7 @@ private struct WeekDayCard: View {
         HStack(spacing: 14) {
             VStack(spacing: 2) {
                 Text(date, format: .dateTime.weekday(.abbreviated))
-                    .font(.caption2).fontWeight(.bold).foregroundStyle(.secondary)
+                    .font(.caption2).fontWeight(.bold).foregroundStyle(Color.labelSecondary)
                 Text(date, format: .dateTime.day())
                     .font(.headline).fontWeight(.bold)
                     .foregroundStyle(isToday ? Color.brandPrimary : .primary)
@@ -433,7 +433,7 @@ private struct WeekDayCard: View {
                         .font(.subheadline).fontWeight(.semibold).monospacedDigit()
                     Spacer()
                     Text("\(percent)%")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {

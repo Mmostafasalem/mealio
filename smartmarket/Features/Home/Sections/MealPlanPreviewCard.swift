@@ -43,7 +43,7 @@ struct MealPlanPreviewCard: View {
                     Image(systemName: "wand.and.stars")
                         .foregroundStyle(Color.brandPrimary.opacity(0.5))
                     Text("Pull to refresh and generate today's plan")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.vertical, Spacing.sm)
             }
@@ -76,7 +76,7 @@ struct MealPreviewRow: View {
             Spacer()
             Text("\(calories) kcal")
                 .font(.caption).fontWeight(.semibold)
-                .foregroundStyle(.secondary).monospacedDigit()
+                .foregroundStyle(Color.labelSecondary).monospacedDigit()
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)

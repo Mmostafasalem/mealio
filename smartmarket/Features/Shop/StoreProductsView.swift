@@ -80,36 +80,36 @@ struct StoreProductsView: View {
                     // Item count badge
                     Text("\(cart.itemCount)")
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.almond)
                         .frame(width: 28, height: 28)
                         .background(Color.white.opacity(0.25), in: Circle())
 
                     Text("View cart")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.almond)
 
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(String(format: "€%.2f", cart.total))
                             .font(.headline).fontWeight(.bold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.almond)
                             .monospacedDigit()
                         if cart.budgetFraction > 0.01 {
                             Text("\(Int(cart.budgetFraction * 100))% of budget")
                                 .font(.caption2)
-                                .foregroundStyle(.white.opacity(0.75))
+                                .foregroundStyle(Color.almond.opacity(0.75))
                         }
                     }
 
                     Image(systemName: "chevron.right")
                         .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(Color.almond.opacity(0.8))
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
                 .background(
-                    Color.ink
+                    Color.rhino
                 )
             }
             .buttonStyle(.plain)
@@ -147,7 +147,7 @@ private struct FilterChip: View {
                 .font(.subheadline)
                 .padding(.horizontal, 14).padding(.vertical, 6)
                 .frame(minHeight: 44)
-                .background(isSelected ? Color.coral : Color.surfaceSecondary)
+                .background(isSelected ? Color.dullPink : Color.surfaceSecondary)
                 .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
         }
@@ -196,7 +196,7 @@ struct ProductShopRow: View {
                 } label: {
                     HStack(spacing: 5) {
                         Text(String(format: "€%.2f", price))
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(Color.labelPrimary)
                         if isEstimated {
                             Text("est.")
                                 .foregroundStyle(Color.brandAmber)

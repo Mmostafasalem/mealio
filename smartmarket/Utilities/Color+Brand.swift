@@ -18,36 +18,37 @@ private extension UIColor {
 
 extension Color {
 
-    // Ink + White + Coral. Neutral values are tonal derivatives, not extra accents.
-    // Coral is reserved for interaction, progress and explicit warning states.
-    static let ink = Color(hex: "#18181B")
-    static let paper = Color(hex: "#FFFFFF")
-    static let coral = Color(hex: "#FF7868")
-    static let onAccent = ink
-    static let brandPrimary = Color(light: "#B6372B", dark: "#FF9385")
-    static let brandDark = Color(light: "#992C23", dark: "#FF9385")
-    static let brandMid = Color(light: "#626268", dark: "#B7B7BD")
-    static let brandLight = Color(light: "#F8E8E5", dark: "#382624")
-    static let brandHeader = ink
-    static let brandHeaderMid = ink
-    // Warnings always retain labels and icons; color is never the only signal.
+    // Owner's supplied palette: Almond, Dull Pink, Rhino.
+    // Surface/text shades derive from these three anchors for accessible contrast.
+    static let almond = Color(hex: "#F4DAD4")
+    static let dullPink = Color(hex: "#DD8C96")
+    static let rhino = Color(hex: "#2E4060")
+    // Rhino's darker text shade gives 4.99:1 contrast on exact Dull Pink.
+    static let onAccent = Color(hex: "#24334D")
+    // Pink on almond is only 1.91:1: links use Rhino, not pink text.
+    static let brandPrimary = Color(light: "#2E4060", dark: "#F4DAD4")
+    static let brandDark = Color(light: "#24334D", dark: "#F4DAD4")
+    static let brandMid = Color(light: "#52617A", dark: "#D8C7C6")
+    static let brandLight = Color(light: "#EAC0C1", dark: "#48516D")
+    static let brandHeader = rhino
+    static let brandHeaderMid = rhino
+    // Warnings retain labels/icons; pink alone never communicates severity.
     static let brandAmber = brandPrimary
     static let brandAmberLight = brandLight
     static let brandDanger = brandPrimary
     static let brandDangerLight = brandLight
     static let calorieAccent = brandPrimary
-    // Macro names, symbols and values distinguish categories without a rainbow.
     static let proteinAccent = labelPrimary
     static let carbsAccent = labelPrimary
     static let fatAccent = labelPrimary
-    static let labelPrimary = Color(light: "#18181B", dark: "#FAFAFA")
-    static let labelSecondary = Color(light: "#626268", dark: "#B7B7BD")
-    static let labelTertiary = Color(light: "#717178", dark: "#A1A1AA")
-    static let surface = Color(light: "#FFFFFF", dark: "#18181B")
-    static let surfaceGrouped = Color(light: "#F6F6F7", dark: "#111113")
-    static let surfaceElevated = Color(light: "#FFFFFF", dark: "#202023")
-    static let surfaceSecondary = Color(light: "#F0F0F2", dark: "#29292D")
-    static let hairline = Color(light: "#E4E4E7", dark: "#3A3A40")
+    static let labelPrimary = Color(light: "#2E4060", dark: "#F4DAD4")
+    static let labelSecondary = Color(light: "#52617A", dark: "#D8C7C6")
+    static let labelTertiary = Color(light: "#58637A", dark: "#C9BABB")
+    static let surface = Color(light: "#FCF3F0", dark: "#24334D")
+    static let surfaceGrouped = Color(light: "#F4DAD4", dark: "#1E2B42")
+    static let surfaceElevated = Color(light: "#FCF3F0", dark: "#2E4060")
+    static let surfaceSecondary = Color(light: "#EED0CD", dark: "#3A4966")
+    static let hairline = Color(light: "#C6B4B8", dark: "#617089")
 
     // MARK: - Adaptive convenience initialiser
 

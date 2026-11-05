@@ -59,7 +59,7 @@ struct AgentChatSheet: View {
                 .foregroundStyle(Color.brandPrimary)
             Text("Ask me anything about your meals, deals, or nutrition goals.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.top, 60)
@@ -118,7 +118,7 @@ private struct ChatBubble: View {
                 .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.md)
                 .background(
-                    isUser ? Color.coral : Color.surfaceElevated,
+                    isUser ? Color.dullPink : Color.surfaceElevated,
                     in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                 )
             if !isUser { Spacer(minLength: 60) }

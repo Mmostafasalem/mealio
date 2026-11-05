@@ -57,7 +57,7 @@ struct EditFavoriteFoodsView: View {
         List {
             if displayItems.isEmpty {
                 Text("No items match your search.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .listRowBackground(Color.clear)
             } else if selectedCategory == nil && query.isEmpty {
                 ForEach(CatalogCategory.allCases) { cat in
@@ -115,7 +115,7 @@ private struct CategoryChip: View {
             Text(label)
                 .font(.subheadline)
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(isSelected ? Color.coral : Color(.tertiarySystemFill))
+                .background(isSelected ? Color.dullPink : Color(.tertiarySystemFill))
                 .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
         }
@@ -138,10 +138,10 @@ private struct SectionHeader: View {
             if count > 0 {
                 Text("\(count)").font(.caption2).fontWeight(.bold).foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color.coral, in: Capsule())
+                    .background(Color.dullPink, in: Capsule())
             }
         }
-        .font(.footnote).fontWeight(.semibold).foregroundStyle(.secondary).textCase(nil)
+        .font(.footnote).fontWeight(.semibold).foregroundStyle(Color.labelSecondary).textCase(nil)
     }
 }
 
@@ -156,11 +156,11 @@ private struct ItemRow: View {
                     .fill(Color.labelPrimary.opacity(0.18))
                     .frame(width: 32, height: 32)
                     .overlay(Image(systemName: item.category.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.labelPrimary))
-                Text(item.name).font(.body).foregroundStyle(.primary)
+                Text(item.name).font(.body).foregroundStyle(Color.labelPrimary)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.coral : Color(.tertiaryLabel))
+                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
                     .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
             }
             .contentShape(Rectangle())

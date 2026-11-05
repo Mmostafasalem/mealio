@@ -9,22 +9,22 @@ struct HomeAgentCard: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack(spacing: Spacing.sm) {
                 ZStack {
-                    Color.ink
+                    Color.rhino
                         .clipShape(Circle())
                         .frame(width: 36, height: 36)
-                    Image(systemName: "sparkle").font(.caption).fontWeight(.bold).foregroundStyle(.white)
+                    Image(systemName: "sparkle").font(.caption).fontWeight(.bold).foregroundStyle(Color.almond)
                 }
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Mealio Agent").font(.subheadline).fontWeight(.semibold)
                     Text("AI-powered meal & grocery assistant")
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundStyle(Color.labelSecondary)
                 }
                 Spacer()
                 if appState.isGeneratingMealPlan {
                     HStack(spacing: Spacing.xs) {
                         ProgressView().scaleEffect(0.7).tint(Color.brandPrimary)
-                        Text("Thinking…").font(.caption2).foregroundStyle(.secondary)
+                        Text("Thinking…").font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     .transition(.opacity)
                 }
@@ -44,11 +44,11 @@ struct HomeAgentCard: View {
                         .font(.caption).fontWeight(.semibold).opacity(0.7)
                 }
                 .font(.subheadline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.almond)
                 .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.md)
                 .background(
-                    Color.ink,
+                    Color.rhino,
                     in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                 )
             }

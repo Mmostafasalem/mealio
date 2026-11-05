@@ -42,7 +42,7 @@ struct RecipeSheet: View {
                 .tint(.brandPrimary)
             Text("Generating recipe…")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -90,7 +90,7 @@ struct RecipeSheet: View {
                             Spacer()
                             Text(ing.amount)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.labelSecondary)
                         }
                         .padding(.vertical, 10)
                         .padding(.horizontal, 14)
@@ -111,7 +111,7 @@ struct RecipeSheet: View {
                                 .font(.caption).fontWeight(.bold)
                                 .foregroundStyle(Color.onAccent)
                                 .frame(width: 26, height: 26)
-                                .background(Color.coral)
+                                .background(Color.dullPink)
                                 .clipShape(Circle())
                             Text(step)
                                 .font(.body)
@@ -131,7 +131,7 @@ struct RecipeSheet: View {
                             .foregroundStyle(Color.brandAmber)
                         Text(tip)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -155,7 +155,7 @@ struct RecipeSheet: View {
                 .font(.subheadline).fontWeight(.semibold)
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -163,7 +163,7 @@ struct RecipeSheet: View {
     private func sectionHeader(icon: String, title: String) -> some View {
         Label(title, systemImage: icon)
             .font(.headline)
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.labelPrimary)
     }
 
     // MARK: - Data

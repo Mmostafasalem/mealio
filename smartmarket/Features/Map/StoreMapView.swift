@@ -45,7 +45,7 @@ struct StoreMapView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(Color.onAccent)
                         .frame(width: 46, height: 46)
-                        .background(Color.coral)
+                        .background(Color.dullPink)
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
@@ -60,7 +60,7 @@ struct StoreMapView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(vm.showNearbyOnly ? Color.onAccent : Color.labelPrimary)
                         .frame(width: 46, height: 46)
-                        .background(vm.showNearbyOnly ? Color.coral : Color.surfaceSecondary)
+                        .background(vm.showNearbyOnly ? Color.dullPink : Color.surfaceSecondary)
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
@@ -115,13 +115,13 @@ private struct StorePinView: View {
                 Text(store.chainIcon)
                     .font(.title2)
                     .frame(width: isSelected ? 48 : 40, height: isSelected ? 48 : 40)
-                    .background(isSelected ? Color.coral : Color.paper)
+                    .background(isSelected ? Color.dullPink : Color.almond)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
 
                 Image(systemName: "triangle.fill")
                     .font(.system(size: 7))
-                    .foregroundStyle(isSelected ? Color.coral : Color.paper)
+                    .foregroundStyle(isSelected ? Color.dullPink : Color.almond)
                     .rotationEffect(.degrees(180))
                     .offset(y: -2)
             }
@@ -131,7 +131,7 @@ private struct StorePinView: View {
                     .font(.caption2.bold())
                     .foregroundStyle(Color.onAccent)
                     .padding(4)
-                    .background(Color.coral)
+                    .background(Color.dullPink)
                     .clipShape(Circle())
                     .offset(x: 4, y: -4)
             }

@@ -58,7 +58,7 @@ struct MealSlotRow: View {
                 if kcal > 0 {
                     Text("\(kcal) kcal")
                         .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.secondary).monospacedDigit()
+                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
                         .contentTransition(.numericText())
                 }
                 Button(action: onAdd) {
@@ -73,12 +73,12 @@ struct MealSlotRow: View {
 
             ForEach(entries) { entry in
                 HStack(spacing: Spacing.sm) {
-                    Text(entry.name).font(.caption).foregroundStyle(.primary).lineLimit(1)
+                    Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(1)
                     Spacer()
-                    Text("\(entry.servingG)g").font(.caption2).foregroundStyle(.secondary)
+                    Text("\(entry.servingG)g").font(.caption2).foregroundStyle(Color.labelSecondary)
                     Text("\(entry.calories)")
                         .font(.caption2).fontWeight(.semibold)
-                        .foregroundStyle(.secondary).monospacedDigit()
+                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
                     Button { onDelete(entry) } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 16))

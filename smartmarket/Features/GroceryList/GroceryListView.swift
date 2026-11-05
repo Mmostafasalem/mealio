@@ -108,7 +108,7 @@ private struct GroceryRow: View {
                     .strikethrough(item.isBought)
                     .foregroundStyle(item.isBought ? .secondary : .primary)
                 Text(item.quantity)
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
             Text(String(format: "€%.2f", item.estimatedPrice))
@@ -153,7 +153,7 @@ private struct FooterBar: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Estimated total")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
                 Text(String(format: "€%.2f", total))
                     .font(.title2).fontWeight(.bold)
                     .foregroundStyle(Color.brandPrimary)
@@ -163,7 +163,7 @@ private struct FooterBar: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text("Items")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
                 Text("\(count)")
                     .font(.title2).fontWeight(.bold)
                     .monospacedDigit()

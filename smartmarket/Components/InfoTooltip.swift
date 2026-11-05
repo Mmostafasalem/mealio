@@ -19,7 +19,7 @@ struct InfoTooltip: View {
         .popover(isPresented: $isPresented, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
             Text(text)
                 .font(.caption)
-                .foregroundStyle(.primary)
+                .foregroundStyle(Color.labelPrimary)
                 .multilineTextAlignment(.leading)
                 .padding(14)
                 .frame(maxWidth: 230)

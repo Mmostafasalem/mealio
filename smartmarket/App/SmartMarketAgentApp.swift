@@ -26,6 +26,7 @@ struct SmartMarketAgentApp: App {
             }
             .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
             .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
+            .foregroundStyle(Color.labelPrimary)
             .environment(appState)
             .tint(Color.brandPrimary)
             .safeAreaInset(edge: .bottom) {
@@ -57,6 +58,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Native navigation titles follow the same adaptive palette as content.
+        UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
+        UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UNUserNotificationCenter.current().delegate = self
         return true
     }

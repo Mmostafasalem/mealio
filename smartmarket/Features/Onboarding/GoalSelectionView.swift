@@ -28,7 +28,7 @@ struct GoalSelectionView: View {
                             .background(Color.brandPrimary.opacity(0.1), in: Capsule())
                     }
                     Text("Your base burn")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundStyle(Color.labelSecondary)
                     Text("\(vm.liveBMR) kcal / day")
                         .font(.system(size: 38, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.brandPrimary)
@@ -68,7 +68,7 @@ struct GoalSelectionView: View {
                             .foregroundStyle(Color.brandAmber)
                         Text("This target is near the minimum safe calories. We've capped it for your safety.")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                     .padding(12)
                     .background(Color.brandAmberLight)
@@ -121,7 +121,7 @@ private struct GoalCard: View {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Color.coral : Color.brandPrimary.opacity(0.1))
+                        .fill(isSelected ? Color.dullPink : Color.brandPrimary.opacity(0.1))
                         .frame(width: 48, height: 48)
                     Image(systemName: goal.sfSymbol)
                         .font(.system(size: 20))
@@ -134,7 +134,7 @@ private struct GoalCard: View {
                         .foregroundStyle(isSelected ? Color.brandPrimary : .primary)
                     Text(goal.description)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
 
                 Spacer()
@@ -146,7 +146,7 @@ private struct GoalCard: View {
                         .monospacedDigit()
                     Text("kcal/day")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
             }
             .padding(16)
@@ -218,7 +218,7 @@ private struct PaceRow: View {
 
                 Text("−\(pace.dailyDeficit) kcal deficit")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
             }
             .padding(.vertical, 6)
         }
@@ -238,7 +238,7 @@ private struct GoalSummaryCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Your daily target")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                 Text("\(dailyCalories) kcal")
                     .font(.title2).fontWeight(.bold)
                     .foregroundStyle(Color.brandPrimary)

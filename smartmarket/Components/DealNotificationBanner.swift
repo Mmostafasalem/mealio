@@ -23,7 +23,7 @@ struct DealNotificationBanner: View {
                     .font(.system(size: 22))
                     .foregroundStyle(Color.onAccent)
                     .frame(width: 46, height: 46)
-                    .background(Color.coral)
+                    .background(Color.dullPink)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .accessibilityHidden(true)
 
@@ -33,7 +33,7 @@ struct DealNotificationBanner: View {
                         .lineLimit(2)
                     Text("\(deal.store.chain) · \(deal.quantity)")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                     let priceLayout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xs))
                         : AnyLayout(HStackLayout(spacing: 6))
@@ -45,7 +45,7 @@ struct DealNotificationBanner: View {
                             .foregroundStyle(Color.brandPrimary)
                         Text("est. price")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                 }
                 Spacer(minLength: 0)
@@ -63,7 +63,7 @@ struct DealNotificationBanner: View {
                         .font(.subheadline).fontWeight(.medium)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Spacing.md)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(Color.labelPrimary)
                         .background(
                             RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                                 .strokeBorder(Color(.separator), lineWidth: 1)
@@ -81,7 +81,7 @@ struct DealNotificationBanner: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Spacing.md)
                         .foregroundStyle(Color.onAccent)
-                        .background(Color.coral,
+                        .background(Color.dullPink,
                                     in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 }
                 .buttonStyle(ScalePressStyle())

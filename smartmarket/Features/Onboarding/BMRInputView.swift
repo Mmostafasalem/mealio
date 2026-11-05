@@ -36,7 +36,7 @@ struct BMRInputView: View {
                         .lineSpacing(2)
                     Text("We use this to calculate your personal daily calorie needs.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 24)
 
@@ -189,7 +189,7 @@ private struct SliderRow: View {
                         .onSubmit { commitText() }
                     Text(unit)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -326,7 +326,7 @@ private struct ActivityRow: View {
                         .foregroundStyle(isSelected ? Color.brandPrimary : .primary)
                     Text(level.description)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
 
                 Spacer()
@@ -357,7 +357,7 @@ private struct BMRPreviewCard: View {
         VStack(spacing: 4) {
             Text("Your estimated BMR")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
 
             Text("\(bmr)")
                 .font(.system(size: 48, weight: .bold, design: .rounded))
@@ -368,7 +368,7 @@ private struct BMRPreviewCard: View {
 
             Text("kcal / day at rest")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
 
             Divider().padding(.vertical, 4)
 

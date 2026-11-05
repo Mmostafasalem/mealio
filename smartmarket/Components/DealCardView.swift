@@ -43,7 +43,7 @@ struct DealCardView: View {
 
                     Text(deal.quantity)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 10)
@@ -57,7 +57,7 @@ struct DealCardView: View {
                         .foregroundStyle(Color.brandPrimary)
                     Text("est. price")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 14)
