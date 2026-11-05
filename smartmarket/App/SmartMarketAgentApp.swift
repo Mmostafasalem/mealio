@@ -44,7 +44,7 @@ struct SmartMarketAgentApp: App {
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
             }
             .task(id: appState.isOnboarded) {
-                PrivateSyncService.shared.start()
+                await PrivateSyncService.shared.start()
                 await NotificationService.shared.checkPermission()
                 appState.agentLoop.start(appState: appState)
             }

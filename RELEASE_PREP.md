@@ -177,3 +177,10 @@ tests use local ad-hoc signing; unsigned builds are compile-only evidence. Swift
 sync tests also run through `swift test --disable-sandbox`. Result bundles retain
 failed checks as well as passing screenshots; do not report interrupted or
 failed runs as successful verification.
+
+## Personal AI allowance — not activated
+Complete [AI account setup](docs/AI_ACCOUNTS_SETUP.md) before releasing online AI:
+Apple capability/signing key, durable server storage, server secrets, provider
+verification and real-device sign-in/deletion checks. Web AI also needs equivalent
+authentication before deploying backend enforcement. No live setup is implied by
+simulator builds or mocked Apple/provider tests.

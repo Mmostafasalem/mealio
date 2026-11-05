@@ -272,7 +272,8 @@ final class HomeViewModel {
             chatMessages.append(ChatMessage(role: "assistant", content: response.reply))
         } catch {
             let message: String
-            if case APIError.aiConsentRequired = error { message = error.localizedDescription }
+            if error is AIAccountError { message = error.localizedDescription }
+            else if case APIError.aiConsentRequired = error { message = error.localizedDescription }
             else { message = "Sorry, I couldn't reach the agent. Please try again." }
             chatMessages.append(ChatMessage(role: "assistant", content: message))
         }

@@ -71,7 +71,7 @@ def _gate():
 
     # Auth is enforced only when APP_API_KEY is configured on the server.
     # Constant-time compare avoids leaking the key via timing.
-    if APP_API_KEY:
+    if APP_API_KEY and request.path != "/api/auth/apple/notifications":
         provided = request.headers.get("X-API-Key", "")
         if not hmac.compare_digest(provided, APP_API_KEY):
             return jsonify({"error": "Unauthorized"}), 401
@@ -80,8 +80,8 @@ def _gate():
 @app.after_request
 def _cors(resp):
     resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key, Authorization"
     # Security headers
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
@@ -180,6 +180,10 @@ def _not_found(_):
 def _unhandled(err: Exception):
     app.logger.exception("Unhandled error: %s", err)
     return jsonify({"error": "Internal server error"}), 500
+
+
+from ai_account_routes import register_ai_accounts
+register_ai_accounts(app)
 
 
 if __name__ == "__main__":

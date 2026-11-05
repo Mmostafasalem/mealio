@@ -41,13 +41,13 @@ final class PrivateSyncService {
             .flatMap { try? JSONDecoder().decode(Journal.self, from: $0) } ?? Journal()
     }
 
-    func start() {
+    func start() async {
         guard !started else { return }
         started = true
         // If the process stopped between recording erasure intent and clearing
         // local stores, erase first. Never upload those old rows as new edits.
         if journal.localErasurePending == true {
-            ProfileViewModel().resetOnboarding()
+            await ProfileViewModel().resetOnboarding()
             guard journal.localErasurePending != true else {
                 started = false
                 status = "Could not finish interrupted deletion. Please retry."

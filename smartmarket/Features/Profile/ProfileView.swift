@@ -17,6 +17,7 @@ struct ProfileView: View {
                 statsSection
                 editSection
                 notificationSection
+                AIAccountSection()
                 syncSection
                 privacySection
                 dangerSection
@@ -26,11 +27,11 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .alert("Delete all Mealio data?", isPresented: $vm.showResetAlert) {
                 Button("Delete Data", role: .destructive) {
-                    vm.resetOnboarding()
+                    Task { await vm.resetOnboarding() }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Deletes your profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
+                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
             }
             .alert("Deletion could not start", isPresented: Binding(get: { vm.deletionError != nil }, set: { if !$0 { vm.deletionError = nil } })) {
                 Button("OK", role: .cancel) { vm.deletionError = nil }
@@ -117,7 +118,7 @@ struct ProfileView: View {
                 Label("Delete All Data", systemImage: "trash")
             }
         } footer: {
-            Text("Deletes local data and requests deletion of your Mealio iCloud data, then restarts setup.")
+            Text("Deletes your online AI account, clears local data and requests deletion of your Mealio iCloud data, then restarts setup.")
         }
     }
 
@@ -147,7 +148,7 @@ struct ProfileView: View {
         } header: {
             Text("Data & iCloud")
         } footer: {
-            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Mealio account is needed. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
+            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Mealio account is needed for shopping sync. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
         }
     }
 

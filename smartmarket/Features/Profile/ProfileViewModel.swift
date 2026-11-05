@@ -55,7 +55,17 @@ final class ProfileViewModel {
         }
     }
 
-    func resetOnboarding() {
+    private(set) var isDeletingData = false
+
+    func resetOnboarding() async {
+        guard !isDeletingData else { return }
+        isDeletingData = true
+        defer { isDeletingData = false }
+        do { try await AIAccountService.shared.deleteAccountIfPresent() }
+        catch {
+            deletionError = "Could not delete the online AI account. Connect to the internet and sign in again if needed, then retry. Local data has not been erased."
+            return
+        }
         do { try PrivateSyncService.shared.beginDeletion() }
         catch {
             deletionError = "Could not safely record deletion. Please try again."
@@ -65,6 +75,7 @@ final class ProfileViewModel {
             deletionError = "Could not erase secure storage. Unlock your iPhone and retry deletion."
             return
         }
+        AIAccountService.shared.clearLocalSession()
         AppState.shared.dataGeneration = UUID()
         AppState.shared.agentLoop.invalidateUserData()
         // Initialize and reset the cart before clearing grocery storage: cart

@@ -49,3 +49,11 @@ signed-device and TestFlight checks remain required.
 ## Health-app review note
 Apple scrutinises calorie/health apps. The in-app "values are estimates"
 disclaimer and this policy help; avoid medical claims in your store copy.
+
+## Personal AI account release gate
+Sign in with Apple and daily credits are implemented locally; real-device testing
+needs Apple capability/provisioning and durable backend activation. Follow
+[the setup checklist](docs/AI_ACCOUNTS_SETUP.md). App Privacy must include linked
+User ID and Product Interaction for functionality. Give App Review working sign-in,
+AI consent and account deletion instructions. Do not claim live AI availability
+before device and provider checks pass.

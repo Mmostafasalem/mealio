@@ -21,11 +21,13 @@ class PrivacyDeclarationTests(unittest.TestCase):
             "NSPrivacyCollectedDataTypeHealth",
             "NSPrivacyCollectedDataTypeFitness",
             "NSPrivacyCollectedDataTypeOtherUserContent",
+            "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeProductInteraction",
         })
 
     def test_optional_online_content_does_not_claim_anonymity(self):
         entries = {entry["NSPrivacyCollectedDataType"]: entry for entry in self.manifest["NSPrivacyCollectedDataTypes"]}
-        for name in ("Health", "Fitness", "OtherUserContent"):
+        for name in ("Health", "Fitness", "OtherUserContent", "UserID", "ProductInteraction"):
             with self.subTest(category=name):
                 self.assertTrue(entries.get("NSPrivacyCollectedDataType" + name, {}).get("NSPrivacyCollectedDataTypeLinked"))
         self.assertFalse(self.manifest["NSPrivacyTracking"])

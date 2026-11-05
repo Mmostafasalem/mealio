@@ -2,3 +2,6 @@
 groq>=1.4,<2
 flask>=3.0,<4
 gunicorn>=21,<24
+
+# Verify Apple identity signatures and encrypt revocable Apple refresh grants.
+PyJWT[crypto]>=2.10.1,<3

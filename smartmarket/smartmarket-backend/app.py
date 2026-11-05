@@ -5,6 +5,7 @@ import os
 import re
 import time
 from groq import Groq
+import ai_usage
 
 from openfoodfacts import nutrition_for
 
@@ -376,7 +377,7 @@ def deals_summary(deals, max_items=12):
         })
     return out
 
-def groq_json(messages, fallback, max_tokens=2048, json_object=False):
+def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=None):
     """Call Groq and parse the first JSON object/array from the response.
 
     Set json_object=True for endpoints that return a single JSON *object* to use
@@ -392,29 +393,36 @@ def groq_json(messages, fallback, max_tokens=2048, json_object=False):
         )
         if json_object:
             kwargs["response_format"] = {"type": "json_object"}
+        ai_usage.attempted.set(True)
         resp = groq_client.chat.completions.create(**kwargs)
         text = resp.choices[0].message.content or ""
         text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("```").strip()
         match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", text)
-        if match:
-            return json.loads(match.group(1))
-        return json.loads(text)
+        result = json.loads(match.group(1)) if match else json.loads(text)
+        if validator is not None and not validator(result):
+            raise ValueError("Unusable provider response")
+        ai_usage.succeeded.set(True)
+        return result
     except Exception as e:
-        print(f"[Groq JSON error] {e}")
+        print("[Groq JSON error] Request failed or returned unusable output")
         return fallback
 
 def groq_text(messages):
     """Call Groq and return plain text response."""
     try:
+        ai_usage.attempted.set(True)
         resp = groq_client.chat.completions.create(
             model=GROQ_MODEL,
             messages=messages,
             temperature=0.7,
             max_tokens=256,
         )
-        return resp.choices[0].message.content or ""
+        text = resp.choices[0].message.content or ""
+        if not text.strip(): raise ValueError("Empty provider response")
+        ai_usage.succeeded.set(True)
+        return text
     except Exception as e:
-        print(f"[Groq text error] {e}")
+        print("[Groq text error] Request failed or returned empty output")
         return "I'm having trouble connecting right now. Please try again."
 
 # ---------------------------------------------------------------------------
@@ -613,6 +621,46 @@ def handle_bmr(body):
         }
     }
 
+def _usable_meal_plan(raw):
+    if not isinstance(raw, dict): return False
+    days = {DAY_KEY_MAP.get(k) or DAY_KEY_MAP.get(str(k).lower()): v for k,v in raw.items()}
+    for day in CANONICAL_DAYS:
+        meals = days.get(day)
+        if not isinstance(meals, dict): return False
+        mapped = {MEAL_KEY_MAP.get(k) or MEAL_KEY_MAP.get(str(k).lower()): v for k,v in meals.items()}
+        for key in ("pusryciai", "pietūs", "vakariene", "uzkandziai"):
+            meal = mapped.get(key)
+            if not isinstance(meal, dict): return False
+            name = meal.get("pavadinimas") or meal.get("name") or meal.get("title")
+            if not isinstance(name, str) or not name.strip(): return False
+            normalized = _normalize_meal(meal)
+            if not normalized or normalized["kcal"] <= 0: return False
+    return True
+
+
+def _usable_gap_fillers(raw):
+    import math
+    return isinstance(raw, list) and bool(raw) and all(
+        isinstance(x, dict) and isinstance(x.get("name"), str) and x["name"].strip()
+        and type(x.get("calories")) is int and x["calories"] >= 0
+        and all(type(x.get(k)) in (int,float) and math.isfinite(x[k]) and x[k] >= 0
+                for k in ("protein","carbs","fat"))
+        and isinstance(x.get("reason"), str) for x in raw)
+
+
+def _usable_recipe(raw):
+    if not isinstance(raw, dict): return False
+    if not all(type(raw.get(k)) is int and raw[k] >= 0 for k in ("prepTime","cookTime","servings")): return False
+    if raw["servings"] <= 0 or not isinstance(raw.get("tip"),str): return False
+    steps, ingredients = raw.get("steps"), raw.get("ingredients")
+    return (isinstance(steps,list) and bool(steps)
+            and all(isinstance(x,str) and x.strip() for x in steps)
+            and isinstance(ingredients,list) and bool(ingredients)
+            and all(isinstance(x,dict) and isinstance(x.get("name"),str)
+                    and x["name"].strip() and isinstance(x.get("amount"),str)
+                    for x in ingredients))
+
+
 def handle_meal_plan(body):
     # Bodies are client-controlled — coerce every field to the expected type so a
     # malformed payload degrades gracefully instead of 500-ing a handler.
@@ -663,7 +711,7 @@ def handle_meal_plan(body):
          {"role": "user",   "content": user_prompt}],
         _fallback_meal_plan(target_kcal),
         max_tokens=4000,        # a full 7-day plan is large — avoid truncation
-        json_object=True,       # guaranteed valid JSON object
+        json_object=True, validator=_usable_meal_plan, # usable complete plan required
     )
     result = _normalize_meal_plan(result, target_kcal)
     if not result.get("agentMessage"):
@@ -687,7 +735,8 @@ def handle_gap_fillers(body):
     )
     return groq_json(
         [{"role": "user", "content": prompt}],
-        [{"name": "Greek Yogurt", "calories": 100, "protein": 10, "carbs": 4, "fat": 0.4, "reason": "High protein gap filler"}]
+        [{"name": "Greek Yogurt", "calories": 100, "protein": 10, "carbs": 4, "fat": 0.4, "reason": "High protein gap filler"}],
+        validator=_usable_gap_fillers
     )
 
 def _normalize_advice_item(raw):
@@ -718,7 +767,10 @@ def handle_shopping_advice(body):
     raw = groq_json(
         [{"role": "user", "content": prompt}],
         [{"produktas": "Chicken Breast", "priezastis": "Best protein value",
-          "apytiksleCena": "3.99 €", "kurPirkti": "Rimi", "makroNauda": "20g protein per 100g"}]
+          "apytiksleCena": "3.99 €", "kurPirkti": "Rimi", "makroNauda": "20g protein per 100g"}],
+        validator=lambda items: isinstance(items,list) and bool(items) and all(
+            isinstance(x,dict) and isinstance(x.get("produktas") or x.get("product") or x.get("name"),str)
+            and bool(x.get("produktas") or x.get("product") or x.get("name")) for x in items)
     )
     if not isinstance(raw, list):
         raw = []
@@ -761,7 +813,7 @@ def handle_recipe(body):
             "steps": ["Prepare ingredients.", "Cook until done.", "Serve and enjoy."],
             "tip": "Season to taste."
         },
-        json_object=True,       # recipe is a single JSON object
+        json_object=True, validator=_usable_recipe, # reject unusable output without charging
     )
     result["mealName"] = meal_name
     _recipe_cache[cache_key] = result

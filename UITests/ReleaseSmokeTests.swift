@@ -142,6 +142,23 @@ final class ReleaseSmokeTests: XCTestCase {
         }
     }
 
+    func testOptionalAppleAccountDoesNotBlockLocalTabs() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        app.launch()
+        tap("tab.profile", in: app)
+        let signIn = app.buttons["profile.appleSignIn"]
+        for _ in 0..<8 {
+            if signIn.exists && signIn.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(signIn.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
+        tap("tab.home", in: app)
+        XCTAssertTrue(app.buttons["tab.home"].exists)
+        XCTAssertEqual(app.tabBars.count, 0)
+    }
+
     func testPrivacyAndSupportAreReachable() {
         let app = XCUIApplication()
         onboard(app)

@@ -5,7 +5,12 @@ final class APIService {
 
     static let shared = APIService()
     private let session: URLSession
-    init(session: URLSession = .shared) { self.session = session }
+    private let authorization: @MainActor () throws -> String
+    init(session: URLSession = .shared,
+         authorization: (@MainActor () throws -> String)? = nil) {
+        self.session = session
+        self.authorization = authorization ?? { try AIAccountService.shared.authorization() }
+    }
 
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -227,6 +232,9 @@ final class APIService {
         if !Constants.API.appKey.isEmpty {
             req.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key")
         }
+        if path != Constants.API.Endpoint.bmr {
+            req.setValue(try authorization(), forHTTPHeaderField: "Authorization")
+        }
         req.httpBody = try JSONEncoder().encode(body)
         req.timeoutInterval = timeout
         return req
@@ -239,6 +247,14 @@ final class APIService {
 
     private func validateResponse(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { throw APIError.noResponse }
+        AIAccountService.shared.acceptHeaders(http)
+        switch http.value(forHTTPHeaderField: "X-AI-Error") {
+        case "ai_sign_in_required": throw AIAccountError.signInRequired
+        case "ai_quota_exceeded": throw AIAccountError.quota(http.value(forHTTPHeaderField: "X-AI-Reset"))
+        case "ai_shared_capacity": throw AIAccountError.sharedCapacity
+        case "ai_unavailable": throw AIAccountError.unavailable
+        default: break
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.httpError(http.statusCode)
         }
