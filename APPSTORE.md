@@ -7,8 +7,11 @@ signed-device and TestFlight checks remain required.
 ## Already done (in code)
 - Bundle ID `com.mostafa.mealio`, display name **Mealio**, iOS 17 deployment target.
 - App icon present (1024×1024, no alpha) — **placeholder art; replace before launch**.
-- `PrivacyInfo.xcprivacy` declares: precise location + health/fitness (not linked,
-  not for tracking), UserDefaults reason `CA92.1`, no tracking domains.
+- `PrivacyInfo.xcprivacy` declares precise location, separate Health and Fitness
+  categories, and Other User Content for optional chat/private shopping sync.
+  Online health/fitness and user content are conservatively marked linked;
+  free-form chat can identify its author and private sync uses an Apple Account.
+  No tracking domains; UserDefaults reason `CA92.1` remains declared.
 - `ITSAppUsesNonExemptEncryption = false` (no export-compliance prompt).
 - Location usage string set (`NSLocationWhenInUseUsageDescription`).
 - Optional private shopping sync implemented; health/profile/intake/meal-plan
@@ -19,17 +22,23 @@ signed-device and TestFlight checks remain required.
 1. **Apple Developer Program** membership; register the App ID `com.mostafa.mealio`.
 2. **Signing**: set your team + automatic signing in Xcode (Release config).
 3. **Real app icon** (replace the placeholder in `Assets.xcassets/AppIcon`).
-4. **Screenshots** for required device sizes (6.7" / 6.5" iPhone at minimum).
+4. **Screenshots** for the iPhone and iPad sizes required in App Store Connect.
+   This target supports both device families; iPhone-only QA is insufficient.
 5. **Privacy Policy URL** — host `PRIVACY.md` (e.g. GitHub Pages / your site) and
    put the URL in App Store Connect.
 6. **Support URL** — host `SUPPORT.md` and add the URL.
 7. **App Privacy "nutrition label"** in App Store Connect — declare:
    - Location (Precise): App Functionality; **not** linked to identity; not used for tracking.
-   - Health & Fitness (your logged calories/macros): App Functionality; not linked; not tracking.
-   - No other collection (no analytics/ads/tracking).
+   - Health and Fitness: App Functionality; linked for optional online context;
+     not tracking. Data kept solely on-device is not transmitted by that fact alone.
+   - Other User Content: optional chat and private shopping content; linked;
+     App Functionality; not tracking.
+   - Review provider retention and the final submitted build before confirming
+     answers. No analytics/ads/tracking does not mean no user-content collection.
 8. **Category**: Health & Fitness (or Food & Drink). **Age rating** questionnaire.
 9. **Backend deployed** (Render) and reachable over HTTPS; set `API_BASE_URL` and,
-   if you enable auth, `API_KEY` in `Info.plist` (must match Render's `APP_API_KEY`).
+   activate auth before public release. Inject `API_KEY` through the gitignored
+   local configuration; it must match Render's `APP_API_KEY`.
 
 ## Recommended before launch
 - Replace sample `deals_data.json` with a real/curated weekly feed (or a data partnership).

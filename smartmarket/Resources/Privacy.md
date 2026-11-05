@@ -54,8 +54,10 @@ Apple Account. Other offline devices clear pre-deletion shopping data when they
 next sync. A minimal reset generation remains in CloudKit to prevent restoration
 of old records; it contains no previous shopping items. Deleting the app alone
 does not request deletion of cloud data, and Keychain items can survive app
-removal. Requests to our backend are processed transiently and not stored with
-your identity.
+removal. Mealio's backend has no user-profile or food-log database. Chat may
+contain identifying content. Service providers may retain operational metadata
+or submitted content under their own retention policies; clearing local data
+does not automatically erase provider records.
 
 ## Third parties
 - **Groq** — AI meal plans, chat, and recipes ([groq.com](https://groq.com)).

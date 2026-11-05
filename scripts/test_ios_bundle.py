@@ -4,6 +4,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import shutil
+import plistlib
 
 
 class BundleBoundaryTests(unittest.TestCase):
@@ -14,6 +16,8 @@ class BundleBoundaryTests(unittest.TestCase):
         self.bundle.mkdir()
         for name in ("Info.plist", "Privacy.md", "Support.md"):
             (self.bundle / name).write_text("fixture")
+        source = Path(__file__).resolve().parent.parent / "smartmarket/PrivacyInfo.xcprivacy"
+        shutil.copyfile(source, self.bundle / "PrivacyInfo.xcprivacy")
 
     def check_bundle(self):
         return subprocess.run(
@@ -47,6 +51,16 @@ class BundleBoundaryTests(unittest.TestCase):
     def test_missing_offline_policy_is_rejected(self):
         (self.bundle / "Privacy.md").unlink()
         self.assertNotEqual(self.check_bundle().returncode, 0)
+
+    def test_missing_privacy_manifest_is_rejected(self):
+        (self.bundle / "PrivacyInfo.xcprivacy").unlink()
+        self.assertNotEqual(self.check_bundle().returncode, 0)
+
+    def test_outdated_privacy_manifest_is_rejected(self):
+        for contents in (b"not a plist", plistlib.dumps({})):
+            with self.subTest(contents=contents[:20]):
+                (self.bundle / "PrivacyInfo.xcprivacy").write_bytes(contents)
+                self.assertNotEqual(self.check_bundle().returncode, 0)
 
 
 if __name__ == "__main__":
