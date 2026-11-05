@@ -7,8 +7,6 @@ struct FavoriteFoodsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            progressHeader
-            categoryStrip
             itemList
             finishBar
         }
@@ -56,6 +54,16 @@ struct FavoriteFoodsView: View {
 
     private var itemList: some View {
         List {
+            // Keep explanatory content scrollable: at accessibility text sizes
+            // a fixed header can consume the entire product list's height.
+            progressHeader
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            categoryStrip
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
             if vm.filteredItems.isEmpty {
                 Text("No items match your search.")
                     .foregroundStyle(.secondary)

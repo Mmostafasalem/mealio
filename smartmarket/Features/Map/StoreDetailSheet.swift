@@ -102,13 +102,14 @@ struct StoreDetailSheet: View {
 
     private func mealPlanMatches() -> [String] {
         guard let plan = appState.weeklyMealPlan else { return [] }
-        let dealNames = Set(vm.storeDeals.map { $0.productName.lowercased() })
-        let today = Calendar.current.weekdaySymbols[Calendar.current.component(.weekday, from: Date()) - 1].lowercased()
-        let lookup: [String: DayPlan?] = [
-            "monday": plan.pirmadienis, "tuesday": plan.antradienis,
-            "wednesday": plan.treciadienis, "thursday": plan.ketvirtadienis,
-            "friday": plan.pentadienis, "saturday": plan.sestadienis,
-            "sunday": plan.sekmadienis
+        let dealNames = Set(vm.deals(for: store).map { $0.productName.lowercased() })
+        // Weekday numbers are independent of localized weekday names.
+        let today = Calendar.current.component(.weekday, from: Date())
+        let lookup: [Int: DayPlan?] = [
+            2: plan.pirmadienis, 3: plan.antradienis,
+            4: plan.treciadienis, 5: plan.ketvirtadienis,
+            6: plan.pentadienis, 7: plan.sestadienis,
+            1: plan.sekmadienis
         ]
         guard let dayPlan = lookup[today] ?? plan.pirmadienis else { return [] }
 

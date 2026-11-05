@@ -77,14 +77,15 @@ struct CalorieSummaryCard: View {
     private func macroTile(label: String, symbol: String,
                            current: Double, goal: Double, color: Color, tooltip: String) -> some View {
         VStack(spacing: Spacing.xs) {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: symbol)
+            Image(systemName: symbol)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(color)
                     .frame(width: 28, height: 28)
                     .background(color.opacity(0.12), in: Circle())
-                InfoTooltip(text: tooltip).offset(x: 10, y: -8)
-            }
+                    // The larger hit target must not enlarge the icon layout.
+                    .overlay(alignment: .topTrailing) {
+                        InfoTooltip(text: tooltip).offset(x: 26, y: -24)
+                    }
             .frame(width: 38, height: 36)
             Text("\(Int(current))g")
                 .font(.system(size: 16, weight: .bold, design: .rounded))

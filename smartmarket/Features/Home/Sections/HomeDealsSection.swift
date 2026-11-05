@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Horizontal carousel of nearby deals with loading / empty states.
+/// Catalog estimates with loading / empty states; branch stock is not verified.
 struct HomeDealsSection: View {
     let vm: HomeViewModel
 
@@ -9,7 +9,7 @@ struct HomeDealsSection: View {
             HStack {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "basket.fill").foregroundStyle(Color.brandPrimary)
-                    Text("Nearby Groceries").font(.sectionTitle)
+                    Text("Grocery estimates").font(.sectionTitle)
                 }
                 Spacer()
                 if !vm.nearbyDeals.isEmpty {
@@ -51,11 +51,11 @@ struct HomeDealsSection: View {
 
     private var emptyDeals: some View {
         HStack(spacing: Spacing.md) {
-            Image(systemName: "location.magnifyingglass")
+            Image(systemName: "basket")
                 .font(.system(size: 32))
                 .foregroundStyle(Color.brandPrimary.opacity(0.35))
             VStack(alignment: .leading, spacing: 3) {
-                Text("No nearby groceries")
+                Text("No catalog estimates")
                     .font(.subheadline).fontWeight(.semibold)
                 Text("Pull down to refresh.")
                     .font(.caption).foregroundStyle(.secondary)

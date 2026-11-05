@@ -5,6 +5,7 @@ struct StoreBrowserView: View {
     @State private var cart = ShoppingCartService.shared
     @State private var showBudgetEditor = false
     @State private var budgetInput = ""
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         NavigationStack {
@@ -39,27 +40,38 @@ struct StoreBrowserView: View {
 
     private var budgetCard: some View {
         VStack(spacing: 14) {
-            HStack {
+            let headerLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.md))
+                : AnyLayout(HStackLayout())
+            headerLayout {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Weekly Budget")
                         .font(.subheadline).fontWeight(.semibold)
                         .foregroundStyle(.secondary)
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    let amountsLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                        : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
+                    amountsLayout {
                         Text(String(format: "€%.2f", cart.total))
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .font(.system(.title, design: .rounded).bold())
                             .foregroundStyle(cart.budgetColor)
                             .monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                             .contentTransition(.numericText())
                         Text("/ \(String(format: "€%.0f", cart.weeklyBudget))")
                             .font(.subheadline).foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
                     }
                 }
-                Spacer()
+                if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Button {
                     budgetInput = String(format: "%.0f", cart.weeklyBudget)
                     showBudgetEditor = true
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
+                        .fixedSize(horizontal: true, vertical: false)
                         .font(.caption).fontWeight(.semibold)
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(Color.brandLight, in: Capsule())
@@ -99,7 +111,8 @@ struct StoreBrowserView: View {
             Text("Stores")
                 .font(.headline)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
+                                     count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
                 ForEach(ShopStore.all) { store in
                     NavigationLink {
                         StoreProductsView(store: store)
@@ -196,6 +209,7 @@ struct StoreBrowserView: View {
 
 private struct StoreCard: View {
     let store: ShopStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var itemCount: Int {
         CatalogItem.all.count
@@ -210,13 +224,13 @@ private struct StoreCard: View {
                         colors: [store.color, store.color.opacity(0.75)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     ))
-                    .frame(height: 80)
+                    .frame(minHeight: 80)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(store.name)
                         .font(.title3).fontWeight(.bold)
                         .foregroundStyle(.white)
-                    Text("\(itemCount) items")
+                    Text("\(itemCount) catalog items")
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.75))
                 }
@@ -225,10 +239,10 @@ private struct StoreCard: View {
 
             // Tagline + arrow
             HStack {
-                Text(store.tagline)
+                Text("Catalog estimates · verify in-store")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption2)

@@ -2,6 +2,45 @@
 
 This is a preparation record, not an assertion of App Store readiness.
 
+## Current verification — 2026-11-05
+
+- iPhone SE (3rd generation), iOS 26.5: **23 passed, 0 failed** (19 native tests
+  and four UI tests) in `/tmp/MealioSEComplete-20261105.xcresult`. Covers offline
+  onboarding, all five tabs, largest text, 44-point info targets and bundled
+  privacy/support navigation.
+- iPad Pro 13-inch: two UI checks passed in
+  `/tmp/MealioIPadFinal-20261105.xcresult`, including onboarding and landscape tabs.
+  A subsequent unobstructed screenshot in
+  `/tmp/MealioNavigationVisual-20261105.xcresult` verifies the empty native tab bar
+  is absent after applying visibility to each tab's content. Accessibility-tree
+  checks alone did not detect that visual artifact.
+- Swift sync regressions: **16 passed**. Backend pytest: **13 passed**. Python
+  bundle/privacy regressions: **9 passed**. These components' runtime logic was
+  not changed during the final visual corrections.
+- Final iPhone 17 dark-mode suite: **25 passed, 0 failed** (19 native and six UI
+  checks) in `/tmp/MealioVerifiedDarkSuite-20261105.xcresult`. Includes standard
+  and largest-text onboarding, all tabs, landscape, custom navigation, metric
+  targets and privacy/support. Across this suite, sync, backend and Python
+  release checks, **63 automated tests passed**. Earlier failed runs remain
+  historical evidence; a transient-banner timing assertion was removed from the
+  navigation test, which now checks an unobstructed Shop header.
+
+Final Release output: `/tmp/MealioWarningFree-20261105/Build/Products/Release-iphonesimulator/smartmarket.app`.
+Final unsigned device archive: `/tmp/MealioReady-20261105.xcarchive`.
+Both compile with **0 errors / 0 warnings**, with compiler warnings enabled, and
+pass the bundle guard. The clean build-only Debug app also passes this guard;
+an XCTest host with test plug-ins is not a distribution artifact. These packages
+contain the reviewed privacy manifest and offline documents, without backend
+source, caches, local-tool settings or build-secret files.
+
+Final signing retry: `/tmp/MealioSignedReady-20261105.log` still reports
+`No Accounts` and no development provisioning profile. The unsigned archive
+cannot be installed on a physical device or uploaded to TestFlight as-is.
+No merge, push, upload or App Store submission was performed.
+
+This verifies local build/test preparation, not Apple signing, live CloudKit,
+production AI/authentication, or complete physical-device accessibility acceptance.
+
 ## Changes prepared
 
 - Removed the map's promotion-category badges and made the legacy category label
@@ -19,6 +58,25 @@ This is a preparation record, not an assertion of App Store readiness.
 - Offline onboarding initializes and persists the planner's calorie targets.
 - Welcome/permission screens support scrolling at large text sizes. Profile
   metrics stack at accessibility sizes; skip actions have 44-point minimum height.
+- Fixed a zero-height favorites list at largest text by putting its header in
+  the scrolling list. Shop stacks budget controls and store cards at accessibility
+  sizes; currency amounts and Edit no longer split mid-word. Profile initials fit.
+- Expanded metric-info buttons to 44 points without moving their visible glyphs.
+  Added landscape/navigation checks and reliable, bounded scrolling in UI tests.
+- Removed unverified hardcoded map branches. Only Maps search results become
+  pins; unavailable results show a retry state. Nearby filtering uses those real
+  branches, and store sheets scope estimates to the selected chain. Estimates
+  are explicitly not branch inventory. Meal-plan matching is locale-independent.
+- Removed unsupported retailer price-ranking slogans from cards and labelled
+  counts as catalog items. Dormant slogan metadata remains explicitly unused.
+- Changed Home's global catalog labels from "nearby" to estimates/catalog wording;
+  the catalog response does not verify device-to-branch distance or branch stock.
+- Hid the native tab bar at each tab's content, removing the empty iPad pill
+  while retaining the existing custom navigation.
+- Corrected invalid `HealthFitness` manifest metadata to separate Health and
+  Fitness categories; disclosed optional user content. Online context and private
+  shopping content are conservatively marked linked instead of promising anonymity.
+  Updated the privacy draft and App Store checklist; no new data transmission added.
 - Bundled the reviewed privacy/support documents for offline access from Profile.
   Build-secret files are excluded from the app's resource bundle. A follow-up
   check found flattened backend source/bytecode in the existing bundle despite
@@ -42,8 +100,10 @@ This is a preparation record, not an assertion of App Store readiness.
   has not been replaced or approved as final branding.
 - Select final screenshots from a signed build with realistic synthetic content.
   Automated screenshots are QA evidence and may show offline/local states.
-- Verify store addresses/catalog estimates before making public location claims.
-- Finish real-device, VoiceOver, reduced-motion and smaller-device review.
+- Validate catalog curation and provider behavior; prices are estimates and Maps
+  supplies branch locations, not retailer inventory or verified shelf prices.
+- Finish physical-device, VoiceOver and reduced-motion review. Small iPhone and
+  iPad/landscape smoke checks passed, but cannot replace physical-device acceptance.
   Navigation smoke tests are not a full accessibility certification.
 
 ## Reproducing local checks

@@ -50,6 +50,9 @@ struct ProfileView: View {
                     )
                     Text(vm.initials)
                         .font(.title2).fontWeight(.bold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.25)
+                        .padding(6)
                         .foregroundStyle(.white)
                 }
                 .frame(width: 60, height: 60)

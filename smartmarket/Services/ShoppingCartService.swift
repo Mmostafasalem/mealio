@@ -28,6 +28,7 @@ struct ShopStore: Identifiable {
 
     static let all: [ShopStore] = [
         ShopStore(id: "rimi",   name: "Rimi",   tagline: "Fresh & quality picks",    colorHex: "#DC2626", priceMultiplier: 1.06),
+        // Legacy slogans are intentionally not rendered: these are catalog estimates, not retailer price rankings.
         ShopStore(id: "maxima", name: "Maxima", tagline: "Everyday low prices",      colorHex: "#1D4ED8", priceMultiplier: 1.00),
         ShopStore(id: "iki",    name: "Iki",    tagline: "Your neighbourhood store", colorHex: "#7C3AED", priceMultiplier: 1.03),
         ShopStore(id: "lidl",   name: "Lidl",   tagline: "Best value in Lithuania",  colorHex: "#1E40AF", priceMultiplier: 0.88),

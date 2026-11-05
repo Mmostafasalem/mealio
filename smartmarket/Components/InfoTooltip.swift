@@ -12,6 +12,8 @@ struct InfoTooltip: View {
             Image(systemName: "info.circle")
                 .font(.system(size: 12))
                 .foregroundStyle(Color.secondary.opacity(0.65))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isPresented, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
@@ -24,5 +26,6 @@ struct InfoTooltip: View {
                 .presentationCompactAdaptation(.popover)
         }
         .accessibilityLabel("More info")
+        .accessibilityHint(text)
     }
 }
