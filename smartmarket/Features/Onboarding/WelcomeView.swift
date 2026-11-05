@@ -11,43 +11,17 @@ struct WelcomeView: View {
     @State private var card3Visible    = false
     @State private var card4Visible    = false
     @State private var ctaVisible      = false
-    @State private var bgShift         = false
 
     private let features: [(String, String, String, Color)] = [
-        ("brain.head.profile","AI Meal Plans",     "A weekly plan built around your goals",     Color(hex: "#6366F1")),
-        ("chart.bar.fill",  "Calorie & Macro Tracking", "Log food and hit your targets",        Color(hex: "#0EA5E9")),
-        ("basket.fill",     "Budget Grocery Lists", "Plan your shop with estimated prices",     Color.brandPrimary),
-        ("fork.knife",      "Recipes On Tap",      "Turn any planned meal into a recipe",       Color(hex: "#D97706")),
+        ("brain.head.profile","AI Meal Plans",     "A weekly plan built around your goals",     Color.coral),
+        ("chart.bar.fill",  "Calorie & Macro Tracking", "Log food and hit your targets",        Color.coral),
+        ("basket.fill",     "Budget Grocery Lists", "Plan your shop with estimated prices",     Color.coral),
+        ("fork.knife",      "Recipes On Tap",      "Turn any planned meal into a recipe",       Color.coral),
     ]
 
     var body: some View {
         ZStack {
-            // Animated background
-            LinearGradient(
-                colors: [Color.brandHeader, Color.brandHeaderMid, Color.brandDark],
-                startPoint: bgShift ? .topLeading : .bottomLeading,
-                endPoint:   bgShift ? .bottomTrailing : .topTrailing
-            )
-            .ignoresSafeArea()
-            .animation(
-                reduceMotion ? .none : .easeInOut(duration: 6).repeatForever(autoreverses: true),
-                value: bgShift
-            )
-
-            // Soft bokeh blobs
-            GeometryReader { geo in
-                Circle()
-                    .fill(Color.white.opacity(0.04))
-                    .frame(width: 320, height: 320)
-                    .offset(x: geo.size.width * 0.55, y: -60)
-                    .blur(radius: 60)
-                Circle()
-                    .fill(Color.brandPrimary.opacity(0.18))
-                    .frame(width: 260, height: 260)
-                    .offset(x: -40, y: geo.size.height * 0.55)
-                    .blur(radius: 80)
-            }
-            .ignoresSafeArea()
+            Color.ink.ignoresSafeArea()
 
             // Content
             AdaptiveOnboardingPage {
@@ -72,7 +46,7 @@ struct WelcomeView: View {
                         Text("Mealio")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
-                        Text("Eat well. Spend less.")
+                        Text("A little more balance. Every day.")
                             .font(.title3)
                             .foregroundStyle(.white.opacity(0.75))
                     }
@@ -109,10 +83,10 @@ struct WelcomeView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
-                        .background(.white)
-                        .foregroundStyle(Color.brandDark)
+                        .background(Color.coral)
+                        .foregroundStyle(Color.onAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
-                        .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
+
                     }
                     .scaleEffect(ctaVisible ? 1 : 0.9)
                     .opacity(ctaVisible ? 1 : 0)
@@ -129,7 +103,6 @@ struct WelcomeView: View {
             }
         }
         .onAppear {
-            bgShift = true
             animate()
         }
     }

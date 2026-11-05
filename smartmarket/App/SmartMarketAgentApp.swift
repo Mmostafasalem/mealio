@@ -27,6 +27,7 @@ struct SmartMarketAgentApp: App {
             .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
             .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
             .environment(appState)
+            .tint(Color.brandPrimary)
             .safeAreaInset(edge: .bottom) {
                 if PrivateSyncService.shared.deletionPending {
                     VStack(spacing: 6) {

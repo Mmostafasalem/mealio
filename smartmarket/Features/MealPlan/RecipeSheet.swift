@@ -109,9 +109,9 @@ struct RecipeSheet: View {
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(idx + 1)")
                                 .font(.caption).fontWeight(.bold)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.onAccent)
                                 .frame(width: 26, height: 26)
-                                .background(Color.brandPrimary)
+                                .background(Color.coral)
                                 .clipShape(Circle())
                             Text(step)
                                 .font(.body)

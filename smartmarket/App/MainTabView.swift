@@ -34,6 +34,7 @@ private struct FloatingTabBar: View {
 
     @Binding var selection: Int
     @Namespace private var pill
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let items: [(icon: String, filled: String, label: String)] = [
         ("house",               "house.fill",               "Home"),
@@ -53,7 +54,7 @@ private struct FloatingTabBar: View {
                     isActive:  selection == idx,
                     namespace: pill
                 ) {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.72)) {
+                    withAnimation(reduceMotion ? .none : .snappyValue) {
                         selection = idx
                     }
                 }
@@ -61,9 +62,9 @@ private struct FloatingTabBar: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .glassCard(radius: 30)
-        .padding(.horizontal, 22)
-        .padding(.bottom, 18)
+        .glassCard(radius: 24)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, Spacing.sm)
     }
 }
 
@@ -82,7 +83,7 @@ private struct TabItem: View {
                 ZStack {
                     if isActive {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.brandPrimary.opacity(0.13))
+                            .fill(Color.brandLight)
                             .frame(width: 46, height: 30)
                             .matchedGeometryEffect(id: "tabPill", in: namespace)
                     }

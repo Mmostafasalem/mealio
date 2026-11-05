@@ -4,14 +4,18 @@ import SwiftUI
 struct CalorieSummaryCard: View {
     let vm: HomeViewModel
     var onLog: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var showCalorieDetail = false
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: Spacing.xl) {
-                CalorieRingView(consumed: vm.consumed, goal: vm.goal, size: 120)
-                    .frame(width: 120, height: 120)
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xl))
+                : AnyLayout(HStackLayout(spacing: Spacing.xl))
+            layout {
+                CalorieRingView(consumed: vm.consumed, goal: vm.goal, size: 144)
+                    .frame(width: 144, height: 144)
                     .onTapGesture { showCalorieDetail.toggle() }
                     .popover(isPresented: $showCalorieDetail, attachmentAnchor: .point(.center), arrowEdge: .trailing) {
                         CalorieDetailPopover(vm: vm)
@@ -21,12 +25,12 @@ struct CalorieSummaryCard: View {
 
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Calories Today")
+                        Text("TODAY’S ENERGY")
                             .font(.caption).fontWeight(.medium)
                             .foregroundStyle(.secondary)
                         HStack(alignment: .firstTextBaseline, spacing: 3) {
                             Text("\(vm.consumed)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .font(.statValue)
                                 .foregroundStyle(.primary)
                                 .monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
                                 .contentTransition(.numericText())
@@ -40,10 +44,11 @@ struct CalorieSummaryCard: View {
                     Button(action: onLog) {
                         Label("Log Food", systemImage: "plus.circle.fill")
                             .font(.caption).fontWeight(.semibold)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.onAccent)
                             .padding(.horizontal, Spacing.lg)
                             .padding(.vertical, Spacing.sm)
-                            .background(Color.brandPrimary, in: Capsule())
+                            .frame(minHeight: 44)
+                            .background(Color.coral, in: Capsule())
                     }
                     .buttonStyle(ScalePressStyle())
                     .accessibilityLabel("Log food")

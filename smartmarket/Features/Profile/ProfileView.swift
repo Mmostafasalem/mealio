@@ -43,21 +43,17 @@ struct ProfileView: View {
         Section {
             HStack(spacing: 16) {
                 ZStack {
-                    LinearGradient(
-                        colors: [Color.brandPrimary, Color.brandDark],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    Color.coral
                     Text(vm.initials)
                         .font(.title2).fontWeight(.bold)
                         .lineLimit(1)
                         .minimumScaleFactor(0.25)
                         .padding(6)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                 }
                 .frame(width: 60, height: 60)
                 .clipShape(Circle())
-                .shadow(color: Color.brandPrimary.opacity(0.4), radius: 8, x: 0, y: 4)
+
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(vm.profile.name.isEmpty ? "Mealio User" : vm.profile.name)

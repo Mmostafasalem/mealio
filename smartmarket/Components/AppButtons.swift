@@ -7,11 +7,12 @@ import SwiftUI
 // that reads well on filled/tinted buttons.)
 
 struct ScalePressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .opacity(configuration.isPressed ? 0.85 : 1.0)
-            .animation(.snappyValue, value: configuration.isPressed)
+            .animation(reduceMotion ? .none : .snappyValue, value: configuration.isPressed)
     }
 }
 
@@ -32,7 +33,7 @@ struct PrimaryButton: View {
         Button(action: action) {
             HStack(spacing: Spacing.sm) {
                 if isLoading {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Color.onAccent)
                 } else if let systemImage {
                     Image(systemName: systemImage)
                 }
@@ -40,10 +41,10 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 52)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.onAccent)
             .background(
-                Color.brandPrimary,
-                in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+                Color.coral,
+                in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
             )
             .opacity(isEnabled ? 1 : 0.5)
             .contentShape(Rectangle())
@@ -76,7 +77,7 @@ struct SecondaryButton: View {
             .foregroundStyle(Color.brandPrimary)
             .background(
                 Color.brandPrimary.opacity(0.12),
-                in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+                in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
             )
             .opacity(isEnabled ? 1 : 0.5)
             .contentShape(Rectangle())
@@ -97,10 +98,10 @@ extension View {
             .font(.headline)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 52)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.onAccent)
             .background(
-                Color.brandPrimary,
-                in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+                Color.coral,
+                in: RoundedRectangle(cornerRadius: Radius.pill, style: .continuous)
             )
             .opacity(enabled ? 1 : 0.45)
     }

@@ -53,18 +53,15 @@ struct HomeView: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.onAccent)
                 .frame(width: 58, height: 58)
-                .background(
-                    LinearGradient(colors: [Color.calorieAccent, Color.calorieAccent.opacity(0.82)],
-                                   startPoint: .top, endPoint: .bottom),
-                    in: Circle()
-                )
+                .background(Color.coral, in: Circle())
                 .elevation(Elevation.high)
         }
         .buttonStyle(ScalePressStyle())
         .padding(.trailing, Spacing.xl)
-        .padding(.bottom, Spacing.xl)
+        // Keep the floating action clear of the custom bottom navigation.
+        .padding(.bottom, 104)
         .accessibilityLabel("Log food")
     }
 }

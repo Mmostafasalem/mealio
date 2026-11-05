@@ -14,9 +14,9 @@ struct AgentMessageCardView: View {
         HStack(alignment: .top, spacing: 12) {
             Text("SM")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.onAccent)
                 .frame(width: 36, height: 36)
-                .background(Color.brandPrimary)
+                .background(Color.coral)
                 .clipShape(Circle())
                 .accessibilityHidden(true)
 

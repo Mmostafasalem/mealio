@@ -15,10 +15,10 @@ struct HomeDealsSection: View {
                 if !vm.nearbyDeals.isEmpty {
                     Text("\(vm.nearbyDeals.count) items")
                         .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, 3)
-                        .background(Color.brandPrimary, in: Capsule())
+                        .background(Color.coral, in: Capsule())
                         .contentTransition(.numericText())
                 }
             }

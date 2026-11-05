@@ -9,6 +9,7 @@ struct DealNotificationBanner: View {
     let onSkip: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let duration: TimeInterval = 8
     @State private var startDate: Date = .now
@@ -20,22 +21,27 @@ struct DealNotificationBanner: View {
             HStack(spacing: 12) {
                 Image(systemName: "tag.fill")
                     .font(.system(size: 22))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.onAccent)
                     .frame(width: 46, height: 46)
-                    .background(Color.brandPrimary)
+                    .background(Color.coral)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(deal.productName)
                         .font(.subheadline).fontWeight(.semibold)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     Text("\(deal.store.chain) · \(deal.quantity)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
+                    let priceLayout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xs))
+                        : AnyLayout(HStackLayout(spacing: 6))
+                    priceLayout {
                         Text(String(format: "€%.2f", deal.discountPrice))
                             .font(.subheadline).fontWeight(.bold)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                             .foregroundStyle(Color.brandPrimary)
                         Text("est. price")
                             .font(.caption2)
@@ -45,7 +51,10 @@ struct DealNotificationBanner: View {
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: 10) {
+            let actionLayout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Spacing.sm))
+                : AnyLayout(HStackLayout(spacing: 10))
+            actionLayout {
                 Button {
                     skipTrigger.toggle()
                     onSkip()
@@ -71,8 +80,8 @@ struct DealNotificationBanner: View {
                         .font(.subheadline).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Spacing.md)
-                        .foregroundStyle(.white)
-                        .background(Color.brandPrimary,
+                        .foregroundStyle(Color.onAccent)
+                        .background(Color.coral,
                                     in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 }
                 .buttonStyle(ScalePressStyle())

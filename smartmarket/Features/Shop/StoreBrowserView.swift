@@ -84,10 +84,7 @@ struct StoreBrowserView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemFill)).frame(height: 8)
                     Capsule()
-                        .fill(LinearGradient(
-                            colors: [cart.budgetColor, cart.budgetColor.opacity(0.7)],
-                            startPoint: .leading, endPoint: .trailing
-                        ))
+                        .fill(Color.coral)
                         .frame(width: geo.size.width * cart.budgetFraction, height: 8)
                         .animation(.spring(duration: 0.5), value: cart.budgetFraction)
                 }
@@ -140,12 +137,12 @@ struct StoreBrowserView: View {
             ForEach(cart.cartItems.prefix(3)) { item in
                 HStack(spacing: 12) {
                     Circle()
-                        .fill(Color(hex: ShopStore.all.first { $0.name == item.store }?.colorHex ?? "#6B7280").opacity(0.12))
+                        .fill(Color.labelPrimary.opacity(0.12))
                         .frame(width: 36, height: 36)
                         .overlay(
                             Text(item.store.prefix(1))
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Color(hex: ShopStore.all.first { $0.name == item.store }?.colorHex ?? "#6B7280"))
+                                .foregroundStyle(Color.labelPrimary)
                         )
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
@@ -217,13 +214,10 @@ private struct StoreCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Colored header
+            // Monochrome chain identity
             ZStack(alignment: .bottomLeading) {
                 RoundedRectangle(cornerRadius: 0)
-                    .fill(LinearGradient(
-                        colors: [store.color, store.color.opacity(0.75)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
+                    .fill(Color.ink)
                     .frame(minHeight: 80)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -242,7 +236,7 @@ private struct StoreCard: View {
                 Text("Catalog estimates · verify in-store")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption2)
@@ -252,11 +246,11 @@ private struct StoreCard: View {
             .padding(.vertical, 10)
         }
         .clipShape(RoundedRectangle(cornerRadius: Radius.tile))
-        .shadow(color: store.color.opacity(0.18), radius: 8, x: 0, y: 4)
-        .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 8)
+        .shadow(color: Color.ink.opacity(0.02), radius: 8, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.02), radius: 3, x: 0, y: 1)
         .overlay(
             RoundedRectangle(cornerRadius: Radius.tile)
-                .strokeBorder(store.color.opacity(0.15), lineWidth: 1)
+                .strokeBorder(Color.hairline, lineWidth: 1)
         )
     }
 }
@@ -273,9 +267,9 @@ struct CartBadge: View {
             if count > 0 {
                 Text("\(min(count, 99))")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.onAccent)
                     .padding(3)
-                    .background(Color.brandDanger, in: Circle())
+                    .background(Color.coral, in: Circle())
                     .offset(x: 8, y: -8)
             }
         }

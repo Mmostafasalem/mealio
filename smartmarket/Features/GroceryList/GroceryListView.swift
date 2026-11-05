@@ -126,15 +126,7 @@ private struct StoreHeaderView: View {
     let count: Int
     let cost: Double
 
-    private var storeColor: Color {
-        switch store.lowercased() {
-        case let s where s.contains("rimi"):   return Color(hex: "#DC2626")
-        case let s where s.contains("maxima"): return Color(hex: "#0055A5")
-        case let s where s.contains("lidl"):   return Color(hex: "#0050AA")
-        case let s where s.contains("iki"):    return Color(hex: "#8B5CF6")
-        default:                               return Color.brandPrimary
-        }
-    }
+    private var storeColor: Color { .labelPrimary }
 
     var body: some View {
         HStack(spacing: 8) {

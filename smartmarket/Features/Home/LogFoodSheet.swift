@@ -159,7 +159,7 @@ struct LogFoodSheet: View {
                 .font(.subheadline).fontWeight(.semibold)
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Color.calorieAccent, in: Capsule())
+                .background(Color.ink, in: Capsule())
                 .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         }
@@ -302,7 +302,7 @@ private struct ServingDetailView: View {
                 Label("Add to \(slot.title)", systemImage: "plus")
                     .font(.headline).foregroundStyle(.white)
                     .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(slot.accent, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Color.ink, in: RoundedRectangle(cornerRadius: Radius.pill))
             }
             .padding(.horizontal, 16).padding(.bottom, 8)
         }

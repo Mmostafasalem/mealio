@@ -14,21 +14,21 @@ struct OnboardingProgressBar: View {
                     // Dot
                     ZStack {
                         Circle()
-                            .fill(step < currentStep ? Color.brandPrimary : step == currentStep ? Color.brandPrimary : Color(.systemFill))
+                            .fill(step < currentStep ? Color.coral : step == currentStep ? Color.coral : Color(.systemFill))
                             .frame(width: 28, height: 28)
                         if step < currentStep {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.onAccent)
                         } else {
                             Text("\(step)")
                                 .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(step == currentStep ? .white : Color(.tertiaryLabel))
+                                .foregroundStyle(step == currentStep ? Color.onAccent : Color.labelSecondary)
                         }
                     }
                     .overlay(
                         Circle().strokeBorder(
-                            step == currentStep ? Color.brandPrimary : Color.clear,
+                            step == currentStep ? Color.coral : Color.clear,
                             lineWidth: 2
                         )
                         .scaleEffect(1.3)
@@ -39,7 +39,7 @@ struct OnboardingProgressBar: View {
                     // Connector
                     if step < totalSteps {
                         Rectangle()
-                            .fill(step < currentStep ? Color.brandPrimary : Color(.systemFill))
+                            .fill(step < currentStep ? Color.coral : Color(.systemFill))
                             .frame(height: 2)
                             .frame(maxWidth: .infinity)
                             .animation(.spring(duration: 0.4), value: currentStep)

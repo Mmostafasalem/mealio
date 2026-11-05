@@ -124,9 +124,9 @@ struct FavoriteFoodsView: View {
                 }
                 .padding(.horizontal, Spacing.xl)
                 .padding(.vertical, Spacing.lg)
-                .background(vm.canFinish ? Color.brandPrimary : Color(.systemFill),
+                .background(vm.canFinish ? Color.coral : Color(.systemFill),
                             in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .foregroundStyle(vm.canFinish ? .white : Color(.secondaryLabel))
+                .foregroundStyle(vm.canFinish ? Color.onAccent : Color.labelSecondary)
             }
             .disabled(!vm.canFinish)
             .accessibilityIdentifier("onboarding.favorites.finish")
@@ -151,8 +151,8 @@ private struct CategoryChip: View {
             Text(label)
                 .font(.subheadline)
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(isSelected ? Color.brandPrimary : Color(.tertiarySystemFill))
-                .foregroundStyle(isSelected ? .white : .primary)
+                .background(isSelected ? Color.coral : Color(.tertiarySystemFill))
+                .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -174,15 +174,15 @@ private struct CategorySectionHeader: View {
         HStack(spacing: 6) {
             Image(systemName: category.symbol)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(category.color)
+                .foregroundStyle(Color.labelPrimary)
             Text(category.displayName)
             Spacer()
             if count > 0 {
                 Text("\(count)")
                     .font(.caption2).fontWeight(.bold)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color.brandPrimary, in: Capsule())
+                    .background(Color.coral, in: Capsule())
             }
         }
         .font(.footnote).fontWeight(.semibold)
@@ -203,12 +203,12 @@ private struct ItemRow: View {
             HStack(spacing: 14) {
                 // Category color dot
                 Circle()
-                    .fill(item.category.color.opacity(0.18))
+                    .fill(Color.labelPrimary.opacity(0.18))
                     .frame(width: 32, height: 32)
                     .overlay(
                         Image(systemName: item.category.symbol)
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(item.category.color)
+                            .foregroundStyle(Color.labelPrimary)
                     )
 
                 Text(item.name)
@@ -220,7 +220,7 @@ private struct ItemRow: View {
                 // Checkmark
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.brandPrimary : Color(.tertiaryLabel))
+                    .foregroundStyle(isSelected ? Color.coral : Color(.tertiaryLabel))
                     .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
             }
             .contentShape(Rectangle())
@@ -244,12 +244,12 @@ struct ProductFavoriteCard: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 Circle()
-                    .fill(item.category.color.opacity(0.15))
+                    .fill(Color.labelPrimary.opacity(0.15))
                     .frame(width: 38, height: 38)
                     .overlay(
                         Image(systemName: item.category.symbol)
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(item.category.color)
+                            .foregroundStyle(Color.labelPrimary)
                     )
                 Text(item.name)
                     .font(.subheadline)
@@ -257,7 +257,7 @@ struct ProductFavoriteCard: View {
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.brandPrimary : Color(.tertiaryLabel))
+                    .foregroundStyle(isSelected ? Color.coral : Color(.tertiaryLabel))
                     .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
             }
             .contentShape(Rectangle())

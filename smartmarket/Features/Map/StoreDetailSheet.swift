@@ -132,7 +132,7 @@ private struct StoreHeaderRow: View {
         HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(hex: store.chainColor))
+                    .fill(Color.ink)
                     .frame(width: 52, height: 52)
                 Text(store.chainIcon)
                     .font(.title2).fontWeight(.bold)
@@ -204,7 +204,7 @@ private struct MealMatchRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(Color(hex: "#10B981"))
+                .foregroundStyle(Color.brandPrimary)
                 .font(.system(size: 16))
             Text(name)
                 .font(.subheadline)

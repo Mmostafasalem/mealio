@@ -5,7 +5,7 @@ struct DealCardView: View {
     let deal: MarketDeal
     let onTap: () -> Void
 
-    private var storeColor: Color { Color(hex: deal.store.chainColor) }
+    private var storeColor: Color { Color.labelPrimary }
 
     var body: some View {
         Button(action: onTap) {
@@ -63,26 +63,7 @@ struct DealCardView: View {
                 .padding(.bottom, 14)
             }
             .frame(width: 178, height: 178, alignment: .topLeading)
-            .background(
-                // Subtle store-color wash at the top
-                LinearGradient(
-                    colors: [storeColor.opacity(0.06), Color.surface],
-                    startPoint: .top, endPoint: .center
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .shadow(color: storeColor.opacity(0.10), radius: 4, x: 0, y: 2)
-            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 5)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.55), Color(.separator).opacity(0.15)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
+            .premiumCard(radius: Radius.tile)
         }
         .buttonStyle(PressableButtonStyle())
         .accessibilityLabel("\(deal.productName) at \(deal.store.chain), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
@@ -92,10 +73,11 @@ struct DealCardView: View {
 // MARK: - Pressable button style (shared via ViewModifiers.swift)
 
 private struct PressableButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
+            .animation(reduceMotion ? .none : .snappyValue, value: configuration.isPressed)
     }
 }
 

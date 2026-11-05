@@ -50,8 +50,8 @@ struct NotificationPermissionView: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 52)
-                        .foregroundStyle(.white)
-                        .background(Color.brandAmber,
+                        .foregroundStyle(Color.onAccent)
+                        .background(Color.coral,
                                     in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
                 .buttonStyle(ScalePressStyle())

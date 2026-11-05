@@ -121,11 +121,11 @@ private struct GoalCard: View {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? Color.brandPrimary : Color.brandPrimary.opacity(0.1))
+                        .fill(isSelected ? Color.coral : Color.brandPrimary.opacity(0.1))
                         .frame(width: 48, height: 48)
                     Image(systemName: goal.sfSymbol)
                         .font(.system(size: 20))
-                        .foregroundStyle(isSelected ? .white : Color.brandPrimary)
+                        .foregroundStyle(isSelected ? Color.onAccent : Color.brandPrimary)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {

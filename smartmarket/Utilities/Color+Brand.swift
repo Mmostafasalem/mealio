@@ -18,75 +18,36 @@ private extension UIColor {
 
 extension Color {
 
-    // MARK: - Brand palette
-    //
-    // Base hue: #4b5760  (H 206 · S 12 · L 34) — cool blue-gray slate
-    //
-    // Light-mode colours are dark enough to work on white.
-    // Dark-mode colours are light enough to work on near-black.
-
-    /// Primary interactive colour — buttons, rings, active tab, links.
-    /// Vibrant green for a premium "on black" feel.
-    static let brandPrimary = Color(light: "#1A9E48", dark: "#1ED760")
-
-    /// Darker pressed / gradient shade.
-    static let brandDark = Color(light: "#15803D", dark: "#17B84F")
-
-    /// Lighter secondary accent — icons, sub-headings.
-    static let brandMid = Color(light: "#6b7d87", dark: "#a8bfc7")
-
-    /// Soft tint — chip backgrounds, subtle row fills.
-    static let brandLight = Color(light: "#e2e8ec", dark: "#2a3840")
-
-    /// Hero header gradient — deepest dark (start).
-    static let brandHeader = Color(light: "#1a2127", dark: "#0d1519")
-
-    /// Hero header gradient — mid-point.
-    static let brandHeaderMid = Color(light: "#2c3a42", dark: "#192430")
-
-    // MARK: - Functional colours (unchanged — they carry semantic meaning)
-
-    /// Amber — discount badges, warnings, "good but not there yet".
-    static let brandAmber = Color(light: "#d97706", dark: "#f5a623")
-
-    /// Soft amber fill — badge backgrounds.
-    static let brandAmberLight = Color(light: "#fef3c7", dark: "#3d2d10")
-
-    /// Red — over-limit calories, errors, destructive actions.
-    static let brandDanger = Color(light: "#dc2626", dark: "#ff6b6b")
-
-    /// Soft red fill.
-    static let brandDangerLight = Color(light: "#fee2e2", dark: "#3d1010")
-
-    // MARK: - Semantic nutrition tokens (calorie + macros)
-    //
-    // Distinct, accessible hues so Protein / Carbs / Fat are instantly
-    // distinguishable on the dashboard, tuned for both light and dark mode.
-
-    /// Energetic green — calories / remaining energy.
-    static let calorieAccent = Color(light: "#16a34a", dark: "#4ade80")
-
-    /// Vibrant orange — protein.
-    static let proteinAccent = Color(light: "#ea580c", dark: "#fb923c")
-
-    /// Amber — carbohydrates.
-    static let carbsAccent = Color(light: "#d97706", dark: "#fbbf24")
-
-    /// Violet — fat.
-    static let fatAccent = Color(light: "#7c3aed", dark: "#a78bfa")
-
-    // MARK: - Neutral text (resolved by the system — always correct)
-
-    static let labelPrimary   = Color(.label)
-    static let labelSecondary = Color(.secondaryLabel)
-    static let labelTertiary  = Color(.tertiaryLabel)
-
-    // MARK: - Surfaces (resolved by the system — always correct)
-
-    static let surface          = Color(.systemBackground)
-    static let surfaceGrouped   = Color(.systemGroupedBackground)
-    static let surfaceElevated  = Color(.secondarySystemBackground)
-    static let surfaceSecondary = Color(.secondarySystemBackground)
+    // Ink + White + Coral. Neutral values are tonal derivatives, not extra accents.
+    // Coral is reserved for interaction, progress and explicit warning states.
+    static let ink = Color(hex: "#18181B")
+    static let paper = Color(hex: "#FFFFFF")
+    static let coral = Color(hex: "#FF7868")
+    static let onAccent = ink
+    static let brandPrimary = Color(light: "#B6372B", dark: "#FF9385")
+    static let brandDark = Color(light: "#992C23", dark: "#FF9385")
+    static let brandMid = Color(light: "#626268", dark: "#B7B7BD")
+    static let brandLight = Color(light: "#F8E8E5", dark: "#382624")
+    static let brandHeader = ink
+    static let brandHeaderMid = ink
+    // Warnings always retain labels and icons; color is never the only signal.
+    static let brandAmber = brandPrimary
+    static let brandAmberLight = brandLight
+    static let brandDanger = brandPrimary
+    static let brandDangerLight = brandLight
+    static let calorieAccent = brandPrimary
+    // Macro names, symbols and values distinguish categories without a rainbow.
+    static let proteinAccent = labelPrimary
+    static let carbsAccent = labelPrimary
+    static let fatAccent = labelPrimary
+    static let labelPrimary = Color(light: "#18181B", dark: "#FAFAFA")
+    static let labelSecondary = Color(light: "#626268", dark: "#B7B7BD")
+    static let labelTertiary = Color(light: "#717178", dark: "#A1A1AA")
+    static let surface = Color(light: "#FFFFFF", dark: "#18181B")
+    static let surfaceGrouped = Color(light: "#F6F6F7", dark: "#111113")
+    static let surfaceElevated = Color(light: "#FFFFFF", dark: "#202023")
+    static let surfaceSecondary = Color(light: "#F0F0F2", dark: "#29292D")
+    static let hairline = Color(light: "#E4E4E7", dark: "#3A3A40")
 
     // MARK: - Adaptive convenience initialiser
 

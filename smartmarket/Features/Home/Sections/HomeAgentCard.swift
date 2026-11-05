@@ -9,11 +9,10 @@ struct HomeAgentCard: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack(spacing: Spacing.sm) {
                 ZStack {
-                    LinearGradient(colors: [Color.brandPrimary, Color.brandDark],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Color.ink
                         .clipShape(Circle())
                         .frame(width: 36, height: 36)
-                    Text("SM").font(.caption).fontWeight(.bold).foregroundStyle(.white)
+                    Image(systemName: "sparkle").font(.caption).fontWeight(.bold).foregroundStyle(.white)
                 }
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
@@ -49,8 +48,7 @@ struct HomeAgentCard: View {
                 .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.md)
                 .background(
-                    LinearGradient(colors: [Color.brandPrimary, Color.brandDark],
-                                   startPoint: .leading, endPoint: .trailing),
+                    Color.ink,
                     in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                 )
             }

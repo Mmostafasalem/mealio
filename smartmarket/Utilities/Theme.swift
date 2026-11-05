@@ -23,14 +23,14 @@ enum Spacing {
     static let xxl: CGFloat = 32
 }
 
-/// Corner radii. Kept in sync with `premiumCard(radius: 22)` so surfaces match.
+/// Corner radii. Kept in sync with `premiumCard(radius: Radius.card)` so surfaces match.
 enum Radius {
     /// 12 — chips, small controls, badges.
     static let chip: CGFloat = 12
     /// 16 — inner tiles, secondary cards.
     static let tile: CGFloat = 16
-    /// 22 — primary cards (matches `premiumCard`).
-    static let card: CGFloat = 22
+    /// 20 — primary cards (matches `premiumCard`).
+    static let card: CGFloat = 20
     /// 28 — sheets and large containers.
     static let sheet: CGFloat = 28
     /// Fully rounded (pills / circular buttons).
@@ -45,11 +45,11 @@ enum Elevation {
         let y: CGFloat
     }
     /// Subtle lift for chips / small controls.
-    static let low  = Shadow(color: .black.opacity(0.08), radius: 8,  y: 3)
+    static let low  = Shadow(color: .black.opacity(0.04), radius: 3,  y: 1)
     /// Standard card elevation.
-    static let card = Shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+    static let card = Shadow(color: .black.opacity(0.04), radius: 3, y: 2)
     /// Floating overlays, banners, sheets.
-    static let high = Shadow(color: .black.opacity(0.22), radius: 24, y: 12)
+    static let high = Shadow(color: .black.opacity(0.10), radius: 16, y: 6)
 }
 
 extension View {

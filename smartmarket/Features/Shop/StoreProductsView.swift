@@ -36,11 +36,11 @@ struct StoreProductsView: View {
     private var categoryStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                FilterChip(label: "All", color: store.color, isSelected: selectedCategory == nil) {
+                FilterChip(label: "All", color: .brandPrimary, isSelected: selectedCategory == nil) {
                     selectedCategory = nil
                 }
                 ForEach(CatalogCategory.allCases) { cat in
-                    FilterChip(label: cat.displayName, color: cat.color, isSelected: selectedCategory == cat) {
+                    FilterChip(label: cat.displayName, color: .brandPrimary, isSelected: selectedCategory == cat) {
                         selectedCategory = (selectedCategory == cat) ? nil : cat
                     }
                 }
@@ -109,10 +109,7 @@ struct StoreProductsView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 14)
                 .background(
-                    LinearGradient(
-                        colors: [Color.brandPrimary, Color.brandDark],
-                        startPoint: .leading, endPoint: .trailing
-                    )
+                    Color.ink
                 )
             }
             .buttonStyle(.plain)
@@ -149,8 +146,9 @@ private struct FilterChip: View {
             Text(label)
                 .font(.subheadline)
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(isSelected ? color : Color(.tertiarySystemFill))
-                .foregroundStyle(isSelected ? .white : .primary)
+                .frame(minHeight: 44)
+                .background(isSelected ? Color.coral : Color.surfaceSecondary)
+                .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -175,12 +173,12 @@ struct ProductShopRow: View {
         HStack(spacing: 14) {
             // Category icon
             Circle()
-                .fill(item.category.color.opacity(0.12))
+                .fill(Color.brandPrimary.opacity(0.12))
                 .frame(width: 40, height: 40)
                 .overlay(
                     Image(systemName: item.category.symbol)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(item.category.color)
+                        .foregroundStyle(Color.brandPrimary)
                 )
 
             // Name + price

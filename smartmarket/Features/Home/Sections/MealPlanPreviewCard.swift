@@ -53,7 +53,7 @@ struct MealPlanPreviewCard: View {
     }
 
     static func mealAccent(_ idx: Int) -> Color {
-        [Color.brandPrimary, Color.brandAmber, Color(hex: "#0EA5E9"), Color(hex: "#8B5CF6")][idx % 4]
+        Color.labelPrimary
     }
 }
 

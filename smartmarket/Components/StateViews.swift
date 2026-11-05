@@ -19,9 +19,7 @@ struct EmptyStateView: View {
             Text(message)
         } actions: {
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.brandPrimary)
+                PrimaryButton(title: actionTitle, action: action)
             }
         }
     }
@@ -45,9 +43,7 @@ struct ErrorStateView: View {
             Text(message)
         } actions: {
             if let retry {
-                Button("Try Again", systemImage: "arrow.clockwise", action: retry)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.brandPrimary)
+                PrimaryButton(title: "Try Again", systemImage: "arrow.clockwise", action: retry)
             }
         }
     }

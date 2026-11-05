@@ -17,12 +17,13 @@ struct UndoToast: View {
             Spacer()
             Button("Undo", action: onUndo)
                 .font(.subheadline.bold())
-                .foregroundStyle(Color.brandAmber)
+                .foregroundStyle(Color.coral)
+                .minTapTarget()
                 .buttonStyle(ScalePressStyle())
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)
-        .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .background(Color.ink, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .elevation(Elevation.high)
         .padding(.horizontal, Spacing.lg)
     }

@@ -20,8 +20,9 @@ struct DietChipView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(isSelected ? Color.brandPrimary : Color.surfaceSecondary)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .frame(minHeight: 44)
+            .background(isSelected ? Color.coral : Color.surfaceSecondary)
+            .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
             .clipShape(Capsule())
             .overlay(
                 Capsule()

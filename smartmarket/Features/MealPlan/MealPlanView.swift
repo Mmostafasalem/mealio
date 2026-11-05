@@ -74,7 +74,7 @@ struct MealPlanView: View {
 
                 Text("Calorie & macro values are estimates and may vary by product and preparation.")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.labelTertiary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
@@ -118,10 +118,10 @@ private struct MealSectionCard: View {
 
     private var accentColor: Color {
         switch sfSymbol {
-        case "sunrise.fill": return .carbsAccent      // amber — breakfast
-        case "sun.max.fill": return .calorieAccent    // green — lunch
-        case "moon.fill":    return .fatAccent        // violet — dinner
-        case "sparkles":     return .proteinAccent    // orange — snack
+        case "sunrise.fill": return .carbsAccent
+        case "sun.max.fill": return .calorieAccent
+        case "moon.fill":    return .fatAccent
+        case "sparkles":     return .proteinAccent
         default:             return .brandPrimary
         }
     }
@@ -185,12 +185,12 @@ private struct MealEntryRow: View {
                         .foregroundStyle(.secondary).monospacedDigit()
                     if entry.proteinG + entry.carbsG + entry.fatG > 0 {
                         Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
-                            .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
+                            .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
                 }
                 Image(systemName: "chevron.right")
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Color.labelTertiary)
             }
         }
         .buttonStyle(.plain)
@@ -255,8 +255,8 @@ private struct RecommendationsSection: View {
                     .font(.subheadline).fontWeight(.semibold)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .foregroundStyle(.white)
-                    .background(Color.brandPrimary)
+                    .foregroundStyle(Color.onAccent)
+                    .background(Color.coral)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .sensoryFeedback(.success, trigger: addedTrigger)
@@ -449,18 +449,10 @@ private struct WeekDayCard: View {
         .padding(.vertical, 14)
         .background(isToday ? Color.brandPrimary.opacity(0.07) : Color.surface,
                     in: RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.04), radius: 2, x: 0, y: 1)
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(
-                    isToday
-                        ? LinearGradient(colors: [Color.brandPrimary.opacity(0.5), Color.brandPrimary.opacity(0.15)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing)
-                        : LinearGradient(colors: [Color.white.opacity(0.45), Color(.separator).opacity(0.15)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: isToday ? 1.5 : 1
-                )
+            RoundedRectangle(cornerRadius: Radius.tile)
+                .strokeBorder(isToday ? Color.brandPrimary : Color.hairline,
+                              lineWidth: isToday ? 1.5 : 0.7)
         )
     }
 }

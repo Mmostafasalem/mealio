@@ -67,6 +67,7 @@ struct MealSlotRow: View {
                         .foregroundStyle(slot.accent)
                 }
                 .buttonStyle(.plain)
+                .minTapTarget()
                 .accessibilityLabel("Add to \(slot.title)")
             }
 
@@ -84,6 +85,7 @@ struct MealSlotRow: View {
                             .foregroundStyle(Color.brandDanger.opacity(0.7))
                     }
                     .buttonStyle(.plain)
+                .minTapTarget()
                     .accessibilityLabel("Remove \(entry.name)")
                 }
                 .padding(.leading, 40)

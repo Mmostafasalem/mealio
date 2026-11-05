@@ -43,9 +43,9 @@ struct StoreMapView: View {
                 } label: {
                     Image(systemName: "location.fill")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.onAccent)
                         .frame(width: 46, height: 46)
-                        .background(Color.brandPrimary)
+                        .background(Color.coral)
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
@@ -58,9 +58,9 @@ struct StoreMapView: View {
                 } label: {
                     Image(systemName: vm.showNearbyOnly ? "location.circle.fill" : "globe")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(vm.showNearbyOnly ? Color.onAccent : Color.labelPrimary)
                         .frame(width: 46, height: 46)
-                        .background(vm.showNearbyOnly ? Color.brandAmber : Color.secondary)
+                        .background(vm.showNearbyOnly ? Color.coral : Color.surfaceSecondary)
                         .clipShape(Circle())
                         .shadow(radius: 4)
                 }
@@ -115,13 +115,13 @@ private struct StorePinView: View {
                 Text(store.chainIcon)
                     .font(.title2)
                     .frame(width: isSelected ? 48 : 40, height: isSelected ? 48 : 40)
-                    .background(isSelected ? Color.brandPrimary : Color.white)
+                    .background(isSelected ? Color.coral : Color.paper)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
 
                 Image(systemName: "triangle.fill")
                     .font(.system(size: 7))
-                    .foregroundStyle(isSelected ? Color.brandPrimary : Color.white)
+                    .foregroundStyle(isSelected ? Color.coral : Color.paper)
                     .rotationEffect(.degrees(180))
                     .offset(y: -2)
             }
@@ -129,9 +129,9 @@ private struct StorePinView: View {
             if dealCount > 0 {
                 Text("\(dealCount)")
                     .font(.caption2.bold())
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.onAccent)
                     .padding(4)
-                    .background(Color.brandPrimary)
+                    .background(Color.coral)
                     .clipShape(Circle())
                     .offset(x: 4, y: -4)
             }

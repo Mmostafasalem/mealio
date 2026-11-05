@@ -114,11 +114,11 @@ private struct ChatBubble: View {
             if isUser { Spacer(minLength: 60) }
             Text(message.content)
                 .font(.subheadline)
-                .foregroundStyle(isUser ? .white : .primary)
+                .foregroundStyle(isUser ? Color.onAccent : Color.labelPrimary)
                 .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.md)
                 .background(
-                    isUser ? Color.brandPrimary : Color(.secondarySystemBackground),
+                    isUser ? Color.coral : Color.surfaceElevated,
                     in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                 )
             if !isUser { Spacer(minLength: 60) }
