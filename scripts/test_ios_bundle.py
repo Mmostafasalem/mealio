@@ -19,14 +19,29 @@ class BundleBoundaryTests(unittest.TestCase):
         source = Path(__file__).resolve().parent.parent / "smartmarket/PrivacyInfo.xcprivacy"
         shutil.copyfile(source, self.bundle / "PrivacyInfo.xcprivacy")
 
-    def check_bundle(self):
+    def check_bundle(self, *options):
         return subprocess.run(
-            [sys.executable, str(Path(__file__).with_name("check-ios-bundle.py")), str(self.bundle)],
+            [sys.executable, str(Path(__file__).with_name("check-ios-bundle.py")), str(self.bundle), *options],
             capture_output=True, text=True,
         )
 
     def test_clean_bundle_passes(self):
         self.assertEqual(self.check_bundle().returncode, 0)
+
+    def test_release_configuration_requires_a_real_key_without_printing_it(self):
+        for key in ("", "$(API_KEY)", "private-but-short"):
+            (self.bundle / "Info.plist").write_bytes(plistlib.dumps({"API_KEY":key,"API_BASE_URL":"https://example.test"}))
+            result=self.check_bundle("--release-config")
+            self.assertNotEqual(result.returncode,0)
+            if key: self.assertNotIn(key,result.stdout+result.stderr)
+
+    def test_release_configuration_accepts_key_and_https(self):
+        (self.bundle / "Info.plist").write_bytes(plistlib.dumps({"API_KEY":"s"*64,"API_BASE_URL":"https://example.test"}))
+        self.assertEqual(self.check_bundle("--release-config").returncode,0)
+
+    def test_release_configuration_rejects_cleartext_endpoint(self):
+        (self.bundle / "Info.plist").write_bytes(plistlib.dumps({"API_KEY":"s"*64,"API_BASE_URL":"http://example.test"}))
+        self.assertNotEqual(self.check_bundle("--release-config").returncode,0)
 
     def test_environment_variants_are_rejected(self):
         for name in (".env.production", ".env.local", ".env.staging"):

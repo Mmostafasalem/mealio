@@ -11,7 +11,8 @@ signed-device and TestFlight checks remain required.
   categories, and Other User Content for optional chat/private shopping sync.
   Online health/fitness and user content are conservatively marked linked;
   free-form chat can identify its author and private sync uses an Apple Account.
-  No tracking domains; UserDefaults reason `CA92.1` remains declared.
+  No tracking domains; UserDefaults reason `CA92.1` remains declared. User ID and Product Interaction
+  are linked for optional Apple AI accounts and usage limits; not tracking.
 - `ITSAppUsesNonExemptEncryption = false` (no export-compliance prompt).
 - Location usage string set (`NSLocationWhenInUseUsageDescription`).
 - Optional private shopping sync implemented; health/profile/intake/meal-plan
@@ -41,10 +42,10 @@ signed-device and TestFlight checks remain required.
    local configuration; it must match Render's `APP_API_KEY`.
 
 ## Recommended before launch
-- Replace sample `deals_data.json` with a real/curated weekly feed (or a data partnership).
+- Pricing launch scope: curated estimates with user-entered corrections. Never advertise live prices, promotions or verified stock without a verified source.
 - Decide on the nutrition-accuracy disclaimer placement (already shown on the meal plan).
-- Add the Xcode unit-test target (see `smartmarketTests/README.md`).
-- Consider per-device auth tokens instead of the shared `API_KEY` (see README notes).
+- Native unit/UI targets are present; execute the release checks and review results.
+- Activate and verify per-person Apple AI authentication in addition to the shared app key.
 
 ## Health-app review note
 Apple scrutinises calorie/health apps. The in-app "values are estimates"

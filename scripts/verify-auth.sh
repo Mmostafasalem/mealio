@@ -5,7 +5,7 @@
 #
 # The key is NEVER stored by this script. Pass it in for this one run:
 #
-#   MEALIO_API_KEY='your-key' ./scripts/verify-auth.sh
+#   ./scripts/verify-auth.sh  # prompts without echo/history
 #
 # Optional overrides:
 #   BACKEND_URL   (default: https://mealio-backend-17qg.onrender.com)
@@ -25,14 +25,19 @@ note() { printf '  \033[33m··\033[0m   %s\n' "$1"; }
 # HTTP status of a GET, with optional X-API-Key header.
 code() { # $1=url  $2=key(optional)
   if [ -n "${2:-}" ]; then
-    curl -s -o /dev/null -w '%{http_code}' -H "X-API-Key: $2" "$1"
+    # Header is supplied on stdin, not in the process argument list.
+    printf 'header = "X-API-Key: %s"\n' "$2" | curl --config - -sS --max-time 30 -o /dev/null -w '%{http_code}' "$1"
   else
-    curl -s -o /dev/null -w '%{http_code}' "$1"
+    curl -sS --max-time 30 -o /dev/null -w '%{http_code}' "$1"
   fi
 }
 
-if [ -z "$KEY" ]; then
-  echo "MEALIO_API_KEY not set. Run: MEALIO_API_KEY='your-key' $0" >&2
+if [ -z "$KEY" ] && [ -t 0 ]; then
+  read -r -s -p "App API key (hidden): " KEY
+  printf '\n'
+fi
+if [[ ! "$KEY" =~ ^[A-Za-z0-9_-]{32,}$ ]]; then
+  echo "Supply a 32+ character URL-safe app key privately; do not paste keys into chat." >&2
   exit 2
 fi
 
@@ -61,8 +66,8 @@ c=$(code "$WEB_URL/api/backend/health")
   || bad "proxy → $c (expected 200; is APP_API_KEY set on Vercel + redeployed?)"
 
 echo "5) Web proxy response does not leak the key"
-body=$(curl -s "$WEB_URL/api/backend/health")
-if printf '%s' "$body" | grep -qF "$KEY"; then
+body=$(curl -sS --max-time 30 "$WEB_URL/api/backend/health")
+if [[ "$body" == *"$KEY"* ]]; then
   bad "the key appears in the proxy response body!"
 else
   ok "key not present in proxy response"

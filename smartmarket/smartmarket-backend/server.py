@@ -71,7 +71,8 @@ def _gate():
 
     # Auth is enforced only when APP_API_KEY is configured on the server.
     # Constant-time compare avoids leaking the key via timing.
-    if APP_API_KEY and request.path != "/api/auth/apple/notifications":
+    public_liveness = request.path == "/healthz" and request.method == "GET"
+    if APP_API_KEY and request.path != "/api/auth/apple/notifications" and not public_liveness:
         provided = request.headers.get("X-API-Key", "")
         if not hmac.compare_digest(provided, APP_API_KEY):
             return jsonify({"error": "Unauthorized"}), 401
@@ -183,7 +184,33 @@ def _unhandled(err: Exception):
 
 
 from ai_account_routes import register_ai_accounts
+from release_config import production_errors
 register_ai_accounts(app)
+
+
+@app.get('/healthz')
+def liveness():
+    # Render cannot send the app key. This exposes no catalog/account/model data.
+    return jsonify({'status':'ok'})
+
+
+@app.get('/api/readiness')
+def readiness():
+    active = app.config.get('AI_ACCOUNTS')
+    accounts_ready = active is not None
+    if accounts_ready:
+        try:
+            with active.transaction() as db: db.execute('SELECT 1 FROM accounts LIMIT 1')
+        except Exception: accounts_ready = False
+    errors = production_errors(os.environ, accounts_ready=accounts_ready)
+    return jsonify({'ready':not errors,'missingOrInvalid':errors,
+                    'onlineAIEnabled':os.environ.get('AI_ACCOUNTS_ENABLED') == '1'}), (503 if errors else 200)
+
+
+if os.environ.get('MEALIO_ENV') == 'production':
+    errors = production_errors(os.environ, accounts_ready=app.config.get('AI_ACCOUNTS') is not None)
+    if errors:
+        raise RuntimeError('Production configuration incomplete: '+', '.join(errors))
 
 
 if __name__ == "__main__":

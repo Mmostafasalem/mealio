@@ -169,7 +169,7 @@ struct ProductShopRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var isEstimated: Bool  { cart.isEstimated(item.id) }
+    private var isEstimated: Bool  { cart.isEstimated(item.id, store: store.name) }
     private var price: Double      { cart.effectivePrice(for: item, store: store) }
     private var qty: Int           { cart.quantity(of: item.id, store: store.name) }
 
@@ -204,16 +204,16 @@ struct ProductShopRow: View {
                     HStack(spacing: 5) {
                         Text(String(format: "€%.2f", price)).monospacedDigit()
                             .foregroundStyle(Color.labelPrimary)
-                        if isEstimated {
-                            Text("est.")
-                                .foregroundStyle(Color.brandAmber)
-                        }
+                        Text(isEstimated ? "est." : "your price")
+                            .foregroundStyle(isEstimated ? Color.brandAmber : Color.labelSecondary)
                     }
                     .font(.caption)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(minHeight: 44)
                 .accessibilityLabel("Edit price for \(item.name)")
+                .accessibilityValue((isEstimated ? "Estimate " : "Your price ") + String(format: "€%.2f", price))
             }
 
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
@@ -243,7 +243,7 @@ struct ProductShopRow: View {
                 } header: {
                     Text(item.name)
                 } footer: {
-                    Text("Enter the real shelf price you see in \(store.name). This replaces the estimate.")
+                    Text("Enter the real shelf price you see in \(store.name). This replaces the estimate for this store only. Older corrections can be re-entered here for this store.")
                         .font(.caption)
                 }
             }
@@ -252,8 +252,8 @@ struct ProductShopRow: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let val = Double(priceInput.replacingOccurrences(of: ",", with: ".")), val > 0 {
-                            cart.setRealPrice(val, for: item.id)
+                        if let val = Double(priceInput.replacingOccurrences(of: ",", with: ".")), val.isFinite, val > 0 {
+                            cart.setRealPrice(val, for: item.id, store: store.name)
                         }
                         showPriceEditor = false
                     }

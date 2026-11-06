@@ -10,20 +10,20 @@ import ai_usage
 from openfoodfacts import nutrition_for
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-if not GROQ_API_KEY:
-    raise RuntimeError("GROQ_API_KEY environment variable is required. Set it before starting the server.")
+# Catalog-only/local deployments do not need provider access. Production online
+# AI is enabled explicitly and validated by server.py before serving requests.
 
 APP_API_KEY = os.environ.get("APP_API_KEY")  # Shared secret between iOS app and backend
 
 # Production default: a larger, more reliable model than the 8b "instant" one,
 # so meal plans / recipes are higher quality and emit valid JSON consistently.
 # Override with the GROQ_MODEL env var (e.g. to swap models without a deploy).
-GROQ_MODEL  = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL  = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # Bounded timeout + one retry so a slow/transient Groq call fails fast (the app
 # then uses its on-device fallback) instead of hanging. Kept comfortably under
 # the iOS-side request timeouts (30–60s) even if the single retry fires.
-groq_client = Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=1)
+groq_client = Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=1) if GROQ_API_KEY else None
 
 # ---------------------------------------------------------------------------
 # Rate limiting — 60 requests per IP per minute
@@ -377,6 +377,22 @@ def deals_summary(deals, max_items=12):
         })
     return out
 
+def _completion_options(max_tokens):
+    # GPT-OSS has a separate reasoning field and a shared reasoning/output budget.
+    # https://console.groq.com/docs/reasoning
+    if GROQ_MODEL.startswith("openai/gpt-oss-"):
+        return {"max_completion_tokens":min(max_tokens+1024,8192),
+                "include_reasoning":False,"reasoning_effort":"low"}
+    return {"max_tokens":max_tokens}
+
+
+def _completion_text(response):
+    choice=response.choices[0]
+    if getattr(choice,"finish_reason",None) == "length":
+        raise ValueError("Truncated provider response")
+    return choice.message.content or ""
+
+
 def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=None):
     """Call Groq and parse the first JSON object/array from the response.
 
@@ -389,13 +405,13 @@ def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=
             model=GROQ_MODEL,
             messages=messages,
             temperature=0.7,
-            max_tokens=max_tokens,
+            **_completion_options(max_tokens),
         )
         if json_object:
             kwargs["response_format"] = {"type": "json_object"}
         ai_usage.attempted.set(True)
         resp = groq_client.chat.completions.create(**kwargs)
-        text = resp.choices[0].message.content or ""
+        text = _completion_text(resp)
         text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("```").strip()
         match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", text)
         result = json.loads(match.group(1)) if match else json.loads(text)
@@ -415,9 +431,9 @@ def groq_text(messages):
             model=GROQ_MODEL,
             messages=messages,
             temperature=0.7,
-            max_tokens=256,
+            **_completion_options(512),
         )
-        text = resp.choices[0].message.content or ""
+        text = _completion_text(resp)
         if not text.strip(): raise ValueError("Empty provider response")
         ai_usage.succeeded.set(True)
         return text
@@ -539,6 +555,7 @@ def handle_health():
     catalog = _CATALOG_CACHE["data"] or []
     return {
         "status":         "ok",
+        "aiConfigured":   bool(GROQ_API_KEY),
         "model":          GROQ_MODEL,
         "catalogSize":    len(catalog),
         "deals":          sum(1 for p in catalog if p.get("isOnSale")),

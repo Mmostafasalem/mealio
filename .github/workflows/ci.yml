@@ -22,14 +22,41 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: smartmarket/smartmarket-backend/requirements.txt
+          cache-dependency-path: smartmarket/smartmarket-backend/requirements.lock
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest
+        run: pip install -r requirements.lock pytest pip-audit
+      - name: Audit pinned production dependencies
+        run: pip-audit -r requirements.lock
       - name: Run tests
         run: pytest -q
       - name: Release bundle and privacy regressions
         working-directory: .
         run: python3 -m unittest discover -s scripts -p 'test_ios_*.py' -v
+
+  web:
+    name: Public policy pages and web checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Verify canonical legal mirrors
+        working-directory: .
+        run: |
+          python3 scripts/sync-legal-docs.py
+          git diff --exit-code -- smartmarket/Resources/Privacy.md smartmarket/Resources/Support.md web/content/legal.json
+      - run: npm ci
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
 
   ios-build:
     name: iOS tests and release build

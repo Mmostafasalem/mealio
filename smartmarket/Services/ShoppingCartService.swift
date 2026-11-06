@@ -40,9 +40,9 @@ struct ShopStore: Identifiable {
 
 extension CatalogItem {
 
-    // Realistic Lithuanian supermarket prices (€) per typical unit/package.
-    // Source: Rimi, Maxima, IKI, Lidl, Norfa shelf prices as of 2024-2025.
-    // These are Maxima baseline prices; other stores apply a multiplier on top.
+    // Hand-curated budget estimates (€) per typical unit/package, not a live
+    // retailer feed or verified current shelf prices. Store multipliers are
+    // heuristics; shoppers can enter a correction for a specific store.
     static let itemBasePrices: [String: Double] = [
         // Meat & Poultry
         "chicken-breast": 5.49, "chicken-thighs": 4.29, "chicken-wings": 3.79,
@@ -214,14 +214,17 @@ final class ShoppingCartService {
     var cartItems: [CartItem] = []
     var weeklyBudget: Double = 60.0 { didSet { saveSettings() } }
 
-    // User-entered real prices override the estimates
-    private(set) var priceOverrides: [String: Double] = [:]  // catalogId → real price
+    // Store-scoped corrections use cartRowId keys in the existing Sync dictionary.
+    // Legacy catalog-only entries are retained for compatibility, but cannot
+    // verify any store or supply new estimates. Re-enter them for a chosen store.
+    private(set) var priceOverrides: [String: Double] = [:]
 
-    func setRealPrice(_ price: Double, for catalogId: String) {
-        priceOverrides[catalogId] = price
+    func setRealPrice(_ price: Double, for catalogId: String, store: String) {
+        guard price.isFinite, price > 0 else { return }
+        priceOverrides[Self.cartRowId(catalogId: catalogId, store: store)] = price
         savePriceOverrides()
         // Update any matching cart items immediately
-        for i in cartItems.indices where cartItems[i].catalogId == catalogId {
+        for i in cartItems.indices where cartItems[i].catalogId == catalogId && cartItems[i].store == store {
             cartItems[i] = CartItem(
                 id: cartItems[i].id, catalogId: catalogId,
                 name: cartItems[i].name, store: cartItems[i].store,
@@ -232,12 +235,18 @@ final class ShoppingCartService {
         save()
     }
 
-    func isEstimated(_ catalogId: String) -> Bool {
-        priceOverrides[catalogId] == nil
+    func isEstimated(_ catalogId: String, store: String) -> Bool {
+        correctedPrice(for: catalogId, store: store) == nil
+    }
+
+    private func correctedPrice(for catalogId: String, store: String) -> Double? {
+        guard let price = priceOverrides[Self.cartRowId(catalogId: catalogId, store: store)],
+              price.isFinite, price > 0 else { return nil }
+        return price
     }
 
     func effectivePrice(for item: CatalogItem, store: ShopStore) -> Double {
-        priceOverrides[item.id] ?? item.estimatedPrice(for: store)
+        correctedPrice(for: item.id, store: store.name) ?? item.estimatedPrice(for: store)
     }
 
     var total: Double { cartItems.reduce(0) { $0 + $1.lineTotal } }
@@ -291,7 +300,7 @@ final class ShoppingCartService {
                 cartItems[index].quantity += line.quantity
             } else {
                 cartItems.append(CartItem(id: line.id, catalogId: line.catalogId, name: line.name,
-                    store: line.store, price: priceOverrides[line.catalogId] ?? line.price,
+                    store: line.store, price: correctedPrice(for: line.catalogId, store: line.store) ?? line.price,
                     category: line.category, quantity: line.quantity))
             }
         }

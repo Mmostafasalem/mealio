@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode, type ComponentType } from "react";
 import {
-  motion, useMotionValue, useTransform, useSpring, animate,
+  motion, useMotionValue, useTransform, useSpring,
 } from "motion/react";
 
 const SPRING = { type: "spring", stiffness: 240, damping: 26 } as const;

@@ -1,8 +1,11 @@
 # Activating API-Key Auth (all three surfaces)
 
-Everything is wired; only the **shared secret value** is missing. This is deferred
-on purpose — **do not paste the real key into any AI/chat session or commit it.**
-Set it yourself at the dashboards / CLI, then run `scripts/verify-auth.sh`.
+Current local status (2026-11-06): a strong app key is prepared in the gitignored
+iOS configuration and matching private backend .env. Values were not displayed.
+Hosting activation is still pending. Do not regenerate or paste the key into chat.
+Transfer it privately through the hosting dashboards, then run
+scripts/verify-auth.sh (masked prompt). Older generation examples below are for
+new installations, not an instruction to rotate the prepared key.
 
 The same secret goes in **three** places and must match exactly:
 

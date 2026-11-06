@@ -42,3 +42,6 @@ smartmarket/smartmarket-backend/off_cache.json
 .build/
 .swiftpm/
 
+
+# Local release binaries and screenshot candidates (never source-control credentials).
+/release-artifacts/

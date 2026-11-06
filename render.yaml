@@ -8,15 +8,21 @@ services:
     plan: free
     # Path to the backend within the repo (repo root is the iOS project root).
     rootDir: smartmarket/smartmarket-backend
-    buildCommand: pip install -r requirements.txt
-    # 1 worker keeps the in-process scraper caches shared; threads give concurrency.
+    buildCommand: pip install -r requirements.lock
+    # One worker shares catalog/replay caches; threads provide concurrency.
     # 120s timeout covers the slow AI meal-plan endpoint.
     startCommand: gunicorn server:app --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT
-    healthCheckPath: /api/health
+    healthCheckPath: /healthz
     envVars:
+      - key: MEALIO_ENV
+        value: production
+      - key: AI_ACCOUNTS_ENABLED
+        value: "0"          # catalog-only until Apple + durable storage are activated
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
       - key: GROQ_API_KEY
         sync: false          # set in the Render dashboard — never commit
       - key: APP_API_KEY
         sync: false          # shared secret with the iOS app (recommended)
       - key: PYTHON_VERSION
-        value: "3.11.9"
+        value: "3.11.18"   # Current security release; Render env requires a full version

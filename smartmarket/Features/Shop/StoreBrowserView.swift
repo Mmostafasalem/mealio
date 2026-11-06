@@ -336,7 +336,7 @@ private struct CartItemRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.subheadline).fontWeight(.medium)
-                Text(String(format: "est. €%.2f", item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
+                Text(String(format: cart.isEstimated(item.catalogId, store: item.store) ? "est. €%.2f" : "your price €%.2f", item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
             QuantityStepper(quantity: item.quantity,

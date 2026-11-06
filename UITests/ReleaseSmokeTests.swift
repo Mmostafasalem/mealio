@@ -97,6 +97,15 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 15))
     }
 
+    func testAppStoreScreenshotCandidates() {
+        let app = XCUIApplication()
+        onboard(app)
+        for name in ["home", "meals", "shop", "map", "profile"] {
+            tap("tab." + name, in: app)
+            capture("store-candidate-" + name)
+        }
+    }
+
     func testOnboardingAndAllTabs() {
         let app = XCUIApplication()
         onboard(app)

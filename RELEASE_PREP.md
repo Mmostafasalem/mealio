@@ -2,7 +2,14 @@
 
 This is a preparation record, not an assertion of App Store readiness.
 
-## Current verification — 2026-11-05
+## Latest status — 2026-11-06
+
+See [the current release record](docs/RELEASE_STATUS_2026-11-06.md) and
+[external activation steps](docs/PRELAUNCH_ACTIVATION.md). A fresh unsigned device
+archive and screenshot candidates are prepared. Membership, support contact,
+hosting activation, signed-device and live-service checks remain open.
+
+## Historical verification — 2026-11-05
 
 - iPhone SE (3rd generation), iOS 26.5: **23 passed, 0 failed** (19 native tests
   and four UI tests) in `/tmp/MealioSEComplete-20261105.xcresult`. Covers offline
