@@ -27,7 +27,7 @@ been completed on the owner's behalf.
    issues. Create a support mailbox (or another compliant private contact) the owner controls.
    Supply the public contact plus any operator/trader details Apple requires for
    the intended storefronts. Do not invent these from a personal username.
-3. Reauthenticate Vercel (existing token is invalid) and connect Render. Browser
+3. Restore GitHub login (push was rejected), reauthenticate Vercel (existing token is invalid), and connect Render. Browser
    automation could not open account pages in this session; the Mac was locked.
    No hosting configuration or production deployment has been changed.
 4. The app key, subject hash secret and token-encryption key are now generated

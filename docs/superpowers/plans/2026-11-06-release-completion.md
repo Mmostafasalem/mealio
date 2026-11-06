@@ -23,3 +23,5 @@ Apple legal agreements, buy hosting/membership, invent a support contact or clai
 physical-device acceptance from simulator tests. No automatic branch merge.
 
 Deployment remains blocked by unavailable hosting access; Apple membership and support contact are not yet set up. See docs/RELEASE_STATUS_2026-11-06.md for evidence and owner-only prerequisites.
+
+Final outcome: candidate source committed locally; attempted separate release-check branch push was rejected by GitHub authentication. Remote CI did not run. All available local checks passed; external deployment/signing remains blocked.

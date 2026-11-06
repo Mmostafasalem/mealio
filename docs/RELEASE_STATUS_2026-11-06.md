@@ -20,7 +20,8 @@ This record distinguishes simulator/automated evidence from real-device and live
 - Production package audit: no known vulnerabilities reported for the lockfile; `/tmp/mealio-production-audit.log`. This is a point-in-time dependency check, not a guarantee of security.
 - Final device archive: `/tmp/MealioPrelaunchFinal-20261106.xcarchive`, copied to `release-artifacts/Mealio-Unsigned.xcarchive`; **0 errors / 0 warnings**. Strict bundle check confirms a configured key and HTTPS endpoint, required privacy/legal resources, and absence of backend/secret files. It does not certify signing.
 - Five iPhone 6.9-inch PNGs (1320×2868) and five iPad 13-inch PNGs (2064×2752). The initial parallel screenshot run passed on iPad but failed one iPhone onboarding assertion. An unchanged separate iPhone rerun passed; `/tmp/MealioStoreScreenshotIPhoneVerified.xcresult`. Candidates need owner review before upload.
-- Web browser regression, lint and production build results are recorded in `/tmp/MealioFinalWebBuild.log` and the release chat; remote CI status must be checked separately after push.
+- Web browser regression: **1 passed**, covering hydration, functional updates, shared hooks and storage failures. Lint and production build passed; `/tmp/MealioFinalWebBuild.log` records the build.
+- Candidate source saved locally in commit `e3838fa`. Attempted push to isolated `release/prelaunch-2026-11-06` failed: GitHub rejected the saved username/token. No branch was pushed, no merge occurred, and remote CI did not run. GitHub login must be restored before that independent check.
 - Local backend runtime was Python 3.11.4. Render is configured for 3.11.18; hosted-runtime verification remains open.
 
 ## External blockers — not completed
