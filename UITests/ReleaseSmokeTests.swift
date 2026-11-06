@@ -10,7 +10,7 @@ final class ReleaseSmokeTests: XCTestCase {
             guard control.exists && control.isHittable else { return false }
             // The custom tab bar already reserves its bottom inset. Applying a
             // second artificial bottom margin rejects valid SE tap targets.
-            var safeFrame = id.hasPrefix("tab.") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
+            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
             if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
                 safeFrame = safeFrame.intersection(app.collectionViews.firstMatch.frame.insetBy(dx: 0, dy: 12))
             }
@@ -18,6 +18,10 @@ final class ReleaseSmokeTests: XCTestCase {
                 && safeFrame.intersection(control.frame).height >= min(44, control.frame.height)
         }
         _ = control.waitForExistence(timeout: 2)
+        if id == "navigation.quickActions" {
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44 - 0.001, file: file, line: line)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44 - 0.001, file: file, line: line)
+        }
         for _ in 0..<30 {
             if isVisibleForTap() { break }
             // Fixed CTAs can cover the app's default swipe origin at large
@@ -157,6 +161,67 @@ final class ReleaseSmokeTests: XCTestCase {
         tap("tab.home", in: app)
         XCTAssertTrue(app.buttons["tab.home"].exists)
         XCTAssertEqual(app.tabBars.count, 0)
+    }
+
+    func testQuickActionsSearchAndCartSheet() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        app.launch()
+        tap("navigation.quickActions", in: app)
+        let search = app.textFields["quickActions.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap(); search.typeText("cart")
+        tap("quickActions.cart", in: app)
+        XCTAssertTrue(app.buttons["quickCart.done"].waitForExistence(timeout: 5))
+        capture("quick-actions-cart")
+        app.navigationBars["My Cart"].swipeDown()
+        if app.buttons["quickCart.done"].exists { tap("quickCart.done", in: app) }
+        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+        tap("navigation.quickActions", in: app)
+        let again = app.textFields["quickActions.search"]
+        XCTAssertTrue(again.waitForExistence(timeout: 5))
+        again.tap(); again.typeText("checklist")
+        capture("quick-actions-search")
+        tap("quickActions.groceries", in: app)
+        XCTAssertTrue(app.buttons["groceries.done"].waitForExistence(timeout: 5))
+        tap("groceries.done", in: app)
+        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 5))
+    }
+
+    func testQuickLoggerCustomServingDismissesAfterAdding() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        app.launch()
+        tap("navigation.quickActions", in: app)
+        let menuSearch = app.textFields["quickActions.search"]
+        XCTAssertTrue(menuSearch.waitForExistence(timeout: 5))
+        menuSearch.tap(); menuSearch.typeText("log food")
+        tap("quickActions.logFood", in: app)
+        let foodSearch = app.textFields["logFood.search"]
+        XCTAssertTrue(foodSearch.waitForExistence(timeout: 5))
+        foodSearch.tap(); foodSearch.typeText("apples")
+        tap("logFood.food.obuoliai", in: app)
+        tap("logFood.addServing", in: app)
+        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["logFood.addServing"].exists)
+    }
+
+    func testStoreUsesNativeSwipeBackAndLargeQuantityTargets() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        app.launch()
+        tap("tab.shop", in: app)
+        tap("shop.store.rimi", in: app)
+        let add = app.buttons["Add to cart"].firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(add.frame.width, 44 - 0.001)
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44 - 0.001)
+        let edge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        edge.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(app.navigationBars["Shop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["shop.store.rimi"].exists)
+        capture("native-back-shop")
     }
 
     func testPrivacyAndSupportAreReachable() {

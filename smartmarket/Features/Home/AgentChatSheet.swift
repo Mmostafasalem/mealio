@@ -6,6 +6,7 @@ struct AgentChatSheet: View {
     @Bindable var vm: HomeViewModel
     @Environment(\.dismiss) private var dismiss
     @FocusState private var inputFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var localInput: String = ""
 
@@ -28,13 +29,13 @@ struct AgentChatSheet: View {
                         .padding(.vertical, Spacing.lg)
                     }
                     .onChange(of: vm.chatMessages.count) {
-                        withAnimation(.smoothCard) {
+                        withAnimation(reduceMotion ? .none : .snappyValue) {
                             proxy.scrollTo(vm.chatMessages.last?.id.uuidString ?? "typing", anchor: .bottom)
                         }
                     }
                     .onChange(of: vm.isChatLoading) {
                         if vm.isChatLoading {
-                            withAnimation(.smoothCard) { proxy.scrollTo("typing", anchor: .bottom) }
+                            withAnimation(reduceMotion ? .none : .snappyValue) { proxy.scrollTo("typing", anchor: .bottom) }
                         }
                     }
                 }
@@ -50,6 +51,8 @@ struct AgentChatSheet: View {
                 }
             }
         }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     private var emptyPrompt: some View {
@@ -132,6 +135,7 @@ private struct ChatBubble: View {
 // MARK: - Typing indicator
 
 private struct TypingIndicator: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animating = false
 
     var body: some View {
@@ -140,9 +144,9 @@ private struct TypingIndicator: View {
                 Circle()
                     .fill(Color.secondary)
                     .frame(width: 8, height: 8)
-                    .scaleEffect(animating ? 1.3 : 0.8)
-                    .opacity(animating ? 1.0 : 0.4)
-                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true).delay(Double(i) * 0.18),
+                    .scaleEffect(!reduceMotion && animating ? 1.3 : 0.8)
+                    .opacity(reduceMotion || animating ? 1.0 : 0.4)
+                    .animation(reduceMotion ? .none : .easeInOut(duration: 0.5).repeatForever(autoreverses: true).delay(Double(i) * 0.18),
                                value: animating)
             }
         }

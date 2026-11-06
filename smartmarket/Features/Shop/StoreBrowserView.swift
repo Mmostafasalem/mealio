@@ -120,6 +120,7 @@ struct StoreBrowserView: View {
                         StoreCard(store: store)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("shop.store." + store.id)
                 }
             }
         }
@@ -195,13 +196,16 @@ struct StoreBrowserView: View {
                         }
                         showBudgetEditor = false
                     }
+                    .keyboardShortcut("s", modifiers: .command)
+                    .help("Save (⌘S)")
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showBudgetEditor = false }
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -262,7 +266,8 @@ struct CartBadge: View {
 
 struct CartView: View {
     @State private var cart = ShoppingCartService.shared
-    @State private var showClearAlert = false
+    @State private var undo = GroceryListViewModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         List {
@@ -306,14 +311,20 @@ struct CartView: View {
         .toolbar {
             if !cart.cartItems.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Clear", role: .destructive) { showClearAlert = true }
+                    Button("Clear", role: .destructive) { undo.clearCart() }
+                        .accessibilityIdentifier("cart.clear")
                 }
             }
         }
-        .alert("Clear cart?", isPresented: $showClearAlert) {
-            Button("Clear", role: .destructive) { cart.clear() }
-            Button("Cancel", role: .cancel) {}
+        .safeAreaInset(edge: .bottom) {
+            if let message = undo.undoMessage {
+                UndoToast(message: message) { undo.undoDelete() }
+                    .padding(.vertical, Spacing.sm)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
         }
+        .animation(reduceMotion ? .none : .snappyValue, value: undo.undoMessage)
+
     }
 }
 

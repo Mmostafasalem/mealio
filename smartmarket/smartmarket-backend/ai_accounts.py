@@ -140,6 +140,7 @@ class AccountService:
               CREATE TABLE IF NOT EXISTS global_quota(day TEXT PRIMARY KEY, used INTEGER NOT NULL DEFAULT 0);
               CREATE TABLE IF NOT EXISTS reservations(id TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, day TEXT NOT NULL, cost INTEGER NOT NULL, expires REAL NOT NULL);
               CREATE INDEX IF NOT EXISTS session_account ON sessions(account);
+              CREATE TABLE IF NOT EXISTS ai_requests(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, key TEXT NOT NULL, fingerprint TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(account,key));
             ''')
             if 'created' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
                 db.execute('ALTER TABLE accounts ADD COLUMN created REAL NOT NULL DEFAULT 0')
@@ -198,6 +199,7 @@ class AccountService:
         db.execute('DELETE FROM reservations WHERE expires<=?',(now,))
         db.execute('DELETE FROM challenges WHERE expires<=?',(now,))
         db.execute('DELETE FROM sessions WHERE expires<=?',(now,))
+        db.execute('DELETE FROM ai_requests WHERE created<=?',(now-86400,))
         cutoff=(datetime.fromtimestamp(now,timezone.utc).date()-timedelta(days=2)).isoformat()
         db.execute('DELETE FROM quota WHERE day<?',(self._day(),))
         db.execute('DELETE FROM global_quota WHERE day<?',(cutoff,))
@@ -273,12 +275,27 @@ class AccountService:
         return {'limit':self.daily_limit,'used':used,'remaining':max(0,self.daily_limit-used),
                 'resetsAt':iso(reset.timestamp()),'mealPlanCost':5,'shortRequestCost':1}
 
-    def reserve(self,user,path):
+    def request_fingerprint(self, path, body):
+        return hmac.new(self.subject_secret,path.encode()+b'\0'+body,hashlib.sha256).hexdigest()
+
+    def reserve(self,user,path,request_key=None,fingerprint=None):
         cost=5 if path=='/api/meal-plan' else 1; day=self._day(); reservation=secrets.token_urlsafe(32)
+        if request_key is not None:
+            if not isinstance(request_key,str) or not 8 <= len(request_key) <= 128 or not isinstance(fingerprint,str):
+                raise AccountError('Invalid request key.',400,'invalid_request')
+            request_key=digest(request_key)
         with self.transaction() as db:
             self._cleanup(db)
             if not db.execute('SELECT 1 FROM sessions WHERE hash=? AND account=?',(user.session_hash,user.account_id)).fetchone():
                 raise AccountError('Sign in with Apple again.')
+            if request_key is not None:
+                previous=db.execute('SELECT fingerprint FROM ai_requests WHERE account=? AND key=?',(user.account_id,request_key)).fetchone()
+                if previous is not None:
+                    if not hmac.compare_digest(previous['fingerprint'],fingerprint):
+                        raise AccountError('This request key was already used for different input.',409,'ai_request_conflict')
+                    raise AccountError('This request is already processing or completed. No additional credits were used.',409,'ai_request_repeated')
+                if db.execute('SELECT COUNT(*) FROM ai_requests WHERE account=?',(user.account_id,)).fetchone()[0]>=2048:
+                    raise AccountError('Too many recent requests. Please try again later.',503,'ai_unavailable')
             db.execute('INSERT OR IGNORE INTO quota(account,day) VALUES(?,?)',(user.account_id,day))
             db.execute('INSERT OR IGNORE INTO global_quota(day) VALUES(?)',(day,))
             used=db.execute('SELECT used FROM quota WHERE account=? AND day=?',(user.account_id,day)).fetchone()[0]
@@ -289,26 +306,34 @@ class AccountService:
             db.execute('UPDATE quota SET used=used+? WHERE account=? AND day=?',(cost,user.account_id,day))
             db.execute('UPDATE global_quota SET used=used+1 WHERE day=?',(day,))
             db.execute('INSERT INTO reservations VALUES(?,?,?,?,?)',(reservation,user.account_id,day,cost,self.clock()+180))
+            if request_key is not None:
+                db.execute('INSERT INTO ai_requests VALUES(?,?,?,?)',(user.account_id,request_key,fingerprint,self.clock()))
         return reservation
 
     def finish(self,reservation,succeeded,attempted):
         with self.transaction() as db:
             row=db.execute('SELECT * FROM reservations WHERE id=?',(reservation,)).fetchone()
-            if row is None: return
+            if row is None: return False
             if not succeeded:
                 db.execute('UPDATE quota SET used=MAX(0,used-?) WHERE account=? AND day=?',
                            (row['cost'],row['account'],row['day']))
             if not attempted:
                 db.execute('UPDATE global_quota SET used=MAX(0,used-1) WHERE day=?',(row['day'],))
             db.execute('DELETE FROM reservations WHERE id=?',(reservation,))
+            return True
 
     def logout(self,user):
         with self.transaction() as db: db.execute('DELETE FROM sessions WHERE hash=?',(user.session_hash,))
 
     def purge(self,account,event_time=None):
         with self.transaction() as db:
-            if event_time is None: db.execute('DELETE FROM accounts WHERE id=?',(account,))
-            else: db.execute('DELETE FROM accounts WHERE id=? AND created<=?',(account,event_time))
+            row=db.execute('SELECT created FROM accounts WHERE id=?',(account,)).fetchone()
+            if row is None or (event_time is not None and row['created']>event_time): return
+            # In-flight requests invalidated by deletion cannot deliver a result.
+            for pending in db.execute('SELECT day,cost FROM reservations WHERE account=?',(account,)).fetchall():
+                db.execute('UPDATE quota SET used=MAX(0,used-?) WHERE account=? AND day=?',
+                           (pending['cost'],account,pending['day']))
+            db.execute('DELETE FROM accounts WHERE id=?',(account,))
 
     def delete_account(self,user):
         with self.transaction() as db:

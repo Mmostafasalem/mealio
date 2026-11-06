@@ -8,7 +8,13 @@ import Foundation
 final class ProductCatalogService {
 
     static let shared = ProductCatalogService()
-    private init() {}
+    private init() {
+        // Hydrate before a network wait: opening a picker can use saved data immediately.
+        if let cached = loadFromDisk(), !cached.isEmpty {
+            products = cached
+            lastFetch = UserDefaults.standard.object(forKey: fetchedAtKey) as? Date
+        }
+    }
 
     // MARK: - State
 
@@ -34,6 +40,7 @@ final class ProductCatalogService {
     }
 
     func load() async {
+        guard !isLoading else { return }
         isLoading = true
         error     = nil
         defer { isLoading = false }
@@ -45,6 +52,7 @@ final class ProductCatalogService {
                 products  = fetched
                 lastFetch = Date()
                 saveToDisk(fetched)
+                UserDefaults.standard.set(lastFetch, forKey: fetchedAtKey)
                 return
             }
         } catch {
@@ -55,7 +63,7 @@ final class ProductCatalogService {
         // Fall back to disk cache
         if let cached = loadFromDisk(), !cached.isEmpty {
             products  = cached
-            lastFetch = Date()
+            // A failed network refresh must not make old data look fresh.
         }
     }
 
@@ -97,6 +105,7 @@ final class ProductCatalogService {
     // MARK: - Disk cache (so favorites picker works offline)
 
     private let diskKey = "productCatalogCache"
+    private let fetchedAtKey = "productCatalogFetchedAt"
 
     private func saveToDisk(_ products: [Product]) {
         guard let data = try? JSONEncoder().encode(products) else { return }

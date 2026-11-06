@@ -73,3 +73,18 @@ account activity. Remote sign-out is best effort if offline: a copied session
 may remain valid until expiry/revocation. Protect tokens as secrets. The app has
 no offline-only erasure override for a saved AI account; reconnect/sign in to
 complete Delete All Data. Routine cleanup is activity-driven.
+
+
+## Duplicate-request safeguards
+The iOS app gives each AI request an Idempotency-Key. The authenticated person,
+request path and exact body are bound to the key. Concurrent repeats do not call
+the provider or reserve credits again; changed input with the same key returns
+409. Metadata is retained 24 hours, capped at 2048 keys/person, and purged with
+the account. It contains only hashes, an HMAC fingerprint and creation time.
+A bounded per-process in-memory cache replays up to 128 small responses for a
+three-minute window. Expired entries are cleared on replay activity or eviction;
+no response bodies go into SQLite/backups. Account deletion clears this process's
+replays. Other processes still authenticate before any replay. After expiry,
+eviction or restart, an existing key returns 409 rather than rerunning AI.
+This protects transport retries carrying the same key; a deliberately new action
+has a new key and may use credits. There is no payment/checkout flow in Mealio.

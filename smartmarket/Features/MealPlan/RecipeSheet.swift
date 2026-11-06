@@ -6,9 +6,10 @@ struct RecipeSheet: View {
 
     let mealName: String
     @State private var recipe: Recipe?
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var failed = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -22,6 +23,7 @@ struct RecipeSheet: View {
                     errorView
                 }
             }
+            .animation(reduceMotion ? .none : .easeOut(duration: 0.2), value: isLoading)
             .navigationTitle(mealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -31,21 +33,34 @@ struct RecipeSheet: View {
                 }
             }
         }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Radius.sheet)
         .task { await loadRecipe() }
     }
 
     // MARK: - Loading
 
     private var loadingView: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.4)
-                .tint(.brandPrimary)
-            Text("Generating recipe…")
-                .font(.subheadline)
-                .foregroundStyle(Color.labelSecondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
+                RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).frame(height: 72)
+                ForEach(0..<2) { _ in
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).frame(width: 130, height: 20)
+                    VStack(spacing: Spacing.md) {
+                        ForEach(0..<4) { _ in
+                            RoundedRectangle(cornerRadius: 6, style: .continuous).frame(height: 24)
+                        }
+                    }
+                }
+            }
+            .foregroundStyle(Color.labelTertiary.opacity(0.15))
+            .padding(Spacing.lg)
+            .shimmer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading recipe")
+        .accessibilityIdentifier("recipe.loading")
     }
 
     // MARK: - Error
@@ -79,7 +94,7 @@ struct RecipeSheet: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(Color.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 // Ingredients
                 sectionHeader(icon: "cart.fill", title: "Ingredients")
@@ -104,7 +119,7 @@ struct RecipeSheet: View {
                     }
                 }
                 .background(Color.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 // Steps
                 sectionHeader(icon: "list.number", title: "Instructions")
@@ -124,7 +139,7 @@ struct RecipeSheet: View {
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
 
@@ -140,7 +155,7 @@ struct RecipeSheet: View {
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.brandAmber.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
             }
             .padding(16)

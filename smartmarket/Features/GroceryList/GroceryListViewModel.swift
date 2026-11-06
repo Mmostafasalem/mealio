@@ -9,16 +9,28 @@ final class GroceryListViewModel {
         didSet { recompute() }
     }
 
-    private(set) var recentlyDeletedItem: GroceryItem?
-    private var undoTask: Task<Void, Never>?
+    private(set) var undoMessage: String?
+    private var deletedItems: [GroceryItem] = []
+    private var deletedCartLines: [CartItem] = []
+    private var undoGeneration: UUID?
+    private var undoID = UUID()
+    private let undoDuration: Duration
+    @ObservationIgnored private var undoTask: Task<Void, Never>?
+    @ObservationIgnored private var changesTask: Task<Void, Never>?
 
-    init() {
+    init(undoDuration: Duration = .seconds(8)) {
+        self.undoDuration = undoDuration
         loadItems()
-        Task { @MainActor [weak self] in
+        changesTask = Task { @MainActor [weak self] in
             for await _ in NotificationCenter.default.notifications(named: .groceryListDidChange) {
                 self?.loadItems()
             }
         }
+    }
+
+    deinit {
+        changesTask?.cancel()
+        undoTask?.cancel()
     }
 
     private(set) var groupedByStore: [String: [GroceryItem]] = [:]
@@ -54,43 +66,79 @@ final class GroceryListViewModel {
     }
 
     func deleteItem(_ item: GroceryItem) {
-        items.removeAll { $0.id == item.id }
+        removeItems([item], message: "\(item.foodName) removed")
+    }
 
-        // Cart-sourced row: round-trip the deletion to the Shop cart (no undo).
-        if let coords = ShoppingCartService.parseCartRowId(item.id) {
-            ShoppingCartService.shared.removeLine(catalogId: coords.catalogId, store: coords.store)
-            return
-        }
-
-        // Manual / deal-buy item: optimistic delete with 4-second undo.
-        recentlyDeletedItem = item
-        saveItems()
+    private func prepareUndo(_ removed: [GroceryItem], lines: [CartItem], message: String) {
         undoTask?.cancel()
+        deletedItems = removed
+        deletedCartLines = lines
+        undoMessage = message
+        undoGeneration = AppState.shared.dataGeneration
+        let expected = UUID()
+        undoID = expected
+        let duration = undoDuration
         undoTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(4))
-            self?.recentlyDeletedItem = nil
+            do { try await Task.sleep(for: duration) } catch { return }
+            guard let self, self.undoID == expected else { return }
+            self.discardUndo()
         }
     }
 
-    func undoDelete() {
-        guard let item = recentlyDeletedItem else { return }
+    private func discardUndo() {
         undoTask?.cancel()
-        recentlyDeletedItem = nil
-        items.append(item)
+        undoMessage = nil
+        deletedItems = []
+        deletedCartLines = []
+        undoGeneration = nil
+        undoID = UUID()
+    }
+
+    private func removeItems(_ removed: [GroceryItem], message: String) {
+        guard !removed.isEmpty else { return }
+        let ids = Set(removed.map(\.id))
+        let cart = ShoppingCartService.shared
+        let lines = cart.cartItems.filter {
+            ids.contains(ShoppingCartService.cartRowId(catalogId: $0.catalogId, store: $0.store))
+        }
+        prepareUndo(removed, lines: lines, message: message)
+        // Update local storage immediately; optional CloudKit sync happens separately.
+        for line in lines { cart.removeLine(catalogId: line.catalogId, store: line.store) }
+        items = GroceryStorage.load().filter { !ids.contains($0.id) }
+        saveItems()
+    }
+
+    func undoDelete() {
+        guard undoGeneration == AppState.shared.dataGeneration else { discardUndo(); return }
+        let removed = deletedItems
+        let lines = deletedCartLines
+        let existingIDs = Set(GroceryStorage.load().map(\.id))
+        discardUndo()
+        ShoppingCartService.shared.restoreRemovedLines(lines)
+        var restored = GroceryStorage.load()
+        for item in removed {
+            if let index = restored.firstIndex(where: { $0.id == item.id }) {
+                if !existingIDs.contains(item.id) { restored[index].isBought = item.isBought }
+            } else if ShoppingCartService.parseCartRowId(item.id) == nil {
+                restored.append(item)
+            }
+        }
+        items = restored
         saveItems()
     }
 
     func clearBought() {
-        // Round-trip any cart-sourced bought rows to the Shop cart first — otherwise
-        // the cart still holds them and the next cart change would silently re-add
-        // them (unbought). Mirrors deleteItem's cart round-trip.
-        for item in items where item.isBought {
-            if let coords = ShoppingCartService.parseCartRowId(item.id) {
-                ShoppingCartService.shared.removeLine(catalogId: coords.catalogId, store: coords.store)
-            }
-        }
-        items.removeAll { $0.isBought }
-        saveItems()
+        let bought = items.filter(\.isBought)
+        removeItems(bought, message: "\(bought.count) bought items removed")
+    }
+
+    func clearCart() {
+        let cart = ShoppingCartService.shared
+        guard !cart.cartItems.isEmpty else { return }
+        let rows = GroceryStorage.load().filter { ShoppingCartService.parseCartRowId($0.id) != nil }
+        prepareUndo(rows, lines: cart.cartItems, message: "Cart cleared")
+        cart.clear()
+        loadItems()
     }
 
     func addItem(_ item: GroceryItem) {

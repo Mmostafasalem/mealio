@@ -24,7 +24,7 @@ struct DealNotificationBanner: View {
                     .foregroundStyle(Color.onAccent)
                     .frame(width: 46, height: 46)
                     .background(Color.dullPink)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -38,7 +38,7 @@ struct DealNotificationBanner: View {
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xs))
                         : AnyLayout(HStackLayout(spacing: 6))
                     priceLayout {
-                        Text(String(format: "€%.2f", deal.discountPrice))
+                        Text(String(format: "€%.2f", deal.discountPrice)).monospacedDigit()
                             .font(.subheadline).fontWeight(.bold)
                             .lineLimit(1)
                             .fixedSize(horizontal: true, vertical: false)

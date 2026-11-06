@@ -3,6 +3,7 @@ import SwiftUI
 struct MealPlanView: View {
 
     @State private var vm = MealPlanViewModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
 
     var body: some View {
@@ -21,13 +22,20 @@ struct MealPlanView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal, Spacing.lg)
 
+                if vm.isGenerating && vm.todaysPlan != nil {
+                    HStack(spacing: Spacing.sm) {
+                        ProgressView().controlSize(.small)
+                        Text("Updating plan…").font(.footnote)
+                    }
+                    .foregroundStyle(Color.labelSecondary)
+                }
                 switch vm.selectedTab {
                 case .today: todayContent
                 case .week:  weekContent
                 }
             }
             .padding(.vertical, Spacing.lg)
-            .animation(.smoothCard, value: vm.selectedTab)
+            .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedTab)
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("Meal Plan")

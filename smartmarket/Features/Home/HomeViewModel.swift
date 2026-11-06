@@ -74,6 +74,8 @@ final class HomeViewModel {
     }
 
     init() {
+        if let weekly = AppState.shared.weeklyMealPlan { mealPlan = MealPlan.from(weekly: weekly) }
+        refreshMacroTargets()
         NotificationCenter.default.addObserver(
             forName: .groceryListDidChange, object: nil, queue: .main
         ) { [weak self] _ in
@@ -94,6 +96,7 @@ final class HomeViewModel {
     // MARK: - Loading
 
     func load() async {
+        guard !isLoading && !isRefreshing else { return }
         log.reload()                       // daily reset handled by the store
         if profile.name.isEmpty { profile = .load() }
         groceryList = GroceryStorage.load()
@@ -128,9 +131,7 @@ final class HomeViewModel {
     }
 
     func refresh() async {
-        await CacheService.shared.invalidate(key: CacheService.Keys.deals)
-        deals = []
-        mealPlan = nil
+        // Keep readable content while revalidating; refresh never blanks the screen.
         await load()
     }
 

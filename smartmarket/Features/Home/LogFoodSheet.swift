@@ -55,7 +55,7 @@ struct LogFoodSheet: View {
                 .navigationDestination(item: $detailFood) { food in
                     ServingDetailView(food: food, slot: slot) { grams in
                         vm.logFood(food, slot: slot, grams: grams)
-                        vm.showLogSheet = false
+                        dismiss()
                     }
                 }
             }
@@ -90,6 +90,7 @@ struct LogFoodSheet: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
             TextField("Search foods", text: $query)
+                .accessibilityIdentifier("logFood.search")
                 .focused($searchFocused)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
@@ -136,6 +137,7 @@ struct LogFoodSheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("logFood.food." + food.id)
 
             // Quick-add at default serving (the 2-tap path).
             Button {
@@ -144,6 +146,8 @@ struct LogFoodSheet: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(slot.accent)
+                    .minTapTarget()
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Add \(food.displayName)")
@@ -208,6 +212,8 @@ struct LogFoodSheet: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(slot.accent)
+                    .minTapTarget()
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Log \(entry.foodName)")
@@ -233,6 +239,7 @@ private struct ServingDetailView: View {
     let onAdd: (Int) -> Void
 
     @State private var grams: Double
+    @State private var didAdd = false
 
     init(food: Food, slot: MealSlot, onAdd: @escaping (Int) -> Void) {
         self.food = food
@@ -297,6 +304,8 @@ private struct ServingDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             Button {
+                guard !didAdd else { return }
+                didAdd = true
                 onAdd(Int(grams))
             } label: {
                 Label("Add to \(slot.title)", systemImage: "plus")
@@ -304,6 +313,8 @@ private struct ServingDetailView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, 14)
                     .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.pill))
             }
+            .disabled(didAdd)
+            .accessibilityIdentifier("logFood.addServing")
             .padding(.horizontal, 16).padding(.bottom, 8)
         }
     }

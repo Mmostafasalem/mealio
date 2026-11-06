@@ -283,6 +283,21 @@ final class ShoppingCartService {
         save()
     }
 
+    /// Undo merges removed quantities with current edits; never overwrite a newer cart.
+    func restoreRemovedLines(_ lines: [CartItem]) {
+        guard !lines.isEmpty else { return }
+        for line in lines {
+            if let index = cartItems.firstIndex(where: { $0.catalogId == line.catalogId && $0.store == line.store }) {
+                cartItems[index].quantity += line.quantity
+            } else {
+                cartItems.append(CartItem(id: line.id, catalogId: line.catalogId, name: line.name,
+                    store: line.store, price: priceOverrides[line.catalogId] ?? line.price,
+                    category: line.category, quantity: line.quantity))
+            }
+        }
+        save()
+    }
+
     func clear() { cartItems = []; save() }
 
     func resetAll() {

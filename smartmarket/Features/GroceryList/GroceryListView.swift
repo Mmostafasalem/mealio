@@ -4,7 +4,7 @@ struct GroceryListView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var vm = GroceryListViewModel()
-    @State private var showClearAlert = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -21,6 +21,9 @@ struct GroceryListView: View {
             .background(Color.surfaceGrouped.ignoresSafeArea())
             .navigationTitle("Groceries")
             .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.accessibilityIdentifier("groceries.done")
+                }
                 if !vm.items.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         ShareLink(item: vm.shareText()) {
@@ -29,18 +32,21 @@ struct GroceryListView: View {
                         .accessibilityLabel("Share list")
                     }
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("Clear bought") { showClearAlert = true }
+                        Button("Clear bought") { vm.clearBought() }
                             .disabled(!vm.items.contains { $0.isBought })
                     }
                 }
             }
-            .alert("Clear bought items?", isPresented: $showClearAlert) {
-                Button("Clear", role: .destructive) { vm.clearBought() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes all checked items from your list.")
+
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let message = vm.undoMessage {
+                UndoToast(message: message) { vm.undoDelete() }
+                    .padding(.vertical, Spacing.sm)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(reduceMotion ? .none : .snappyValue, value: vm.undoMessage)
         .onAppear { vm.loadItems() }
     }
 
@@ -72,16 +78,7 @@ struct GroceryListView: View {
 
             FooterBar(total: vm.totalEstimatedCost, count: vm.items.count)
         }
-        .overlay(alignment: .bottom) {
-            if let deleted = vm.recentlyDeletedItem {
-                UndoToast(message: "\(deleted.foodName) removed") {
-                    vm.undoDelete()
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .padding(.bottom, 90)
-            }
-        }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: vm.recentlyDeletedItem?.id)
+
     }
 }
 
@@ -97,6 +94,8 @@ private struct GroceryRow: View {
                 Image(systemName: item.isBought ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22))
                     .foregroundStyle(item.isBought ? Color.brandPrimary : Color.labelSecondary)
+                    .minTapTarget()
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .sensoryFeedback(.selection, trigger: item.isBought)

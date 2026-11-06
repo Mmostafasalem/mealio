@@ -4,11 +4,13 @@ import XCTest
 private final class RejectNetworkProtocol: URLProtocol {
     static var requests = 0
     static var lastAuthorization: String?
+    static var lastRequestKey: String?
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.requests += 1
         Self.lastAuthorization = request.value(forHTTPHeaderField: "Authorization")
+        Self.lastRequestKey = request.value(forHTTPHeaderField: "Idempotency-Key")
         client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
     }
     override func stopLoading() {}
@@ -39,6 +41,7 @@ final class AIConsentTests: XCTestCase {
             XCTAssertEqual(error.code, .notConnectedToInternet)
             XCTAssertEqual(RejectNetworkProtocol.requests, 1)
             XCTAssertEqual(RejectNetworkProtocol.lastAuthorization, "Bearer test-session")
+            XCTAssertNotNil(RejectNetworkProtocol.lastRequestKey.flatMap(UUID.init(uuidString:)))
         }
     }
 

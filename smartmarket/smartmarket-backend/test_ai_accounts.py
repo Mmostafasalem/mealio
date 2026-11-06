@@ -310,3 +310,122 @@ def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, pat
     assert response.status_code == 200
     assert response.headers['X-AI-Result'] == 'online'
     assert service.usage(user)['remaining'] == 10-cost
+
+
+def test_idempotent_http_replay_does_not_call_or_charge_twice(http_app, service):
+    calls = []
+    original = http_app.view_functions['chat']
+    def counted():
+        calls.append(True)
+        return original()
+    http_app.view_functions['chat'] = counted
+    signed,user=login(service)
+    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'request-unique-12345'}
+    client=http_app.test_client()
+    first=client.post('/api/agent-chat',headers=headers,json={'mode':'online'})
+    second=client.post('/api/agent-chat',headers=headers,json={'mode':'online'})
+    assert first.status_code == second.status_code == 200
+    assert second.get_json() == first.get_json()
+    assert len(calls) == 1
+    assert service.usage(user)['remaining'] == 9
+    conflict=client.post('/api/agent-chat',headers=headers,json={'mode':'cached'})
+    assert conflict.status_code == 409
+    assert service.usage(user)['remaining'] == 9
+
+
+def test_idempotency_is_per_person_and_parallel_duplicates_are_bounded(http_app, service):
+    calls=[]
+    original=http_app.view_functions['chat']
+    def counted():
+        calls.append(True)
+        return original()
+    http_app.view_functions['chat']=counted
+    signed,user=login(service)
+    def post(_):
+        return http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers={
+            'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'parallel-unique-12345'}).status_code
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        statuses=list(pool.map(post,range(8)))
+    assert all(x in (200,409) for x in statuses)
+    assert len(calls) == 1 and service.usage(user)['remaining'] == 9
+    second,other=login(service,'person-two')
+    response=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers={
+        'Authorization':'Bearer '+second['token'],'Idempotency-Key':'parallel-unique-12345'})
+    assert response.status_code == 200
+    assert service.usage(other)['remaining'] == 9
+
+
+def test_idempotency_claim_survives_service_restart(service):
+    signed,user=login(service)
+    key='durable-unique-12345'
+    r=service.reserve(user,'/api/agent-chat',request_key=key,fingerprint='body-hash')
+    service.finish(r,succeeded=True,attempted=True)
+    restarted=AccountService(service.path,service.apple,service.cipher,service.subject_secret,
+                             daily_limit=10,global_limit=1000,clock=service.clock)
+    with pytest.raises(AccountError) as error:
+        restarted.reserve(restarted.authenticate('Bearer '+signed['token']),'/api/agent-chat',
+                          request_key=key,fingerprint='body-hash')
+    assert error.value.code == 'ai_request_repeated'
+    assert restarted.usage(user)['remaining'] == 9
+
+
+def test_expired_response_replay_never_reruns_provider(http_app, service):
+    signed,user=login(service)
+    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'expire-replay-12345'}
+    first=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
+    assert first.status_code == 200
+    service.test_clock[0] += 181
+    repeated=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
+    assert repeated.status_code == 409
+    assert repeated.get_json()['code'] == 'ai_request_repeated'
+    assert service.usage(user)['remaining'] == 9
+
+
+def test_replay_cache_is_bounded_without_storing_content_on_disk(http_app, service):
+    signed,user=login(service)
+    headers={'Authorization':'Bearer '+signed['token']}
+    client=http_app.test_client()
+    for number in range(129):
+        response=client.post('/api/agent-chat',json={'mode':'cached'},headers={
+            **headers,'Idempotency-Key':f'bounded-replay-{number:05d}'})
+        assert response.status_code == 200
+    repeated=client.post('/api/agent-chat',json={'mode':'cached'},headers={
+        **headers,'Idempotency-Key':'bounded-replay-00000'})
+    assert repeated.status_code == 409  # evicted response, durable no-rerun claim
+    assert service.usage(user)['remaining'] == 10
+    with service.transaction() as db:
+        assert {r['name'] for r in db.execute('PRAGMA table_info(ai_requests)')} == {'account','key','fingerprint','created'}
+
+
+def test_late_ai_completion_cannot_restore_deleted_response_or_overwrite_recreated_account(http_app, service):
+    import threading
+    from flask import jsonify, request
+    import ai_usage
+    started,release=threading.Event(),threading.Event()
+    def reply():
+        mode=request.get_json()['mode']
+        if mode == 'old private reply':
+            started.set()
+            assert release.wait(timeout=5)
+        ai_usage.attempted.set(True);ai_usage.succeeded.set(True)
+        return jsonify({'reply':mode})
+    http_app.view_functions['chat']=reply
+    signed,user=login(service)
+    old_headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'delete-race-key-123'}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        old=pool.submit(lambda: http_app.test_client().post('/api/agent-chat',json={'mode':'old private reply'},headers=old_headers))
+        assert started.wait(timeout=5)
+        try:
+            deleted=http_app.test_client().delete('/api/auth/account',headers=old_headers)
+            assert deleted.status_code == 204
+            recreated,_=login(service)
+            headers={'Authorization':'Bearer '+recreated['token'],'Idempotency-Key':'delete-race-key-123'}
+            new=http_app.test_client().post('/api/agent-chat',json={'mode':'new private reply'},headers=headers)
+            assert new.status_code == 200
+        finally: release.set()
+        late=old.result(timeout=5)
+    assert late.status_code != 200
+    replay=http_app.test_client().post('/api/agent-chat',json={'mode':'new private reply'},headers=headers)
+    assert replay.status_code == 200
+    assert replay.get_json() == {'reply':'new private reply'}
+    assert service.usage(user)['remaining'] == 9  # cancelled/deleted reservation refunded

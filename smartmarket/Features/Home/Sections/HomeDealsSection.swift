@@ -12,6 +12,10 @@ struct HomeDealsSection: View {
                     Text("Grocery estimates").font(.sectionTitle)
                 }
                 Spacer()
+                if vm.isRefreshing {
+                    ProgressView().controlSize(.small)
+                        .accessibilityLabel("Updating catalog estimates")
+                }
                 if !vm.nearbyDeals.isEmpty {
                     Text("\(vm.nearbyDeals.count) items")
                         .font(.caption).fontWeight(.semibold)

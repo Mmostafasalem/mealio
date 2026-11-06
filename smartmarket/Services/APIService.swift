@@ -233,6 +233,7 @@ final class APIService {
             req.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key")
         }
         if path != Constants.API.Endpoint.bmr {
+            req.setValue(UUID().uuidString, forHTTPHeaderField: "Idempotency-Key")
             req.setValue(try authorization(), forHTTPHeaderField: "Authorization")
         }
         req.httpBody = try JSONEncoder().encode(body)
@@ -253,6 +254,9 @@ final class APIService {
         case "ai_quota_exceeded": throw AIAccountError.quota(http.value(forHTTPHeaderField: "X-AI-Reset"))
         case "ai_shared_capacity": throw AIAccountError.sharedCapacity
         case "ai_unavailable": throw AIAccountError.unavailable
+        case "ai_request_invalidated": throw AIAccountError.message("This request is no longer available. No extra credits were used.")
+        case "ai_request_repeated": throw AIAccountError.message("That request is already processing or completed. No extra credits were used.")
+        case "ai_request_conflict": throw AIAccountError.message("This request could not be repeated. Please start a new request.")
         default: break
         }
         guard (200..<300).contains(http.statusCode) else {

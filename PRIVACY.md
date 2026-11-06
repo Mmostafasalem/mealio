@@ -52,13 +52,22 @@ Local tracking, shopping and offline plans do not require a Mealio account.
 Online AI requires Sign in with Apple and separate AI-sharing consent. We do not
 request your Apple name or email. The backend stores a keyed hash of your Apple
 user identifier, hashes of app session tokens, an encrypted Apple refresh grant,
-account timestamps and daily request counters. These records provide one daily
+account timestamps, daily request counters, and hashed request keys/fingerprints. These records provide one daily
 allowance across devices, validate access and support account deletion. Apple
 processes sign-in under its own terms. Signing in does not enable AI sharing.
 
 Credits reset at midnight UTC. The app displays the reset in your time zone.
 Personal allowances still share our provider's overall capacity. Failed AI
 calls and cached responses do not spend personal credits.
+
+Duplicate-request safeguards retain hashed request keys and keyed input
+fingerprints for 24 hours, removed on subsequent activity or account deletion.
+They contain no request or response text. To replay a retried response without
+calling AI again, the backend temporarily holds up to 128 responses in memory,
+with a three-minute replay window. This may include generated nutrition or chat
+content. Expired entries are removed on subsequent replay activity, evicted as
+new entries arrive, cleared on account deletion in that process, or lost on
+restart. They are never written to the account database or backed up.
 
 ## Data retention
 Use **Profile → Delete All Data** to clear the local profile, log, cart, budget,

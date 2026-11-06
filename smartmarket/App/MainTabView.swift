@@ -3,6 +3,10 @@ import SwiftUI
 struct MainTabView: View {
 
     @State private var selection = 0
+    @State private var showQuickActions = false
+    @State private var pendingAction: MealioQuickAction?
+    @State private var activeAction: MealioQuickAction?
+    @State private var quickLog = HomeViewModel()
 
     init() {
         // Hide the system tab bar so our floating one takes over
@@ -20,10 +24,42 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // A sibling reserves real layout space on every tab, including iPad.
-            FloatingTabBar(selection: $selection)
+            FloatingTabBar(selection: $selection) { if activeAction == nil { showQuickActions = true } }
         }
         .background(Color.surfaceGrouped)
         .ignoresSafeArea(.keyboard)
+        .sheet(isPresented: $showQuickActions, onDismiss: {
+            activeAction = pendingAction
+            pendingAction = nil
+        }) {
+            QuickActionsSheet { action in
+                if let tab = action.tab { selection = tab }
+                else { pendingAction = action }
+                showQuickActions = false
+            }
+        }
+        .sheet(item: $activeAction) { action in
+            switch action {
+            case .logFood: LogFoodSheet(vm: quickLog)
+            case .cart:
+                NavigationStack {
+                    CartView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { activeAction = nil }
+                                    .accessibilityIdentifier("quickCart.done")
+                            }
+                        }
+                }
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.large])
+            case .groceries:
+                GroceryListView()
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.large])
+            default: EmptyView()
+            }
+        }
     }
 }
 
@@ -32,6 +68,7 @@ struct MainTabView: View {
 private struct FloatingTabBar: View {
 
     @Binding var selection: Int
+    let onSearch: () -> Void
     @Namespace private var pill
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -51,13 +88,29 @@ private struct FloatingTabBar: View {
                     filled:    item.filled,
                     label:     item.label,
                     isActive:  selection == idx,
-                    namespace: pill
+                    namespace: pill,
+                    shortcut: KeyEquivalent(Character(String(idx + 1)))
                 ) {
                     withAnimation(reduceMotion ? .none : .snappyValue) {
                         selection = idx
                     }
                 }
             }
+            Button(action: onSearch) {
+                VStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.body.weight(.medium)).frame(height: 30)
+                    Text("Search").font(.caption2)
+                }
+                .foregroundStyle(Color.labelSecondary)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("k", modifiers: .command)
+            .accessibilityLabel("Quick Actions")
+            .accessibilityHint("Find a screen or action. Keyboard shortcut Command K.")
+            .accessibilityIdentifier("navigation.quickActions")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
@@ -74,6 +127,8 @@ private struct TabItem: View {
     let label: String
     let isActive: Bool
     let namespace: Namespace.ID
+    let shortcut: KeyEquivalent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let action: () -> Void
 
     var body: some View {
@@ -89,7 +144,7 @@ private struct TabItem: View {
                     Image(systemName: isActive ? filled : icon)
                         .font(.system(size: 17, weight: isActive ? .semibold : .regular))
                         .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
-                        .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isActive)
+                        .animation(reduceMotion ? .none : .snappyValue, value: isActive)
                 }
                 .frame(width: 46, height: 30)
 
@@ -101,6 +156,7 @@ private struct TabItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .keyboardShortcut(shortcut, modifiers: .command)
         .accessibilityLabel(label)
         .accessibilityIdentifier("tab.\(label.lowercased())")
         .accessibilityAddTraits(isActive ? .isSelected : [])

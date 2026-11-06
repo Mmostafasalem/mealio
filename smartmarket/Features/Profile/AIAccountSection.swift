@@ -11,6 +11,7 @@ struct AIAccountSection: View {
                 Label("Signed in with Apple", systemImage: "checkmark.seal")
                 if let usage = account.allowance {
                     LabeledContent("AI credits remaining", value: "\(usage.remaining) of \(usage.limit)")
+                        .monospacedDigit()
                         .accessibilityIdentifier("profile.aiRemaining")
                     if let reset = usage.resetDate {
                         Text("Resets \(reset.formatted(date: .abbreviated, time: .shortened))")

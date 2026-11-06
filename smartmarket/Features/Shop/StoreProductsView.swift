@@ -9,6 +9,7 @@ struct StoreProductsView: View {
     @State private var selectedCategory: CatalogCategory? = nil
     @State private var filterTask: Task<Void, Never>?
     @State private var displayItems: [CatalogItem] = CatalogItem.all
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -136,6 +137,7 @@ struct StoreProductsView: View {
 // MARK: - Filter chip
 
 private struct FilterChip: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let label: String
     let color: Color
     let isSelected: Bool
@@ -152,7 +154,7 @@ private struct FilterChip: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(.spring(duration: 0.2), value: isSelected)
+        .animation(reduceMotion ? .none : .snappyValue, value: isSelected)
     }
 }
 
@@ -165,6 +167,7 @@ struct ProductShopRow: View {
     @State private var showPriceEditor = false
     @State private var priceInput = ""
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isEstimated: Bool  { cart.isEstimated(item.id) }
     private var price: Double      { cart.effectivePrice(for: item, store: store) }
@@ -199,7 +202,7 @@ struct ProductShopRow: View {
                     showPriceEditor = true
                 } label: {
                     HStack(spacing: 5) {
-                        Text(String(format: "€%.2f", price))
+                        Text(String(format: "€%.2f", price)).monospacedDigit()
                             .foregroundStyle(Color.labelPrimary)
                         if isEstimated {
                             Text("est.")
@@ -224,7 +227,7 @@ struct ProductShopRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .listRowBackground(qty > 0 ? Color.brandPrimary.opacity(0.04) : Color.surface)
-        .animation(.spring(duration: 0.2), value: qty)
+        .animation(reduceMotion ? .none : .snappyValue, value: qty)
         .sheet(isPresented: $showPriceEditor) { priceEditorSheet }
     }
 
@@ -254,13 +257,16 @@ struct ProductShopRow: View {
                         }
                         showPriceEditor = false
                     }
+                    .keyboardShortcut("s", modifiers: .command)
+                    .help("Save (⌘S)")
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showPriceEditor = false }
                 }
             }
         }
-        .presentationDetents([.height(260)])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -277,6 +283,8 @@ struct QuantityStepper: View {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 28))
                     .foregroundStyle(Color.brandPrimary)
+                    .minTapTarget()
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Add to cart")
@@ -287,6 +295,8 @@ struct QuantityStepper: View {
                     Image(systemName: "minus.circle.fill")
                         .font(.system(size: 22))
                         .foregroundStyle(quantity == 1 ? Color.brandDanger : Color.brandPrimary)
+                        .minTapTarget()
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Decrease quantity")
@@ -301,6 +311,8 @@ struct QuantityStepper: View {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 22))
                         .foregroundStyle(Color.brandPrimary)
+                        .minTapTarget()
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Increase quantity")

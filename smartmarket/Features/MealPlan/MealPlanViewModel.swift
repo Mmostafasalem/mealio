@@ -38,17 +38,18 @@ final class MealPlanViewModel {
     }
 
     func regenerate() async {
-        todaysPlan  = nil
-        weekPlans   = []
+        guard !isGenerating else { return }
         errorMessage = nil
         // Clear cache and daily-refresh gate so backend is always hit fresh
         UserDefaults.standard.removeObject(forKey: Constants.Storage.currentMealPlan)
         UserDefaults.standard.removeObject(forKey: "lastMealPlanGeneratedDate")
-        AppState.shared.weeklyMealPlan = nil
+        // Preserve the saved plan until its replacement is ready.
         await fetchTodaysPlan()
+        if selectedTab == .week { await loadWeekPlans() }
     }
 
     private func fetchTodaysPlan() async {
+        guard !isGenerating else { return }
         let generation = AppState.shared.dataGeneration
         profile = .load()
         groceryList = GroceryStorage.load()

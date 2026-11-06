@@ -46,9 +46,8 @@ struct WelcomeView: View {
                         Text("Mealio")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
                             .foregroundStyle(Color.almond)
-                        Text("A little more balance. Every day.")
-                            .font(.title3)
-                            .foregroundStyle(Color.almond.opacity(0.75))
+                        BalancedHeadline(text: "A little more balance. Every day.", color: .almond.opacity(0.75))
+                            .frame(maxWidth: 300)
                     }
                     .opacity(headerVisible ? 1 : 0)
                     .offset(y: headerVisible ? 0 : 12)
@@ -85,7 +84,7 @@ struct WelcomeView: View {
                         .padding(.vertical, 18)
                         .background(Color.dullPink)
                         .foregroundStyle(Color.onAccent)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                     }
                     .scaleEffect(ctaVisible ? 1 : 0.9)
@@ -151,7 +150,7 @@ private struct FeaturePill: View {
     var body: some View {
         HStack(spacing: 16) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(color.opacity(0.2))
                     .frame(width: 48, height: 48)
                 Image(systemName: icon)
@@ -172,9 +171,9 @@ private struct FeaturePill: View {
         }
         .padding(14)
         .background(Color.almond.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.almond.opacity(0.12), lineWidth: 1)
         )
     }

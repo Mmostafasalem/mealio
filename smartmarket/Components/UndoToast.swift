@@ -15,10 +15,16 @@ struct UndoToast: View {
                 .font(.subheadline)
                 .foregroundStyle(Color.almond)
             Spacer()
-            Button("Undo", action: onUndo)
+            Button(action: onUndo) {
+                Text("Undo").font(.subheadline.bold())
+                    .foregroundStyle(Color.dullPink)
+                    .minTapTarget()
+                    .contentShape(Rectangle())
+            }
+                .accessibilityIdentifier("undoToast.undo")
+                .accessibilityLabel("Undo: \(message)")
                 .font(.subheadline.bold())
                 .foregroundStyle(Color.dullPink)
-                .minTapTarget()
                 .buttonStyle(ScalePressStyle())
         }
         .padding(.horizontal, Spacing.lg)
