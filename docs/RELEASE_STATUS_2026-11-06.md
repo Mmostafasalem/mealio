@@ -32,3 +32,16 @@ This record distinguishes simulator/automated evidence from real-device and live
 5. **CloudKit and device signoff:** Production schema, two-device sync/deletion, provisioned Sign in with Apple/revocation, physical-device VoiceOver/Reduce Motion and TestFlight testing remain unverified.
 
 Follow `docs/PRELAUNCH_ACTIVATION.md`, `AI_ACCOUNTS_SETUP.md`, `ICLOUD_SETUP.md` and `ACTIVATE_AUTH.md` when access is available. Do not paste secrets into chat. No merge to main, paid subscription, Apple agreement, or App Store submission is authorized by this status record.
+
+## Branding follow-up — 2026-11-06
+
+The owner selected the complete bowl mascot, including arms, feet and breakfast
+food, for the app icon. Applied a 1024×1024 opaque RGB icon and a companion
+welcome-screen logo. Release simulator build and refreshed unsigned device
+archive both passed with **0 errors / 0 warnings**, and strict bundle checks
+passed. The final welcome screen was visually inspected on the dedicated iPhone
+simulator. The archive currently at `release-artifacts/Mealio-Unsigned.xcarchive`
+now includes this branding; the previous archive is preserved separately.
+Logs: `/tmp/MealioFullMascotLogoBuild.log`, `/tmp/MealioFullMascotArchive.log`.
+This presentation-only change did not rerun the previous full test suite or
+resolve any external activation blocker.

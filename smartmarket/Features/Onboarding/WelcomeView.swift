@@ -31,14 +31,12 @@ struct WelcomeView: View {
 
                 // Logo + headline
                 VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.almond.opacity(0.12))
-                            .frame(width: 96, height: 96)
-                        Image(systemName: "cart.badge.plus")
-                            .font(.system(size: 40, weight: .semibold))
-                            .foregroundStyle(Color.almond)
-                    }
+                    Image("BrandLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 96, height: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .accessibilityHidden(true)
                     .scaleEffect(headerVisible ? 1 : 0.5)
                     .opacity(headerVisible ? 1 : 0)
 
