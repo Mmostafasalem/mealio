@@ -66,11 +66,18 @@ final class AIAccountService {
     var canStartSignIn: Bool { isAvailable && challenge != nil && !isWorking }
 
     func authorization() throws -> String {
+        guard BuildCapabilities.supportsAppleServices else { throw AIAccountError.unavailable }
         guard isSignedIn, let stored else { throw AIAccountError.signInRequired }
         return "Bearer \(stored.token)"
     }
 
     func prepare() async {
+        guard BuildCapabilities.supportsAppleServices else {
+            isAvailable = false
+            challenge = nil
+            message = "Apple sign-in and online AI are unavailable in this phone-test build. Local features still work."
+            return
+        }
         guard !isWorking else { return }
         let expected = generation
         isWorking = true

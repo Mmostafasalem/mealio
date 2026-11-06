@@ -45,3 +45,15 @@ now includes this branding; the previous archive is preserved separately.
 Logs: `/tmp/MealioFullMascotLogoBuild.log`, `/tmp/MealioFullMascotArchive.log`.
 This presentation-only change did not rerun the previous full test suite or
 resolve any external activation blocker.
+
+## Physical-phone testing — 2026-11-06
+
+The owner signed in to Xcode, enabled Developer Mode, approved development
+provisioning and confirmed the installed app works on their iPhone 15 Pro. A
+separate Debug-only Personal Team build is installed as
+`com.mostafa.mealio.phonetest`; iCloud and Apple AI sign-in are unavailable in
+that copy. Its verified profile expires on 2026-11-13. Normal production
+entitlements remain intact, and the production Release build still passes with
+zero warnings/errors. See `docs/PHONE_TESTING.md` for scope and evidence.
+This establishes a working local device test, not paid membership, production
+signing, full device acceptance or online service activation.

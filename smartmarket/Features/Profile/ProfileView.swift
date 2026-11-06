@@ -128,7 +128,7 @@ struct ProfileView: View {
                 get: { sync.isEnabled },
                 set: { enabled in Task { await sync.setEnabled(enabled) } }
             ))
-            .disabled(sync.isSyncing)
+            .disabled(sync.isSyncing || !sync.isAvailable)
             .accessibilityIdentifier("profile.icloudSync")
             Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
             if let date = sync.lastSync {

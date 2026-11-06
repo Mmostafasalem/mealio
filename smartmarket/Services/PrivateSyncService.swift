@@ -9,7 +9,8 @@ final class PrivateSyncService {
     private(set) var status = "Stored on this iPhone"
     private(set) var isSyncing = false
     private(set) var lastSync: Date?
-    var isEnabled: Bool { journal.enabled }
+    var isAvailable: Bool { BuildCapabilities.supportsAppleServices }
+    var isEnabled: Bool { isAvailable && journal.enabled }
     var deletionPending: Bool { journal.pendingReset }
 
     private struct Journal: Codable {
@@ -69,6 +70,10 @@ final class PrivateSyncService {
     }
 
     func setEnabled(_ enabled: Bool) async {
+        guard isAvailable else {
+            status = "iCloud sync is unavailable in this phone-test build. Data stays on this iPhone."
+            return
+        }
         session = UUID()
         let previous = journal.enabled
         journal.enabled = enabled
@@ -128,6 +133,10 @@ final class PrivateSyncService {
     }
 
     func sync() async {
+        guard isAvailable else {
+            status = "iCloud sync is unavailable in this phone-test build. Data stays on this iPhone."
+            return
+        }
         guard (journal.enabled || journal.pendingReset), !isSyncing, !applying else { return }
         isSyncing = true
         defer { isSyncing = false }
