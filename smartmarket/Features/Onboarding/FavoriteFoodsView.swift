@@ -16,6 +16,10 @@ struct FavoriteFoodsView: View {
 
     // MARK: - Progress + title
 
+    private func favoriteRow(_ item: CatalogItem) -> some View {
+        ItemRow(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+    }
+
     private var progressHeader: some View {
         VStack(alignment: .leading, spacing: 12) {
             OnboardingProgressBar(currentStep: 5).padding(.top, 8)
@@ -74,12 +78,7 @@ struct FavoriteFoodsView: View {
                     let items = CatalogItem.all.filter { $0.category == cat }
                     if !items.isEmpty {
                         Section {
-                            ForEach(items) { item in
-                                ItemRow(
-                                    item: item,
-                                    isSelected: vm.favoriteFoodIDs.contains(item.id)
-                                ) { vm.toggleFavorite(item) }
-                            }
+                            ForEach(items, content: favoriteRow)
                         } header: {
                             CategorySectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
                         }

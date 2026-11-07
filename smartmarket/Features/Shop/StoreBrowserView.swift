@@ -281,9 +281,7 @@ struct CartView: View {
             } else {
                 ForEach(GroupedStore.group(cart.cartItems), id: \.store) { group in
                     Section(group.store) {
-                        ForEach(group.items) { item in
-                            CartItemRow(item: item)
-                        }
+                        ForEach(group.items, content: CartItemRow.init)
                     }
                 }
 

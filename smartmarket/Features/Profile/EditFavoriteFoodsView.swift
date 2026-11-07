@@ -53,6 +53,10 @@ struct EditFavoriteFoodsView: View {
 
     // MARK: - List
 
+    private func favoriteRow(_ item: CatalogItem) -> some View {
+        ItemRow(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+    }
+
     private var itemList: some View {
         List {
             if displayItems.isEmpty {
@@ -64,12 +68,7 @@ struct EditFavoriteFoodsView: View {
                     let items = CatalogItem.all.filter { $0.category == cat }
                     if !items.isEmpty {
                         Section {
-                            ForEach(items) { item in
-                                ItemRow(item: item,
-                                        isSelected: vm.favoriteFoodIDs.contains(item.id)) {
-                                    vm.toggleFavorite(item)
-                                }
-                            }
+                            ForEach(items, content: favoriteRow)
                         } header: {
                             SectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
                         }

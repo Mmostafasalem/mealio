@@ -50,21 +50,23 @@ struct GroceryListView: View {
         .onAppear { vm.loadItems() }
     }
 
+    // A typed View closure avoids MapKit's competing ForEach result builder
+    // being inferred by older supported Swift compilers.
+    private func groceryRow(_ item: GroceryItem) -> some View {
+        GroceryRow(item: item) { vm.toggleBought(item) }
+            .swipeActions(edge: .trailing) {
+                Button(role: .destructive) { vm.deleteItem(item) } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+    }
+
     private var listContent: some View {
         VStack(spacing: 0) {
             List {
                 ForEach(vm.sortedStores, id: \.self) { store in
                     Section {
-                        ForEach(vm.groupedByStore[store] ?? []) { item in
-                            GroceryRow(item: item) { vm.toggleBought(item) }
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        vm.deleteItem(item)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                        }
+                        ForEach(vm.groupedByStore[store] ?? [], content: groceryRow)
                     } header: {
                         StoreHeaderView(
                             store: store,
