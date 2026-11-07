@@ -29,9 +29,9 @@ jobs:
         run: pip-audit -r requirements.lock
       - name: Run tests
         run: pytest -q
-      - name: Release bundle and privacy regressions
+      - name: Release bundle, privacy and nutrition catalog regressions
         working-directory: .
-        run: python3 -m unittest discover -s scripts -p 'test_ios_*.py' -v
+        run: python3 -m unittest discover -s scripts -p 'test*.py' -v
 
   web:
     name: Public policy pages and web checks

@@ -31,6 +31,20 @@ Conflicting edits to the same item use a deterministic logical-clock rule;
 simultaneous quantities are not added together. Turning sync off retains existing
 cloud data. Apple processes CloudKit data under its own terms and privacy policy.
 
+## Food database and product lookup
+
+The iOS food logger includes an offline reference catalog imported from USDA
+FoodData Central (SR Legacy, April 2018). Searching these foods stays on your device.
+When you explicitly search packaged products or enter a barcode, the app connects
+directly to Open Food Facts and sends that search text or barcode, along with the
+normal network information such as your IP address. Your name, body measurements,
+food log and AI account token are not included. This lookup works independently of
+AI-sharing consent; the search action explains the transfer before you submit it.
+Selected product records are saved locally for offline reuse. Logged portions retain
+a snapshot of their nutrition and source so database changes do not rewrite your
+past intake. Delete All Data clears saved products and logs. Open Food Facts is a
+community database; compare branded products with their current package labels.
+
 ## Information sent to our servers
 
 Online AI features are optional and require the sharing permission in Profile.

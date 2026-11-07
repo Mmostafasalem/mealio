@@ -74,9 +74,13 @@ struct MealSlotRow: View {
 
             ForEach(entries) { entry in
                 HStack(spacing: Spacing.sm) {
-                    Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
+                        Text(entry.nutritionFood?.sourceName ?? "Estimated / older entry")
+                            .font(.caption2).foregroundStyle(Color.labelSecondary)
+                    }
                     Spacer()
-                    Text("\(entry.servingG)g").font(.caption2).foregroundStyle(Color.labelSecondary)
+                    Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
                     Text("\(entry.calories)")
                         .font(.caption2).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()

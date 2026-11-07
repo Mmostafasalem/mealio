@@ -61,8 +61,8 @@ final class HomeViewModel {
         }
     }
 
-    var recentFoods: [Food] {
-        log.recentFoodIDs.compactMap { id in Food.catalog.first { $0.id == id } }
+    var recentNutritionFoods: [NutritionFood] {
+        log.recentFoodIDs.compactMap { NutritionCatalogService.shared.find($0) }
     }
 
     // Cached macro targets — recomputed in load(), not on every render pass.
@@ -178,29 +178,10 @@ final class HomeViewModel {
 
     // MARK: - Food logging (local, optimistic)
 
-    func logFood(_ food: Food, slot: MealSlot, grams: Int) {
-        let f = Double(grams) / 100.0
-        let entry = FoodLogEntry(
-            foodId:   food.id,
-            name:     food.displayName,
-            slot:     slot,
-            servingG: grams,
-            calories: Int((Double(food.caloriesPer100g) * f).rounded()),
-            proteinG: (food.proteinPer100g * f).rounded(),
-            carbsG:   (food.carbsPer100g * f).rounded(),
-            fatG:     (food.fatPer100g * f).rounded()
-        )
-        log.add(entry)   // observable → ring + macros update instantly
-        mascotCelebration = UUID()
-    }
-
-    /// Logs a meal-plan entry straight from the plan preview.
-    func logPlanned(_ entry: MealEntry, slot: MealSlot) {
-        log.add(FoodLogEntry(
-            name: entry.foodName, slot: slot, servingG: entry.portionG,
-            calories: entry.calories, proteinG: entry.proteinG,
-            carbsG: entry.carbsG, fatG: entry.fatG
-        ))
+    func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double) {
+        guard food.isValid, amount.isFinite, amount >= 1, amount <= 5000 else { return }
+        NutritionCatalogService.shared.remember(food)
+        log.add(FoodLogEntry(nutritionFood: food, slot: slot, amount: amount))
         mascotCelebration = UUID()
     }
 

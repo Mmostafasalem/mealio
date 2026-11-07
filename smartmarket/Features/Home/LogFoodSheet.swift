@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Ultra-low-friction food logging.
-/// Open (tap 1) → tap a food's ⊕ (tap 2) = logged at its default serving.
-/// Or tap the row to fine-tune the serving, then Add (tap 3).
+/// Source-backed food logging. Quick-add uses the explicitly displayed 100 g/ml basis;
+/// the row opens the source and portion editor.
 struct LogFoodSheet: View {
 
     @Bindable var vm: HomeViewModel
@@ -11,16 +10,16 @@ struct LogFoodSheet: View {
     @State private var slot: MealSlot = .suggested()
     @State private var query: String = ""
     @State private var addedToast: String?
-    @State private var detailFood: Food?
+    @State private var detailFood: NutritionFood?
+    @State private var catalog = NutritionCatalogService.shared
+    @State private var products: [NutritionFood] = []
+    @State private var productNotice: String?
+    @State private var isSearching = false
+    @State private var lookupTask: Task<Void, Never>?
+
     @FocusState private var searchFocused: Bool
 
-    private var results: [Food] {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return [] }
-        return Food.catalog.filter {
-            $0.nameEn.lowercased().contains(q) || $0.name.lowercased().contains(q)
-        }
-    }
+    private var results: [NutritionFood] { catalog.searchLocal(query) }
 
     var body: some View {
         NavigationStack {
@@ -29,32 +28,65 @@ struct LogFoodSheet: View {
                 searchField
 
                 List {
-                    if query.isEmpty {
+                    if let error = catalog.loadError { Text(error).foregroundStyle(Color.brandDanger) }
+                    if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if !vm.recentNutritionFoods.isEmpty {
+                            Section("Recent foods") {
+                                ForEach(vm.recentNutritionFoods) { food in row(food) }
+                            }
+                        }
+                        Section("Food database") {
+                            Text("Search \(catalog.foods.count.formatted()) USDA foods offline, or look up a packaged product by name or barcode.")
+                            Text("Choose the description that matches what you weighed: raw, cooked, drained or prepared.")
+                                .font(.footnote).foregroundStyle(Color.labelSecondary)
+                        }
                         if !vm.plannedEntries(for: slot).isEmpty {
-                            Section("From today's plan — tap to log") {
-                                ForEach(vm.plannedEntries(for: slot)) { entry in plannedRow(entry) }
+                            Section("From today's plan") {
+                                ForEach(vm.plannedEntries(for: slot)) { entry in
+                                    Text(entry.foodName).font(.subheadline)
+                                }
+                                Text("Meal-plan totals are estimates. Search and log each ingredient with the amount you ate to track sourced nutrition.")
+                                    .font(.footnote).foregroundStyle(Color.labelSecondary)
                             }
                         }
-                        if !vm.recentFoods.isEmpty {
-                            Section("Recent") {
-                                ForEach(vm.recentFoods) { food in row(food) }
-                            }
-                        }
-                        Section("All foods") {
-                            ForEach(Food.catalog) { food in row(food) }
-                        }
-                    } else if results.isEmpty {
-                        ContentUnavailableView.search(text: query)
                     } else {
-                        Section("Results") {
-                            ForEach(results) { food in row(food) }
+                        if !results.isEmpty {
+                            Section("Offline foods and saved products") {
+                                ForEach(results) { food in row(food) }
+                                if results.count == 60 {
+                                    Text("Showing the first 60 matches. Add preparation or ingredient details to narrow your search.")
+                                        .font(.footnote).foregroundStyle(Color.labelSecondary)
+                                }
+                            }
                         }
+                        Section("Packaged products") {
+                            Button { searchProducts() } label: {
+                                Label(isSearching ? "Searching products…" : "Search Open Food Facts", systemImage: "magnifyingglass")
+                            }
+                            .disabled(isSearching || query.trimmingCharacters(in: .whitespacesAndNewlines).count < 2)
+                            .accessibilityIdentifier("logFood.searchProducts")
+                            Text("Sends only your search or barcode to Open Food Facts. Search runs when you tap; your profile and food log are not sent.")
+                                .font(.footnote).foregroundStyle(Color.labelSecondary)
+                            if isSearching { ProgressView() }
+                            if let notice = productNotice { Text(notice).font(.footnote) }
+                            ForEach(products) { food in row(food) }
+                        }
+                        if results.isEmpty && products.isEmpty && !isSearching {
+                            Text("No local matches. Try a simpler English food name or search packaged products. Unknown nutrition values are never filled with guesses.")
+                                .font(.footnote).foregroundStyle(Color.labelSecondary)
+                        }
+                    }
+                    Section {
+                        Link("USDA FoodData Central", destination: URL(string: "https://fdc.nal.usda.gov/")!)
+                        Link("Open Food Facts · ODbL database", destination: URL(string: "https://world.openfoodfacts.org/terms-of-use")!)
+                        Text("Nutrition varies by product and preparation. Check the package label for the food you eat.")
+                            .font(.footnote).foregroundStyle(Color.labelSecondary)
                     }
                 }
                 .listStyle(.insetGrouped)
                 .navigationDestination(item: $detailFood) { food in
                     ServingDetailView(food: food, slot: slot) { grams in
-                        vm.logFood(food, slot: slot, grams: grams)
+                        vm.logFood(food, slot: slot, amount: grams)
                         dismiss()
                     }
                 }
@@ -65,7 +97,15 @@ struct LogFoodSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .overlay(alignment: .bottom) { toast }
+            .onChange(of: query) {
+                lookupTask?.cancel()
+                products = []
+                productNotice = nil
+                isSearching = false
+            }
+            .onDisappear { lookupTask?.cancel() }
             .onAppear {
+                catalog.reloadSaved()
                 slot = vm.logSheetSlot ?? .suggested()
             }
         }
@@ -94,6 +134,7 @@ struct LogFoodSheet: View {
                 .focused($searchFocused)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
+                .onSubmit { searchProducts() }
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelSecondary)
@@ -110,27 +151,27 @@ struct LogFoodSheet: View {
 
     // MARK: - Row
 
-    private func row(_ food: Food) -> some View {
+    private func row(_ food: NutritionFood) -> some View {
         HStack(spacing: 12) {
             // Tapping the info area opens the serving detail (fine-tune → Add).
             Button {
                 detailFood = food
             } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: food.category.sfSymbol)
+                    Image(systemName: "fork.knife")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(slot.accent)
                         .frame(width: 34, height: 34)
                         .background(slot.accent.opacity(0.12), in: Circle())
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(food.displayName).font(.subheadline).fontWeight(.medium)
+                        Text(food.name).font(.subheadline).fontWeight(.medium)
                             .foregroundStyle(Color.labelPrimary)
-                        Text("\(food.servingSizeG)g · \(food.macroSummary)")
+                        Text(food.subtitle)
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
-                    Text("\(kcal(food, grams: food.servingSizeG)) kcal")
+                    Text("\(Int(food.kcal.rounded())) kcal / 100 \(food.basis.rawValue)")
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 }
@@ -150,7 +191,7 @@ struct LogFoodSheet: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add \(food.displayName)")
+            .accessibilityLabel("Add 100 \(food.basis.rawValue) of \(food.name)")
         }
         .padding(.vertical, 2)
     }
@@ -171,10 +212,10 @@ struct LogFoodSheet: View {
 
     // MARK: - Actions
 
-    private func quickAdd(_ food: Food) {
-        vm.logFood(food, slot: slot, grams: food.servingSizeG)
+    private func quickAdd(_ food: NutritionFood) {
+        vm.logFood(food, slot: slot, amount: 100)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        showToast("Added \(food.displayName)")
+        showToast("Added 100 \(food.basis.rawValue) · \(food.name)")
     }
 
     private func showToast(_ message: String) {
@@ -185,71 +226,46 @@ struct LogFoodSheet: View {
         }
     }
 
-    // MARK: - Planned meal row (one-tap log from today's plan)
-
-    private func plannedRow(_ entry: MealEntry) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(slot.accent)
-                .frame(width: 34, height: 34)
-                .background(slot.accent.opacity(0.12), in: Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.foodName).font(.subheadline).fontWeight(.medium)
-                Text(portionText(entry)).font(.caption2).foregroundStyle(Color.labelSecondary)
+    private func searchProducts() {
+        guard !isSearching else { return }
+        let submitted = query
+        isSearching = true
+        productNotice = nil
+        lookupTask = Task { @MainActor in
+            do {
+                let found = try await catalog.searchProducts(submitted)
+                guard !Task.isCancelled, submitted == query else { return }
+                products = found
+                productNotice = found.isEmpty ? "No products with complete nutrition and clear gram/ml units were found. Check the barcode or try another name." : nil
+            } catch {
+                guard !Task.isCancelled, submitted == query else { return }
+                productNotice = (error as? LocalizedError)?.errorDescription ?? "Product search is unavailable. Offline foods and saved products still work."
             }
-            Spacer()
-            Text("\(entry.calories) kcal")
-                .font(.caption).fontWeight(.semibold)
-                .foregroundStyle(Color.labelSecondary).monospacedDigit()
-
-            Button {
-                vm.logPlanned(entry, slot: slot)
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                showToast("Logged \(entry.foodName)")
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(slot.accent)
-                    .minTapTarget()
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Log \(entry.foodName)")
+            isSearching = false
         }
-        .padding(.vertical, 2)
     }
 
-    private func portionText(_ entry: MealEntry) -> String {
-        let notes = entry.notes ?? ""
-        return notes.isEmpty ? "\(entry.portionG)g" : notes
-    }
-
-    private func kcal(_ food: Food, grams: Int) -> Int {
-        Int((Double(food.caloriesPer100g) * Double(grams) / 100).rounded())
-    }
 }
 
 // MARK: - Serving detail (fine-tune grams before logging)
 
 private struct ServingDetailView: View {
-    let food: Food
+    let food: NutritionFood
     let slot: MealSlot
-    let onAdd: (Int) -> Void
+    let onAdd: (Double) -> Void
 
     @State private var grams: Double
     @State private var didAdd = false
 
-    init(food: Food, slot: MealSlot, onAdd: @escaping (Int) -> Void) {
+    init(food: NutritionFood, slot: MealSlot, onAdd: @escaping (Double) -> Void) {
         self.food = food
         self.slot = slot
         self.onAdd = onAdd
-        _grams = State(initialValue: Double(food.servingSizeG))
+        _grams = State(initialValue: 100)
     }
 
     private var factor: Double { grams / 100.0 }
-    private var kcal: Int { Int((Double(food.caloriesPer100g) * factor).rounded()) }
+    private var kcal: Int { Int((food.kcal * factor).rounded()) }
 
     var body: some View {
         ScrollView {
@@ -260,20 +276,19 @@ private struct ServingDetailView: View {
                         .font(.system(size: 52, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.labelPrimary).monospacedDigit()
                         .contentTransition(.numericText())
-                    Text("kcal · \(Int(grams))g").font(.subheadline).foregroundStyle(Color.labelSecondary)
-                    // Household equivalent so users don't have to think in grams.
-                    Text(Portion.household(grams: Int(grams), category: food.category.rawValue))
-                        .font(.subheadline).fontWeight(.semibold)
-                        .foregroundStyle(slot.accent)
+                    Text("kcal · \(Int(grams)) \(food.basis.rawValue)").font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    Text(food.brand ?? "Match the food's preparation to your portion")
+                        .font(.subheadline).foregroundStyle(Color.labelSecondary)
+
                 }
                 .padding(.top, 12)
                 .animation(.spring(response: 0.3, dampingFraction: 0.85), value: grams)
 
                 // Macro chips
                 HStack(spacing: 10) {
-                    macroChip("Protein", food.proteinPer100g * factor, .proteinAccent)
-                    macroChip("Carbs", food.carbsPer100g * factor, .carbsAccent)
-                    macroChip("Fat", food.fatPer100g * factor, .fatAccent)
+                    macroChip("Protein", food.protein * factor, .proteinAccent)
+                    macroChip("Carbs", food.carbs * factor, .carbsAccent)
+                    macroChip("Fat", food.fat * factor, .fatAccent)
                 }
 
                 // Serving stepper
@@ -281,13 +296,17 @@ private struct ServingDetailView: View {
                     HStack {
                         Text("Serving").font(.headline)
                         Spacer()
-                        Text("\(Int(grams)) g").font(.headline).monospacedDigit()
+                        Text("\(Int(grams)) \(food.basis.rawValue)").font(.headline).monospacedDigit()
                     }
-                    Slider(value: $grams, in: 10...1000, step: 10)
+                    Stepper(value: $grams, in: 1...5000, step: 1) {
+                        Text("Amount in \(food.basis == .grams ? "grams" : "millilitres")")
+                    }
+                    .accessibilityIdentifier("logFood.amount")
+                    Slider(value: $grams, in: 1...5000, step: 1)
                         .tint(slot.accent)
                     HStack(spacing: 8) {
                         ForEach([50, 100, 150, 200], id: \.self) { preset in
-                            Button("\(preset)g") { grams = Double(preset) }
+                            Button("\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
                                 .font(.caption).fontWeight(.semibold)
                                 .padding(.horizontal, 12).padding(.vertical, 6)
                                 .background(Color.surfaceElevated, in: Capsule())
@@ -296,17 +315,33 @@ private struct ServingDetailView: View {
                 }
                 .padding(16)
                 .premiumCard()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(food.sourceName).font(.headline)
+                    if food.source == .openFoodFacts, let date = food.sourceDate {
+                        Text("Retrieved \(date)").font(.caption).foregroundStyle(Color.labelSecondary)
+                    }
+                    Text("Per 100 \(food.basis.rawValue): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted()) g · Carbs \(food.carbs.formatted()) g · Fat \(food.fat.formatted()) g")
+                        .font(.footnote)
+                    Link("View original nutrition record", destination: food.sourceURL)
+                    Text(food.source == .usda
+                         ? "Use the raw or cooked entry that matches how you weighed this food. These are reference averages, not a specific brand's label."
+                         : "Community-contributed product data, as sold. Check the product name, brand and current package label; preparation can change the values.")
+                        .font(.footnote).foregroundStyle(Color.labelSecondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("logFood.source")
             }
             .padding(16)
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
-        .navigationTitle(food.displayName)
+        .navigationTitle(food.name)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
             Button {
                 guard !didAdd else { return }
                 didAdd = true
-                onAdd(Int(grams))
+                onAdd(grams)
             } label: {
                 Label("Add to \(slot.title)", systemImage: "plus")
                     .font(.headline).foregroundStyle(Color.almond)
@@ -321,7 +356,7 @@ private struct ServingDetailView: View {
 
     private func macroChip(_ label: String, _ grams: Double, _ color: Color) -> some View {
         VStack(spacing: 3) {
-            Text("\(Int(grams.rounded()))g")
+            Text("\(grams.formatted(.number.precision(.fractionLength(0...1)))) g")
                 .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(color).monospacedDigit()
             Text(label).font(.caption2).foregroundStyle(Color.labelSecondary)
