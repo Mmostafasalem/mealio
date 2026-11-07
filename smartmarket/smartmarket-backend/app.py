@@ -371,8 +371,7 @@ def deals_summary(deals, max_items=12):
         out.append({
             "n": d["name"][:30],
             "s": d["store"],
-            "p": d.get("discountedPrice") if d.get("discountedPrice") is not None else d.get("discountPrice", 0),
-            "d": d.get("discount") if d.get("discount") is not None else d.get("discountPercent", 0),
+            "estimated_price": d.get("discountedPrice") if d.get("discountedPrice") is not None else d.get("discountPrice", 0),
             "c": d.get("category", "")[:12],
         })
     return out
@@ -718,7 +717,7 @@ def handle_meal_plan(body):
         f"Favourite food names: {fav_names}\n"
         f"Already bought (use these first): {in_stock}\n"
         f"Dietary preferences: {dietary}\n"
-        f"Available groceries this week: {json.dumps(avail_deals)}\n"
+        f"Curated grocery estimates (not live prices or stock): {json.dumps(avail_deals)}\n"
         f"Variation seed: {seed}\n"
         "Generate the full 7-day meal plan JSON now. Make each day's meals unique."
     )
@@ -746,7 +745,7 @@ def handle_gap_fillers(body):
         f"You are a nutrition assistant. Suggest 3 simple snack or food additions to fill a daily nutrition gap.\n"
         f"Current intake: {current_kcal} kcal. Target: {target_kcal} kcal.\n"
         f"Gaps — Protein: {protein_gap}g, Carbs: {carbs_gap}g, Fat: {fat_gap}g.\n"
-        f"Available groceries: {json.dumps(deals_summary(_active_deals()))}\n\n"
+        f"Curated grocery estimates (not live prices or stock): {json.dumps(deals_summary(_active_deals()))}\n\n"
         'Return a JSON array of 3 objects, each with: {"name": string, "calories": int, "protein": float, "carbs": float, "fat": float, "reason": string}\n'
         "Return ONLY the JSON array."
     )
@@ -776,7 +775,7 @@ def handle_shopping_advice(body):
         f"You are a smart grocery advisor for a health-focused shopper in Vilnius, Lithuania.\n"
         f"Current grocery list: {json.dumps(grocery_list)}\n"
         f"Weekly budget: €{budget}\n"
-        f"Available groceries this week: {json.dumps(deals_summary(_active_deals()))}\n\n"
+        f"Curated grocery estimates (not live prices or stock): {json.dumps(deals_summary(_active_deals()))}\n\n"
         'Return a JSON array of up to 5 shopping recommendations, each with EXACTLY these keys:\n'
         '{"produktas": string, "priezastis": string, "apytiksleCena": string (e.g. "3.99 €"), "kurPirkti": string, "makroNauda": string}\n'
         "Sort best-value first. Return ONLY the JSON array, no markdown."
@@ -799,6 +798,10 @@ def handle_shopping_advice(body):
 _RECIPE_CACHE_MAX = 500
 _recipe_cache: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
 
+class _VerifiedRecipe(dict):
+    """Internal provenance; callers cannot create this marker through JSON."""
+    pass
+
 def handle_recipe(body):
     meal_name = str(body.get("mealName", "")).strip()[:120]
     if not meal_name:
@@ -807,13 +810,14 @@ def handle_recipe(body):
     cache_key = meal_name.lower()
     if cache_key in _recipe_cache:
         _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
+        ai_usage.verified_cache.set(isinstance(_recipe_cache[cache_key], _VerifiedRecipe))
         return _recipe_cache[cache_key]
 
     deals = deals_summary(_active_deals(), max_items=10)
 
     prompt = (
         f"Write a simple home recipe for: {meal_name}\n"
-        f"Available affordable groceries to use as ingredients: {json.dumps(deals)}\n"
+        f"Curated grocery estimates (not live prices or stock): {json.dumps(deals)}\n"
         "Return ONLY this JSON:\n"
         '{"prepTime":int,"cookTime":int,"servings":int,'
         '"ingredients":[{"name":str,"amount":str}],'
@@ -833,10 +837,11 @@ def handle_recipe(body):
         json_object=True, validator=_usable_recipe, # reject unusable output without charging
     )
     result["mealName"] = meal_name
-    _recipe_cache[cache_key] = result
-    _recipe_cache.move_to_end(cache_key)
-    while len(_recipe_cache) > _RECIPE_CACHE_MAX:
-        _recipe_cache.popitem(last=False)      # evict least-recently used
+    if ai_usage.succeeded.get():
+        _recipe_cache[cache_key] = _VerifiedRecipe(result)
+        _recipe_cache.move_to_end(cache_key)
+        while len(_recipe_cache) > _RECIPE_CACHE_MAX:
+            _recipe_cache.popitem(last=False)      # evict least-recently used
     return result
 
 
@@ -858,7 +863,7 @@ def handle_agent_chat(body):
         "Mealio AI — nutrition & grocery assistant, Vilnius.\n"
         f"User: {goal} goal, {target_kcal} kcal/day, {consumed} consumed today.\n"
         f"Favourite foods: {fav_str}\n"
-        f"Popular groceries: {json.dumps(deals_summary(_active_deals(), max_items=8))}\n"
+        f"Curated grocery estimates (not live prices or stock): {json.dumps(deals_summary(_active_deals(), max_items=8))}\n"
         "Reply in 2-3 short sentences. Suggest affordable groceries when relevant. Do not claim items are on sale or discounted."
     )
 

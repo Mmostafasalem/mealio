@@ -34,7 +34,7 @@ def register_ai_accounts(app):
             replays.move_to_end(replay_key(person,key))
             response=make_response(value[1],value[2])
             response.headers['Content-Type']=value[3]
-            response.headers['X-AI-Result']='replayed'
+            response.headers['X-AI-Result']='replayed-online' if value[5] in {'online','cached-online'} else 'replayed'
             return response
 
     def drop_replays(account):
@@ -119,7 +119,7 @@ def register_ai_accounts(app):
     @app.before_request
     def ai_allowance():
         if request.method != 'POST' or request.path not in AI_PATHS: return None
-        ai_usage.attempted.set(False);ai_usage.succeeded.set(False)
+        ai_usage.attempted.set(False);ai_usage.succeeded.set(False);ai_usage.verified_cache.set(False)
         person=user()
         key=request.headers.get('Idempotency-Key')
         fingerprint=accounts().request_fingerprint(request.path,request.get_data(cache=True)) if key is not None else None
@@ -152,11 +152,11 @@ def register_ai_accounts(app):
                         response.status_code=409
                         response.headers['X-AI-Error']='ai_request_invalidated'
                     else:
-                        response.headers['X-AI-Result'] = 'online' if ai_usage.succeeded.get() else ('fallback' if ai_usage.attempted.get() else 'cached')
+                        response.headers['X-AI-Result'] = 'online' if ai_usage.succeeded.get() else ('fallback' if ai_usage.attempted.get() else ('cached-online' if ai_usage.verified_cache.get() else 'cached'))
                         key=getattr(g,'ai_request_key',None)
                         body=response.get_data()
                         if key is not None and response.status_code < 500 and len(body)<=128*1024:
-                            replays[replay_key(g.ai_user,key)]=(accounts().clock()+180,body,response.status_code,response.content_type,g.ai_request_fingerprint)
+                            replays[replay_key(g.ai_user,key)]=(accounts().clock()+180,body,response.status_code,response.content_type,g.ai_request_fingerprint,response.headers['X-AI-Result'])
                             replays.move_to_end(replay_key(g.ai_user,key))
                             while len(replays)>128: replays.popitem(last=False)
             person = getattr(g, 'ai_user', None)

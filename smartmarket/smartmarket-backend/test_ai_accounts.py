@@ -326,6 +326,7 @@ def test_idempotent_http_replay_does_not_call_or_charge_twice(http_app, service)
     second=client.post('/api/agent-chat',headers=headers,json={'mode':'online'})
     assert first.status_code == second.status_code == 200
     assert second.get_json() == first.get_json()
+    assert second.headers['X-AI-Result'] == 'replayed-online'
     assert len(calls) == 1
     assert service.usage(user)['remaining'] == 9
     conflict=client.post('/api/agent-chat',headers=headers,json={'mode':'cached'})
@@ -429,3 +430,97 @@ def test_late_ai_completion_cannot_restore_deleted_response_or_overwrite_recreat
     assert replay.status_code == 200
     assert replay.get_json() == {'reply':'new private reply'}
     assert service.usage(user)['remaining'] == 9  # cancelled/deleted reservation refunded
+
+
+@pytest.fixture
+def recipe_http(http_app, service, monkeypatch):
+    import collections
+    import json
+    import app as business
+    from flask import jsonify, request
+    recipe = {'prepTime':1,'cookTime':2,'servings':1,
+              'ingredients':[{'name':'rice','amount':'100g'}],'steps':['Cook rice.'],'tip':'Serve warm.'}
+    calls = []
+    def complete(**kwargs):
+        calls.append(True)
+        return SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop',
+            message=SimpleNamespace(content=json.dumps(recipe)))])
+    monkeypatch.setattr(business, '_recipe_cache', collections.OrderedDict())
+    monkeypatch.setattr(business, '_active_deals', lambda: [])
+    monkeypatch.setattr(business, 'groq_client', SimpleNamespace(chat=SimpleNamespace(
+        completions=SimpleNamespace(create=complete))))
+    http_app.add_url_rule('/api/recipe', 'recipe', lambda: jsonify(business.handle_recipe(request.get_json())), methods=['POST'])
+    signed, user = login(service)
+    return SimpleNamespace(client=http_app.test_client(), business=business, calls=calls, user=user,
+                           headers={'Authorization':'Bearer '+signed['token']})
+
+
+def test_verified_recipe_cache_is_online_provenance_without_provider_or_credit_charge(recipe_http, service):
+    import ai_usage
+    case = recipe_http
+    first = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
+    cached = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
+    assert first.headers['X-AI-Result'] == 'online'
+    assert cached.headers['X-AI-Result'] == 'cached-online'
+    assert cached.get_json() == first.get_json() and len(case.calls) == 1
+    assert service.usage(case.user)['remaining'] == 9
+    assert ai_usage.attempted.get() is False and ai_usage.succeeded.get() is False
+    assert ai_usage.verified_cache.get() is True
+    with service.transaction() as db:
+        assert db.execute('SELECT used FROM global_quota').fetchone()['used'] == 1
+    # A later request must not inherit the preceding verified-cache flag.
+    unknown = case.client.post('/api/agent-chat', json={'mode':'cached'}, headers=case.headers)
+    assert unknown.headers['X-AI-Result'] == 'cached'
+    assert service.usage(case.user)['remaining'] == 9
+
+
+def test_failed_recipe_is_not_cached_and_retry_reaches_provider(recipe_http, monkeypatch):
+    case = recipe_http
+    original = case.business.groq_client.chat.completions.create
+    replies = iter(['{}', None])
+    def complete(**kwargs):
+        if next(replies) == '{}':
+            return SimpleNamespace(choices=[SimpleNamespace(finish_reason='stop',message=SimpleNamespace(content='{}'))])
+        return original(**kwargs)
+    monkeypatch.setattr(case.business.groq_client.chat.completions, 'create', complete)
+    failed = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
+    assert failed.headers['X-AI-Result'] == 'fallback'
+    assert 'rice' not in case.business._recipe_cache
+    retried = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
+    assert retried.headers['X-AI-Result'] == 'online' and len(case.calls) == 1
+
+
+def test_verified_recipe_replay_retains_source_and_does_not_charge(recipe_http, service):
+    case = recipe_http
+    body = {'mealName':'Rice'}
+    case.client.post('/api/recipe', json=body, headers=case.headers)
+    headers = {**case.headers, 'Idempotency-Key':'verified-cache-replay-123'}
+    cached = case.client.post('/api/recipe', json=body, headers=headers)
+    replayed = case.client.post('/api/recipe', json=body, headers=headers)
+    assert cached.headers['X-AI-Result'] == 'cached-online'
+    assert replayed.headers['X-AI-Result'] == 'replayed-online'
+    assert replayed.get_json() == cached.get_json()
+    assert len(case.calls) == 1 and service.usage(case.user)['remaining'] == 9
+
+
+@pytest.mark.parametrize('mode', ['fallback', 'cached', 'invalid'])
+def test_unverified_replay_never_gains_online_provenance(http_app, service, mode):
+    signed, user = login(service)
+    headers = {'Authorization':'Bearer '+signed['token'], 'Idempotency-Key':'unverified-replay-123'}
+    client = http_app.test_client()
+    first = client.post('/api/agent-chat', json={'mode':mode}, headers=headers)
+    repeated = client.post('/api/agent-chat', json={'mode':mode}, headers=headers)
+    assert repeated.headers['X-AI-Result'] == 'replayed'
+    assert repeated.get_json() == first.get_json()
+    assert repeated.status_code == first.status_code
+    assert service.usage(user)['remaining'] == 10
+
+
+def test_unknown_recipe_cache_entry_does_not_gain_verified_provenance(recipe_http, service):
+    case = recipe_http
+    unknown = {'mealName':'Rice', 'steps':['Unverified local content']}
+    case.business._recipe_cache['rice'] = unknown
+    response = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
+    assert response.headers['X-AI-Result'] == 'cached'
+    assert response.get_json() == unknown
+    assert not case.calls and service.usage(case.user)['remaining'] == 10

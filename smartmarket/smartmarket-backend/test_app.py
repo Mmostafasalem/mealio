@@ -93,6 +93,12 @@ def test_meal_plan_includes_grocery_list_in_prompt(monkeypatch):
 # Security / input hardening
 # ---------------------------------------------------------------------------
 
+def test_ai_catalog_summary_has_estimates_without_fabricated_savings():
+    rows = app.deals_summary([{'name':'Milk','store':'Rimi','discountedPrice':1.5,
+                              'discount':75,'category':'dairy'}])
+    assert rows[0]['estimated_price'] == 1.5
+    assert not {'d','discount','discountPercent','originalPrice'} & rows[0].keys()
+
 def test_agent_chat_clamps_input(monkeypatch):
     captured = {}
     monkeypatch.setattr(app, "groq_text", lambda messages: captured.setdefault("m", messages) or "ok")
