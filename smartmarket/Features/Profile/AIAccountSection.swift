@@ -7,7 +7,18 @@ struct AIAccountSection: View {
 
     var body: some View {
         Section {
-            if account.isSignedIn {
+            if OwnerAITestConfiguration.current != nil {
+                Label(AIConnectionState.shared.modeLabel, systemImage: "desktopcomputer")
+                Text(AIConnectionState.shared.detail ?? "Check the connection to your Mac before using AI.")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                Button("Check Mac AI connection") {
+                    Task { await AIConnectionState.shared.checkOwnerConnection() }
+                }
+                .disabled(AIConnectionState.shared.isChecking)
+                .accessibilityIdentifier("profile.ownerAIConnection")
+                Text("For private testing only. This uses the model on your Mac and does not create a production AI account or daily allowance.")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+            } else if account.isSignedIn {
                 Label("Signed in with Apple", systemImage: "checkmark.seal")
                 if let usage = account.allowance {
                     LabeledContent("AI credits remaining", value: "\(usage.remaining) of \(usage.limit)")
@@ -48,9 +59,13 @@ struct AIAccountSection: View {
                 }
             }
         } header: {
-            Text("AI allowance")
+            Text(OwnerAITestConfiguration.current == nil ? "AI allowance" : "AI on your Mac")
         } footer: {
-            Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Signing in does not enable AI sharing. Local tracking works without an account. Personal allowances share Mealio’s overall provider capacity, so temporary service limits can still occur. Use Delete All Data to delete your online account; sign-out alone keeps it.")
+            if OwnerAITestConfiguration.current == nil {
+                Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Signing in does not enable AI sharing. Local tracking works without an account. Personal allowances share Mealio’s overall provider capacity, so temporary service limits can still occur. Use Delete All Data to delete your online account; sign-out alone keeps it.")
+            } else {
+                Text("Review AI sharing under Privacy & Help before enabling it. The connection works while your Mac is awake and its AI service and private connection are running.")
+            }
         }
         .task { await account.prepare() }
     }

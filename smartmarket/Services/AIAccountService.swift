@@ -72,6 +72,13 @@ final class AIAccountService {
     }
 
     func prepare() async {
+        if OwnerAITestConfiguration.current != nil {
+            await AIConnectionState.shared.checkOwnerConnection()
+            isAvailable = false
+            challenge = nil
+            message = AIConnectionState.shared.detail
+            return
+        }
         guard BuildCapabilities.supportsAppleServices else {
             isAvailable = false
             challenge = nil

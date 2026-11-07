@@ -106,6 +106,57 @@ final class ReleaseSmokeTests: XCTestCase {
         }
     }
 
+    func testMascotGuideExpressionsAndLoggingShortcut() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-ownerAISharingConsent_v1", "NO"]
+        app.launch()
+        XCTAssertTrue(app.buttons["mascot.guide"].waitForExistence(timeout: 10))
+        capture("floating-bowl-home")
+        tap("mascot.guide", in: app)
+        XCTAssertTrue(app.buttons["guide.path.logFood"].waitForExistence(timeout: 5))
+        capture("floating-bowl-pathways")
+        tap("guide.path.logFood", in: app)
+        XCTAssertTrue(app.textFields["Search foods"].waitForExistence(timeout: 8))
+        capture("mascot-log-shortcut")
+    }
+
+    func testFloatingBowlGuideTourAndTabNavigation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+        app.launch()
+        tap("mascot.guide", in: app)
+        tap("guide.tour", in: app)
+        XCTAssertTrue(app.staticTexts["Start with one meal"].waitForExistence(timeout: 5))
+        capture("floating-bowl-tour-home")
+        tap("guide.next", in: app)
+        XCTAssertTrue(app.staticTexts["Build your grocery list"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["tab.shop"].isSelected)
+        tap("guide.next", in: app)
+        XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
+        tap("guide.next", in: app)
+        XCTAssertFalse(app.buttons["guide.next"].exists)
+        tap("tab.map", in: app)
+        tap("mascot.guide", in: app)
+        XCTAssertTrue(app.staticTexts["Find your way there"].waitForExistence(timeout: 5))
+        tap("guide.close", in: app)
+        tap("tab.profile", in: app)
+        tap("mascot.guide", in: app)
+        XCTAssertTrue(app.staticTexts["Make Mealio yours"].waitForExistence(timeout: 5))
+        capture("floating-bowl-profile")
+        tap("guide.close", in: app)
+    }
+
+    func testFloatingBowlGuideLargeText() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        tap("mascot.guide", in: app)
+        XCTAssertTrue(app.buttons["guide.close"].waitForExistence(timeout: 5))
+        capture("floating-bowl-large-text")
+        tap("guide.path.logFood", in: app)
+        XCTAssertTrue(app.textFields["Search foods"].waitForExistence(timeout: 8))
+    }
+
     func testOnboardingAndAllTabs() {
         let app = XCUIApplication()
         onboard(app)

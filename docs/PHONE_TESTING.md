@@ -27,6 +27,18 @@ retained. Only the test build invocation supplies the alternate entitlement file
 identifier and compile condition. A compiler error prevents a Release build from
 using `MEALIO_LOCAL_PHONE_TEST`.
 
+## Current hosted-service build — 2026-11-07
+
+The current private copy uses the secured Render backend and ordinary Info.plist,
+with no OWNER_AI_* fields. The earlier Mac AI experiment was retired at the
+owner's request; its helper is stopped. Production personal AI is disabled until
+Apple account capabilities and durable allowance storage are configured.
+
+The full bowl now floats across the main tabs with local pathways and a short,
+skippable tour. It is not a separate tab or help page. Hold it to change sides,
+replay the tour or hide it; Profile restores visibility. The app does not send
+retail notifications from the estimated-price catalog.
+
 ## Reproduce after connecting and unlocking the phone
 
 Use the current phone identifiers from `xcrun devicectl list devices` and

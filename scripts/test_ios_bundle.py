@@ -43,6 +43,15 @@ class BundleBoundaryTests(unittest.TestCase):
         (self.bundle / "Info.plist").write_bytes(plistlib.dumps({"API_KEY":"s"*64,"API_BASE_URL":"http://example.test"}))
         self.assertNotEqual(self.check_bundle("--release-config").returncode,0)
 
+    def test_release_configuration_rejects_owner_testing_credentials(self):
+        secret = "synthetic-owner-token-" + "z" * 48
+        (self.bundle / "Info.plist").write_bytes(plistlib.dumps({
+            "API_KEY": "s" * 64, "API_BASE_URL": "https://example.test",
+            "OWNER_AI_TOKEN": secret, "OWNER_AI_BASE_URL": "https://owner.example.test"}))
+        result = self.check_bundle("--release-config")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn(secret, result.stdout + result.stderr)
+
     def test_environment_variants_are_rejected(self):
         for name in (".env.production", ".env.local", ".env.staging"):
             with self.subTest(name=name):

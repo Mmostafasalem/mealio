@@ -5,6 +5,7 @@ struct CalorieSummaryCard: View {
     let vm: HomeViewModel
     var onLog: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showCalorieDetail = false
 
@@ -40,7 +41,7 @@ struct CalorieSummaryCard: View {
                 Spacer(minLength: 0)
             }
             .padding(Spacing.lg)
-            .animation(.snappyValue, value: vm.consumed)
+            .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
 
             Divider().padding(.horizontal, Spacing.lg)
 

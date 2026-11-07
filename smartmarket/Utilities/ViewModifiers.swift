@@ -6,7 +6,7 @@ extension View {
         self.background(Color.surfaceElevated,
             in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .strokeBorder(Color.hairline, lineWidth: 0.7))
+                .strokeBorder(Color.hairline.opacity(0.6), lineWidth: 0.5))
             .elevation(Elevation.card)
     }
 

@@ -25,7 +25,6 @@ struct HomeView: View {
                         VStack(spacing: Spacing.lg) {
                             CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
                             TodaysLogCard(vm: vm)
-                            HomeAgentCard(vm: vm)
                             HomeDealsSection(vm: vm)
                             MealPlanPreviewCard(vm: vm)
                         }

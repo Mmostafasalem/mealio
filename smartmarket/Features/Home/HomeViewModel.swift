@@ -19,6 +19,17 @@ final class HomeViewModel {
     var chatMessages: [ChatMessage] = []
     var chatInput = ""
     var isChatLoading = false
+    var chatNotice: String?
+    var lastChatFailed = false
+    var mascotCelebration: UUID?
+    var assistantModeLabel: String { AIConnectionState.shared.modeLabel }
+    var mealPlanSourceText: String {
+        switch AppState.shared.weeklyMealPlan?.generationSource {
+        case "online": return "AI meal plan"
+        case "local": return "Local meal suggestions"
+        default: return "Saved meal suggestions"
+        }
+    }
 
     private let log = FoodLogStore.shared
 
@@ -126,8 +137,10 @@ final class HomeViewModel {
         isLoading = false
         isRefreshing = false
 
-        pickBanner()
-        await checkAndNotifyFavouriteDeals()
+        // Curated estimates are not verified promotions or nearby inventory.
+        activeDealBanner = nil
+        await NotificationService.shared.checkPermission()
+        await AIConnectionState.shared.checkOwnerConnection()
     }
 
     func refresh() async {
@@ -160,9 +173,7 @@ final class HomeViewModel {
     }
 
     private func pickBanner() {
-        guard activeDealBanner == nil else { return }
-        let favorites = favoriteFoodIDs
-        activeDealBanner = deals.first { favorites.contains($0.productId) } ?? deals.first
+        activeDealBanner = nil
     }
 
     // MARK: - Food logging (local, optimistic)
@@ -180,6 +191,7 @@ final class HomeViewModel {
             fatG:     (food.fatPer100g * f).rounded()
         )
         log.add(entry)   // observable → ring + macros update instantly
+        mascotCelebration = UUID()
     }
 
     /// Logs a meal-plan entry straight from the plan preview.
@@ -189,6 +201,7 @@ final class HomeViewModel {
             calories: entry.calories, proteinG: entry.proteinG,
             carbsG: entry.carbsG, fatG: entry.fatG
         ))
+        mascotCelebration = UUID()
     }
 
     func removeLog(_ entry: FoodLogEntry) { log.remove(entry) }
@@ -201,20 +214,7 @@ final class HomeViewModel {
     // MARK: - Deal notifications
 
     private func checkAndNotifyFavouriteDeals() async {
-        guard UserDefaults.standard.bool(forKey: "dealAlertsEnabled") else { return }
-        await NotificationService.shared.checkPermission()
-        guard NotificationService.shared.authorizationStatus == .authorized else { return }
-
-        let nearby = nearbyDeals
-        for deal in nearby where favoriteFoodIDs.contains(deal.productId) {
-            if let backingDeal = AppState.shared.activeDeals.first(where: { "\($0.id)" == deal.productId }) {
-                NotificationService.shared.scheduleDealNotification(
-                    for: backingDeal,
-                    storeName: deal.store.name,
-                    storeId: deal.store.id
-                )
-            }
-        }
+        // Retail alerts require a verified price/stock source, which we do not have.
     }
 
     // MARK: - Deal response
@@ -248,6 +248,9 @@ final class HomeViewModel {
         guard !text.isEmpty, !isChatLoading else { return }
 
         chatInput = ""
+        chatNotice = nil
+        lastChatFailed = false
+        let generation = AppState.shared.dataGeneration
         chatMessages.append(ChatMessage(role: "user", content: text))
         isChatLoading = true
         defer { isChatLoading = false }
@@ -270,13 +273,18 @@ final class HomeViewModel {
 
         do {
             let response = try await APIService.shared.agentChat(request)
+            guard !Task.isCancelled, AppState.shared.dataGeneration == generation else { return }
             chatMessages.append(ChatMessage(role: "assistant", content: response.reply))
         } catch {
+            guard !Task.isCancelled, AppState.shared.dataGeneration == generation else { return }
             let message: String
-            if error is AIAccountError { message = error.localizedDescription }
-            else if case APIError.aiConsentRequired = error { message = error.localizedDescription }
+            if error is AIAccountError || error is APIError { message = error.localizedDescription }
+            else if error is URLError, OwnerAITestConfiguration.current != nil {
+                message = "Could not reach the AI on your Mac. Keep the Mac awake, connect both devices to the same Wi-Fi, and allow Mealio access to your local network in iPhone Settings."
+            }
             else { message = "Sorry, I couldn't reach the agent. Please try again." }
-            chatMessages.append(ChatMessage(role: "assistant", content: message))
+            chatNotice = message
+            lastChatFailed = true
         }
     }
 }

@@ -1,83 +1,100 @@
 import Foundation
 import UserNotifications
 
+/// The notification boundary is injectable so cleanup and suppression can be
+/// checked without permissions, timers, or delivering notifications to a device.
+@MainActor
+protocol NotificationCenterClient {
+    func authorizationStatus() async -> UNAuthorizationStatus
+    func pendingIdentifiers() async -> [String]
+    func deliveredIdentifiers() async -> [String]
+    func notificationCategories() async -> Set<UNNotificationCategory>
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>)
+    func removePending(withIdentifiers identifiers: [String])
+    func removeDelivered(withIdentifiers identifiers: [String])
+    func add(_ request: UNNotificationRequest)
+}
+
+@MainActor
+private struct SystemNotificationCenterClient: NotificationCenterClient {
+    private let center = UNUserNotificationCenter.current()
+
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await center.notificationSettings().authorizationStatus
+    }
+    func pendingIdentifiers() async -> [String] {
+        await center.pendingNotificationRequests().map(\.identifier)
+    }
+    func deliveredIdentifiers() async -> [String] {
+        await center.deliveredNotifications().map { $0.request.identifier }
+    }
+    func notificationCategories() async -> Set<UNNotificationCategory> {
+        await center.notificationCategories()
+    }
+    func setNotificationCategories(_ categories: Set<UNNotificationCategory>) {
+        center.setNotificationCategories(categories)
+    }
+    func removePending(withIdentifiers identifiers: [String]) {
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+    func removeDelivered(withIdentifiers identifiers: [String]) {
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+    func add(_ request: UNNotificationRequest) { center.add(request) }
+}
+
 @MainActor
 final class NotificationService {
+    static let shared = NotificationService(center: SystemNotificationCenterClient())
+    private let center: any NotificationCenterClient
 
-    static let shared = NotificationService()
-    private init() {}
+    init(center: any NotificationCenterClient) { self.center = center }
 
-    static let categoryID  = "DEAL_ALERT"
-    static let actionBuyID = "BUY_DEAL"
+    static let categoryID = "DEAL_ALERT"
+    // Retire the old BUY_DEAL identifier too: the existing app delegate compares
+    // against this constant. A queued response from an old notification must not
+    // turn an unverified price/availability claim into a grocery-list mutation.
+    // This replacement is never registered or attached to a notification.
+    static let actionBuyID = "DISABLED_UNVERIFIED_DEAL_ACTION"
     static let actionSkipID = "SKIP_DEAL"
 
     var authorizationStatus: UNAuthorizationStatus = .notDetermined
     var permissionGranted: Bool { authorizationStatus == .authorized }
 
-    // MARK: - Setup
-
+    /// Called by app startup and Home's existing permission check. Always clean
+    /// up old alerts, even when notification permission is denied or undetermined.
     func checkPermission() async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        authorizationStatus = settings.authorizationStatus
-        if settings.authorizationStatus == .authorized {
-            registerActions()
-        }
+        await removeLegacyDealNotifications()
+        authorizationStatus = await center.authorizationStatus()
     }
 
+    /// No user-controlled meal/logging scheduler exists yet, so there is no
+    /// implemented feature for which to request notification permission.
     func requestPermission() async -> Bool {
-        do {
-            let granted = try await UNUserNotificationCenter.current()
-                .requestAuthorization(options: [.alert, .sound, .badge])
-            authorizationStatus = granted ? .authorized : .denied
-            if granted { registerActions() }
-            return granted
-        } catch {
-            return false
-        }
+        await checkPermission()
+        return false
     }
 
-    private func registerActions() {
-        let buy  = UNNotificationAction(identifier: Self.actionBuyID,
-                                        title: "✅ Yes, add to list",
-                                        options: [])
-        let skip = UNNotificationAction(identifier: Self.actionSkipID,
-                                        title: "❌ No thanks",
-                                        options: [])
-        let category = UNNotificationCategory(identifier: Self.categoryID,
-                                              actions: [buy, skip],
-                                              intentIdentifiers: [],
-                                              options: [])
-        UNUserNotificationCenter.current().setNotificationCategories([category])
+    private func removeLegacyDealNotifications() async {
+        let pending = await center.pendingIdentifiers().filter { $0.hasPrefix("deal_") }
+        let delivered = await center.deliveredIdentifiers().filter { $0.hasPrefix("deal_") }
+        center.removePending(withIdentifiers: pending)
+        center.removeDelivered(withIdentifiers: delivered)
+        let categories = await center.notificationCategories()
+        center.setNotificationCategories(Set(categories.filter { $0.identifier != Self.categoryID }))
     }
 
-    // MARK: - Schedule a deal push (fires immediately; works from background)
-
-    func scheduleDealNotification(for deal: Deal, storeName: String, storeId: String) {
-        let content = UNMutableNotificationContent()
-        content.title  = "\(deal.emoji) \(deal.name) nearby"
-        content.body   = "\(deal.brand) at \(storeName) — about €\(String(format: "%.2f", deal.discountedPrice)). Add to your grocery list?"
-        content.sound  = .default
-        content.categoryIdentifier = Self.categoryID
-        content.userInfo = [
-            "food_id":       String(deal.id),
-            "product_name":  deal.name,
-            "store_name":    storeName,
-            "store_id":      storeId,
-            "discount_price": deal.discountedPrice,
-            "quantity":      "\(deal.weeklyQty) \(deal.unit)"
-        ]
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "deal_\(deal.id)",
-            content: content,
-            trigger: trigger
-        )
-        UNUserNotificationCenter.current().add(request)
+    /// Compatibility boundary for legacy callers (including Home). Never infer a
+    /// verified offer, nearby availability or expiry from curated catalog data.
+    @discardableResult
+    func scheduleDealNotification(for deal: Deal, storeName: String, storeId: String) -> Bool {
+        cancelDealNotification(dealID: deal.id)
+        return false
     }
 
     func cancelDealNotification(dealID: Int) {
-        UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: ["deal_\(dealID)"])
+        let identifiers = ["deal_\(dealID)"]
+        center.removePending(withIdentifiers: identifiers)
+        center.removeDelivered(withIdentifiers: identifiers)
     }
 }

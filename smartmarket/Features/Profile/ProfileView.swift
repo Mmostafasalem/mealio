@@ -9,6 +9,8 @@ struct ProfileView: View {
     @AppStorage("dealAlertsEnabled") private var dealAlertsEnabled = true
     @AppStorage("mealDigestEnabled") private var mealDigestEnabled = true
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
+    @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
+    @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
 
     var body: some View {
         NavigationStack {
@@ -17,6 +19,14 @@ struct ProfileView: View {
                 statsSection
                 editSection
                 notificationSection
+                Section {
+                    Toggle("Floating bowl guide", isOn: $bowlGuideVisible)
+                        .accessibilityIdentifier("profile.bowlGuide")
+                } header: {
+                    Text("Your companion")
+                } footer: {
+                    Text("Local tips and a quick tour, available on every main screen. Hold the bowl to move it or replay the tour.")
+                }
                 AIAccountSection()
                 syncSection
                 privacySection
@@ -104,8 +114,9 @@ struct ProfileView: View {
 
     private var notificationSection: some View {
         Section("Notifications") {
-            Toggle("Favourite item reminders", isOn: $dealAlertsEnabled)
-            Toggle("Daily meal plan digest", isOn: $mealDigestEnabled)
+            Label("Retail alerts are off", systemImage: "bell.slash")
+            Text("Prices in the catalog are estimates, so Mealio does not send discount, stock or expiry alerts. Meal and food-log reminders are not available yet.")
+                .font(.footnote).foregroundStyle(Color.labelSecondary)
         }
         .tint(.brandPrimary)
     }
@@ -154,7 +165,7 @@ struct ProfileView: View {
 
     private var privacySection: some View {
         Section {
-            Toggle("Allow online AI suggestions", isOn: $aiSharingConsent)
+            Toggle("Allow online AI suggestions", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
                 .accessibilityIdentifier("profile.aiConsent")
             NavigationLink {
                 LegalDocumentView(resource: "Privacy", title: "Privacy Policy")
@@ -167,7 +178,11 @@ struct ProfileView: View {
         } header: {
             Text("Privacy & Help")
         } footer: {
-            Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
+            if OwnerAITestConfiguration.current != nil {
+                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
+            } else {
+                Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
+            }
         }
     }
 }

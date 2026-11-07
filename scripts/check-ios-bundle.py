@@ -36,9 +36,10 @@ if args.release_config:
     try:
         info = plistlib.loads((args.bundle / "Info.plist").read_bytes())
         key = info.get("API_KEY", "")
+        owner_test_fields = any(str(name).startswith("OWNER_AI_") for name in info)
         url = urlsplit(info.get("API_BASE_URL", ""))
         key_ok = isinstance(key, str) and re.fullmatch(r"[A-Za-z0-9_-]{32,}", key) is not None
-        endpoint_ok = url.scheme == "https" and bool(url.hostname) and not url.username and not url.password and not url.query and not url.fragment
+        endpoint_ok = url.scheme == "https" and bool(url.hostname) and not url.username and not url.password and not url.query and not url.fragment and not owner_test_fields
     except (OSError, ValueError, TypeError, plistlib.InvalidFileException, ExpatError):
         key_ok = endpoint_ok = False
     if not key_ok or not endpoint_ok:

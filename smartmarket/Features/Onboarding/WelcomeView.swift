@@ -31,24 +31,23 @@ struct WelcomeView: View {
 
                 // Logo + headline
                 VStack(spacing: 16) {
-                    Image("BrandLogo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 96, height: 96)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        .accessibilityHidden(true)
-                    .scaleEffect(headerVisible ? 1 : 0.5)
-                    .opacity(headerVisible ? 1 : 0)
+                    MascotGuideView(size: 132)
+                        .opacity(headerVisible ? 1 : 0)
 
                     VStack(spacing: 8) {
                         Text("Mealio")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .font(.largeTitle.weight(.bold))
                             .foregroundStyle(Color.almond)
                         BalancedHeadline(text: "A little more balance. Every day.", color: .almond.opacity(0.75))
                             .frame(maxWidth: 300)
                     }
                     .opacity(headerVisible ? 1 : 0)
-                    .offset(y: headerVisible ? 0 : 12)
+                    .offset(y: headerVisible || reduceMotion ? 0 : 12)
+                    Text("Tap your bowl guide for a little help.")
+                        .font(.footnote)
+                        .foregroundStyle(Color.almond.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                        .opacity(headerVisible ? 1 : 0)
                 }
                 .padding(.bottom, 40)
 
@@ -121,7 +120,7 @@ struct WelcomeView: View {
         case 2: visible = card3Visible
         default: visible = card4Visible
         }
-        return visible ? 0 : 40
+        return visible || reduceMotion ? 0 : 40
     }
 
     private func animate() {

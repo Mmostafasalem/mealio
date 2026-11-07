@@ -1,6 +1,6 @@
 # Mealio — Privacy Policy
 
-_Last updated: 2026-11-06_
+_Last updated: 2026-11-07_
 
 Mealio ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not

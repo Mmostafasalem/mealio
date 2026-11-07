@@ -20,6 +20,9 @@ final class AgentLoop {
     func start(appState: AppState) {
         stop()
         self.appState = appState
+        // Curated estimates cannot support retailer alerts. Discard any old
+        // in-memory alert queue when the loop restarts.
+        appState.dealNotifications = []
         task = Task { [weak appState] in
             while !Task.isCancelled {
                 if let appState { await tick(appState: appState) }
@@ -73,35 +76,8 @@ final class AgentLoop {
         guard !Task.isCancelled, generation == dataGeneration else { return }
         if !deals.isEmpty { appState.activeDeals = deals }
 
-        // 2. Resolve favorited product IDs → lowercase name tokens for fuzzy matching.
-        //    This replaces the old broken backendId integer approach.
-        let favNames: [String] = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
-
-        // 3. Match deals whose name contains any favorited product name (or vice versa)
-        let matched = deals.filter { deal in
-            let dealName = deal.name.lowercased()
-            let nameMatch = favNames.contains { fav in
-                dealName.contains(fav) || fav.contains(dealName.prefix(8))
-            }
-            guard nameMatch else { return false }
-            guard let loc = userLoc else { return true }
-
-            let storeLat = deal.latitude ?? APIService.storeCoordinates(for: deal.store).lat
-            let storeLon = deal.longitude ?? APIService.storeCoordinates(for: deal.store).lon
-            let storeLoc = CLLocation(latitude: storeLat, longitude: storeLon)
-            return loc.distance(from: storeLoc) <= 8_000
-        }
-
-        // 4. Fire push notification for each new match (persisted so they don't repeat on relaunch)
-        for deal in matched where !appState.notifiedDealIds.contains(deal.id) {
-            appState.dealNotifications.append(deal)
-            appState.saveNotifiedDealId(deal.id)
-            NotificationService.shared.scheduleDealNotification(
-                for: deal,
-                storeName: deal.store,
-                storeId: "\(deal.id)"
-            )
-        }
+        // Catalog estimates still support browsing/planning, but never generate
+        // discount, proximity, availability or expiry notifications.
 
         // 5. Regenerate meal plan if needed
         let currentCount = appState.groceryList.count

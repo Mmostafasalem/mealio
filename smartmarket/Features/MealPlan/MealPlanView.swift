@@ -5,12 +5,21 @@ struct MealPlanView: View {
     @State private var vm = MealPlanViewModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
+    @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
+
+    private var sharingEnabled: Bool {
+        OwnerAITestConfiguration.current == nil ? aiSharingConsent : ownerAISharingConsent
+    }
 
     var body: some View {
         ScrollView {
             VStack(spacing: Spacing.xl) {
-                if !aiSharingConsent {
+                if !sharingEnabled {
                     Label("Online AI sharing is off. Local suggestions are shown. You can enable online AI in Profile.", systemImage: "iphone")
+                        .font(.footnote).foregroundStyle(Color.labelSecondary)
+                        .padding(.horizontal, Spacing.lg)
+                } else if AppState.shared.weeklyMealPlan?.generationSource != "online" {
+                    Label("Local meal suggestions. A verified AI-generated plan is not currently shown.", systemImage: "iphone")
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                         .padding(.horizontal, Spacing.lg)
                 }

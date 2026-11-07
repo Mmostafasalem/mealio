@@ -177,6 +177,8 @@ struct MealPlanUser: Codable {
 
 /// Full 7-day plan. Keys are always Lithuanian day names.
 struct WeeklyMealPlan: Codable, Equatable {
+    /// Set by the client from verified response metadata, not model-generated claims.
+    var generationSource: String? = nil
     let agentMessage: String?
     let pirmadienis: DayPlan?
     let antradienis: DayPlan?

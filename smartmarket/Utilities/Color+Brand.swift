@@ -45,10 +45,11 @@ extension Color {
     static let labelSecondary = Color(light: "#52617A", dark: "#D8C7C6")
     static let labelTertiary = Color(light: "#58637A", dark: "#C9BABB")
     static let surface = Color(light: "#FCF3F0", dark: "#24334D")
-    static let surfaceGrouped = Color(light: "#F4DAD4", dark: "#1E2B42")
+    // Almond is a brand accent; its lighter tint leaves content room to breathe.
+    static let surfaceGrouped = Color(light: "#FAEEEA", dark: "#1E2B42")
     static let surfaceElevated = Color(light: "#FCF3F0", dark: "#2E4060")
     static let surfaceSecondary = Color(light: "#EED0CD", dark: "#3A4966")
-    static let hairline = Color(light: "#C6B4B8", dark: "#617089")
+    static let hairline = Color(light: "#D9C7C5", dark: "#617089")
 
     // MARK: - Adaptive convenience initialiser
 

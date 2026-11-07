@@ -11,6 +11,19 @@ need to be supplied before App Store submission; no public mailbox is claimed.
 
 ## FAQ
 
+**How do I use the bowl guide?**
+Tap the floating bowl above navigation on any main screen. It offers shortcuts
+for logging food, your grocery checklist and meals, plus a short, skippable tour.
+The guide itself works locally and never sends an AI request. Hold the bowl to
+move it to either side, replay the tour or hide it. Restore it in Profile under
+Your companion. Adding food briefly triggers its celebration. AI chat is a
+separate action and follows your account and sharing settings.
+
+**Are discount notifications real?**
+Mealio does not send retail promotion, stock or price-drop notifications from
+its estimated-price catalog. Earlier catalog-based alerts are removed when the
+updated app starts. No verified retailer promotion feed is connected.
+
 **Are grocery prices live?**
 No. Prices are estimates from a curated catalog, not verified promotions,
 live store inventory or guaranteed shelf prices. You can enter a real price in

@@ -20,9 +20,9 @@ struct NotificationPermissionView: View {
                     .foregroundStyle(Color.brandAmber)
 
                 VStack(spacing: 8) {
-                    Text("Stay on track")
+                    Text("No retail alerts")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("Optional reminders to log your meals and keep your grocery list up to date. You can change this anytime in Settings.")
+                    Text("Catalog prices are estimates. Mealio does not send discount, nearby stock or expiry alerts from them.")
                         .font(.subheadline)
                         .foregroundStyle(Color.labelSecondary)
                         .multilineTextAlignment(.center)
@@ -30,9 +30,8 @@ struct NotificationPermissionView: View {
                 }
 
                 VStack(spacing: 12) {
-                    FeatureRow(symbol: "heart.fill",      text: "Only notifies for your favourite foods")
-                    FeatureRow(symbol: "location.fill",   text: "Nearby reminders when location is available")
-                    FeatureRow(symbol: "cart.badge.plus", text: "Tap yes to add to grocery list instantly")
+                    FeatureRow(symbol: "tag", text: "Check current prices and availability with the store")
+                    FeatureRow(symbol: "bell.slash", text: "Meal and logging reminders are not available yet")
                 }
                 .padding(.horizontal, 32)
             }
@@ -41,12 +40,9 @@ struct NotificationPermissionView: View {
 
             VStack(spacing: 12) {
                 Button {
-                    Task {
-                        _ = await NotificationService.shared.requestPermission()
-                        vm.path.append(OnboardingStep.favorites)
-                    }
+                    vm.path.append(OnboardingStep.favorites)
                 } label: {
-                    Label("Enable notifications", systemImage: "bell.fill")
+                    Text("Continue")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 52)
@@ -55,14 +51,6 @@ struct NotificationPermissionView: View {
                                     in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 }
                 .buttonStyle(ScalePressStyle())
-
-                Button {
-                    vm.path.append(OnboardingStep.favorites)
-                } label: {
-                    Text("Skip for now")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.labelSecondary)
-                }
                 .accessibilityIdentifier("onboarding.notifications.skip")
                 .frame(minHeight: 44)
             }

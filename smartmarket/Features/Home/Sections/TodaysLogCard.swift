@@ -3,6 +3,7 @@ import SwiftUI
 /// Today's food log grouped by meal slot, with quick add/remove.
 struct TodaysLogCard: View {
     let vm: HomeViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
@@ -31,7 +32,7 @@ struct TodaysLogCard: View {
         }
         .padding(Spacing.lg)
         .premiumCard()
-        .animation(.snappyValue, value: vm.consumed)
+        .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
     }
 }
 
