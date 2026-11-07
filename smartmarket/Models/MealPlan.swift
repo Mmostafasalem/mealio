@@ -101,7 +101,7 @@ struct RecommendationsResponse: Codable {
 // MARK: - Bridge from backend WeeklyMealPlan to legacy MealPlan
 
 extension MealPlan {
-    static func from(weekly: WeeklyMealPlan) -> MealPlan? {
+    @MainActor static func from(weekly: WeeklyMealPlan) -> MealPlan? {
         // weekday: 1=Sun 2=Mon 3=Tue 4=Wed 5=Thu 6=Fri 7=Sat
         let today = Calendar.current.component(.weekday, from: Date())
         let dayPlans: [DayPlan?] = [
