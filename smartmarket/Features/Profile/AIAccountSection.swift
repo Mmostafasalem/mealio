@@ -62,7 +62,7 @@ struct AIAccountSection: View {
             Text(OwnerAITestConfiguration.current == nil ? "AI allowance" : "AI on your Mac")
         } footer: {
             if OwnerAITestConfiguration.current == nil {
-                Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Signing in does not enable AI sharing. Local tracking works without an account. Personal allowances share Mealio’s overall provider capacity, so temporary service limits can still occur. Use Delete All Data to delete your online account; sign-out alone keeps it.")
+                Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Signing in does not enable AI sharing. Local tracking works without an account. Personal allowances share Nourlo’s overall provider capacity, so temporary service limits can still occur. Use Delete All Data to delete your online account; sign-out alone keeps it.")
             } else {
                 Text("Review AI sharing under Privacy & Help before enabling it. The connection works while your Mac is awake and its AI service and private connection are running.")
             }

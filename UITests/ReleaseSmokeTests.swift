@@ -141,7 +141,7 @@ final class ReleaseSmokeTests: XCTestCase {
         tap("guide.close", in: app)
         tap("tab.profile", in: app)
         tap("mascot.guide", in: app)
-        XCTAssertTrue(app.staticTexts["Make Mealio yours"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Make Nourlo yours"].waitForExistence(timeout: 5))
         capture("floating-bowl-profile")
         tap("guide.close", in: app)
     }
@@ -184,7 +184,7 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 15))
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "Only Mealio's custom tab bar should be exposed")
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "Only Nourlo's custom tab bar should be exposed")
         // Shop provides an unobstructed header independent of transient Home banners.
         tap("tab.shop", in: app)
         XCTAssertFalse(app.tabBars.firstMatch.exists)
@@ -289,11 +289,11 @@ final class ReleaseSmokeTests: XCTestCase {
         onboard(app)
         tap("tab.profile", in: app)
         tap("profile.privacy", in: app)
-        XCTAssertTrue(app.staticTexts["Mealio — Privacy Policy"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Nourlo — Privacy Policy"].waitForExistence(timeout: 5))
         capture("privacy-policy")
         app.navigationBars.buttons.firstMatch.tap()
         tap("profile.support", in: app)
-        XCTAssertTrue(app.staticTexts["Mealio — Support"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Nourlo — Support"].waitForExistence(timeout: 5))
         capture("help-support")
     }
 

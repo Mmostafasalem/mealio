@@ -30,7 +30,7 @@ struct FloatingBowlGuide: View {
 
     private var title: String {
         if let step = tourStep { return tour[step].title }
-        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Find your way there", "Make Mealio yours"][selectedTab]
+        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Find your way there", "Make Nourlo yours"][selectedTab]
     }
 
     private var detail: String {

@@ -147,7 +147,7 @@ final class GroceryListViewModel {
     }
 
     func shareText() -> String {
-        var lines = ["Mealio Grocery List", ""]
+        var lines = ["Nourlo Grocery List", ""]
         for store in sortedStores {
             lines.append("\(store):")
             for item in groupedByStore[store] ?? [] {

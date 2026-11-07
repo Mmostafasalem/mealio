@@ -254,8 +254,8 @@
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Mealio;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mealio uses your location to show grocery prices at stores near you.";
+				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nourlo uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -293,8 +293,8 @@
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Mealio;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Mealio uses your location to show grocery prices at stores near you.";
+				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nourlo uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

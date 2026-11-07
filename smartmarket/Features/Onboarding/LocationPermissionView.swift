@@ -23,7 +23,7 @@ struct LocationPermissionView: View {
                 VStack(spacing: 8) {
                     Text("Find stores near you")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("Mealio shows grocery prices at stores near you to help plan your shop.")
+                    Text("Nourlo shows grocery prices at stores near you to help plan your shop.")
                         .font(.subheadline)
                         .foregroundStyle(Color.labelSecondary)
                         .multilineTextAlignment(.center)

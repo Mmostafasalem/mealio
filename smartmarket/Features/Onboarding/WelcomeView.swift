@@ -35,7 +35,7 @@ struct WelcomeView: View {
                         .opacity(headerVisible ? 1 : 0)
 
                     VStack(spacing: 8) {
-                        Text("Mealio")
+                        Text("Nourlo")
                             .font(.largeTitle.weight(.bold))
                             .foregroundStyle(Color.almond)
                         BalancedHeadline(text: "A little more balance. Every day.", color: .almond.opacity(0.75))

@@ -7,7 +7,7 @@ import Link from "next/link";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
 export const metadata: Metadata = {
-  title: "Mealio — Eat well. Spend less.",
+  title: "Nourlo — Eat well. Spend less.",
   description:
     "AI meal plans, calorie & macro tracking, and budget grocery lists for Vilnius.",
 };

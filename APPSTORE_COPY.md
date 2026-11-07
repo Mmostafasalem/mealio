@@ -1,10 +1,10 @@
-# Mealio — draft App Store metadata
+# Nourlo — draft App Store metadata
 
 These are reviewable drafts, not a submission. Verify every feature against the
 signed TestFlight build before publishing. No live-price or promotion claims.
 
 ## App name
-Mealio
+Nourlo
 
 ## Subtitle
 Meals, calories & groceries
@@ -14,7 +14,7 @@ Plan meals, log food and organise your grocery shop. Use estimated prices to
 plan your budget, with optional online AI suggestions and private shopping sync.
 
 ## Description
-Mealio brings meal planning, food logging and grocery budgeting into one app.
+Nourlo brings meal planning, food logging and grocery budgeting into one app.
 
 Track your day
 Log foods and see estimated calories and macros alongside your personal targets.
@@ -31,12 +31,12 @@ Explore store locations around Vilnius. Catalog prices are estimates; they are
 not live shelf prices, verified promotions or guaranteed store availability.
 
 Choose how your data is handled
-Local tracking and shopping need no Mealio account. Online AI requires Sign in
+Local tracking and shopping need no Nourlo account. Online AI requires Sign in
 with Apple and separate sharing consent. Optional private iCloud sync covers shopping data.
 Body measurements, food logs, dietary restrictions and nutrition plans are
 excluded from that sync. Delete All Data is available in Profile.
 
-Mealio is not a medical device and does not provide medical advice. Nutrition
+Nourlo is not a medical device and does not provide medical advice. Nutrition
 and calorie values are estimates. AI suggestions can be incorrect. Check all
 ingredients and allergens yourself and consult a qualified professional about
 your individual dietary needs.

@@ -1,11 +1,11 @@
-# Mealio — App Store submission checklist
+# Nourlo — App Store submission checklist
 
 A practical list of what's done and what you must complete in App Store Connect /
 Xcode before submitting. Simulator compilation is not release certification;
 signed-device and TestFlight checks remain required.
 
 ## Already done (in code)
-- Bundle ID `com.mostafa.mealio`, display name **Mealio**, iOS 17 deployment target.
+- Bundle ID `com.mostafa.mealio`, display name **Nourlo**, iOS 17 deployment target.
 - App icon present (1024×1024, no alpha) — **placeholder art; replace before launch**.
 - `PrivacyInfo.xcprivacy` declares precise location, separate Health and Fitness
   categories, and Other User Content for optional chat/private shopping sync.

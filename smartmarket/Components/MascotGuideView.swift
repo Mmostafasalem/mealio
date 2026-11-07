@@ -62,7 +62,7 @@ struct MascotGuideView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(MascotPressStyle())
-        .accessibilityLabel("Mealio bowl guide")
+        .accessibilityLabel("Nourlo bowl guide")
         .accessibilityValue(mood.description)
         .accessibilityHint(hint ?? (onTap == nil ? "Plays a short greeting. No AI request is sent." : "Opens local next steps and a short tour. No AI request is sent."))
         .accessibilityIdentifier("mascot.guide")
