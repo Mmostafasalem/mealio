@@ -259,8 +259,12 @@ final class ReleaseSmokeTests: XCTestCase {
         tap("quickActions.logFood", in: app)
         let foodSearch = app.textFields["logFood.search"]
         XCTAssertTrue(foodSearch.waitForExistence(timeout: 5))
-        foodSearch.tap(); foodSearch.typeText("apples")
-        tap("logFood.food.obuoliai", in: app)
+        foodSearch.tap(); foodSearch.typeText("bananas raw")
+        let apple = app.buttons["logFood.food.usda:173944"]
+        XCTAssertTrue(apple.waitForExistence(timeout: 5))
+        apple.tap()
+        XCTAssertTrue(app.staticTexts["USDA SR Legacy · April 2018"].waitForExistence(timeout: 5))
+        capture("nutrition-source-detail")
         tap("logFood.addServing", in: app)
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["logFood.addServing"].exists)

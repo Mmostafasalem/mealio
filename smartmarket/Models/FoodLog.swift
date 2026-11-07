@@ -41,7 +41,7 @@ enum MealSlot: String, Codable, CaseIterable, Identifiable {
 
 struct FoodLogEntry: Codable, Identifiable, Hashable {
     let id: String
-    let foodId: String?      // links back to Food.catalog when logged from it
+    let foodId: String?      // source-qualified nutrition ID; old catalog IDs remain readable
     let name: String
     let slot: MealSlot
     let servingG: Int
@@ -50,10 +50,15 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
     let carbsG: Double
     let fatG: Double
     let loggedAt: Date
+    let portionAmount: Double?
+    let nutritionFood: NutritionFood? // immutable source snapshot; absent in legacy/estimated entries
+
+    var amount: Double { portionAmount ?? Double(servingG) }
+    var amountUnit: String { nutritionFood?.basis.rawValue ?? "g" }
 
     init(id: String = UUID().uuidString, foodId: String? = nil, name: String,
          slot: MealSlot, servingG: Int, calories: Int,
-         proteinG: Double, carbsG: Double, fatG: Double, loggedAt: Date = Date()) {
+         proteinG: Double, carbsG: Double, fatG: Double, loggedAt: Date = Date(), nutritionFood: NutritionFood? = nil, portionAmount: Double? = nil) {
         self.id = id
         self.foodId = foodId
         self.name = name
@@ -64,6 +69,14 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
         self.carbsG = carbsG
         self.fatG = fatG
         self.loggedAt = loggedAt
+        self.portionAmount = portionAmount
+        self.nutritionFood = nutritionFood
+    }
+    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double) {
+        let p = food.portion(amount)
+        self.init(foodId: food.id, name: food.name, slot: slot, servingG: Int(amount.rounded()),
+                  calories: Int(p.kcal.rounded()), proteinG: p.protein, carbsG: p.carbs, fatG: p.fat,
+                  nutritionFood: food, portionAmount: amount)
     }
 }
 
@@ -131,6 +144,7 @@ final class FoodLogStore {
     func clearAll() {
         entries.removeAll()
         recentFoodIDs.removeAll()
+        NutritionCatalogService.shared.clear()
         UserDefaults.standard.removeObject(forKey: key)
         UserDefaults.standard.removeObject(forKey: recentsKey)
     }

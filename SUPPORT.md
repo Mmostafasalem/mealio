@@ -11,6 +11,20 @@ need to be supplied before App Store submission; no public mailbox is claimed.
 
 ## FAQ
 
+**Where does the food logger get nutrition?**
+The iOS logger searches 7,793 imported USDA SR Legacy records offline, including
+separate raw/cooked descriptions. These reference values are the April 2018 release,
+not measurements of your particular food. For packaged foods, submit a name or
+8/12/13/14-digit barcode to search Open Food Facts directly. Product data is
+community-contributed; check the brand and label. Only records with complete,
+nonnegative calories, protein, carbohydrate and fat, and consistent gram/ml metadata are loggable. Missing macros
+are not assumed to be zero. Choose grams or millilitres as shown; the app does not
+convert between them. Quick-add logs the displayed 100 g/ml, while tapping a food
+opens its source and an adjustable portion. Selected packaged products remain
+available offline in Recent and search. New online searches need internet access.
+Meal-plan totals remain estimates; they cannot be one-tap logged as sourced nutrition. Log the actual ingredients and amounts instead.
+
+
 **How do I use the bowl guide?**
 Tap the floating bowl above navigation on any main screen. It offers shortcuts
 for logging food, your grocery checklist and meals, plus a short, skippable tour.
