@@ -1,9 +1,9 @@
-# Mealio — Support
+# Nourlo — Support
 
-Need help with Mealio? We're happy to assist.
+Need help with Nourlo? We're happy to assist.
 
 For technical issues in this pre-release build, use the
-[Mealio issue tracker](https://github.com/Mmostafasalem/mealio/issues).
+[Nourlo issue tracker](https://github.com/Mmostafasalem/mealio/issues).
 The tracker is public: do not post body measurements, food logs, account tokens,
 API keys or other private information. For private help, contact the person who
 provided your build. A dedicated verified contact and hosted support URL still
@@ -20,7 +20,7 @@ Your companion. Adding food briefly triggers its celebration. AI chat is a
 separate action and follows your account and sharing settings.
 
 **Are discount notifications real?**
-Mealio does not send retail promotion, stock or price-drop notifications from
+Nourlo does not send retail promotion, stock or price-drop notifications from
 its estimated-price catalog. Earlier catalog-based alerts are removed when the
 updated app starts. No verified retailer promotion feed is connected.
 
@@ -32,8 +32,8 @@ corrections are preserved but need re-entry for a chosen store before they count
 as your entered price. Check the retailer before purchasing.
 
 **Why don't I see nearby stores?**
-Make sure location access is enabled (Settings ▸ Mealio ▸ Location) and you have a
-network connection. Without location, Mealio uses Vilnius centre.
+Make sure location access is enabled (Settings ▸ Nourlo ▸ Location) and you have a
+network connection. Without location, Nourlo uses Vilnius centre.
 
 **My meal plan didn't update after I changed my cart.**
 You can tap **Regenerate** on the Meals tab. Online AI features require the
@@ -52,7 +52,7 @@ account-side activation; a disabled sign-in button does not mean your device is 
 
 **Are the calorie numbers exact?**
 No — calorie and macro values are **estimates** and vary by product and
-preparation. Mealio is not a medical device.
+preparation. Nourlo is not a medical device.
 
 **How do I reset my data?**
 Profile ▸ **Delete All Data** deletes your optional online AI account and clears
@@ -74,5 +74,5 @@ plans. Use **Sync Now** or reopen the app to check for changes.
 No. Preferences guide suggestions but cannot guarantee allergen safety. Check
 every ingredient, product label and preparation method yourself.
 
-**Does Mealio track me or sell my data?**
+**Does Nourlo track me or sell my data?**
 No. See our [Privacy Policy](PRIVACY.md). No ads, no analytics, no tracking.

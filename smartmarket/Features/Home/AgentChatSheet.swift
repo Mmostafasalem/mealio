@@ -55,7 +55,7 @@ struct AgentChatSheet: View {
                 Divider()
                 inputBar
             }
-            .navigationTitle("Mealio chat")
+            .navigationTitle("Nourlo chat")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

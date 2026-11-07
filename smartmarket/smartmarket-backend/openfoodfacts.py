@@ -17,7 +17,7 @@ import urllib.request
 
 _OFF_BASE = "https://world.openfoodfacts.org"
 # OFF asks every caller to identify itself with a descriptive User-Agent.
-_USER_AGENT = "Mealio/1.0 (nutrition lookup; contact: support@mealio.app)"
+_USER_AGENT = "Nourlo/1.0 (nutrition lookup; https://github.com/Mmostafasalem/mealio)"
 _TIMEOUT = 4  # seconds — keep cold-start catalog builds bounded
 
 _CACHE_PATH = os.path.join(os.path.dirname(__file__), "off_cache.json")

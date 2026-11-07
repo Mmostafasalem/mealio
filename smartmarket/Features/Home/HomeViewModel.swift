@@ -280,7 +280,7 @@ final class HomeViewModel {
             let message: String
             if error is AIAccountError || error is APIError { message = error.localizedDescription }
             else if error is URLError, OwnerAITestConfiguration.current != nil {
-                message = "Could not reach the AI on your Mac. Keep the Mac awake, connect both devices to the same Wi-Fi, and allow Mealio access to your local network in iPhone Settings."
+                message = "Could not reach the AI on your Mac. Keep the Mac awake, connect both devices to the same Wi-Fi, and allow Nourlo access to your local network in iPhone Settings."
             }
             else { message = "Sorry, I couldn't reach the agent. Please try again." }
             chatNotice = message

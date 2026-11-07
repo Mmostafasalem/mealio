@@ -1,7 +1,7 @@
-# Mealio — Claude Code Context
+# Nourlo — Claude Code Context
 
 ## What This App Is
-Mealio (folder/target still named `smartmarket`; user-facing name is **Mealio**) is an iOS app (SwiftUI) for Vilnius, Lithuania. It watches nearby grocery deals, matches them against the user's cart/favourites, builds AI meal plans around those foods within the user's weekly budget, and tracks daily calorie/macro intake with real food logging.
+Nourlo (folder/target still named `smartmarket`; user-facing name is **Nourlo**) is an iOS app (SwiftUI) for Vilnius, Lithuania. It watches nearby grocery deals, matches them against the user's cart/favourites, builds AI meal plans around those foods within the user's weekly budget, and tracks daily calorie/macro intake with real food logging.
 
 **Backend:** a Python Flask/WSGI app — `smartmarket-backend/server.py` wraps the business logic in `app.py` (run via gunicorn; deploy on **Render**, see `DEPLOY.md`). It serves a **curated product catalog** (`deals_data.json`) enriched with **Open Food Facts** nutrition (`openfoodfacts.py`), and uses **Groq** for AI meal plans / chat / recipes (model via `GROQ_MODEL` env, default `llama-3.3-70b-versatile`; object endpoints use Groq JSON mode + a 25s/1-retry client). No live scraping.
 
@@ -133,7 +133,7 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 ```
 
 ## Xcode / Build Info
-- **Bundle ID:** `com.mostafa.mealio` · **Display name:** Mealio · **Swift:** 5.0
+- **Bundle ID:** `com.mostafa.mealio` · **Display name:** Nourlo · **Swift:** 5.0
 - **iOS Deployment Target:** 17.0
 - **No SPM/CocoaPods dependencies** (pure Apple frameworks)
 - Backend dev: `cd smartmarket/smartmarket-backend && GROQ_API_KEY=... python app.py` (stdlib dev server) or `gunicorn server:app` (prod). See `DEPLOY.md`.

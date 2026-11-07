@@ -1,8 +1,8 @@
-# Mealio — Privacy Policy
+# Nourlo — Privacy Policy
 
 _Last updated: 2026-11-07_
 
-Mealio ("we", "the app") helps you estimate grocery costs, plan meals, and
+Nourlo ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not
 sell your data, show ads, or use third-party analytics or tracking SDKs.
 
@@ -19,7 +19,7 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
 - **Food log** (what you log, calories, macros). Stored **on your device** only.
 - **Shopping cart, grocery list, budget and price corrections.** Stored locally.
   If you enable shopping sync in Profile, these and your language setting are
-  also stored in your private Apple CloudKit database. No Mealio account is
+  also stored in your private Apple CloudKit database. No Nourlo account is
   required. Profile/body measurements, BMR, food intake, dietary restrictions and
   nutrition meal plans are excluded from this app's iCloud sync.
 
@@ -38,7 +38,7 @@ When enabled and you generate a meal plan, ask the in-app assistant, or request 
 send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
 foods, shopping list, your message) to our backend, which uses **Groq** (an AI
 provider) to generate the response. Product nutrition is looked up from **Open
-Food Facts**. We send the minimum needed for the feature and do not attach your name. Online AI requests use a Mealio session linked to
+Food Facts**. We send the minimum needed for the feature and do not attach your name. Online AI requests use a Nourlo session linked to
 your optional Apple account. The session and Apple identifier are not included
 in prompts sent to Groq. Chat text may contain personal
 information that you choose to enter. Turning sharing off prevents future AI
@@ -48,7 +48,7 @@ We do **not**: track you across other apps or websites, sell or rent your data,
 serve advertising, or use third-party analytics.
 
 ## Optional Apple account for AI
-Local tracking, shopping and offline plans do not require a Mealio account.
+Local tracking, shopping and offline plans do not require a Nourlo account.
 Online AI requires Sign in with Apple and separate AI-sharing consent. We do not
 request your Apple name or email. The backend stores a keyed hash of your Apple
 user identifier, hashes of app session tokens, an encrypted Apple refresh grant,
@@ -77,7 +77,7 @@ Apple Account. Other offline devices clear pre-deletion shopping data when they
 next sync. A minimal reset generation remains in CloudKit to prevent restoration
 of old records; it contains no previous shopping items. Deleting the app alone
 does not request deletion of cloud data, and Keychain items can survive app
-removal. Mealio's backend has no user-profile or food-log database. AI account records
+removal. Nourlo's backend has no user-profile or food-log database. AI account records
 remain until deleted; app sessions expire after 30 days, pending sign-in
 challenges after five minutes, and abandoned request reservations after three
 minutes. Personal spending counters retain only the current UTC day; aggregate service
@@ -104,7 +104,7 @@ does not automatically erase provider records.
 - **Apple** — MapKit/Maps for store locations; optional CloudKit shopping sync.
 
 ## Children
-Mealio is not directed at children under 13 and should not be used to set
+Nourlo is not directed at children under 13 and should not be used to set
 calorie goals for minors without medical guidance.
 
 ## Your choices
@@ -114,7 +114,7 @@ calorie goals for minors without medical guidance.
 
 ## Health disclaimer
 Calorie and macro values are **estimates** and may vary by product and
-preparation. Mealio is not a medical device and does not provide medical advice.
+preparation. Nourlo is not a medical device and does not provide medical advice.
 Consult a professional before making significant dietary changes.
 
 ## Contact

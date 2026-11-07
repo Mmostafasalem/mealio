@@ -22,7 +22,7 @@ struct NotificationPermissionView: View {
                 VStack(spacing: 8) {
                     Text("No retail alerts")
                         .font(.largeTitle).fontWeight(.bold)
-                    Text("Catalog prices are estimates. Mealio does not send discount, nearby stock or expiry alerts from them.")
+                    Text("Catalog prices are estimates. Nourlo does not send discount, nearby stock or expiry alerts from them.")
                         .font(.subheadline)
                         .foregroundStyle(Color.labelSecondary)
                         .multilineTextAlignment(.center)

@@ -35,7 +35,7 @@ struct ProfileView: View {
             .scrollContentBackground(.hidden)
             .background(Color.surfaceGrouped)
             .navigationTitle("Profile")
-            .alert("Delete all Mealio data?", isPresented: $vm.showResetAlert) {
+            .alert("Delete all Nourlo data?", isPresented: $vm.showResetAlert) {
                 Button("Delete Data", role: .destructive) {
                     Task { await vm.resetOnboarding() }
                 }
@@ -69,7 +69,7 @@ struct ProfileView: View {
 
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(vm.profile.name.isEmpty ? "Mealio User" : vm.profile.name)
+                    Text(vm.profile.name.isEmpty ? "Nourlo User" : vm.profile.name)
                         .font(.headline)
                     HStack(spacing: 4) {
                         Image(systemName: "mappin.circle.fill")
@@ -115,7 +115,7 @@ struct ProfileView: View {
     private var notificationSection: some View {
         Section("Notifications") {
             Label("Retail alerts are off", systemImage: "bell.slash")
-            Text("Prices in the catalog are estimates, so Mealio does not send discount, stock or expiry alerts. Meal and food-log reminders are not available yet.")
+            Text("Prices in the catalog are estimates, so Nourlo does not send discount, stock or expiry alerts. Meal and food-log reminders are not available yet.")
                 .font(.footnote).foregroundStyle(Color.labelSecondary)
         }
         .tint(.brandPrimary)
@@ -129,7 +129,7 @@ struct ProfileView: View {
                 Label("Delete All Data", systemImage: "trash")
             }
         } footer: {
-            Text("Deletes your online AI account, clears local data and requests deletion of your Mealio iCloud data, then restarts setup.")
+            Text("Deletes your online AI account, clears local data and requests deletion of your Nourlo iCloud data, then restarts setup.")
         }
     }
 
@@ -159,7 +159,7 @@ struct ProfileView: View {
         } header: {
             Text("Data & iCloud")
         } footer: {
-            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Mealio account is needed for shopping sync. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
+            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Nourlo account is needed for shopping sync. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
         }
     }
 

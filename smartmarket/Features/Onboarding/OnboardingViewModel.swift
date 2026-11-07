@@ -146,7 +146,7 @@ final class OnboardingViewModel {
                         lastName.trimmingCharacters(in: .whitespaces)]
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-        profile.name          = fullName.isEmpty ? "Mealio User" : fullName
+        profile.name          = fullName.isEmpty ? "Nourlo User" : fullName
         profile.weight        = weight
         profile.height        = height
         profile.age           = age

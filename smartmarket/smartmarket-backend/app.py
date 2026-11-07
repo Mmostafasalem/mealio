@@ -708,7 +708,7 @@ def handle_meal_plan(body):
     active      = _active_deals()
     avail_deals = deals_summary(active)
 
-    system_prompt = """7-day meal plan JSON for Mealio (Vilnius). Keys: pirmadienis-sekmadienis. Each day: pusryčiai,pietūs,vakarienė,užkandis. Each meal: {pavadinimas,kalorijų,baltymai,angliavandeniai,riebalai,porcija}. Add agentMessage (1 sentence). PRIORITISE ingredients the user already bought (their shopping list), then common affordable groceries. Do NOT claim items are on sale or discounted. Hit targets. IMPORTANT: every day MUST have a completely different breakfast, lunch, dinner and snack — no meal name should repeat across days. Return ONLY JSON."""
+    system_prompt = """7-day meal plan JSON for Nourlo (Vilnius). Keys: pirmadienis-sekmadienis. Each day: pusryčiai,pietūs,vakarienė,užkandis. Each meal: {pavadinimas,kalorijų,baltymai,angliavandeniai,riebalai,porcija}. Add agentMessage (1 sentence). PRIORITISE ingredients the user already bought (their shopping list), then common affordable groceries. Do NOT claim items are on sale or discounted. Hit targets. IMPORTANT: every day MUST have a completely different breakfast, lunch, dinner and snack — no meal name should repeat across days. Return ONLY JSON."""
 
     seed = int(time.time()) % 10000
     user_prompt = (
@@ -860,7 +860,7 @@ def handle_agent_chat(body):
 
     fav_str = ", ".join(fav_names) if fav_names else "not specified"
     system_prompt = (
-        "Mealio AI — nutrition & grocery assistant, Vilnius.\n"
+        "Nourlo AI — nutrition & grocery assistant, Vilnius.\n"
         f"User: {goal} goal, {target_kcal} kcal/day, {consumed} consumed today.\n"
         f"Favourite foods: {fav_str}\n"
         f"Curated grocery estimates (not live prices or stock): {json.dumps(deals_summary(_active_deals(), max_items=8))}\n"
@@ -889,5 +889,5 @@ if __name__ == "__main__":
     from server import app as flask_app
 
     port = int(os.environ.get("PORT", 5000))
-    print(f"Mealio backend (dev) running on port {port} — model: {GROQ_MODEL}")
+    print(f"Nourlo backend (dev) running on port {port} — model: {GROQ_MODEL}")
     flask_app.run(host="0.0.0.0", port=port)
