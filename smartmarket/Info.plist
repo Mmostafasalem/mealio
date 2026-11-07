@@ -7,7 +7,7 @@
 	<!-- Backend base URL. Replace with your deployed Render URL before release,
 	     e.g. https://mealio-backend.onrender.com -->
 	<key>API_BASE_URL</key>
-	<string>https://mealio-backend-17qg.onrender.com</string>
+	<string>https://mealio-backend-d7aa.onrender.com</string>
 	<!-- Shared secret. Must match the backend's APP_API_KEY env var.
 	     Injected at build time from Secrets.xcconfig (gitignored). Undefined →
 	     empty → auth disabled (dev). See Secrets.xcconfig.example. -->

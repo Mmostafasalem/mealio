@@ -57,3 +57,29 @@ entitlements remain intact, and the production Release build still passes with
 zero warnings/errors. See `docs/PHONE_TESTING.md` for scope and evidence.
 This establishes a working local device test, not paid membership, production
 signing, full device acceptance or online service activation.
+
+
+## Hosted backend activation — 2026-11-07
+
+The owner restored GitHub login and entered the provider/app settings directly
+in Render. The prepared branch `release/production-ai-2026-11-07` was pushed
+without merging main. Render Blueprint now tracks that branch. Commit `37c2022`
+is live at `https://mealio-backend-d7aa.onrender.com` with locked dependencies,
+production configuration checks and `/healthz` liveness.
+
+Verified against the live service: public liveness 200; health without key 401;
+matching app key accepted; protected readiness 200 with no missing configuration;
+synthetic BMR 200. AI config reports disabled and an AI request correctly returns
+503. This proves secured catalog-only hosting, NOT live AI inference. Production
+Apple account credentials/capabilities and durable allowance storage remain
+required before enabling AI. No paid plan or Apple membership was purchased.
+
+GitHub run 42371210970 passed backend and web checks. The iOS job failed under
+Xcode 16.4 on four list `ForEach` expressions with `MapContentBuilder` overload
+errors. Local Xcode builds passing do not override this independent failure;
+resolve compiler compatibility before release signoff.
+
+The iOS endpoint now targets the new secured backend. A fresh private phone
+build uses ordinary Info.plist with no OWNER_AI_* fields, replacing the previous
+Mac-specific configuration. Mac relay was stopped. Its test tooling remains
+separate from production; archived testing notes are not an active AI solution.
