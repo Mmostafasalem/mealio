@@ -73,7 +73,7 @@ struct AgentChatSheet: View {
             }
             Button("Not now", role: .cancel) { pendingOwnerMessage = nil }
         } message: {
-            Text("AI requests can include your message, nutrition goals, body measurements, food preferences and shopping items. This private test sends them \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the model on your Mac. Keep the Mac awake. You can turn sharing off in Profile.")
+            Text("AI requests can include your message, nutrition goals, body measurements, food preferences, shopping items, owned food quantities and remaining daily targets. This private test sends them \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the model on your Mac. Keep the Mac awake. You can turn sharing off in Profile.")
         }
         .onChange(of: vm.chatNotice) { _, notice in
             if UIAccessibility.isVoiceOverRunning, let notice, !notice.isEmpty {

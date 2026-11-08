@@ -57,7 +57,8 @@ community database; compare branded products with their current package labels.
 Online AI features are optional and require the sharing permission in Profile.
 When enabled and you generate a meal plan, ask the in-app assistant, or request a recipe, we
 send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
-foods, shopping list, your message) to our backend, which uses **Groq** (an AI
+foods, shopping list, owned food names, quantities, units and reference nutrition,
+remaining daily calorie and macro totals, your message) to our backend, which uses **Groq** (an AI
 provider) to generate the response. Product nutrition is looked up from **Open
 Food Facts**. We send the minimum needed for the feature and do not attach your name. Online AI requests use a Nourlo session linked to
 your optional Apple account. The session and Apple identifier are not included

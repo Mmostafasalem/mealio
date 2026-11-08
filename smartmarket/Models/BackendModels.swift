@@ -154,12 +154,21 @@ struct BMRResponse: Codable {
 
 // MARK: - Meal Plan (POST /api/meal-plan)
 
-struct MealPlanRequest: Codable {
+struct MealPlanRequest: Encodable {
+    var stock: [PlanningFood]? = nil
+    var remainingToday: PlanningTargets? = nil
     let user: MealPlanUser
     let bmrData: BMRResponse
     let groceryList: [Deal]
     let goal: String   // "lose" | "maintain" | "gain"
     let lang: String   // "en" | "lt"
+}
+
+struct PlanningTargets: Codable {
+    let calories: Int
+    let protein: Double
+    let carbs: Double
+    let fat: Double
 }
 
 struct MealPlanUser: Codable {
@@ -219,6 +228,8 @@ struct DayPlan: Codable, Equatable {
 }
 
 struct MealItem: Codable, Equatable {
+    var portions: [PlannedPortion]? = nil
+    var nutritionIngredients: [NutritionIngredient]? = nil
     let pavadinimas: String    // name
     let ingredientai: [String] // ingredients
     let kcal: Int

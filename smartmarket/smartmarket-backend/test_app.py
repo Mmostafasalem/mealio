@@ -162,3 +162,28 @@ def test_spoofed_forwarded_for_cannot_bypass_rate_limit():
     ]
     assert 429 in codes
     app._rate_buckets.clear()
+
+
+def test_meal_plan_separates_owned_stock_from_shopping_and_bounds_payload(monkeypatch):
+    captured = {}
+    def capture(messages, fallback=None, **kwargs):
+        captured['prompt'] = messages[-1]['content']
+        return fallback
+    monkeypatch.setattr(app, 'groq_json', capture)
+    valid = {'food': {'id': 'usda:123', 'name': 'Rice', 'basis': 'g',
+                      'kcal': 130, 'protein': 2.5, 'carbs': 28, 'fat': 0.3}, 'availableAmount': 375}
+    app.handle_meal_plan({'stock': [valid], 'groceryList': [{'name': 'Milk'}],
+                          'remainingToday': {'calories': 600, 'protein': 30, 'carbs': 60, 'fat': 20}})
+    assert 'Owned stock with quantities' in captured['prompt']
+    assert '375' in captured['prompt'] and 'usda:123' in captured['prompt']
+    assert 'Shopping intentions (not owned): ["Milk"]' in captured['prompt']
+    assert 'Remaining today (not a daily target)' in captured['prompt']
+    assert app._planning_stock([{'food': valid['food'], 'availableAmount': True}]) == []
+    assert app._planning_stock([{'food': valid['food'], 'availableAmount': float('nan')}]) == []
+    assert app._planning_remaining({'calories': float('inf')}) is None
+
+
+def test_meal_normalization_preserves_source_portion_ids():
+    portions = [{'foodID': 'usda:123', 'amount': 125}]
+    result = app._normalize_meal({'pavadinimas': 'Rice', 'kcal': 100, 'portions': portions})
+    assert result['portions'] == portions

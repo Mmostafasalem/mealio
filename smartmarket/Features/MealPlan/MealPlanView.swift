@@ -23,6 +23,10 @@ struct MealPlanView: View {
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                         .padding(.horizontal, Spacing.lg)
                 }
+                if let message = vm.errorMessage, vm.todaysPlan != nil {
+                    Text(message).font(.footnote).foregroundStyle(Color.brandDanger)
+                        .padding(.horizontal, Spacing.lg)
+                }
                 Picker("View", selection: $vm.selectedTab) {
                     ForEach(MealPlanTab.allCases) { tab in
                         Text(tab.displayName).tag(tab)
@@ -200,7 +204,7 @@ private struct MealEntryRow: View {
                     Text(entry.foodName)
                         .font(.subheadline).fontWeight(.medium)
                         .foregroundStyle(Color.labelPrimary)
-                    Text(entry.notes?.isEmpty == false ? entry.notes! : "\(entry.portionG)g")
+                    Text(entry.notes?.isEmpty == false ? entry.notes! : (entry.portionG > 0 ? "\(entry.portionG) g" : "Portion not specified"))
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -209,6 +213,8 @@ private struct MealEntryRow: View {
                     Text("\(entry.calories) kcal")
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
+                    Text(entry.nutritionIngredients == nil ? "Estimated calories · macros unavailable" : "Calculated from ingredient portions")
+                        .font(.caption2).foregroundStyle(Color.labelSecondary)
                     if entry.proteinG + entry.carbsG + entry.fatG > 0 {
                         Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()

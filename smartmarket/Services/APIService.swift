@@ -101,22 +101,36 @@ final class APIService {
     // MARK: - Meal Plan (AI — allow up to 60s)
 
     func generateMealPlan(_ request: MealPlanRequest) async throws -> WeeklyMealPlan {
+        var request = request
+        let items = Array(StockStore.shared.items.prefix(100))
+        // Group batches of the same food without changing its g/ml/serving basis.
+        let groups = Dictionary(grouping: items, by: { $0.food.id })
+        request.stock = groups.values.compactMap { group in
+            guard let first = group.first else { return nil }
+            return PlanningFood(food: first.food, availableAmount: group.reduce(0) { $0 + $1.amount })
+        }.sorted { $0.food.id < $1.food.id }
+        let gaps = MealPlanViewModel().computeNutritionalGaps()
+        request.remainingToday = PlanningTargets(calories: gaps.caloriesNeeded, protein: gaps.proteinNeeded,
+                                                 carbs: gaps.carbsNeeded, fat: gaps.fatNeeded)
         do {
             let req = try post(Constants.API.Endpoint.mealPlan, body: request, timeout: ownerConfiguration == nil ? 60 : 150)
             let (data, response) = try await ownerSession.data(for: req)
             try validateResponse(response, requireAI: true)
             var plan = try decoder.decode(WeeklyMealPlan.self, from: data)
+            plan = MealPlanGrounding.resolve(plan, foods: request.stock?.map(\.food) ?? [])
             plan.generationSource = "online"
             return plan
         } catch {
-            appLog("[API] generateMealPlan failed — using offline fallback:", error)
+            appLog("[API] generateMealPlan failed:", error)
+            // A failed refresh must not replace a saved plan with generic meals.
+            if AppState.shared.weeklyMealPlan != nil { throw error }
             let target: Int
             switch request.goal {
             case "lose": target = request.bmrData.loseCalories
             case "gain": target = request.bmrData.gainCalories
             default:     target = request.bmrData.maintainCalories
             }
-            var plan = FallbackData.mealPlan(targetKcal: target, pantry: request.groceryList)
+            var plan = FallbackData.mealPlan(targetKcal: target, pantry: [])
             plan.generationSource = "local"
             return plan
         }

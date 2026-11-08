@@ -10,9 +10,10 @@ struct MealEntry: Codable, Identifiable {
     let carbsG: Double
     let fatG: Double
     let notes: String?          // e.g. "grilled", "steamed"
+    var nutritionIngredients: [NutritionIngredient]? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, calories, notes
+        case id, calories, notes, nutritionIngredients
         case foodName  = "food_name"
         case portionG  = "portion_g"
         case proteinG  = "protein_g"
@@ -115,48 +116,32 @@ extension MealPlan {
         ]
         guard today >= 1 && today <= 7, let day = dayPlans[today - 1] else { return nil }
 
-        // Use stored BMR macro targets to estimate per-meal macros proportionally
-        let bmrMacros = AppState.shared.bmrData?.macros
-        let targetKcal = Double(AppState.shared.bmrData?.loseCalories ?? AppState.shared.bmrData?.maintainCalories ?? 1800)
-        let dayKcal = Double(day.visoKcal ?? Int(targetKcal))
+        return from(day: day, date: Date(), notes: weekly.agentMessage ?? "")
+    }
 
-        func scaledMacro(_ target: Double) -> Double {
-            guard targetKcal > 0 else { return 0 }
-            return (target * dayKcal / targetKcal).rounded()
-        }
+    static func entry(_ item: MealItem?) -> [MealEntry] {
+        guard let item else { return [] }
+        let ingredients = item.nutritionIngredients
+        let totals = ingredients?.map { $0.food.portion($0.amount) }
+        let grams = ingredients?.allSatisfy { $0.food.basis == .grams } == true
+            ? Int((ingredients?.reduce(0) { $0 + $1.amount } ?? 0).rounded()) : 0
+        let calories = totals.map { Int($0.reduce(0) { $0 + $1.kcal }.rounded()) } ?? item.kcal
+        return [MealEntry(id: UUID().uuidString, foodName: item.pavadinimas, portionG: grams,
+                          calories: calories, proteinG: totals?.reduce(0) { $0 + $1.protein } ?? 0,
+                          carbsG: totals?.reduce(0) { $0 + $1.carbs } ?? 0,
+                          fatG: totals?.reduce(0) { $0 + $1.fat } ?? 0,
+                          notes: ingredients?.map { "\($0.food.name) · \($0.amount.formatted()) \($0.food.basis.rawValue)" }.joined(separator: ", ") ?? item.ingredientai.joined(separator: ", "),
+                          nutritionIngredients: ingredients)]
+    }
 
-        let totalProtein = scaledMacro(Double(bmrMacros?.protein ?? 150))
-        let totalCarbs   = scaledMacro(Double(bmrMacros?.carbs   ?? 200))
-        let totalFat     = scaledMacro(Double(bmrMacros?.fat     ?? 60))
-
-        func entry(_ item: MealItem?, mealFraction: Double) -> [MealEntry] {
-            guard let item else { return [] }
-            let kcal = item.kcal
-            let fraction = dayKcal > 0 ? Double(kcal) / dayKcal : mealFraction
-            return [MealEntry(
-                id: UUID().uuidString,
-                foodName: item.pavadinimas,
-                portionG: Int((Double(kcal) / 2.0).rounded()),
-                calories: kcal,
-                proteinG: (totalProtein * fraction).rounded(),
-                carbsG:   (totalCarbs   * fraction).rounded(),
-                fatG:     (totalFat     * fraction).rounded(),
-                notes: item.ingredientai.joined(separator: ", ")
-            )]
-        }
-
-        return MealPlan(
-            id: UUID().uuidString,
-            date: Date(),
-            breakfast: entry(day.pusryciai, mealFraction: 0.25),
-            lunch:     entry(day.pietus,    mealFraction: 0.35),
-            dinner:    entry(day.vakariene, mealFraction: 0.30),
-            snacks:    entry(day.uzkandziai, mealFraction: 0.10),
-            totalCalories:  day.visoKcal ?? 0,
-            totalProteinG:  totalProtein,
-            totalCarbsG:    totalCarbs,
-            totalFatG:      totalFat,
-            agentNotes:     weekly.agentMessage ?? ""
-        )
+    static func from(day: DayPlan, date: Date, notes: String) -> MealPlan {
+        let breakfast = entry(day.pusryciai), lunch = entry(day.pietus)
+        let dinner = entry(day.vakariene), snacks = entry(day.uzkandziai)
+        let entries = breakfast + lunch + dinner + snacks
+        return MealPlan(id: UUID().uuidString, date: date, breakfast: breakfast, lunch: lunch, dinner: dinner, snacks: snacks,
+                        totalCalories: entries.reduce(0) { $0 + $1.calories },
+                        totalProteinG: entries.reduce(0) { $0 + $1.proteinG },
+                        totalCarbsG: entries.reduce(0) { $0 + $1.carbsG },
+                        totalFatG: entries.reduce(0) { $0 + $1.fatG }, agentNotes: notes)
     }
 }

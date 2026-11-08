@@ -179,9 +179,9 @@ struct ProfileView: View {
             Text("Privacy & Help")
         } footer: {
             if OwnerAITestConfiguration.current != nil {
-                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
+                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
             } else {
-                Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
+                Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
             }
         }
     }

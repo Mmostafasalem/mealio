@@ -13,16 +13,16 @@ The owner requests a complete iPhone product connecting household stock, worldwi
 
 ## Current evidence and gaps (2026-11-08)
 
-- StockStore and StockView now track source-backed food quantities, optional use-by dates, corrections/replenishment, and consumption. Stock quantities and consumption records persist together. Home and Meal Plan expose stock. MealPlanViewModel still sends ShoppingCartService.planDeals as pantry: planning integration remains incomplete.
+- StockStore and StockView now track source-backed food quantities, optional use-by dates, corrections/replenishment, and consumption. Stock quantities and consumption records persist together. Home and Meal Plan expose stock. Planning requests now carry grouped owned quantities and remaining intake targets separately from shopping intentions. The server prompt uses those quantities. Live authenticated planning is still unverified.
 - MealPlanViewModel.computeNutritionalGaps used an arbitrary 200 g per grocery item. Changed to actual today's logged portions; simulator unit verification passed.
-- Models/MealPlan.swift fabricates macro estimates from goal proportions and portion grams from kcal/2. Must replace with source-backed ingredient calculations.
+- Removed goal-proportional macros and kcal/2 portion grams from Models/MealPlan.swift. Online portion IDs resolve against the submitted catalog snapshots; calories/macros are calculated from those amounts. Unresolved meals retain labelled estimated calories and no invented macros. Model-composed ingredient completeness and real-world preparation still need end-to-end validation.
 - FoodLogStore now preserves retained logs across days, including existing-format records, derives today's totals, and exposes Food History. Previously discarded records cannot be recovered.
 - ProductCatalogService depends on protected backend and caches chain products. Map displays branch-stock disclaimers; no verified branch inventory source has been demonstrated.
 - Online AI and production signing are not verified on the current phone-test build. Existing Apple account/capability dependency needs resolution without putting shared provider secrets into the app.
 
 ## Implementation sequence
 
-Inventory persistence, shared food selection, log/consume/replenish and retained history have been implemented. Replace planning inputs and nutrition calculations with explicit inventory and recorded intake. Activate/test secure AI end-to-end. Integrate verifiable market sources and remove misleading fallback claims. Then redesign navigation around Today, Stock, Meals and Nearby shopping, run full device journeys and release gates. Existing SwiftUI platform is retained. No paid purchase is implied.
+Inventory persistence, shared food selection, log/consume/replenish and retained history have been implemented. Stock-aware request inputs and ingredient-based nutrition are implemented and unit tested. Activate/test secure AI end-to-end, verify quantity budgeting across the full plan, and support shopping actions for missing ingredients. Integrate verifiable market sources and remove misleading fallback claims. Then redesign navigation around Today, Stock, Meals and Nearby shopping, run full device journeys and release gates. Existing SwiftUI platform is retained. No paid purchase is implied.
 
 Completion requires evidence for all six requirements, not simply successful compilation or expanded offline records.
 
@@ -33,3 +33,12 @@ Completion requires evidence for all six requirements, not simply successful com
 - Final stock/goal unit and UI verification rerun after quantity editor changes: `/tmp/nourlo-stock-final.log` (inspect terminal result).
 - Release helper checks: 17 passed after allowing their local HTTP test server.
 - This milestone does not prove online AI, stock-aware planning, nearby retailer feeds, or production distribution.
+
+## Planning milestone evidence
+
+- Native suite: 67 tests executed, one credential-gated live AI test skipped, zero failures (`/tmp/nourlo-plan-grounding-final.log`).
+- Final targeted grounding/stock/goal rerun passed after narrowing stock serialization to food ID/name/basis/nutrients and available quantity (`/tmp/nourlo-grounding-verified.log`); no compiler warnings.
+- Full backend suite with pinned dependencies: 73 passed. Tests cover stock/shopping separation, remaining targets, malformed numeric values, and preservation of ingredient portion IDs.
+- Legacy plans remain readable. Macros and grams are no longer synthesized from daily targets. A failed refresh retains the existing plan.
+- Live `/healthz` returns HTTP 200; `/api/auth/config` without credentials returns HTTP 401. This is liveness/auth enforcement evidence, not successful AI operation. Render administration is not connected (Render plugin discovered as available but uninstalled).
+- Backend changes are local and have not been deployed. Neither live AI operation nor production distribution is complete.

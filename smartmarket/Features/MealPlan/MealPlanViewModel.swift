@@ -41,7 +41,6 @@ final class MealPlanViewModel {
         guard !isGenerating else { return }
         errorMessage = nil
         // Clear cache and daily-refresh gate so backend is always hit fresh
-        UserDefaults.standard.removeObject(forKey: Constants.Storage.currentMealPlan)
         UserDefaults.standard.removeObject(forKey: "lastMealPlanGeneratedDate")
         // Preserve the saved plan until its replacement is ready.
         await fetchTodaysPlan()
@@ -97,7 +96,7 @@ final class MealPlanViewModel {
             AppState.shared.saveMealPlan(weekly)
         } catch {
             appLog("[MealPlan] load failed:", error)
-            errorMessage = "Could not load your meal plan. Tap to retry."
+            errorMessage = "Could not update your meal plan. Your saved plan is kept. Check the AI connection in Profile, then retry."
         }
     }
 
@@ -170,28 +169,11 @@ final class MealPlanViewModel {
             let _ = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
             return dayPlans.enumerated().compactMap { idx, day in
                 guard let day else { return nil }
-                func entry(_ item: MealItem?) -> [MealEntry] {
-                    guard let item else { return [] }
-                    return [MealEntry(id: UUID().uuidString,
-                                     foodName: item.pavadinimas,
-                                     portionG: 0,
-                                     calories: item.kcal,
-                                     proteinG: 0,
-                                     carbsG:   0,
-                                     fatG:     0,
-                                     notes:    item.ingredientai.joined(separator: ", "))]
-                }
-                return MealPlan(id: UUID().uuidString,
-                                date: Calendar.current.date(byAdding: .day, value: idx, to: Date()) ?? Date(),
-                                breakfast: entry(day.pusryciai),
-                                lunch:     entry(day.pietus),
-                                dinner:    entry(day.vakariene),
-                                snacks:    entry(day.uzkandziai),
-                                totalCalories:  day.visoKcal ?? 0,
-                                totalProteinG:  0,
-                                totalCarbsG:    0,
-                                totalFatG:      0,
-                                agentNotes:     weekly.agentMessage ?? "")
+                let weekday = Calendar.current.component(.weekday, from: Date()) - 1
+                let offset = (idx - weekday + 7) % 7
+                return MealPlan.from(day: day,
+                                     date: Calendar.current.date(byAdding: .day, value: offset, to: Date()) ?? Date(),
+                                     notes: weekly.agentMessage ?? "")
             }
         }
 
@@ -206,75 +188,7 @@ final class MealPlanViewModel {
             let plans = buildWeekPlans(from: weekly)
             if !plans.isEmpty { weekPlans = plans; return }
         }
-        #if DEBUG
-        weekPlans = Self.mockedWeekPlans(goal: goal)
-        #endif
-    }
-
-    private static func mockedWeekPlans(goal: Int) -> [MealPlan] {
-        let _: [(String, [(String, Int, Double, Double, Double, String?)])] = [
-            ("Breakfast", [("Oats with banana", 350, 12, 55, 6, nil)]),
-            ("Lunch",     [("Chicken breast with rice", 550, 45, 60, 10, "Grilled")]),
-            ("Dinner",    [("Salmon with vegetables", 480, 38, 30, 18, "Baked")]),
-            ("Snacks",    [("Apple", 80, 0.5, 20, 0.3, nil)]),
-        ]
-        let dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        let dayTemplates: [(String, String, String, String)] = [
-            ("Oats with banana",         "Chicken breast with rice", "Salmon with vegetables",   "Apple"),
-            ("Scrambled eggs",           "Tuna salad",               "Pasta with tomato sauce",  "Yogurt"),
-            ("Avocado toast",            "Lentil soup",              "Beef steak",               "Almonds"),
-            ("Protein shake",            "Rice with chicken",        "Baked hake",               "Banana"),
-            ("Spanish omelette",         "Turkey sandwich",          "Light homemade pizza",     "Orange"),
-            ("Oat pancakes",             "Caesar salad",             "Grilled ribs",             "Mixed nuts"),
-            ("Salmon toast",             "Gazpacho with ham",        "Roast chicken & potatoes", "Kefir"),
-        ]
-
-        let calendar = Calendar.current
-        let today = Date()
-        let weekdayOffset = calendar.component(.weekday, from: today) - 2 // Mon=0 offset
-
-        func entry(_ name: String, _ cal: Int, _ protein: Double, _ carbs: Double, _ fat: Double, _ notes: String?) -> MealEntry {
-            MealEntry(
-                id: UUID().uuidString,
-                foodName: name,
-                portionG: 200,
-                calories: cal,
-                proteinG: protein,
-                carbsG: carbs,
-                fatG: fat,
-                notes: notes
-            )
-        }
-
-        return dayTemplates.enumerated().map { idx, names in
-            let (bName, lName, dName, sName) = names
-            let date = calendar.date(byAdding: .day, value: idx - weekdayOffset, to: today) ?? today
-
-            let bCal = Int(Double(goal) * 0.25)
-            let lCal = Int(Double(goal) * 0.35)
-            let dCal = Int(Double(goal) * 0.30)
-            let sCal = goal - bCal - lCal - dCal
-
-            let b = [entry(bName, bCal, Double(bCal)*0.25/4, Double(bCal)*0.45/4, Double(bCal)*0.30/9, nil)]
-            let l = [entry(lName, lCal, Double(lCal)*0.30/4, Double(lCal)*0.40/4, Double(lCal)*0.30/9, "Grilled")]
-            let d = [entry(dName, dCal, Double(dCal)*0.30/4, Double(dCal)*0.40/4, Double(dCal)*0.30/9, "Baked")]
-            let s = [entry(sName, sCal, Double(sCal)*0.10/4, Double(sCal)*0.60/4, Double(sCal)*0.30/9, nil)]
-            let all = b + l + d + s
-
-            return MealPlan(
-                id: UUID().uuidString,
-                date: date,
-                breakfast: b,
-                lunch: l,
-                dinner: d,
-                snacks: s,
-                totalCalories: goal,
-                totalProteinG: all.reduce(0) { $0 + $1.proteinG },
-                totalCarbsG:   all.reduce(0) { $0 + $1.carbsG },
-                totalFatG:     all.reduce(0) { $0 + $1.fatG },
-                agentNotes: "\(dayNames[idx]): balanced \(goal) kcal plan."
-            )
-        }
+        weekPlans = []
     }
 
     // MARK: - Add recommendations to grocery list
