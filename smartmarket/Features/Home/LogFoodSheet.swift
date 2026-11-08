@@ -311,7 +311,7 @@ struct LogFoodSheet: View {
 
 // MARK: - Serving detail (fine-tune grams before logging)
 
-private struct ServingDetailView: View {
+struct ServingDetailView: View {
     let food: NutritionFood
     let slot: MealSlot
     let actionTitle: String?

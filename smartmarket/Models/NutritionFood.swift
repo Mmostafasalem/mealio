@@ -20,6 +20,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
     var searchNames: [String]? = nil
     var recipeDetails: NutritionRecipe? = nil
     var menuURL: String? = nil
+    var reportedRetailers: [String]? = nil
 
     var referenceAmount: Double { basis == .serving ? 1 : 100 }
     var defaultAmount: Double { referenceAmount }
@@ -121,6 +122,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
                                  source: .openFoodFacts, sourceID: code, sourceDate: String(ISO8601DateFormatter().string(from: Date()).prefix(10)))
         food.searchNames = ["product_name", "product_name_en", "product_name_ar", "product_name_lt", "generic_name"]
             .compactMap { product[$0] as? String }.filter { !$0.isEmpty }
+        food.reportedRetailers = product["stores_tags"] as? [String]
         return food.isValid ? food : nil
     }
 }

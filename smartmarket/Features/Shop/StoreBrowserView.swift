@@ -11,6 +11,12 @@ struct StoreBrowserView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
+                    NavigationLink { RetailerProductsView(retailer: "") } label: {
+                        Label("Find reported retailer products", systemImage: "magnifyingglass")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(Spacing.lg).premiumCard()
+                    }
+                    .accessibilityIdentifier("shop.retailerProducts")
                     budgetCard
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
@@ -105,7 +111,7 @@ struct StoreBrowserView: View {
 
     private var storeGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Stores")
+            Text("Grocery budget catalog")
                 .font(.headline)
 
             Text("\(CatalogItem.all.count) catalog items · estimated prices, verify in-store")

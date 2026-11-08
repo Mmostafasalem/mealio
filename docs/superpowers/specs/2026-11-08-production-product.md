@@ -42,3 +42,12 @@ Completion requires evidence for all six requirements, not simply successful com
 - Legacy plans remain readable. Macros and grams are no longer synthesized from daily targets. A failed refresh retains the existing plan.
 - Live `/healthz` returns HTTP 200; `/api/auth/config` without credentials returns HTTP 401. This is liveness/auth enforcement evidence, not successful AI operation. Render administration is not connected (Render plugin discovered as available but uninstalled).
 - Backend changes are local and have not been deployed. Neither live AI operation nor production distribution is complete.
+
+## Nearby market discovery milestone
+
+- MapKit food-market POI search replaces the five-chain restriction. Returned map records are used as actual branch locations; generic chain estimates are still distinct.
+- Store details and Shop expose explicit retailer-scoped Open Food Facts lookup. Structured searches use API v2 `stores_tags`; named text search uses CGI store/country filters. Results without the selected retailer tag are discarded. There is no claim of branch-level stock or current prices.
+- Product selection shows source nutrition and lets the user add purchased quantities to My Stock. The grocery budget catalog remains an estimate catalog, labelled accordingly.
+- Provider reference: https://openfoodfacts.github.io/documentation/docs/Product-Opener/v2/search/get-search/ (stores_tags structured filter).
+- Live Rimi/Lithuania requests to both the structured and text endpoints returned HTTP 503 on 2026-11-08. Do not count these as verified product coverage. Availability is an external limitation; transport/filtering are covered by injected-response tests.
+- Authenticated read-only Render dashboard inspection is now possible through the browser. Service srv-dbnh60rrjlhs738q8fn0 is Free, deploys release/production-ai-2026-11-07 at 37c2022442c1153a1151c7e1f924aad8a83a7bf6. AI_ACCOUNTS_ENABLED is 0; GROQ_API_KEY exists; GROQ_MODEL is openai/gpt-oss-120b. No values or permissions were changed. Apple credential and durable account database configuration are absent from the listed environment variables. App production signing and live AI remain unresolved.

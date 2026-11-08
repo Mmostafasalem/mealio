@@ -29,6 +29,14 @@ struct StoreDetailSheet: View {
                         .foregroundStyle(Color.labelSecondary)
                 }
 
+                Section {
+                    NavigationLink { RetailerProductsView(retailer: store.chain) } label: {
+                        Label("Find reported retailer products", systemImage: "magnifyingglass")
+                    }
+                    Text("Explore packaged foods with source nutrition, then add what you have purchased to stock.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+
                 // Favourite deals
                 if !favDeals.isEmpty {
                     Section {

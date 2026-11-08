@@ -56,7 +56,7 @@ final class StoreMapViewModel {
     // MARK: - Real store locations (MapKit local search)
 
     /// Finds actual supermarket branches near the user (or Vilnius centre) via
-    /// MapKit. Catalog/demo coordinates are never used as branch locations.
+    /// MapKit in any supported country. Catalog/demo coordinates are never used as branch locations.
     func loadRealStores() {
         let center = LocationService.shared.userLocation?.coordinate
             ?? CLLocationCoordinate2D(latitude: 54.6872, longitude: 25.2797)
@@ -65,13 +65,7 @@ final class StoreMapViewModel {
         isLoadingStores = true
         storeLookupMessage = nil
         Task {
-            var found: [Store] = []
-            await withTaskGroup(of: [Store].self) { group in
-                for chain in ["Rimi", "Maxima", "Lidl", "Iki", "Norfa"] {
-                    group.addTask { await Self.search(chain: chain, near: center) }
-                }
-                for await result in group { found.append(contentsOf: result) }
-            }
+            let found = await Self.searchMarkets(near: center)
             guard generation == storeLookupGeneration else { return }
             applyStoreSearchResults(found)
         }
@@ -89,31 +83,22 @@ final class StoreMapViewModel {
             : nil
     }
 
-    private static func search(chain: String, near center: CLLocationCoordinate2D) async -> [Store] {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = chain
-        request.region = MKCoordinateRegion(center: center,
-                                            latitudinalMeters: 14_000,
-                                            longitudinalMeters: 14_000)
-        request.resultTypes = .pointOfInterest
+    private static func searchMarkets(near center: CLLocationCoordinate2D) async -> [Store] {
+        let request = MKLocalPointsOfInterestRequest(center: center, radius: 8000)
+        request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.foodMarket])
         do {
             let response = try await MKLocalSearch(request: request).start()
             return response.mapItems.compactMap { item -> Store? in
-                let name = item.name ?? ""
-                // Keep only results that are actually this chain (filters out noise).
-                guard name.localizedCaseInsensitiveContains(chain) else { return nil }
-                let coord = item.placemark.coordinate
-                return Store(
-                    id: String(format: "%@_%.4f_%.4f", chain.lowercased(), coord.latitude, coord.longitude),
-                    chain: chain,
-                    name: name,
-                    address: item.placemark.title ?? "",
-                    latitude: coord.latitude,
-                    longitude: coord.longitude
-                )
+                guard let name = item.name, !name.isEmpty else { return nil }
+                let coordinate = item.placemark.coordinate
+                let chain = ["Rimi", "Maxima", "Lidl", "Iki", "Norfa", "Carrefour", "Kaufland", "Tesco", "Aldi", "Spinneys"]
+                    .first { name.localizedCaseInsensitiveContains($0) } ?? name
+                return Store(id: String(format: "%@_%.5f_%.5f", name.lowercased(), coordinate.latitude, coordinate.longitude),
+                             chain: chain, name: name, address: item.placemark.title ?? "",
+                             latitude: coordinate.latitude, longitude: coordinate.longitude)
             }
         } catch {
-            appLog("[Map] search for \(chain) failed:", error)
+            appLog("[Map] nearby food market search failed:", error)
             return []
         }
     }

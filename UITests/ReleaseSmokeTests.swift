@@ -297,6 +297,23 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
     }
 
+    func testRetailerProductsSearchIsExplicitAndHasNoBranchStockClaim() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
+        app.launch()
+        tap("tab.shop", in: app)
+        tap("shop.retailerProducts", in: app)
+        let search = app.buttons["retailer.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        XCTAssertFalse(search.isEnabled)
+        let retailer = app.textFields["Retailer tag, e.g. rimi"]
+        retailer.tap()
+        retailer.typeText("rimi")
+        XCTAssertTrue(search.isEnabled)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "does not confirm stock")).firstMatch.exists)
+        capture("Retailer search disclosure")
+    }
+
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]

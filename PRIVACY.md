@@ -37,7 +37,7 @@ The iOS food logger includes an offline reference catalog imported from USDA
 FoodData Central (SR Legacy April 2018, Foundation October 2026 download, and
 FNDDS 2021–2023). Searching these foods stays on your device.
 When you explicitly search packaged products or enter a barcode, the app connects
-directly to Open Food Facts and sends that search text or barcode, selected market
+directly to Open Food Facts and sends that search text or barcode, optional retailer tag, selected market
 and language and requested result page, along with the
 normal network information such as your IP address. Your name, body measurements,
 food log and AI account token are not included. This lookup works independently of
@@ -51,6 +51,8 @@ are saved locally. Food history is retained across days; daily totals count only
 today's entries. Removing an intake record does not replenish stock. Delete All Data
 clears stock, saved products, custom dishes and logs. Open Food Facts is a
 community database; compare branded products with their current package labels.
+Retailer tags are contributor reports, not current branch stock or prices. Product
+lookup sends no precise location. Nearby supermarkets are found through Apple Maps.
 
 ## Information sent to our servers
 

@@ -127,4 +127,29 @@ final class NutritionLookupTests: XCTestCase {
         XCTAssertFalse(URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.contains { $0.name == "tag_0" })
     }
 
+    func testRetailerSearchUsesStructuredFilterAndRejectsUnreportedProducts() async throws {
+        var reported = product
+        reported["stores_tags"] = ["rimi"]
+        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["products": [reported, product], "count": 81])
+        var clock = Date()
+        let catalog = NutritionCatalogService(defaults: defaults, session: session, now: { clock })
+        let result = try await catalog.fetchProducts("", market: .lithuania, retailer: "Rimi")
+        XCTAssertEqual(result.foods.count, 1)
+        XCTAssertEqual(result.foods.first?.reportedRetailers, ["rimi"])
+        XCTAssertTrue(result.hasMore)
+        let request = try XCTUnwrap(NutritionTestProtocol.requests.last)
+        let url = try XCTUnwrap(request.url)
+        let params = Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(url.path, "/api/v2/search")
+        XCTAssertEqual(params["stores_tags"], "rimi")
+        XCTAssertEqual(params["countries_tags"], "en:lithuania")
+        XCTAssertNil(params["search_terms"])
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        clock.addTimeInterval(7)
+        _ = try await catalog.fetchProducts("", market: .lithuania, retailer: "lidl")
+        XCTAssertEqual(NutritionTestProtocol.requests.count, 2, "Retailer caches must remain separate")
+        _ = try await catalog.fetchProducts("", market: .lithuania, retailer: "rimi")
+        XCTAssertEqual(NutritionTestProtocol.requests.count, 2)
+    }
+
 }
