@@ -187,3 +187,14 @@ def test_meal_normalization_preserves_source_portion_ids():
     portions = [{'foodID': 'usda:123', 'amount': 125}]
     result = app._normalize_meal({'pavadinimas': 'Rice', 'kcal': 100, 'portions': portions})
     assert result['portions'] == portions
+
+
+def test_complete_lithuanian_provider_week_is_not_rejected_for_wednesday_diacritic():
+    from pathlib import Path
+    import json
+    raw = json.loads((Path(__file__).parent/'test_data/provider_week_lithuanian.json').read_text())
+    assert 'trečiadienis' in raw
+    assert app._usable_meal_plan(raw)
+    normalized = app._normalize_meal_plan(raw, 2000)
+    assert normalized['treciadienis']['pietūs']['pavadinimas'] == raw['trečiadienis']['pietūs']['pavadinimas']
+    assert normalized['treciadienis']['pietūs']['kcal'] == raw['trečiadienis']['pietūs']['kalorijų']
