@@ -270,6 +270,62 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertFalse(app.buttons["logFood.addServing"].exists)
     }
 
+    func testRestaurantMenuDishCanBeSavedAndLoggedPerServing() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        app.launch()
+        tap("navigation.quickActions", in: app)
+        let actionSearch = app.textFields["quickActions.search"]
+        XCTAssertTrue(actionSearch.waitForExistence(timeout: 5))
+        actionSearch.tap(); actionSearch.typeText("log food")
+        tap("quickActions.logFood", in: app)
+        tap("logFood.createDishToolbar", in: app)
+        app.segmentedControls["customFood.mode"].buttons["Restaurant menu"].tap()
+        for (id, value) in [("name", "QA Menu Plate"), ("restaurant", "QA Restaurant"), ("energy", "650"), ("protein", "35"), ("carbs", "80"), ("fat", "21")] {
+            let field = app.textFields["customFood." + id]
+            XCTAssertTrue(field.waitForExistence(timeout: 5))
+            field.tap(); field.typeText(value)
+            let done = app.buttons["customFood.keyboardDone"]
+            XCTAssertTrue(done.waitForExistence(timeout: 5))
+            done.tap()
+        }
+        tap("customFood.save", in: app)
+        XCTAssertTrue(app.staticTexts["Menu nutrition · entered by you"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["650"].exists)
+        capture("restaurant-menu-serving")
+        tap("logFood.addServing", in: app)
+        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+    }
+
+    func testRecipeBuilderUsesSourceIngredientsAndCookedYield() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        app.launch()
+        tap("navigation.quickActions", in: app)
+        let actionSearch = app.textFields["quickActions.search"]
+        XCTAssertTrue(actionSearch.waitForExistence(timeout: 5))
+        actionSearch.tap(); actionSearch.typeText("log food")
+        tap("quickActions.logFood", in: app)
+        tap("logFood.createDishToolbar", in: app)
+        let name = app.textFields["customFood.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("QA Recipe")
+        tap("customFood.addIngredient", in: app)
+        let search = app.textFields["customFood.ingredientSearch"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap(); search.typeText("bananas raw")
+        tap("customFood.ingredient.usda:173944", in: app)
+        let yield = app.textFields["customFood.yield"]
+        XCTAssertTrue(yield.waitForExistence(timeout: 5))
+        yield.tap(); yield.typeText("200")
+        tap("customFood.save", in: app)
+        XCTAssertTrue(app.staticTexts["Your recipe · calculated estimate"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["45"].exists)
+        capture("recipe-source-and-yield")
+        tap("logFood.addServing", in: app)
+        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+    }
+
     func testStoreUsesNativeSwipeBackAndLargeQuantityTargets() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]

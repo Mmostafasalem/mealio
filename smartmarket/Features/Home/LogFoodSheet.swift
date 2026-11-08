@@ -12,6 +12,11 @@ struct LogFoodSheet: View {
     @State private var addedToast: String?
     @State private var detailFood: NutritionFood?
     @State private var catalog = NutritionCatalogService.shared
+    @State private var market: NutritionCatalogService.Market = .worldwide
+    @State private var productPage = 0
+    @State private var hasMoreProducts = false
+    @State private var showCustomCreator = false
+    @State private var pendingCustom: NutritionFood?
     @State private var products: [NutritionFood] = []
     @State private var productNotice: String?
     @State private var isSearching = false
@@ -26,17 +31,32 @@ struct LogFoodSheet: View {
             VStack(spacing: 0) {
                 slotPicker
                 searchField
+                Picker("Product market", selection: $market) {
+                    ForEach(NutritionCatalogService.Market.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .accessibilityIdentifier("logFood.market")
 
                 List {
                     if let error = catalog.loadError { Text(error).foregroundStyle(Color.brandDanger) }
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if !catalog.customFoods.isEmpty {
+                            Section("Your dishes and restaurant entries") {
+                                ForEach(catalog.customFoods) { food in
+                                    row(food).swipeActions {
+                                        Button("Delete", role: .destructive) { catalog.removeCustom(food.id) }
+                                    }
+                                }
+                            }
+                        }
                         if !vm.recentNutritionFoods.isEmpty {
                             Section("Recent foods") {
                                 ForEach(vm.recentNutritionFoods) { food in row(food) }
                             }
                         }
                         Section("Food database") {
-                            Text("Search \(catalog.foods.count.formatted()) USDA foods offline, or look up a packaged product by name or barcode.")
+                            Text("Search \(catalog.foods.count.formatted()) reference foods offline, including prepared and restaurant-style dishes. Look up packaged products worldwide or by market.")
                             Text("Choose the description that matches what you weighed: raw, cooked, drained or prepared.")
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                         }
@@ -70,11 +90,22 @@ struct LogFoodSheet: View {
                             if isSearching { ProgressView() }
                             if let notice = productNotice { Text(notice).font(.footnote) }
                             ForEach(products) { food in row(food) }
+                            if hasMoreProducts {
+                                Button("Load more products") { searchProducts(loadMore: true) }
+                                    .disabled(isSearching)
+                                    .accessibilityIdentifier("logFood.loadMore")
+                            }
                         }
                         if results.isEmpty && products.isEmpty && !isSearching {
-                            Text("No local matches. Try a simpler English food name or search packaged products. Unknown nutrition values are never filled with guesses.")
+                            Text("No local matches. Try an ingredient name in English, Lithuanian or Arabic, search products, or add the dish from its menu nutrition or ingredients.")
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                         }
+                    }
+                    Section {
+                        Button("Add a recipe or restaurant dish") { showCustomCreator = true }
+                            .accessibilityIdentifier("logFood.createDish")
+                        Text("No database includes every restaurant or homemade recipe. Published menu entries can be saved per serving; recipes are calculated from their actual ingredients and final cooked weight.")
+                            .font(.footnote).foregroundStyle(Color.labelSecondary)
                     }
                     Section {
                         Link("USDA FoodData Central", destination: URL(string: "https://fdc.nal.usda.gov/")!)
@@ -94,7 +125,17 @@ struct LogFoodSheet: View {
             .navigationTitle("Add Food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showCustomCreator = true } label: { Image(systemName: "plus") }
+                        .accessibilityLabel("Add a recipe or restaurant dish")
+                        .accessibilityIdentifier("logFood.createDishToolbar")
+                }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+            .sheet(isPresented: $showCustomCreator, onDismiss: {
+                if let food = pendingCustom { detailFood = food; pendingCustom = nil }
+            }) {
+                CustomNutritionEntryView(catalog: catalog, market: market) { pendingCustom = $0 }
             }
             .overlay(alignment: .bottom) { toast }
             .onChange(of: query) {
@@ -102,6 +143,13 @@ struct LogFoodSheet: View {
                 products = []
                 productNotice = nil
                 isSearching = false
+                productPage = 0
+                hasMoreProducts = false
+            }
+            .onChange(of: market) {
+                lookupTask?.cancel()
+                products = []; productNotice = nil; isSearching = false
+                productPage = 0; hasMoreProducts = false
             }
             .onDisappear { lookupTask?.cancel() }
             .onAppear {
@@ -171,7 +219,7 @@ struct LogFoodSheet: View {
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
-                    Text("\(Int(food.kcal.rounded())) kcal / 100 \(food.basis.rawValue)")
+                    Text("\(Int(food.kcal.rounded())) kcal / \(food.basis == .serving ? "serving" : "100 " + food.basis.rawValue)")
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 }
@@ -191,7 +239,7 @@ struct LogFoodSheet: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add 100 \(food.basis.rawValue) of \(food.name)")
+            .accessibilityLabel("Add \(Int(food.defaultAmount)) \(food.basis.rawValue) of \(food.name)")
         }
         .padding(.vertical, 2)
     }
@@ -213,9 +261,9 @@ struct LogFoodSheet: View {
     // MARK: - Actions
 
     private func quickAdd(_ food: NutritionFood) {
-        vm.logFood(food, slot: slot, amount: 100)
+        vm.logFood(food, slot: slot, amount: food.defaultAmount)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        showToast("Added 100 \(food.basis.rawValue) · \(food.name)")
+        showToast("Added \(Int(food.defaultAmount)) \(food.basis.rawValue) · \(food.name)")
     }
 
     private func showToast(_ message: String) {
@@ -226,19 +274,26 @@ struct LogFoodSheet: View {
         }
     }
 
-    private func searchProducts() {
+    private func searchProducts(loadMore: Bool = false) {
         guard !isSearching else { return }
         let submitted = query
+        let submittedMarket = market
+        let nextPage = loadMore ? productPage + 1 : 1
         isSearching = true
         productNotice = nil
         lookupTask = Task { @MainActor in
             do {
-                let found = try await catalog.searchProducts(submitted)
-                guard !Task.isCancelled, submitted == query else { return }
-                products = found
-                productNotice = found.isEmpty ? "No products with complete nutrition and clear gram/ml units were found. Check the barcode or try another name." : nil
+                let found = try await catalog.fetchProducts(submitted, market: submittedMarket, page: nextPage)
+                guard !Task.isCancelled, submitted == query, submittedMarket == market else { return }
+                if loadMore {
+                    let existing = Set(products.map(\.id))
+                    products += found.foods.filter { !existing.contains($0.id) }
+                } else { products = found.foods }
+                productPage = nextPage
+                hasMoreProducts = found.hasMore
+                productNotice = found.foods.isEmpty ? (found.hasMore ? "No usable nutrition on this page. Load more products or narrow your search." : "No usable products on this page. Check the barcode or try another name.") : nil
             } catch {
-                guard !Task.isCancelled, submitted == query else { return }
+                guard !Task.isCancelled, submitted == query, submittedMarket == market else { return }
                 productNotice = (error as? LocalizedError)?.errorDescription ?? "Product search is unavailable. Offline foods and saved products still work."
             }
             isSearching = false
@@ -261,10 +316,10 @@ private struct ServingDetailView: View {
         self.food = food
         self.slot = slot
         self.onAdd = onAdd
-        _grams = State(initialValue: 100)
+        _grams = State(initialValue: food.defaultAmount)
     }
 
-    private var factor: Double { grams / 100.0 }
+    private var factor: Double { grams / food.referenceAmount }
     private var kcal: Int { Int((food.kcal * factor).rounded()) }
 
     var body: some View {
@@ -276,7 +331,7 @@ private struct ServingDetailView: View {
                         .font(.system(size: 52, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.labelPrimary).monospacedDigit()
                         .contentTransition(.numericText())
-                    Text("kcal · \(Int(grams)) \(food.basis.rawValue)").font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    Text("kcal · \(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.subheadline).foregroundStyle(Color.labelSecondary)
                     Text(food.brand ?? "Match the food's preparation to your portion")
                         .font(.subheadline).foregroundStyle(Color.labelSecondary)
 
@@ -296,16 +351,16 @@ private struct ServingDetailView: View {
                     HStack {
                         Text("Serving").font(.headline)
                         Spacer()
-                        Text("\(Int(grams)) \(food.basis.rawValue)").font(.headline).monospacedDigit()
+                        Text("\(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.headline).monospacedDigit()
                     }
-                    Stepper(value: $grams, in: 1...5000, step: 1) {
-                        Text("Amount in \(food.basis == .grams ? "grams" : "millilitres")")
+                    Stepper(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1) {
+                        Text(food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres"))
                     }
                     .accessibilityIdentifier("logFood.amount")
-                    Slider(value: $grams, in: 1...5000, step: 1)
+                    Slider(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1)
                         .tint(slot.accent)
                     HStack(spacing: 8) {
-                        ForEach([50, 100, 150, 200], id: \.self) { preset in
+                        ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
                             Button("\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
                                 .font(.caption).fontWeight(.semibold)
                                 .padding(.horizontal, 12).padding(.vertical, 6)
@@ -321,12 +376,17 @@ private struct ServingDetailView: View {
                     if food.source == .openFoodFacts, let date = food.sourceDate {
                         Text("Retrieved \(date)").font(.caption).foregroundStyle(Color.labelSecondary)
                     }
-                    Text("Per 100 \(food.basis.rawValue): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted()) g · Carbs \(food.carbs.formatted()) g · Fat \(food.fat.formatted()) g")
+                    Text("\(food.referenceLabel): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted()) g · Carbs \(food.carbs.formatted()) g · Fat \(food.fat.formatted()) g")
                         .font(.footnote)
-                    Link("View original nutrition record", destination: food.sourceURL)
-                    Text(food.source == .usda
-                         ? "Use the raw or cooked entry that matches how you weighed this food. These are reference averages, not a specific brand's label."
-                         : "Community-contributed product data, as sold. Check the product name, brand and current package label; preparation can change the values.")
+                    if let url = food.sourceURL { Link("View original nutrition record", destination: url) }
+                    if let recipe = food.recipeDetails {
+                        Text("Final weighed yield: \(recipe.cookedYieldG.formatted()) g").font(.footnote)
+                        ForEach(recipe.ingredients) { ingredient in
+                            Text("\(ingredient.food.name) · \(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue)")
+                                .font(.footnote)
+                        }
+                    }
+                    Text(food.sourceExplanation)
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

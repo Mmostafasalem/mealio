@@ -72,3 +72,61 @@ its bundled JSON contains all 7,793 source records. The live OFF check normalize
 one exact barcode and 27 usable products from a 40-result name search after
 excluding incomplete/ambiguous records. No physical-device or App Store release
 is implied by these simulator checks.
+
+
+## Global and restaurant expansion — 2026-11-08
+
+The offline database now contains 13,588 complete records: 7,793 SR Legacy,
+364 Foundation records from the official October 2026 JSON download, and 5,431
+FNDDS 2021–2023 records published October 2024. Import metadata retains each ZIP
+URL and SHA-256; each food retains dataset/release attribution. Foundation energy
+uses USDA nutrient 1008 when present, otherwise 2048/2047 Atwater kcal. A release
+label is the downloaded dataset version, not a claim about when every food was
+sampled. Rebuild the SR base, then run:
+
+    python3 scripts/expand-usda-nutrition.py /path/to/foundation.zip /path/to/survey.zip
+
+The extra references include prepared dishes, falafel, hummus, fava beans and
+restaurant-style foods. They are not verified current menus for all restaurants.
+No blanket regional nutrition value is assigned to arbitrary dish names. Common
+Lithuanian/Arabic ingredient aliases broaden matching while retaining the source
+description/preparation. English, Lithuanian and Arabic product names are kept
+as search names. User-entered Arabic/Latin recipe and restaurant names remain
+searchable locally.
+
+Online country filters apply to product search only. The filter describes where
+OFF lists the product as sold, not a restaurant's cuisine or location. World-wide
+barcode identity stays exact. Market, language and page are isolated in query
+caches, pagination uses raw provider counts, and every page respects rate limits.
+Ingredient selection uses a separate eligible-food index before applying result
+limits; custom dishes cannot displace genuine ingredients.
+
+Custom menus store all four entered nutrients per one serving, with restaurant
+name and optional HTTPS source link. Fractions scale from one serving, never a
+100 g denominator. The app explicitly labels these as entered by the user.
+Recipes sum snapshotted ingredient portions and divide by the provided final
+cooked yield to get per-100-g values. Recipe/menu records are excluded from recipe
+ingredient selection to prevent ambiguous recursive recipes. Yield, amounts,
+energy/macros and source URLs are validated. Recipes are estimates; discarded
+cooking liquid, sauces or oil must be accounted for by the person preparing them.
+Up to 200 custom dishes persist locally and can be removed individually; Delete
+All Data clears them. Previously logged source snapshots are preserved when a
+saved dish is removed.
+
+
+Global expansion verification, 2026-11-08: 60 native unit tests passed with one
+separate live-AI check skipped; source logging, recipe save/log and restaurant
+per-serving save/log UI tests passed. Seventeen Python release/catalog checks
+passed. Final Release and signed Personal Team phone builds completed with zero
+compiler warnings/errors; bundle guards pass and the 13,588-record database is
+present. UI evidence exposed and fixed nested-sheet keyboard focus and Save
+reachability. Fresh review found two ingredient coverage issues (first-page-only
+lookup and filtering after the result cap), both fixed and re-reviewed.
+
+Live Lithuania lookup returned87matches: all40returned records carried Lithuania
+country metadata;23had usable nutrition/units in the production parser. Egypt
+search returned HTTP503 on both bounded attempts. Country request structure/cache
+separation is covered by isolated transport tests, but a successful live Egypt
+lookup is not claimed. Offline Arabic ingredient search and custom dishes work
+independently of provider availability. Reference/menu/recipe source distinctions
+remain visible in the app.

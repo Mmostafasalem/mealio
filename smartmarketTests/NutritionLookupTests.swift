@@ -90,4 +90,41 @@ final class NutritionLookupTests: XCTestCase {
         do { _ = try await catalog.searchProducts("yogurt"); XCTFail("Missing products is a provider error") }
         catch NutritionCatalogService.LookupError.invalidResponse { }
     }
+    func testMarketPaginationAndLanguageStaySeparateInCache() async throws {
+        var raw = product
+        raw["product_name_ar"] = "زبادي"
+        raw["product_name_lt"] = "Jogurtas"
+        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["products": [raw], "count": 81])
+        var clock = Date()
+        let catalog = NutritionCatalogService(defaults: defaults, session: session, now: { clock })
+        let egypt = try await catalog.fetchProducts("yogurt", market: .egypt)
+        XCTAssertEqual(egypt.foods.first?.name, "زبادي")
+        XCTAssertTrue(egypt.hasMore)
+        func parameters() throws -> [String: String] {
+            let url = try XCTUnwrap(NutritionTestProtocol.requests.last?.url)
+            return Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value ?? "") })
+        }
+        XCTAssertEqual(try parameters()["tag_0"], "en:egypt")
+        XCTAssertEqual(try parameters()["lc"], "ar")
+        clock.addTimeInterval(7)
+        let lithuania = try await catalog.fetchProducts("yogurt", market: .lithuania)
+        XCTAssertEqual(lithuania.foods.first?.name, "Jogurtas")
+        XCTAssertEqual(try parameters()["tag_0"], "en:lithuania")
+        clock.addTimeInterval(7)
+        _ = try await catalog.fetchProducts("yogurt", market: .egypt, page: 2)
+        XCTAssertEqual(try parameters()["page"], "2")
+        XCTAssertEqual(NutritionTestProtocol.requests.count, 3)
+        _ = try await catalog.fetchProducts("yogurt", market: .egypt)
+        XCTAssertEqual(NutritionTestProtocol.requests.count, 3)
+    }
+    func testBarcodeIsNotRestrictedBySelectedCountry() async throws {
+        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["status": 1, "product": product])
+        let catalog = NutritionCatalogService(defaults: defaults, session: session)
+        let result = try await catalog.fetchProducts("12345678", market: .egypt)
+        XCTAssertEqual(result.foods.count, 1)
+        XCTAssertFalse(result.hasMore)
+        let url = try XCTUnwrap(NutritionTestProtocol.requests.last?.url)
+        XCTAssertFalse(URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.contains { $0.name == "tag_0" })
+    }
+
 }
