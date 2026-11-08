@@ -294,7 +294,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 }
 
-struct AgentChatRequest: Codable {
+struct AgentChatRequest: Encodable {
     let message: String
     let history: [AgentChatHistoryItem]
     let userContext: AgentUserContext
@@ -305,11 +305,32 @@ struct AgentChatHistoryItem: Codable {
     let content: String
 }
 
-struct AgentUserContext: Codable {
+struct AgentUserContext: Encodable {
     let goal: String
     let targetCalories: Int
     let caloriesConsumed: Int
     let favoriteFoods: [String]
+    var stock: [PlanningFood] = []
+    var remainingToday: PlanningTargets? = nil
+    var dietaryOptions: [String] = []
+    var allergies: [String] = []
+    var lang: String = "en"
+
+    static func make(profile: UserProfile, entries: [FoodLogEntry], stock: [StockItem],
+                     preferences: Set<DietaryPreference>, favoriteFoods: [String], lang: String) -> AgentUserContext {
+        let target = max(profile.dailyCalorieGoal, 1)
+        let macros = BMRCalculator.macroTargets(calories: target, isKeto: preferences.contains(.keto))
+        let consumed = entries.reduce(0) { $0 + $1.calories }
+        return AgentUserContext(goal: profile.weightGoal.rawValue, targetCalories: target,
+                                caloriesConsumed: consumed, favoriteFoods: favoriteFoods,
+                                stock: PlanningFood.grouped(stock),
+                                remainingToday: PlanningTargets(calories: max(target - consumed, 0),
+                                    protein: max(Double(macros.proteinG) - entries.reduce(0) { $0 + $1.proteinG }, 0),
+                                    carbs: max(Double(macros.carbsG) - entries.reduce(0) { $0 + $1.carbsG }, 0),
+                                    fat: max(Double(macros.fatG) - entries.reduce(0) { $0 + $1.fatG }, 0)),
+                                dietaryOptions: preferences.filter { !$0.isAllergy }.map(\.rawValue).sorted(),
+                                allergies: preferences.filter(\.isAllergy).map(\.rawValue).sorted(), lang: lang)
+    }
 }
 
 struct AgentChatResponse: Codable {

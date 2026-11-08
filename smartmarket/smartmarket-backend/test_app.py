@@ -192,6 +192,32 @@ def test_meal_normalization_preserves_source_portion_ids():
     assert result['portions'] == portions
 
 
+def test_chat_receives_owned_quantities_remaining_targets_and_exclusions(monkeypatch):
+    captured = {}
+    def capture(messages):
+        captured['system'] = messages[0]['content']
+        return 'Synthetic reply'
+    monkeypatch.setattr(app, 'groq_text', capture)
+    result = app.handle_agent_chat({'message': 'Suggest lunch', 'userContext': {
+        'targetCalories': 1800, 'caloriesConsumed': 400, 'favoriteFoods': [42, 'Rice'],
+        'stock': [{'food': {'id': 'usda:123', 'name': 'Rice', 'basis': 'g',
+                            'kcal': 130, 'protein': 2.5, 'carbs': 28, 'fat': 0.3}, 'availableAmount': 375}],
+        'remainingToday': {'calories': 1400, 'protein': 110, 'carbs': 140, 'fat': 50},
+        'allergies': ['nut_allergy'], 'dietaryOptions': ['no_pork'], 'lang': 'ar'}})
+    assert result['reply'] == 'Synthetic reply'
+    prompt = captured['system']
+    assert 'usda:123' in prompt and '375' in prompt
+    assert '1400' in prompt and 'nut_allergy' in prompt and 'no_pork' in prompt
+    assert 'Arabic' in prompt
+
+
+@pytest.mark.parametrize('field', ['targetCalories', 'caloriesConsumed'])
+@pytest.mark.parametrize('value', ['Infinity', '1e999', float('inf'), float('nan')])
+def test_chat_rejects_nonfinite_numeric_context_without_crashing(monkeypatch, field, value):
+    monkeypatch.setattr(app, 'groq_text', lambda messages: 'Synthetic reply')
+    assert app.handle_agent_chat({'message': 'Lunch', 'userContext': {field: value}})['reply'] == 'Synthetic reply'
+
+
 def test_complete_lithuanian_provider_week_is_not_rejected_for_wednesday_diacritic():
     from pathlib import Path
     import json

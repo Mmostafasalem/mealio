@@ -9,6 +9,20 @@ struct PlanningFood: Encodable {
     let food: NutritionFood
     let availableAmount: Double
 
+    static func grouped(_ items: [StockItem]) -> [PlanningFood] {
+        Dictionary(grouping: items, by: { $0.food.id }).values.compactMap { group in
+            // Source corrections can retain an ID while changing its unit or
+            // nutrient values. One planner ID must describe one exact snapshot.
+            guard let first = group.first, group.allSatisfy({
+                $0.food.basis == first.food.basis && $0.food.source == first.food.source &&
+                $0.food.sourceID == first.food.sourceID && $0.food.kcal == first.food.kcal &&
+                $0.food.protein == first.food.protein && $0.food.carbs == first.food.carbs &&
+                $0.food.fat == first.food.fat
+            }) else { return nil }
+            return PlanningFood(food: first.food, availableAmount: group.reduce(0) { $0 + $1.amount })
+        }.sorted { $0.food.id < $1.food.id }.prefix(100).map { $0 }
+    }
+
     private struct Reference: Encodable {
         let id: String
         let name: String

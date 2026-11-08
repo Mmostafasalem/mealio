@@ -102,13 +102,8 @@ final class APIService {
 
     func generateMealPlan(_ request: MealPlanRequest) async throws -> WeeklyMealPlan {
         var request = request
-        let items = Array(StockStore.shared.items.prefix(100))
         // Group batches of the same food without changing its g/ml/serving basis.
-        let groups = Dictionary(grouping: items, by: { $0.food.id })
-        request.stock = groups.values.compactMap { group in
-            guard let first = group.first else { return nil }
-            return PlanningFood(food: first.food, availableAmount: group.reduce(0) { $0 + $1.amount })
-        }.sorted { $0.food.id < $1.food.id }
+        request.stock = PlanningFood.grouped(StockStore.shared.items)
         let gaps = MealPlanViewModel().computeNutritionalGaps()
         request.remainingToday = PlanningTargets(calories: gaps.caloriesNeeded, protein: gaps.proteinNeeded,
                                                  carbs: gaps.carbsNeeded, fat: gaps.fatNeeded)

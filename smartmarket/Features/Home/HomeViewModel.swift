@@ -237,19 +237,14 @@ final class HomeViewModel {
         defer { isChatLoading = false }
 
         let appState = AppState.shared
-        let goalStr = appState.userProfile.weightGoal.rawValue
-        let target = appState.bmrData?.maintainCalories ?? 2000
         let favNames = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
 
         let history = chatMessages.dropLast().map {
             AgentChatHistoryItem(role: $0.role, content: $0.content)
         }
-        let context = AgentUserContext(
-            goal: goalStr,
-            targetCalories: target,
-            caloriesConsumed: consumed,
-            favoriteFoods: favNames
-        )
+        log.reload()
+        let context = AgentUserContext.make(profile: .load(), entries: log.entries, stock: StockStore.shared.items,
+                                             preferences: .load(), favoriteFoods: favNames, lang: appState.lang)
         let request = AgentChatRequest(message: text, history: Array(history), userContext: context)
 
         do {
