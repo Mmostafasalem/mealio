@@ -59,6 +59,7 @@
 				"smartmarket-backend/requirements.lock",
 				"smartmarket-backend/server.py",
 				"smartmarket-backend/test_app.py",
+				"smartmarket-backend/test_data/provider_week_lithuanian.json",
 			);
 			target = ADF8148B2FCA0F6400433335 /* smartmarket */;
 		};
