@@ -179,7 +179,7 @@ final class HomeViewModel {
     // MARK: - Food logging (local, optimistic)
 
     func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double) {
-        guard food.isValid, amount.isFinite, amount >= 1, amount <= 5000 else { return }
+        guard food.isValid, amount.isFinite, amount >= food.minimumAmount, amount <= food.maximumAmount else { return }
         NutritionCatalogService.shared.remember(food)
         log.add(FoodLogEntry(nutritionFood: food, slot: slot, amount: amount))
         mascotCelebration = UUID()

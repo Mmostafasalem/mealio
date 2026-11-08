@@ -21,4 +21,14 @@ class NutritionImportTests(unittest.TestCase):
         chicken = [f for f in data['foods'] if 'chicken' in f['name'].lower() and 'breast' in f['name'].lower()]
         self.assertTrue(any('raw' in f['name'].lower() for f in chicken))
         self.assertTrue(any('cooked' in f['name'].lower() for f in chicken))
+    def test_global_reference_sources_include_prepared_dishes(self):
+        data = json.loads((ROOT / 'smartmarket/Resources/NutritionCatalog.json').read_text())
+        self.assertGreater(len(data['foods']), 13000)
+        datasets = {f.get('dataset', 'srLegacy') for f in data['foods']}
+        self.assertEqual(datasets, {'srLegacy', 'foundation', 'survey'})
+        survey = [f for f in data['foods'] if f.get('dataset') == 'survey']
+        self.assertTrue(any('falafel' in f['name'].lower() for f in survey))
+        self.assertTrue(any('restaurant' in f['name'].lower() for f in survey))
+        self.assertEqual(len(data['sources']), 3)
+
 if __name__ == '__main__': unittest.main()

@@ -11,10 +11,31 @@ need to be supplied before App Store submission; no public mailbox is claimed.
 
 ## FAQ
 
+**Does the catalog include every restaurant dish worldwide?**
+No. Reference datasets include prepared meals and restaurant-style foods, but
+there is no complete, verified current-menu database for every restaurant. A
+restaurant's recipe and serving size can differ substantially. Search its exact
+name and dish where available. Use **Add a recipe or restaurant dish** to save
+published calories/protein/carbohydrate/fat per menu serving, or calculate your
+own recipe from weighed ingredients and final cooked yield. Menu entries are
+labelled entered by you; recipes are labelled calculated estimates. Do not use a
+generic rice entry as the nutrition for an entire koshari or cepelinai recipe.
+
+**How do regional and multilingual searches work?**
+The offline catalog supports common English, Lithuanian and Arabic ingredient
+terms without changing the source record's original description. Packaged-product
+search offers Worldwide, Lithuania and Egypt filters and additional result pages.
+Products need usable nutrition and clear units, so incomplete records may be
+excluded. Barcode lookups stay worldwide even when a market is selected. Coverage
+depends on Open Food Facts contributions and availability; try another term or
+Worldwide if your local product is missing. New searches require internet.
+
+
 **Where does the food logger get nutrition?**
-The iOS logger searches 7,793 imported USDA SR Legacy records offline, including
-separate raw/cooked descriptions. These reference values are the April 2018 release,
-not measurements of your particular food. For packaged foods, submit a name or
+The iOS logger searches 13,588 imported USDA reference records offline, including
+separate raw/cooked descriptions. Sources include SR Legacy April 2018, the Foundation October 2026 download and
+FNDDS 2021–2023 prepared-food references. They are not measurements of your particular
+food or a guarantee of a restaurant's current menu. For packaged foods, submit a name or
 8/12/13/14-digit barcode to search Open Food Facts directly. Product data is
 community-contributed; check the brand and label. Only records with complete,
 nonnegative calories, protein, carbohydrate and fat, and consistent gram/ml metadata are loggable. Missing macros
