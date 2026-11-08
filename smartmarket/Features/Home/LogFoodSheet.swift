@@ -5,6 +5,7 @@ import SwiftUI
 struct LogFoodSheet: View {
 
     @Bindable var vm: HomeViewModel
+    var onSelect: ((NutritionFood, Double) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var slot: MealSlot = .suggested()
@@ -29,7 +30,7 @@ struct LogFoodSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                slotPicker
+                if onSelect == nil { slotPicker }
                 searchField
                 Picker("Product market", selection: $market) {
                     ForEach(NutritionCatalogService.Market.allCases) { Text($0.title).tag($0) }
@@ -60,7 +61,7 @@ struct LogFoodSheet: View {
                             Text("Choose the description that matches what you weighed: raw, cooked, drained or prepared.")
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                         }
-                        if !vm.plannedEntries(for: slot).isEmpty {
+                        if onSelect == nil && !vm.plannedEntries(for: slot).isEmpty {
                             Section("From today's plan") {
                                 ForEach(vm.plannedEntries(for: slot)) { entry in
                                     Text(entry.foodName).font(.subheadline)
@@ -116,13 +117,14 @@ struct LogFoodSheet: View {
                 }
                 .listStyle(.insetGrouped)
                 .navigationDestination(item: $detailFood) { food in
-                    ServingDetailView(food: food, slot: slot) { grams in
-                        vm.logFood(food, slot: slot, amount: grams)
+                    ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock") { grams in
+                        if let onSelect { onSelect(food, grams) }
+                        else { vm.logFood(food, slot: slot, amount: grams) }
                         dismiss()
                     }
                 }
             }
-            .navigationTitle("Add Food")
+            .navigationTitle(onSelect == nil ? "Add Food" : "Add to Stock")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -261,6 +263,11 @@ struct LogFoodSheet: View {
     // MARK: - Actions
 
     private func quickAdd(_ food: NutritionFood) {
+        if let onSelect {
+            onSelect(food, food.defaultAmount)
+            dismiss()
+            return
+        }
         vm.logFood(food, slot: slot, amount: food.defaultAmount)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         showToast("Added \(Int(food.defaultAmount)) \(food.basis.rawValue) · \(food.name)")
@@ -307,15 +314,17 @@ struct LogFoodSheet: View {
 private struct ServingDetailView: View {
     let food: NutritionFood
     let slot: MealSlot
+    let actionTitle: String?
     let onAdd: (Double) -> Void
 
     @State private var grams: Double
     @State private var didAdd = false
 
-    init(food: NutritionFood, slot: MealSlot, onAdd: @escaping (Double) -> Void) {
+    init(food: NutritionFood, slot: MealSlot, actionTitle: String? = nil, onAdd: @escaping (Double) -> Void) {
         self.food = food
         self.slot = slot
         self.onAdd = onAdd
+        self.actionTitle = actionTitle
         _grams = State(initialValue: food.defaultAmount)
     }
 
@@ -403,7 +412,7 @@ private struct ServingDetailView: View {
                 didAdd = true
                 onAdd(grams)
             } label: {
-                Label("Add to \(slot.title)", systemImage: "plus")
+                Label(actionTitle ?? "Add to \(slot.title)", systemImage: "plus")
                     .font(.headline).foregroundStyle(Color.almond)
                     .frame(maxWidth: .infinity).padding(.vertical, 14)
                     .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.pill))

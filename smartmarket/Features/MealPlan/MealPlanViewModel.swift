@@ -136,37 +136,24 @@ final class MealPlanViewModel {
 
     // MARK: - Nutritional gaps
 
-    /// Estimates how far the current grocery list is from the daily targets,
-    /// using one typical serving per grocery item resolved against the food catalog.
+    /// Remaining intake is based on food actually logged today, never purchases.
     func computeNutritionalGaps() -> NutritionalGaps {
+        FoodLogStore.shared.reload()
+        return nutritionalGaps(entries: FoodLogStore.shared.entries)
+    }
+
+    func nutritionalGaps(entries: [FoodLogEntry]) -> NutritionalGaps {
         let isKeto = Set<DietaryPreference>.load().contains(.keto)
         let targets = BMRCalculator.macroTargets(calories: goal, isKeto: isKeto)
-
-        var calories = 0.0, protein = 0.0, carbs = 0.0, fat = 0.0
-        let index = productCatalogIndex
-        for item in groceryList {
-            guard let product = index[item.foodId] else { continue }
-            let factor = 200.0 / 100.0  // assume 200g serving if not specified
-            calories += Double(product.kcalPer100g) * factor
-            protein  += product.proteinPer100g * factor
-            carbs    += product.carbsPer100g * factor
-            fat      += product.fatPer100g * factor
-        }
-
         return NutritionalGaps(
-            caloriesNeeded: max(goal - Int(calories), 0),
-            proteinNeeded: max(Double(targets.proteinG) - protein, 0),
-            carbsNeeded: max(Double(targets.carbsG) - carbs, 0),
-            fatNeeded: max(Double(targets.fatG) - fat, 0)
+            caloriesNeeded: max(goal - entries.reduce(0) { $0 + $1.calories }, 0),
+            proteinNeeded: max(Double(targets.proteinG) - entries.reduce(0) { $0 + $1.proteinG }, 0),
+            carbsNeeded: max(Double(targets.carbsG) - entries.reduce(0) { $0 + $1.carbsG }, 0),
+            fatNeeded: max(Double(targets.fatG) - entries.reduce(0) { $0 + $1.fatG }, 0)
         )
     }
 
     // MARK: - Week plan
-
-    // Nutritional gap computation uses the live catalog for accurate macro data
-    private var productCatalogIndex: [String: Product] {
-        Dictionary(uniqueKeysWithValues: ProductCatalogService.shared.products.map { ($0.id, $0) })
-    }
 
     func loadWeekPlans() async {
 

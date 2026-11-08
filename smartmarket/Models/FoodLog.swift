@@ -80,11 +80,9 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
     }
 }
 
-// MARK: - Food log store (local, daily-resetting)
+// MARK: - Food log store (local history, daily totals)
 
-/// Single source of truth for today's logged foods. Persists to UserDefaults and
-/// auto-resets each day by keeping only entries logged today — fixing the old
-/// "calories never reset at midnight" bug.
+/// Preserves recorded history while deriving today’s totals from the current date.
 @MainActor
 @Observable
 final class FoodLogStore {
@@ -94,22 +92,25 @@ final class FoodLogStore {
     private let key = "foodLogEntries"
     private let recentsKey = "recentFoodIDs"
 
-    private(set) var entries: [FoodLogEntry] = []
+    private var history: [FoodLogEntry] = []
+    private let defaults: UserDefaults
+    private let stock: StockStore
+    var allEntries: [FoodLogEntry] { (history + stock.logs).sorted { $0.loggedAt < $1.loggedAt } }
+    var entries: [FoodLogEntry] { allEntries.filter { Calendar.current.isDateInToday($0.loggedAt) } }
     private(set) var recentFoodIDs: [String] = []
 
-    private init() {
-        recentFoodIDs = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
+    init(defaults: UserDefaults = .standard, stock: StockStore? = nil) {
+        self.defaults = defaults
+        self.stock = stock ?? .shared
+        recentFoodIDs = defaults.stringArray(forKey: recentsKey) ?? []
         reload()
     }
 
-    /// Reloads today's entries from disk, pruning any from previous days.
+    /// Reads legacy logs without discarding previous days.
     func reload() {
-        recentFoodIDs = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
-        let stored = UserDefaults.standard.data(forKey: key)
+        recentFoodIDs = defaults.stringArray(forKey: recentsKey) ?? []
+        history = defaults.data(forKey: key)
             .flatMap { try? JSONDecoder().decode([FoodLogEntry].self, from: $0) } ?? []
-        let today = stored.filter { Calendar.current.isDateInToday($0.loggedAt) }
-        entries = today.sorted { $0.loggedAt < $1.loggedAt }
-        if today.count != stored.count { persist() }   // drop stale days from disk
     }
 
     // MARK: Totals
@@ -125,33 +126,36 @@ final class FoodLogStore {
     // MARK: Mutations (optimistic — UI updates instantly)
 
     func add(_ entry: FoodLogEntry) {
-        entries.append(entry)
-        entries.sort { $0.loggedAt < $1.loggedAt }
+        history.append(entry)
+        history.sort { $0.loggedAt < $1.loggedAt }
         persist()
         if let fid = entry.foodId { noteRecent(foodId: fid) }
     }
 
     func remove(_ entry: FoodLogEntry) {
-        entries.removeAll { $0.id == entry.id }
+        history.removeAll { $0.id == entry.id }
+        stock.removeLog(id: entry.id)
         persist()
     }
 
     func clearToday() {
-        entries.removeAll()
+        history.removeAll { Calendar.current.isDateInToday($0.loggedAt) }
+        stock.clearLogs(on: Date())
         persist()
     }
 
     func clearAll() {
-        entries.removeAll()
+        history.removeAll()
+        stock.clear()
         recentFoodIDs.removeAll()
         NutritionCatalogService.shared.clear()
-        UserDefaults.standard.removeObject(forKey: key)
-        UserDefaults.standard.removeObject(forKey: recentsKey)
+        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: recentsKey)
     }
 
     private func persist() {
-        if let data = try? JSONEncoder().encode(entries) {
-            UserDefaults.standard.set(data, forKey: key)
+        if let data = try? JSONEncoder().encode(history) {
+            defaults.set(data, forKey: key)
         }
     }
 
@@ -161,6 +165,6 @@ final class FoodLogStore {
         var list = recentFoodIDs.filter { $0 != foodId }
         list.insert(foodId, at: 0)
         recentFoodIDs = Array(list.prefix(12))
-        UserDefaults.standard.set(recentFoodIDs, forKey: recentsKey)
+        defaults.set(recentFoodIDs, forKey: recentsKey)
     }
 }

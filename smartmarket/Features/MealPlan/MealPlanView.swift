@@ -48,6 +48,7 @@ struct MealPlanView: View {
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("Meal Plan")
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
         .task {
             if vm.todaysPlan == nil { await vm.loadTodaysPlan() }
         }

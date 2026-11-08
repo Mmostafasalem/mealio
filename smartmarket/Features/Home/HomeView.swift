@@ -23,6 +23,13 @@ struct HomeView: View {
 
                         HomeHeaderView(vm: vm)
                         VStack(spacing: Spacing.lg) {
+                            HStack {
+                                NavigationLink { StockView() } label: { Label("My Stock", systemImage: "cabinet") }
+                                    .accessibilityIdentifier("home.stock")
+                                Spacer()
+                                NavigationLink { FoodHistoryView() } label: { Label("History", systemImage: "clock") }
+                            }
+                            .font(.subheadline.weight(.semibold))
                             CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
                             TodaysLogCard(vm: vm)
                             HomeDealsSection(vm: vm)

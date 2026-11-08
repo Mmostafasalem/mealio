@@ -297,6 +297,26 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
     }
 
+    func testStockSearchAddConsumeAndHistory() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
+        app.launch()
+        tap("home.stock", in: app)
+        tap("stock.add", in: app)
+        let search = app.textFields["logFood.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Bananas, raw")
+        tap("logFood.food.usda:173944", in: app)
+        tap("logFood.addServing", in: app)
+        let item = app.buttons["stock.item.usda:173944"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.tap()
+        tap("stock.consume", in: app)
+        XCTAssertTrue(app.staticTexts["Your stock starts here"].waitForExistence(timeout: 5))
+        capture("Stock consumed")
+    }
+
     func testRecipeBuilderUsesSourceIngredientsAndCookedYield() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]

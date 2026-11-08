@@ -46,7 +46,10 @@ Selected product records are saved locally for offline reuse. Custom restaurant
 entries and recipes, including entered menu links, ingredient snapshots and cooked
 yields, are stored locally and are not sent to product search or shopping sync. Logged portions retain
 a snapshot of their nutrition and source so database changes do not rewrite your
-past intake. Delete All Data clears saved products, custom dishes and logs. Open Food Facts is a
+past intake. Stock quantities, optional use-by dates and portions eaten from stock
+are saved locally. Food history is retained across days; daily totals count only
+today's entries. Removing an intake record does not replenish stock. Delete All Data
+clears stock, saved products, custom dishes and logs. Open Food Facts is a
 community database; compare branded products with their current package labels.
 
 ## Information sent to our servers
