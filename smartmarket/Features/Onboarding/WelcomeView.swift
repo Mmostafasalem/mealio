@@ -21,7 +21,7 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
-            Color.rhino.ignoresSafeArea()
+            GrainyGradient(surface: .welcome).ignoresSafeArea()
 
             // Content
             AdaptiveOnboardingPage {

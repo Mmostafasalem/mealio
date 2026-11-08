@@ -50,7 +50,7 @@ struct MealPlanView: View {
             .padding(.vertical, Spacing.lg)
             .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedTab)
         }
-        .background(Color.surfaceGrouped.ignoresSafeArea())
+        .background { GrainyGradient().ignoresSafeArea() }
         .navigationTitle("Meal Plan")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
         .task {

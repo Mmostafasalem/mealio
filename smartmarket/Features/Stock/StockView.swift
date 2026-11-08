@@ -45,6 +45,8 @@ struct StockView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background { GrainyGradient().ignoresSafeArea() }
         .navigationTitle("My Stock")
         .navigationBarHidden(false)
         .searchable(text: $query, prompt: "Find food in your stock")

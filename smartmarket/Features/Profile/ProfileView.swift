@@ -33,7 +33,7 @@ struct ProfileView: View {
                 dangerSection
             }
             .scrollContentBackground(.hidden)
-            .background(Color.surfaceGrouped)
+            .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Profile")
             .alert("Delete all Nourlo data?", isPresented: $vm.showResetAlert) {
                 Button("Delete Data", role: .destructive) {

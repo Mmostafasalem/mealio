@@ -50,6 +50,8 @@ extension Color {
     static let surfaceElevated = Color(light: "#FCF3F0", dark: "#2E4060")
     static let surfaceSecondary = Color(light: "#EED0CD", dark: "#3A4966")
     static let hairline = Color(light: "#D9C7C5", dark: "#617089")
+    // Decorative wash only; text and interactive color roles stay separate.
+    static let grainBlue = Color(light: "#B6C8DF", dark: "#6C83AA")
 
     // MARK: - Adaptive convenience initialiser
 

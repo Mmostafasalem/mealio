@@ -8,7 +8,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Color.surfaceGrouped.ignoresSafeArea()
+                GrainyGradient().ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: Spacing.md) {

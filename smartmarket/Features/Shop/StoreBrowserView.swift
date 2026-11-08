@@ -26,7 +26,7 @@ struct StoreBrowserView: View {
                 .padding(.bottom, Spacing.xxl)
                 .animation(.snappyValue, value: cart.itemCount)
             }
-            .background(Color.surfaceGrouped.ignoresSafeArea())
+            .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Shop")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {

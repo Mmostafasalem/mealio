@@ -63,7 +63,7 @@ struct CalorieSummaryCard: View {
                 .accessibilityIdentifier("home.logFood")
                 .padding([.horizontal, .bottom], Spacing.lg)
         }
-        .premiumCard()
+        .premiumCard(surface: .hero)
     }
 
     private func macroRow(label: String, symbol: String,
