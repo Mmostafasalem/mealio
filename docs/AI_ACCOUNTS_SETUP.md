@@ -128,3 +128,25 @@ Required live proof: config shows guest enabled, guest login succeeds without an
 app key, unauthenticated AI remains rejected, one real provider response consumes
 the expected allowance, restart preserves that allowance, and deletion invalidates
 its sessions. No production-readiness claim is justified before these checks pass.
+
+## Current free hosting path
+
+The paid Render disk approach above is superseded for the current deployment.
+A Neon Free database `nourlo-accounts` is provisioned via Vercel in pdx1 on
+billing plan free_v3. No paid Render change was made. AccountService now supports
+`AI_DATABASE_URL` for Postgres. When it is present, no local SQLite disk or
+`AI_STATE_PERSISTENT` flag is needed. Malformed URLs fail closed; the driver
+always verifies TLS certificates and hostnames, regardless of URL sslmode.
+Postgres quota changes use a transaction-wide advisory lock across all workers.
+
+The private current activation file is
+`/Users/mmostafasalem/.config/nourlo/guest-free-activation.env` (0600).
+It reuses stable subject/encryption secrets and retains the existing provider
+settings. It contains the database connection and guest-first flags, with
+30 credits/device/day and 30 global attempts/day. Never commit or paste this file
+into chat. Do not import the older disk-based activation file.
+
+The database's Free allowances are limited; cold starts and capacity limits still
+apply. No auto-upgrade or paid plan was selected. The iPhone requests allow extra
+wake time instead of failing after 30 seconds. Verify current provider limits and
+billing independently before public launch.

@@ -289,7 +289,7 @@ final class AIAccountService {
                          authenticated: Bool = false, bearer: String? = nil) async throws -> Data {
         guard let url = URL(string: Constants.API.baseURL + path) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
-        request.httpMethod = method; request.httpBody = body; request.timeoutInterval = 30
+        request.httpMethod = method; request.httpBody = body; request.timeoutInterval = 90
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !Constants.API.appKey.isEmpty { request.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key") }
         if let bearer { request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }

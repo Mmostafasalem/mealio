@@ -73,3 +73,20 @@ Completion requires evidence for all six requirements, not simply successful com
 - Backend suite: 77 passed (`/tmp/nourlo-guest-verified.log`). Full native suite: 73 executed, one live provider test skipped, zero failures (`/tmp/nourlo-guest-ios-final.log`); final four guest recovery/deletion/migration tests passed (`/tmp/nourlo-guest-migrations.log`).
 - Private server-only activation configuration was prepared at `/Users/mmostafasalem/.config/nourlo/guest-activation-2026-11-08.env` (0600), without printing or committing secrets. It uses /var/data, guest enabled, Apple temporarily disabled until Apple server credentials exist, 30 credits/device/day and 30 global attempts/day.
 - Activation procedure and remaining live proof are in docs/AI_ACCOUNTS_SETUP.md. Existing Render Free service has no durable disk. Paid resource changes have not been authorized or performed. Guest code is not evidence of live AI operation.
+
+## Live provider proof and free-storage choice (2026-11-08)
+
+- Owner explicitly authorized private download of existing Render settings and AI verification. Settings were moved to `/Users/mmostafasalem/.config/nourlo/render-provider.env` with mode 0600; no credential values were printed or committed.
+- Existing Groq key and configured openai/gpt-oss-120b passed a real synthetic provider response.
+- A synthetic request through the guest Flask API returned an online AI response, charged one credit, retained the 29-credit allowance after reopening the account store, and rejected the session after deletion. This was a local integration test; it is not proof of live hosted guest activation.
+- Guest backend 8b02bb8 deployed successfully as Render deployment dep-dbo7bknf3r2c73acjki0. Live checks: /healthz 200; /api/auth/config 200 with enabled/guestEnabled/appleEnabled false; /api/ai/usage 503; protected /api/products 401. Latest guest-capable iPhone build installed successfully.
+- Owner questioned the paid Render plan. No paid change was made; Render still shows Free. The paid-disk handoff is superseded by a free Neon Postgres approach, which requires adapting the account persistence implementation.
+- Neon Free was selected explicitly via Vercel CLI (free_v3, pdx1, no built-in Neon auth/realtime, resource name nourlo-accounts). CLI reports integration_terms_acceptance_required. The browser signed in to the correct Vercel account but still shows account verification/2FA reminder and Accept & Install pending. Owner was shown the page to complete this final legal/account step. Do not claim the database exists or write/migrate against a mock connection.
+
+## Free database and working regional search
+
+- Neon terms accepted in Vercel. Resource store_sXHeXZsqicB2CuyK / nourlo-accounts / dawn-river-72271199 is ready on free_v3, region pdx1. It is privately connected to the existing Vercel web project's development environment under NOURLO; no paid resources were selected. Credentials are stored only in private local configuration.
+- AccountStorage supports SQLite and Postgres. The latter uses psycopg 3.3.8, verified TLS, bound values and a transaction-scoped advisory lock. Independent review found no actionable issue. SQLite backend regression: 77 passed. Three actual Postgres contracts passed in an isolated disposable schema (restart persistence, refunds/deletion, concurrent reservation limits), log /tmp/nourlo-live-postgres-tests.log.
+- Corrected Postgres upsert ambiguity found by the real tests; no production account data existed before this change.
+- Open Food Facts' newer search service works where legacy text lookup returned 503. Production parser accepted 14 of 40 returned Lithuanian products and 8 of 40 Egyptian products. Missing nutrition/units are not guessed. Final nutrition lookup/catalog tests passed in /tmp/nourlo-product-search-verified.log.
+- Activation remains off on live Render until the new backend is deployed and the prepared free-database settings are imported. No claim of live hosted AI operation or complete production release is made by this milestone.

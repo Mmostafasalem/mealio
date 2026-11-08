@@ -88,6 +88,10 @@ account timestamps, daily request counters, and hashed request keys/fingerprints
 allowance across devices, validate access and support account deletion. Apple
 processes sign-in under its own terms. Signing in or continuing as a guest does not enable AI sharing.
 
+Account records and allowance counters are stored in our private Neon Postgres
+database. It stores the account metadata described above, not your food log,
+profile or chat bodies. Database connections use certificate-verified encryption.
+
 Credits reset at midnight UTC. The app displays the reset in your time zone.
 Personal allowances still share our provider's overall capacity. Failed AI
 calls and cached responses do not spend personal credits.
@@ -136,6 +140,7 @@ does not automatically erase provider records.
 
 ## Third parties
 - **Groq** — AI meal plans, chat, and recipes ([groq.com](https://groq.com)).
+- **Neon** — private account and allowance database ([neon.com](https://neon.com/privacy-policy)).
 - **Open Food Facts** — product nutrition ([openfoodfacts.org](https://openfoodfacts.org)).
 - **Apple** — MapKit/Maps for store locations; optional CloudKit shopping sync.
 

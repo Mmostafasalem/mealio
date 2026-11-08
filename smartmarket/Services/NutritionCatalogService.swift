@@ -119,6 +119,7 @@ final class NutritionCatalogService {
               (storeTag?.count ?? 0) <= 100, (1...1000).contains(page) else { throw LookupError.invalidQuery }
         let isBarcode = !query.isEmpty && query.allSatisfy { $0.isASCII && $0.isNumber }
         if isBarcode && ![8, 12, 13, 14].contains(query.count) { throw LookupError.invalidQuery }
+        let newTextSearch = !isBarcode && storeTag == nil
         let structured = query.isEmpty && storeTag != nil
         let keyPrefix = "retailer:" + (storeTag ?? "") + ":"
         let key = keyPrefix + (isBarcode ? "barcode:" + market.language + ":" + query : market.rawValue + ":" + String(page) + ":" + query.lowercased())
@@ -127,7 +128,7 @@ final class NutritionCatalogService {
         let timestamp = now()
         if let lastSearch, timestamp.timeIntervalSince(lastSearch) < 6.1 { throw LookupError.rateLimited }
         lastSearch = timestamp
-        let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,nutriments,product_quantity_unit,serving_quantity_unit,nutrition_data_per,stores_tags"
+        let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,nutriments,product_quantity_unit,serving_quantity_unit,nutrition_data_per,stores_tags,countries_tags"
         var parts = URLComponents(string: "https://world.openfoodfacts.org")!
         parts.path = isBarcode ? "/api/v2/product/\(query).json" : (structured ? "/api/v2/search" : "/cgi/search.pl")
         parts.queryItems = [URLQueryItem(name: "fields", value: fields)]
@@ -149,6 +150,24 @@ final class NutritionCatalogService {
                                   URLQueryItem(name: "tag_0", value: "en:" + market.rawValue)]
         }
         var request = URLRequest(url: parts.url!, timeoutInterval: 20)
+        if newTextSearch {
+            func literal(_ value: String) -> String {
+                "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+            }
+            // The service treats plain text and explicit taxonomy filters
+            // differently. Remove query operators from user input, and enforce
+            // selected country again on returned records.
+            var search = query.components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }.joined(separator: " ").lowercased()
+            guard !search.isEmpty else { throw LookupError.invalidQuery }
+            if market != .worldwide { search += " countries_tags:" + literal("en:" + market.rawValue) }
+            request = URLRequest(url: URL(string: "https://search.openfoodfacts.org/search")!, timeoutInterval: 20)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["q": search, "page": page, "page_size": 40,
+                                                                         "langs": Array(Set([market.language, "en"])).sorted(),
+                                                                         "fields": fields.components(separatedBy: ",")])
+        }
         request.setValue("Nourlo/1.0 (https://github.com/Mmostafasalem/mealio)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let requestGeneration = generation
@@ -168,11 +187,20 @@ final class NutritionCatalogService {
             guard product["code"] as? String == query else { return ProductPage(foods: [], hasMore: false) }
             products = [product]
         } else {
-            guard let list = root["products"] as? [[String: Any]] else { throw LookupError.invalidResponse }
-            products = list
+            if newTextSearch {
+                guard root["timed_out"] as? Bool != true,
+                      (root["errors"] as? [Any] ?? []).isEmpty,
+                      let list = root["hits"] as? [[String: Any]] else { throw LookupError.invalidResponse }
+                products = list
+            } else {
+                guard let list = root["products"] as? [[String: Any]] else { throw LookupError.invalidResponse }
+                products = list
+            }
         }
         var ids = Set<String>()
         let scopedProducts = products.filter { product in
+            if newTextSearch, market != .worldwide,
+               !(product["countries_tags"] as? [String] ?? []).contains("en:" + market.rawValue) { return false }
             guard let storeTag, !storeTag.isEmpty else { return true }
             return (product["stores_tags"] as? [String] ?? []).contains(storeTag)
         }

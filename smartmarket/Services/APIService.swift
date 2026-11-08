@@ -269,7 +269,7 @@ final class APIService {
             }
         }
         req.httpBody = try JSONEncoder().encode(body)
-        req.timeoutInterval = timeout
+        req.timeoutInterval = isAI && owner == nil ? max(timeout, 90) : timeout
         return req
     }
 

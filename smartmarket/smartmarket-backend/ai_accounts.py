@@ -10,11 +10,11 @@ import hmac
 import json
 import os
 import secrets
-import sqlite3
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from account_storage import AccountStorage
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
@@ -132,9 +132,10 @@ class AccountService:
         self.path,self.apple,self.cipher,self.subject_secret = path,apple,cipher,subject_secret
         self.daily_limit,self.global_limit,self.clock = daily_limit,global_limit,clock
         self.guest_enabled = guest_enabled
+        self.storage = AccountStorage(path)
         with self.transaction() as db:
             db.executescript('''
-              CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, refresh BLOB NOT NULL, verified REAL NOT NULL, created REAL NOT NULL);
+              CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, refresh BLOB NOT NULL, verified REAL NOT NULL, created REAL NOT NULL, kind TEXT NOT NULL DEFAULT 'apple');
               CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, expires REAL NOT NULL);
               CREATE TABLE IF NOT EXISTS challenges(id TEXT PRIMARY KEY, nonce TEXT NOT NULL, expires REAL NOT NULL);
               CREATE TABLE IF NOT EXISTS quota(account TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(account,day));
@@ -144,29 +145,36 @@ class AccountService:
               CREATE TABLE IF NOT EXISTS guest_registrations(network TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL, PRIMARY KEY(network,day));
               CREATE TABLE IF NOT EXISTS ai_requests(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, key TEXT NOT NULL, fingerprint TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(account,key));
             ''')
-            if 'created' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
-                db.execute('ALTER TABLE accounts ADD COLUMN created REAL NOT NULL DEFAULT 0')
-                db.execute('UPDATE accounts SET created=verified')
-            if 'kind' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
-                db.execute("ALTER TABLE accounts ADD COLUMN kind TEXT NOT NULL DEFAULT 'apple'")
-            # Spending is abuse-prevention metadata independent of account credentials.
-            # Keep only today's keyed subject/count so delete/recreate cannot reset it.
-            if list(db.execute('PRAGMA foreign_key_list(quota)')):
-                db.execute('ALTER TABLE quota RENAME TO old_quota')
-                db.execute('CREATE TABLE quota(account TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(account,day))')
-                db.execute('INSERT INTO quota SELECT account,day,used FROM old_quota')
-                db.execute('DROP TABLE old_quota')
-        os.chmod(self.path, 0o600)
+            if not self.storage.postgres:
+                if 'created' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
+                    db.execute('ALTER TABLE accounts ADD COLUMN created REAL NOT NULL DEFAULT 0')
+                    db.execute('UPDATE accounts SET created=verified')
+                if 'kind' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
+                    db.execute("ALTER TABLE accounts ADD COLUMN kind TEXT NOT NULL DEFAULT 'apple'")
+                # Spending is abuse-prevention metadata independent of account credentials.
+                # Keep only today's keyed subject/count so delete/recreate cannot reset it.
+                if list(db.execute('PRAGMA foreign_key_list(quota)')):
+                    db.execute('ALTER TABLE quota RENAME TO old_quota')
+                    db.execute('CREATE TABLE quota(account TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(account,day))')
+                    db.execute('INSERT INTO quota SELECT account,day,used FROM old_quota')
+                    db.execute('DROP TABLE old_quota')
+        if not self.storage.postgres: os.chmod(self.path, 0o600)
 
     @classmethod
     def from_env(cls):
         if os.environ.get('AI_ACCOUNTS_ENABLED') != '1': return None
         from cryptography.fernet import Fernet
-        path = os.environ.get('AI_STATE_DB','')
-        if not os.path.isabs(path) or os.environ.get('AI_STATE_PERSISTENT') != '1':
-            raise ValueError('Configure AI_STATE_DB on explicitly durable storage')
-        # No automatic directory creation: a missing mount must fail closed.
-        if not os.path.isdir(os.path.dirname(path)): raise ValueError('AI storage mount is unavailable')
+        path = os.environ.get('AI_DATABASE_URL','')
+        if path:
+            from urllib.parse import urlsplit
+            parsed = urlsplit(path)
+            if parsed.scheme not in ('postgres', 'postgresql') or not parsed.hostname or not parsed.username or not parsed.password:
+                raise ValueError('Invalid AI_DATABASE_URL')
+        else:
+            path = os.environ.get('AI_STATE_DB','')
+            if not os.path.isabs(path) or os.environ.get('AI_STATE_PERSISTENT') != '1':
+                raise ValueError('Configure a persistent AI database')
+            if not os.path.isdir(os.path.dirname(path)): raise ValueError('AI storage mount is unavailable')
         limit = int(os.environ.get('AI_DAILY_CREDITS','30'))
         global_limit = int(os.environ.get('AI_GLOBAL_DAILY_ATTEMPTS','900'))
         if not 5 <= limit <= 10000 or not 1 <= global_limit <= 100000:
@@ -182,19 +190,8 @@ class AccountService:
 
     @contextlib.contextmanager
     def transaction(self):
-        db = sqlite3.connect(self.path,timeout=10,isolation_level=None)
-        db.row_factory = sqlite3.Row
-        try:
-            db.execute('PRAGMA foreign_keys=ON')
-            db.execute('PRAGMA journal_mode=WAL')
-            db.execute('BEGIN IMMEDIATE')
-            yield db
-            db.commit()
-        except Exception:
-            db.rollback()
-            raise
-        finally:
-            db.close()
+        with self.storage.transaction() as connection:
+            yield connection
 
     def _day(self): return datetime.fromtimestamp(self.clock(),timezone.utc).date().isoformat()
 
@@ -269,7 +266,7 @@ class AccountService:
                 row=db.execute('SELECT used FROM guest_registrations WHERE network=? AND day=?',(network_key,self._day())).fetchone()
                 if row is not None and row['used'] >= 5:
                     raise AccountError('Guest setup limit reached for this network. Try again tomorrow.',429,'guest_setup_limited')
-                db.execute('INSERT INTO guest_registrations VALUES(?,?,1) ON CONFLICT(network,day) DO UPDATE SET used=used+1',(network_key,self._day()))
+                db.execute('INSERT INTO guest_registrations VALUES(?,?,1) ON CONFLICT(network,day) DO UPDATE SET used=guest_registrations.used+1',(network_key,self._day()))
                 db.execute("INSERT INTO accounts(id,refresh,verified,created,kind) VALUES(?,?,?,?,'guest')",
                            (account,self.cipher.encrypt(b''),self.clock(),self.clock()))
             elif existing['kind'] != 'guest': raise AccountError('Invalid guest sign-in.',400,'invalid_request')
