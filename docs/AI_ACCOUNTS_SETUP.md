@@ -1,10 +1,11 @@
-# Personal AI accounts — activation checklist
+# Guest and Apple AI accounts — activation checklist
 
 Implementation is local; this document does not mean the feature is live.
 Never paste secrets into chat, commit them, or include Apple server keys in iOS.
 
 ## Behavior
-- Optional native Sign in with Apple in Profile, with no name/email scopes.
+- Guest access and optional native Sign in with Apple in Profile, with no name/email scopes.
+- Guests use a 256-bit random device-only Keychain secret and hashed bearer sessions. Guest recovery keeps the same account/allowance; new-account setup is capped at five per network/day, with separate global provider limits.
 - Local shopping, tracking and offline plans need no account.
 - Online AI separately requires sharing consent and a verified session.
 - Default 30 credits/person/day: meal plans cost 5, other AI requests cost 1.
@@ -36,7 +37,7 @@ Never paste secrets into chat, commit them, or include Apple server keys in iOS.
    secret settings. Losing or rotating them requires deliberate account migration.
 5. Optional limits: `AI_DAILY_CREDITS=30`, `AI_GLOBAL_DAILY_ATTEMPTS=900`.
    Tune the global limit to actual provider capacity, not the number of users.
-   Keep APP_API_KEY configured consistently in the backend and signed iOS build.
+   APP_API_KEY remains required for legacy catalog/BMR routes, but is not needed for public auth bootstrap or bearer-protected AI/account routes.
 6. Set Apple's server notification URL to
    `https://YOUR_BACKEND/api/auth/apple/notifications`. This route accepts signed
    Apple payloads without Mealio's shared key; forged notifications are rejected.
@@ -48,7 +49,7 @@ Never paste secrets into chat, commit them, or include Apple server keys in iOS.
    Apple authentication and bearer forwarding; the shared-key proxy is insufficient.
 
 ## Staging verification
-- Config endpoint returns enabled=true with the app key.
+- Public config endpoint returns enabled=true plus guestEnabled/appleEnabled flags without an app key.
 - AI with only the shared key returns 401 without calling the provider.
 - On a provisioned device, sign in, enable AI sharing separately, and generate
   one real response. Check remaining credits and the local reset time.
@@ -88,3 +89,42 @@ replays. Other processes still authenticate before any replay. After expiry,
 eviction or restart, an existing key returns 409 rather than rerunning AI.
 This protects transport retries carrying the same key; a deliberately new action
 has a new key and may use credits. There is no payment/checkout flow in Mealio.
+
+## Guest-first activation on the existing Render service
+
+No paid resource or production flag has been changed by this implementation.
+The existing Free service cannot provide the durable SQLite volume this account
+implementation requires. Prepare the existing service with a paid compute plan
+and a 1 GB persistent disk mounted at `/var/data`; verify the current price in
+Render before purchase. Current published base pricing is $7/month compute plus
+$0.25/GB/month disk, excluding taxes, network overages and provider usage.
+
+Use these settings after code deployment and disk verification:
+
+```text
+AI_ACCOUNTS_ENABLED=1
+AI_GUEST_ENABLED=1
+AI_APPLE_ENABLED=0
+AI_STATE_DB=/var/data/nourlo-ai.sqlite
+AI_STATE_PERSISTENT=1
+AI_DAILY_CREDITS=30
+AI_GLOBAL_DAILY_ATTEMPTS=30
+```
+
+Generate and securely store stable server-only `AI_SUBJECT_SECRET` and
+`AI_TOKEN_ENCRYPTION_KEY` before enabling accounts. Retain the existing Groq
+provider key and model configuration. The global attempt ceiling is a request
+limit, not a dollar budget; confirm provider billing separately. Keep one worker
+with threads and one attached disk; multiple independent copies cannot share this
+SQLite allowance store. Configure disk backups and restore/deletion procedures.
+
+Guest-first activation does not remove Apple support. Set `AI_APPLE_ENABLED=1`
+only after the Apple server signing keys, bundle capability and callback are ready.
+Both guest and Apple accounts then remain supported. To switch methods and delete
+all data, all accounts previously used on the device must be reauthenticated and
+deleted; local erasure waits until these retained accounts are handled.
+
+Required live proof: config shows guest enabled, guest login succeeds without an
+app key, unauthenticated AI remains rejected, one real provider response consumes
+the expected allowance, restart preserves that allowance, and deletion invalidates
+its sessions. No production-readiness claim is justified before these checks pass.

@@ -10,7 +10,7 @@ from ai_accounts import AccountError, AccountService, AI_PATHS
 import ai_usage
 
 
-def register_ai_accounts(app):
+def register_ai_accounts(app, client_ip=None):
     try:
         service = AccountService.from_env()
     except Exception:
@@ -66,7 +66,16 @@ def register_ai_accounts(app):
 
     @app.get('/api/auth/config')
     def account_config():
-        return jsonify({'enabled':app.config.get('AI_ACCOUNTS') is not None})
+        service=app.config.get('AI_ACCOUNTS')
+        return jsonify({'enabled':service is not None, 'guestEnabled':bool(service and service.guest_enabled),
+                        'appleEnabled':bool(service and service.apple is not None)})
+
+    @app.post('/api/auth/guest')
+    def guest_login():
+        data=request.get_json(silent=True)
+        if not isinstance(data,dict): raise AccountError('Invalid sign-in request.',400,'invalid_request')
+        network = client_ip() if client_ip else (request.remote_addr or "unknown")
+        return jsonify(accounts().guest_login(data.get('deviceSecret'),network))
 
     @app.get('/api/auth/apple/challenge')
     def challenge(): return jsonify(accounts().challenge())
@@ -98,6 +107,7 @@ def register_ai_accounts(app):
         data=request.get_json(silent=True)
         signed=data.get('payload') if isinstance(data,dict) else None
         # Verify the Apple signature, issuer, audience and notification freshness.
+        if accounts().apple is None: raise AccountError('Apple sign-in unavailable.',503,'ai_unavailable')
         claims=accounts().apple.verify_notification(signed)
         try: event=json.loads(claims['events']) if isinstance(claims['events'],str) else claims['events']
         except (KeyError,TypeError,ValueError):

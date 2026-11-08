@@ -16,6 +16,7 @@ import hmac
 import os
 
 from flask import Flask, request, jsonify
+from ai_accounts import AI_PATHS
 
 from app import (
     APP_API_KEY,
@@ -72,7 +73,14 @@ def _gate():
     # Auth is enforced only when APP_API_KEY is configured on the server.
     # Constant-time compare avoids leaking the key via timing.
     public_liveness = request.path == "/healthz" and request.method == "GET"
-    if APP_API_KEY and request.path != "/api/auth/apple/notifications" and not public_liveness:
+    # Bootstrap routes issue bounded sessions. Every protected AI/account route
+    # still validates a Bearer session; no shared app-wide secret is required.
+    session_route = (request.method, request.path) in {
+        ("GET", "/api/auth/config"), ("GET", "/api/auth/apple/challenge"),
+        ("POST", "/api/auth/apple"), ("POST", "/api/auth/guest"), ("GET", "/api/ai/usage"),
+        ("POST", "/api/auth/logout"), ("DELETE", "/api/auth/account")}
+    session_route = session_route or (request.method == "POST" and request.path in AI_PATHS)
+    if APP_API_KEY and request.path != "/api/auth/apple/notifications" and not public_liveness and not session_route:
         provided = request.headers.get("X-API-Key", "")
         if not hmac.compare_digest(provided, APP_API_KEY):
             return jsonify({"error": "Unauthorized"}), 401
@@ -185,7 +193,7 @@ def _unhandled(err: Exception):
 
 from ai_account_routes import register_ai_accounts
 from release_config import production_errors
-register_ai_accounts(app)
+register_ai_accounts(app, client_ip=_client_ip)
 
 
 @app.get('/healthz')

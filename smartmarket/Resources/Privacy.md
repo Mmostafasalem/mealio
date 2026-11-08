@@ -71,14 +71,22 @@ requests; it cannot retract requests already transmitted to a provider.
 We do **not**: track you across other apps or websites, sell or rent your data,
 serve advertising, or use third-party analytics.
 
-## Optional Apple account for AI
+## Optional guest or Apple account for AI
 Local tracking, shopping and offline plans do not require a Nourlo account.
-Online AI requires Sign in with Apple and separate AI-sharing consent. We do not
-request your Apple name or email. The backend stores a keyed hash of your Apple
+Online AI requires a guest device session or Sign in with Apple, plus separate
+AI-sharing consent. Guest access creates a random secret stored in this device's
+Keychain; it is sent only to our backend to recover that guest account. The backend
+stores a keyed hash of the guest identity and hashes of session tokens, not the
+raw device secret. No name or email is requested for guest access. New guest
+accounts are limited per network each UTC day using a daily keyed network hash
+and count, removed on subsequent activity after that day. Guest access is not
+anonymous: requests still include normal network information such as your IP
+address. Guest allowances are per device credential, not shared across devices.
+We do not request your Apple name or email. The backend stores a keyed hash of your Apple
 user identifier, hashes of app session tokens, an encrypted Apple refresh grant,
 account timestamps, daily request counters, and hashed request keys/fingerprints. These records provide one daily
 allowance across devices, validate access and support account deletion. Apple
-processes sign-in under its own terms. Signing in does not enable AI sharing.
+processes sign-in under its own terms. Signing in or continuing as a guest does not enable AI sharing.
 
 Credits reset at midnight UTC. The app displays the reset in your time zone.
 Personal allowances still share our provider's overall capacity. Failed AI
@@ -101,20 +109,24 @@ Apple Account. Other offline devices clear pre-deletion shopping data when they
 next sync. A minimal reset generation remains in CloudKit to prevent restoration
 of old records; it contains no previous shopping items. Deleting the app alone
 does not request deletion of cloud data, and Keychain items can survive app
-removal. Nourlo's backend has no user-profile or food-log database. AI account records
-remain until deleted; app sessions expire after 30 days, pending sign-in
+removal. Nourlo's backend has no user-profile or food-log database. Apple AI account records
+remain until deleted. Guest account records without any unexpired session are
+removed after 30 days from their initial creation, on subsequent service activity;
+recovering a guest session extends its session expiry. App sessions expire after 30 days, pending sign-in
 challenges after five minutes, and abandoned request reservations after three
 minutes. Personal spending counters retain only the current UTC day; aggregate service
 attempt counters retain the current day plus two previous days. Expired rows are
 removed on subsequent service activity. Cleanup is activity-driven.
 
 If an AI account is saved on this device, Delete All Data first requires a
-connection and valid sign-in to revoke its Apple grant and erase its server
+connection and valid sign-in to revoke any Apple grant and erase its server
 account and sessions. A keyed subject hash and today’s spent-credit count are
 retained solely to prevent deletion/recreation from resetting the daily allowance;
 they expire at the next UTC day and are removed on subsequent service activity. If that step fails, the app reports the
 failure and keeps local data so deletion can be retried. Signing out keeps a minimal on-device marker that an online account may remain
-and clears the device session; it does not delete the account. To delete after sign-out,
+and clears the device session; it does not delete the account. If guest and Apple
+accounts have both been used, the app retains their identifiers securely and requires
+each retained account to be handled before reporting complete deletion. To delete after sign-out,
 sign in again and use Delete All Data. Unlinked aggregate daily service attempt
 counts may remain until routine cleanup. Operator-managed backups must follow
 the published retention policy before launch. Chat may

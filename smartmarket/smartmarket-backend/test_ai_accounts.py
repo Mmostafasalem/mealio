@@ -204,7 +204,7 @@ def test_http_failures_do_not_spend_personal_credits(http_app, service, mode):
 def test_disabled_account_service_fails_closed(http_app):
     http_app.config['AI_ACCOUNTS'] = None
     client = http_app.test_client()
-    assert client.get('/api/auth/config').get_json() == {'enabled': False}
+    assert client.get('/api/auth/config').get_json() == {'enabled': False, 'guestEnabled': False, 'appleEnabled': False}
     response = client.post('/api/agent-chat', json={'mode': 'online'})
     assert response.status_code == 503 and response.headers['X-AI-Error'] == 'ai_unavailable'
 
@@ -524,3 +524,68 @@ def test_unknown_recipe_cache_entry_does_not_gain_verified_provenance(recipe_htt
     assert response.headers['X-AI-Result'] == 'cached'
     assert response.get_json() == unknown
     assert not case.calls and service.usage(case.user)['remaining'] == 10
+
+
+def test_guest_recovery_and_quotas_do_not_require_apple(service):
+    service.guest_enabled=True
+    service.apple=None
+    secret='a'*43
+    first=service.guest_login(secret,'192.0.2.1')
+    user=service.authenticate('Bearer '+first['token'])
+    reservation=service.reserve(user,'/api/meal-plan')
+    service.finish(reservation,succeeded=True,attempted=True)
+    service.logout(user)
+    second=service.guest_login(secret,'192.0.2.2')
+    assert first['accountID']==second['accountID'] and first['token']!=second['token']
+    assert second['usage']['remaining']==5
+    service.test_clock[0]+=86401
+    user=service.authenticate('Bearer '+second['token'])
+    assert service.usage(user)['remaining']==10
+    with service.transaction() as db:
+        stored=str([tuple(row) for row in db.execute('SELECT * FROM accounts')])
+        assert secret not in stored
+    service.delete_account(user)
+    with pytest.raises(AccountError): service.authenticate('Bearer '+second['token'])
+
+
+def test_guest_setup_is_opt_in_and_network_bounded(service):
+    with pytest.raises(AccountError): service.guest_login('a'*43,'network')
+    service.guest_enabled=True
+    for bad in [None,'short','a'*129,'a'*42+' ',True]:
+        with pytest.raises(AccountError): service.guest_login(bad,'network')
+    for index in range(5): service.guest_login(str(index)*43,'network')
+    with pytest.raises(AccountError) as error: service.guest_login('x'*43,'network')
+    assert error.value.status==429
+    assert service.guest_login('0'*43,'network')['usage']['remaining']==10
+    service.test_clock[0]+=86401
+    assert service.guest_login('x'*43,'network')['usage']['remaining']==10
+
+
+def test_guest_delete_and_recreate_with_same_device_key_does_not_reset_today(service):
+    service.guest_enabled=True
+    signed=service.guest_login('a'*43,'network')
+    user=service.authenticate('Bearer '+signed['token'])
+    reservation=service.reserve(user,'/api/meal-plan')
+    service.finish(reservation,succeeded=True,attempted=True)
+    service.delete_account(user)
+    assert service.guest_login('a'*43,'network')['usage']['remaining']==5
+
+
+def test_public_guest_bootstrap_does_not_open_protected_routes(service,monkeypatch):
+    import server
+    service.guest_enabled=True
+    monkeypatch.setitem(server.app.config,'AI_ACCOUNTS',service)
+    monkeypatch.setattr(server,'APP_API_KEY','s'*64)
+    monkeypatch.setattr(server,'_is_rate_limited',lambda ip:False)
+    client=server.app.test_client()
+    assert client.get('/api/auth/config').get_json()['guestEnabled'] is True
+    assert client.get('/api/products').status_code==401
+    assert client.post('/api/agent-chat',json={}).status_code==401
+    signed=client.post('/api/auth/guest',json={'deviceSecret':'a'*43})
+    assert signed.status_code==200
+    credentials=signed.get_json()
+    headers={'Authorization':'Bearer '+credentials['token']}
+    assert client.get('/api/ai/usage',headers=headers).status_code==200
+    assert client.get('/api/ai/usage',headers={'Authorization':'Bearer '+'b'*64}).status_code==401
+    assert client.delete('/api/auth/account',headers=headers).status_code==204
+    assert client.get('/api/ai/usage',headers=headers).status_code==401

@@ -126,11 +126,12 @@ class AppleAuthority:
 
 
 class AccountService:
-    def __init__(self,path,apple,cipher,subject_secret,daily_limit=30,global_limit=900,clock=time.time):
+    def __init__(self,path,apple,cipher,subject_secret,daily_limit=30,global_limit=900,clock=time.time,guest_enabled=False):
         if len(subject_secret) < 32:
             raise ValueError('AI subject secret must contain at least 32 bytes')
         self.path,self.apple,self.cipher,self.subject_secret = path,apple,cipher,subject_secret
         self.daily_limit,self.global_limit,self.clock = daily_limit,global_limit,clock
+        self.guest_enabled = guest_enabled
         with self.transaction() as db:
             db.executescript('''
               CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, refresh BLOB NOT NULL, verified REAL NOT NULL, created REAL NOT NULL);
@@ -140,11 +141,14 @@ class AccountService:
               CREATE TABLE IF NOT EXISTS global_quota(day TEXT PRIMARY KEY, used INTEGER NOT NULL DEFAULT 0);
               CREATE TABLE IF NOT EXISTS reservations(id TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, day TEXT NOT NULL, cost INTEGER NOT NULL, expires REAL NOT NULL);
               CREATE INDEX IF NOT EXISTS session_account ON sessions(account);
+              CREATE TABLE IF NOT EXISTS guest_registrations(network TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL, PRIMARY KEY(network,day));
               CREATE TABLE IF NOT EXISTS ai_requests(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, key TEXT NOT NULL, fingerprint TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(account,key));
             ''')
             if 'created' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
                 db.execute('ALTER TABLE accounts ADD COLUMN created REAL NOT NULL DEFAULT 0')
                 db.execute('UPDATE accounts SET created=verified')
+            if 'kind' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
+                db.execute("ALTER TABLE accounts ADD COLUMN kind TEXT NOT NULL DEFAULT 'apple'")
             # Spending is abuse-prevention metadata independent of account credentials.
             # Keep only today's keyed subject/count so delete/recreate cannot reset it.
             if list(db.execute('PRAGMA foreign_key_list(quota)')):
@@ -167,11 +171,14 @@ class AccountService:
         global_limit = int(os.environ.get('AI_GLOBAL_DAILY_ATTEMPTS','900'))
         if not 5 <= limit <= 10000 or not 1 <= global_limit <= 100000:
             raise ValueError('Invalid AI allowance configuration')
-        apple = AppleAuthority(os.environ.get('APPLE_APP_ID','com.mostafa.mealio'),
+        guest_enabled = os.environ.get('AI_GUEST_ENABLED') == '1'
+        apple_enabled = os.environ.get('AI_APPLE_ENABLED','1') == '1'
+        if not guest_enabled and not apple_enabled: raise ValueError('Enable an AI sign-in method')
+        apple = (AppleAuthority(os.environ.get('APPLE_APP_ID','com.mostafa.mealio'),
                                os.environ['APPLE_TEAM_ID'],os.environ['APPLE_KEY_ID'],
-                               os.environ['APPLE_PRIVATE_KEY'])
+                               os.environ['APPLE_PRIVATE_KEY']) if apple_enabled else None)
         return cls(path,apple,Fernet(os.environ['AI_TOKEN_ENCRYPTION_KEY'].encode()),
-                   os.environ['AI_SUBJECT_SECRET'].encode(),limit,global_limit)
+                   os.environ['AI_SUBJECT_SECRET'].encode(),limit,global_limit,guest_enabled=guest_enabled)
 
     @contextlib.contextmanager
     def transaction(self):
@@ -199,14 +206,17 @@ class AccountService:
         db.execute('DELETE FROM reservations WHERE expires<=?',(now,))
         db.execute('DELETE FROM challenges WHERE expires<=?',(now,))
         db.execute('DELETE FROM sessions WHERE expires<=?',(now,))
+        db.execute("DELETE FROM accounts WHERE kind='guest' AND verified<=? AND NOT EXISTS (SELECT 1 FROM sessions WHERE sessions.account=accounts.id)",(now-30*86400,))
         db.execute('DELETE FROM ai_requests WHERE created<=?',(now-86400,))
         cutoff=(datetime.fromtimestamp(now,timezone.utc).date()-timedelta(days=2)).isoformat()
         db.execute('DELETE FROM quota WHERE day<?',(self._day(),))
+        db.execute('DELETE FROM guest_registrations WHERE day<?',(self._day(),))
         db.execute('DELETE FROM global_quota WHERE day<?',(cutoff,))
 
     def _subject(self,sub): return hmac.new(self.subject_secret,sub.encode(),hashlib.sha256).hexdigest()
 
     def challenge(self):
+        if self.apple is None: raise AccountError('Apple sign-in is unavailable. Use guest access.',503,'ai_unavailable')
         value={'id':secrets.token_urlsafe(32),'nonce':digest(secrets.token_urlsafe(32))}
         with self.transaction() as db:
             self._cleanup(db)
@@ -217,6 +227,7 @@ class AccountService:
         return {**value,'expiresAt':iso(self.clock()+300)}
 
     def login(self,identity_token,code,challenge_id):
+        if self.apple is None: raise AccountError('Apple sign-in is unavailable. Use guest access.',503,'ai_unavailable')
         if not isinstance(challenge_id,str): raise AccountError('Sign in with Apple again.')
         with self.transaction() as db:
             self._cleanup(db)
@@ -243,16 +254,39 @@ class AccountService:
         return {'token':token,'accountID':account,'expiresAt':iso(expires),
                 'usage':self.usage(Session(account,digest(token)))}
 
+    def guest_login(self, device_secret, network):
+        import re
+        if not self.guest_enabled: raise AccountError('Guest access is unavailable.',503,'ai_unavailable')
+        if not isinstance(device_secret,str) or not re.fullmatch(r'[A-Za-z0-9_-]{43,128}',device_secret):
+            raise AccountError('Invalid guest sign-in.',400,'invalid_request')
+        account=self._subject('guest:'+device_secret)
+        network_key=self._subject('guest-network:'+self._day()+':'+network)
+        token=secrets.token_urlsafe(48); expires=self.clock()+30*86400
+        with self.transaction() as db:
+            self._cleanup(db)
+            existing=db.execute('SELECT kind FROM accounts WHERE id=?',(account,)).fetchone()
+            if existing is None:
+                row=db.execute('SELECT used FROM guest_registrations WHERE network=? AND day=?',(network_key,self._day())).fetchone()
+                if row is not None and row['used'] >= 5:
+                    raise AccountError('Guest setup limit reached for this network. Try again tomorrow.',429,'guest_setup_limited')
+                db.execute('INSERT INTO guest_registrations VALUES(?,?,1) ON CONFLICT(network,day) DO UPDATE SET used=used+1',(network_key,self._day()))
+                db.execute("INSERT INTO accounts(id,refresh,verified,created,kind) VALUES(?,?,?,?,'guest')",
+                           (account,self.cipher.encrypt(b''),self.clock(),self.clock()))
+            elif existing['kind'] != 'guest': raise AccountError('Invalid guest sign-in.',400,'invalid_request')
+            db.execute('INSERT INTO sessions VALUES(?,?,?)',(digest(token),account,expires))
+            db.execute('DELETE FROM sessions WHERE account=? AND hash NOT IN (SELECT hash FROM sessions WHERE account=? ORDER BY expires DESC LIMIT 20)',(account,account))
+        return {'token':token,'accountID':account,'expiresAt':iso(expires),'usage':self.usage(Session(account,digest(token)))}
+
     def authenticate(self,authorization):
         if not authorization.startswith('Bearer ') or not 32 <= len(authorization[7:]) <= 256:
-            raise AccountError('Sign in with Apple to use online AI.')
+            raise AccountError('Sign in or continue as a guest to use online AI.')
         hashed=digest(authorization[7:])
         with self.transaction() as db:
             self._cleanup(db)
             row=db.execute('SELECT a.*,s.hash FROM sessions s JOIN accounts a ON a.id=s.account WHERE s.hash=?',(hashed,)).fetchone()
-            if row is None: raise AccountError('Sign in with Apple to use online AI.')
+            if row is None: raise AccountError('Sign in or continue as a guest to use online AI.')
             user=Session(row['id'],hashed)
-        if self.clock()-row['verified'] >= 86400:
+        if row['kind'] == 'apple' and self.clock()-row['verified'] >= 86400:
             try:
                 result=self.apple.refresh(self.cipher.decrypt(row['refresh']).decode())
                 if not isinstance(result,dict): raise AccountError('Sign in with Apple again.')
@@ -337,7 +371,7 @@ class AccountService:
 
     def delete_account(self,user):
         with self.transaction() as db:
-            row=db.execute('SELECT refresh FROM accounts WHERE id=?',(user.account_id,)).fetchone()
+            row=db.execute('SELECT refresh,kind FROM accounts WHERE id=?',(user.account_id,)).fetchone()
         if row is None: raise AccountError('Sign in with Apple again.')
-        self.apple.revoke(self.cipher.decrypt(row['refresh']).decode())
+        if row['kind'] == 'apple': self.apple.revoke(self.cipher.decrypt(row['refresh']).decode())
         self.purge(user.account_id)

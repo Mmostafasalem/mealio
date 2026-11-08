@@ -62,3 +62,14 @@ Completion requires evidence for all six requirements, not simply successful com
 - Verification: 70 native tests executed, one live AI test skipped, no failures; existing stock search/add/consume simulator UI flow passed (`/tmp/nourlo-meal-stock-final.log`). 17 sync package tests passed (`/tmp/nourlo-sync-meal-test.log`). New whole-meal screen compiles; its full rendered journey is not yet verified.
 - Signed phone-test build succeeded and installed on iPhone 15 Pro. Launch was rejected because the phone was locked. This is installation evidence, not physical-device feature validation or production readiness.
 - Still required: live AI/auth/storage activation, full-week stock allocation and missing-ingredient planning beyond owned candidates, allergy-safe plan validation, real retailer availability coverage, rendered whole-meal journey, release signing/distribution and complete release checks.
+
+## Guest AI access (owner approved 2026-11-08)
+
+- Owner chose guest access alongside Apple sign-in. Guest credentials use 32 random bytes stored in device-only Keychain. Server identity is keyed-hashed; session tokens are hashed and expire after 30 days.
+- Guest recovery retains the same quota; five new guest registrations per network/UTC day and overall AI attempt limits bound abuse. Apple auth remains supported and independently configurable.
+- Public auth bootstrap no longer requires the app-wide API key; protected AI and account operations still require authenticated bearer sessions. Legacy catalog/BMR API-key protection is unchanged. Durable account storage remains mandatory.
+- Retained account IDs prevent guest/Apple switching from orphaning a previously retained account during Delete All Data. Signed-out and expired legacy Apple sessions are migrated conservatively. Keychain writes update existing records in place.
+- Independent review found the account-switching deletion bug and two migration variants; all were fixed. Final review reported no further important regression.
+- Backend suite: 77 passed (`/tmp/nourlo-guest-verified.log`). Full native suite: 73 executed, one live provider test skipped, zero failures (`/tmp/nourlo-guest-ios-final.log`); final four guest recovery/deletion/migration tests passed (`/tmp/nourlo-guest-migrations.log`).
+- Private server-only activation configuration was prepared at `/Users/mmostafasalem/.config/nourlo/guest-activation-2026-11-08.env` (0600), without printing or committing secrets. It uses /var/data, guest enabled, Apple temporarily disabled until Apple server credentials exist, 30 credits/device/day and 30 global attempts/day.
+- Activation procedure and remaining live proof are in docs/AI_ACCOUNTS_SETUP.md. Existing Render Free service has no durable disk. Paid resource changes have not been authorized or performed. Guest code is not evidence of live AI operation.
