@@ -168,6 +168,7 @@ def test_meal_plan_separates_owned_stock_from_shopping_and_bounds_payload(monkey
     captured = {}
     def capture(messages, fallback=None, **kwargs):
         captured['prompt'] = messages[-1]['content']
+        captured['system'] = messages[0]['content']
         return fallback
     monkeypatch.setattr(app, 'groq_json', capture)
     valid = {'food': {'id': 'usda:123', 'name': 'Rice', 'basis': 'g',
@@ -178,6 +179,8 @@ def test_meal_plan_separates_owned_stock_from_shopping_and_bounds_payload(monkey
     assert '375' in captured['prompt'] and 'usda:123' in captured['prompt']
     assert 'Shopping intentions (not owned): ["Milk"]' in captured['prompt']
     assert 'Remaining today (not a daily target)' in captured['prompt']
+    assert '"portions":[{"foodID"' in captured['system']
+    assert 'Repeating meals is allowed' in captured['system']
     assert app._planning_stock([{'food': valid['food'], 'availableAmount': True}]) == []
     assert app._planning_stock([{'food': valid['food'], 'availableAmount': float('nan')}]) == []
     assert app._planning_remaining({'calories': float('inf')}) is None
