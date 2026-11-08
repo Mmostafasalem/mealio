@@ -152,11 +152,13 @@ final class GroceryListViewModel {
             lines.append("\(store):")
             for item in groupedByStore[store] ?? [] {
                 let check = item.isBought ? "[x]" : "[ ]"
-                lines.append("  \(check) \(item.foodName) (\(item.quantity)) — €\(String(format: "%.2f", item.estimatedPrice))")
+                let price = item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice)
+                lines.append("  \(check) \(item.foodName) (\(item.quantity)) — \(price)")
             }
             lines.append("")
         }
-        lines.append(String(format: "Total: €%.2f", totalEstimatedCost))
+        let label = items.contains { $0.priceKnown == false } ? "Known estimates only" : "Estimated total"
+        lines.append(String(format: "\(label): €%.2f", totalEstimatedCost))
         return lines.joined(separator: "\n")
     }
 }

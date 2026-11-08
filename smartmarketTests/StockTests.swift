@@ -55,4 +55,38 @@ final class StockTests: XCTestCase {
         XCTAssertEqual(restored.totalCalories, 0)
         XCTAssertThrowsError(try stock.add(food: NutritionDatabase.load()[0], amount: -.infinity))
     }
+    func testWholeMealIsAtomicAcrossFoodsAndBatchesAndIdempotentAfterRestart() throws {
+        let name = "MealStockTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let foods = try NutritionDatabase.load()
+        let first = foods[0], second = foods[1]
+        let stock = StockStore(defaults: defaults)
+        try stock.add(food: first, amount: 100, expiresAt: Date().addingTimeInterval(86400))
+        try stock.add(food: first, amount: 200, expiresAt: Date().addingTimeInterval(172800))
+        try stock.add(food: second, amount: 50)
+        let impossible = [NutritionIngredient(food: first, amount: 125), NutritionIngredient(food: second, amount: 60)]
+        XCTAssertThrowsError(try stock.consumeMeal(impossible, slot: .lunch, operationID: "lunch"))
+        XCTAssertEqual(stock.items.map(\.amount), [100, 200, 50])
+        XCTAssertTrue(stock.logs.isEmpty)
+        XCTAssertFalse(stock.hasLoggedMeal("lunch"))
+        let missing = try stock.missingIngredients(for: impossible)
+        XCTAssertEqual(missing.map(\.amount), [10])
+        let meal = [NutritionIngredient(food: first, amount: 75), NutritionIngredient(food: first, amount: 50),
+                    NutritionIngredient(food: second, amount: 50)]
+        try stock.consumeMeal(meal, slot: .lunch, operationID: "lunch")
+        XCTAssertEqual(stock.items.count, 1)
+        XCTAssertEqual(stock.items.first?.amount, 175)
+        XCTAssertEqual(stock.logs.reduce(0) { $0 + $1.amount }, 175)
+        let reopened = StockStore(defaults: defaults)
+        let logCount = reopened.logs.count
+        try reopened.consumeMeal(meal, slot: .lunch, operationID: "lunch")
+        XCTAssertEqual(reopened.logs.count, logCount)
+        XCTAssertEqual(reopened.items.first?.amount, 175)
+        XCTAssertTrue(reopened.hasLoggedMeal("lunch"))
+        let duplicated = [NutritionIngredient(food: first, amount: 100), NutritionIngredient(food: first, amount: 100)]
+        XCTAssertThrowsError(try reopened.consumeMeal(duplicated, slot: .dinner, operationID: "dinner"))
+        XCTAssertEqual(reopened.items.first?.amount, 175)
+    }
+
 }

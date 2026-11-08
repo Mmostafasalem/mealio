@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // MARK: - Meal entry (one food item inside a meal)
 struct MealEntry: Codable, Identifiable {
@@ -11,9 +12,10 @@ struct MealEntry: Codable, Identifiable {
     let fatG: Double
     let notes: String?          // e.g. "grilled", "steamed"
     var nutritionIngredients: [NutritionIngredient]? = nil
+    var stockOperationID: String? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, calories, notes, nutritionIngredients
+        case id, calories, notes, nutritionIngredients, stockOperationID
         case foodName  = "food_name"
         case portionG  = "portion_g"
         case proteinG  = "protein_g"
@@ -65,9 +67,10 @@ struct GroceryItem: Codable, Identifiable {
     var storeId: String
     var storeName: String
     var isBought: Bool
+    var priceKnown: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, quantity
+        case id, quantity, priceKnown
         case foodId         = "food_id"
         case foodName       = "food_name"
         case estimatedPrice = "estimated_price"
@@ -135,8 +138,17 @@ extension MealPlan {
     }
 
     static func from(day: DayPlan, date: Date, notes: String) -> MealPlan {
-        let breakfast = entry(day.pusryciai), lunch = entry(day.pietus)
-        let dinner = entry(day.vakariene), snacks = entry(day.uzkandziai)
+        func meals(_ item: MealItem?, slot: MealSlot) -> [MealEntry] {
+            var entries = entry(item)
+            guard let item, item.nutritionIngredients != nil, !entries.isEmpty else { return entries }
+            let dayStamp = String(Calendar.current.startOfDay(for: date).timeIntervalSince1970)
+            let portions = (item.portions ?? []).map { "\($0.foodID):\($0.amount)" }.joined(separator: "|")
+            let payload = dayStamp + "|" + slot.rawValue + "|" + item.pavadinimas + "|" + portions
+            entries[0].stockOperationID = SHA256.hash(data: Data(payload.utf8)).map { String(format: "%02x", $0) }.joined()
+            return entries
+        }
+        let breakfast = meals(day.pusryciai, slot: .breakfast), lunch = meals(day.pietus, slot: .lunch)
+        let dinner = meals(day.vakariene, slot: .dinner), snacks = meals(day.uzkandziai, slot: .snack)
         let entries = breakfast + lunch + dinner + snacks
         return MealPlan(id: UUID().uuidString, date: date, breakfast: breakfast, lunch: lunch, dinner: dinner, snacks: snacks,
                         totalCalories: entries.reduce(0) { $0 + $1.calories },

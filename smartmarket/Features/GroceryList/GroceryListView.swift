@@ -71,14 +71,15 @@ struct GroceryListView: View {
                         StoreHeaderView(
                             store: store,
                             count: (vm.groupedByStore[store] ?? []).count,
-                            cost: vm.estimatedCost(for: store)
+                            cost: vm.estimatedCost(for: store),
+                            hasUnknownPrices: (vm.groupedByStore[store] ?? []).contains { $0.priceKnown == false }
                         )
                     }
                 }
             }
             .listStyle(.insetGrouped)
 
-            FooterBar(total: vm.totalEstimatedCost, count: vm.items.count)
+            FooterBar(total: vm.totalEstimatedCost, count: vm.items.count, hasUnknownPrices: vm.items.contains { $0.priceKnown == false })
         }
 
     }
@@ -112,7 +113,7 @@ private struct GroceryRow: View {
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
-            Text(String(format: "€%.2f", item.estimatedPrice))
+            Text(item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice))
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(item.isBought ? .tertiary : .secondary)
         }
@@ -126,6 +127,7 @@ private struct StoreHeaderView: View {
     let store: String
     let count: Int
     let cost: Double
+    let hasUnknownPrices: Bool
 
     private var storeColor: Color { .labelPrimary }
 
@@ -137,7 +139,7 @@ private struct StoreHeaderView: View {
             Text(store)
                 .fontWeight(.semibold)
             Spacer()
-            Text("\(count) item\(count == 1 ? "" : "s") · ~€\(cost, specifier: "%.2f")")
+            Text(hasUnknownPrices ? "\(count) items · prices incomplete" : "\(count) item\(count == 1 ? "" : "s") · ~€\(cost, specifier: "%.2f")")
         }
         .font(.caption)
         .textCase(nil)
@@ -149,11 +151,12 @@ private struct StoreHeaderView: View {
 private struct FooterBar: View {
     let total: Double
     let count: Int
+    let hasUnknownPrices: Bool
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Estimated total")
+                Text(hasUnknownPrices ? "Known estimates only" : "Estimated total")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
                 Text(String(format: "€%.2f", total))
                     .font(.title2).fontWeight(.bold)

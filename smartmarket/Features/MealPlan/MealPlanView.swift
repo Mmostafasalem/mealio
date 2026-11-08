@@ -158,7 +158,7 @@ private struct MealSectionCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 ForEach(entries) { entry in
-                    MealEntryRow(entry: entry)
+                    MealEntryRow(entry: entry, slot: title == "Breakfast" ? .breakfast : title == "Lunch" ? .lunch : title == "Dinner" ? .dinner : .snack)
                 }
             }
             .padding(.top, 8)
@@ -189,6 +189,7 @@ private struct MealSectionCard: View {
 
 private struct MealEntryRow: View {
     let entry: MealEntry
+    let slot: MealSlot
     @State private var showRecipe = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -230,9 +231,13 @@ private struct MealEntryRow: View {
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Spacing.xs)
-        .accessibilityHint("Opens the recipe")
+        .accessibilityHint(entry.nutritionIngredients == nil ? "Opens the recipe" : "Review ingredient portions and log from stock")
         .sheet(isPresented: $showRecipe) {
-            RecipeSheet(mealName: entry.foodName)
+            if entry.nutritionIngredients != nil {
+                PlannedMealStockSheet(entry: entry, slot: slot)
+            } else {
+                RecipeSheet(mealName: entry.foodName)
+            }
         }
     }
 }

@@ -33,4 +33,13 @@ final class SyncSnapshotCodecTests: XCTestCase {
         XCTAssertNil(rows.first?["bodyWeight"])
         XCTAssertNil(rows.first?["allergy"])
     }
+    func testUnknownGroceryPriceSurvivesSyncWithoutHealthFields() throws {
+        let input = Data(#"[{"id":"needed-rice","food_name":"Rice","estimated_price":0,"priceKnown":false,"bodyWeight":70}]"#.utf8)
+        let split = try SyncSnapshotCodec.split(input, prefix: "groceryList")
+        let joined = try SyncSnapshotCodec.join(split, prefix: "groceryList")
+        let rows = try XCTUnwrap(JSONSerialization.jsonObject(with: joined) as? [[String: Any]])
+        XCTAssertEqual(rows.first?["priceKnown"] as? Bool, false)
+        XCTAssertNil(rows.first?["bodyWeight"])
+    }
+
 }

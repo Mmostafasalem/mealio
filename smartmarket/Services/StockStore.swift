@@ -17,6 +17,7 @@ final class StockStore {
     private struct Snapshot: Codable {
         var items: [StockItem] = []
         var logs: [FoodLogEntry] = []
+        var mealOperations: [String]? = nil
     }
     private let defaults: UserDefaults
     private let key = "nourloStock_v1"
@@ -71,6 +72,60 @@ final class StockStore {
         next.items[index].amount -= amount
         if next.items[index].amount < 0.000001 { next.items.remove(at: index) }
         try save(next)
+    }
+
+    func hasLoggedMeal(_ operationID: String) -> Bool {
+        snapshot.mealOperations?.contains(operationID) == true
+    }
+
+    func missingIngredients(for ingredients: [NutritionIngredient]) throws -> [NutritionIngredient] {
+        let required = try requirements(ingredients)
+        return required.compactMap { ingredient in
+            let available = snapshot.items.filter { $0.food.id == ingredient.food.id && $0.food.basis == ingredient.food.basis }
+                .reduce(0) { $0 + $1.amount }
+            let missing = ingredient.amount - available
+            return missing > 0.000001 ? NutritionIngredient(food: ingredient.food, amount: missing) : nil
+        }
+    }
+
+    /// All ingredients are checked before a single snapshot records the full meal.
+    /// A stable operation ID also prevents a repeated tap/relaunch from logging twice.
+    func consumeMeal(_ ingredients: [NutritionIngredient], slot: MealSlot, operationID: String) throws {
+        guard !operationID.isEmpty, operationID.count <= 300 else { throw StockError.invalidAmount }
+        if hasLoggedMeal(operationID) { return }
+        let required = try requirements(ingredients)
+        guard try missingIngredients(for: ingredients).isEmpty else { throw StockError.insufficientStock }
+        var next = snapshot
+        for ingredient in required {
+            var remaining = ingredient.amount
+            let batches = next.items.filter { $0.food.id == ingredient.food.id && $0.food.basis == ingredient.food.basis }
+                .sorted { ($0.expiresAt ?? .distantFuture, $0.addedAt) < ($1.expiresAt ?? .distantFuture, $1.addedAt) }
+            for batch in batches where remaining > 0.000001 {
+                guard let index = next.items.firstIndex(where: { $0.id == batch.id }) else { continue }
+                let amount = min(remaining, next.items[index].amount)
+                next.logs.append(FoodLogEntry(nutritionFood: next.items[index].food, slot: slot, amount: amount))
+                next.items[index].amount -= amount
+                remaining -= amount
+            }
+        }
+        next.items.removeAll { $0.amount < 0.000001 }
+        next.mealOperations = (next.mealOperations ?? []) + [operationID]
+        try save(next)
+    }
+
+    private func requirements(_ ingredients: [NutritionIngredient]) throws -> [NutritionIngredient] {
+        guard !ingredients.isEmpty, ingredients.count <= 50,
+              ingredients.allSatisfy({ $0.food.isValid && $0.amount.isFinite && $0.amount > 0 && $0.amount <= 100000 })
+        else { throw StockError.invalidAmount }
+        var grouped: [String: NutritionIngredient] = [:]
+        for ingredient in ingredients {
+            if var existing = grouped[ingredient.food.id] {
+                guard existing.food.basis == ingredient.food.basis else { throw StockError.invalidAmount }
+                existing.amount += ingredient.amount
+                grouped[ingredient.food.id] = existing
+            } else { grouped[ingredient.food.id] = ingredient }
+        }
+        return grouped.values.sorted { $0.food.id < $1.food.id }
     }
 
     func removeLog(id: String) {

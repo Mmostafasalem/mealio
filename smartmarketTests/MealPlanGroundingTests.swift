@@ -36,4 +36,18 @@ final class MealPlanGroundingTests: XCTestCase {
         XCTAssertEqual(entry.proteinG + entry.carbsG + entry.fatG, 0)
         XCTAssertEqual(entry.portionG, 0)
     }
+    func testMealOperationIsStableWhenPlanReloadsAndChangesAcrossDays() throws {
+        let food = try XCTUnwrap(NutritionDatabase.load().first)
+        let item = MealPlanGrounding.resolve(MealItem(portions: [PlannedPortion(foodID: food.id, amount: 100)],
+                                                     pavadinimas: "Lunch", ingredientai: [], kcal: 400), foods: [food.id: food])
+        let day = DayPlan(pusryciai: nil, pietus: item, vakariene: nil, uzkandziai: nil, visoKcal: nil)
+        let first = MealPlan.from(day: day, date: Date(), notes: "")
+        let reload = MealPlan.from(day: day, date: Date(), notes: "")
+        XCTAssertNotNil(first.lunch.first?.stockOperationID)
+        XCTAssertEqual(first.lunch.first?.stockOperationID, reload.lunch.first?.stockOperationID)
+        let tomorrow = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: Date()))
+        let next = MealPlan.from(day: day, date: tomorrow, notes: "")
+        XCTAssertNotEqual(first.lunch.first?.stockOperationID, next.lunch.first?.stockOperationID)
+    }
+
 }
