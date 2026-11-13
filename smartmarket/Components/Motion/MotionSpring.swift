@@ -152,6 +152,11 @@ final class MotionClock {
 
     var isRunning: Bool { link != nil }
 
+    /// Creating a clock touches no UI, so it can be a stored-property default in
+    /// models that aren't main-actor isolated (Xcode 16.4 rejects that otherwise).
+    /// Everything that drives the display link stays on the main actor.
+    nonisolated init() {}
+
     /// Frame-rate ceiling. 60 is plenty for decorative and state motion and halves
     /// the cost on ProMotion iPhones; pass 120 for motion that follows a finger.
     var maxFramesPerSecond: Float = 60 {

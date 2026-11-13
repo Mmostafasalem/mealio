@@ -142,7 +142,7 @@ final class GooThinkingEngine {
     static let dotR: Double = 4.5
     static let dotTop: Double = 15.5
     static let blur: Double = 3.2
-    static func restX(_ i: Int) -> Double { 19 + Double(i) * 13 }
+    nonisolated static func restX(_ i: Int) -> Double { 19 + Double(i) * 13 }
     static let mergedX: Double = 32 - 4.5
 
     // Spring tunings from think.js; `think()` restores them after an open.
