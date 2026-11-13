@@ -69,12 +69,12 @@ struct SpringSegmentedControl<T: Hashable>: View {
             GeometryReader { geo in
                 let n = max(options.count, 1)
                 let w = (geo.size.width - Self.pad * 2) / CGFloat(n)
-                let sp = reduceMotion ? 0 : motionClamp(abs(model.velocity) * w / 1400, 0, 0.22)
+                let sp: CGFloat = reduceMotion ? 0 : CGFloat(motionClamp(abs(model.velocity) * Double(w) / 1400, 0, 0.22))
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color.brandPrimary)
                     .frame(width: max(0, w), height: max(0, geo.size.height - Self.pad * 2))
                     .scaleEffect(x: 1 + sp, y: 1 - sp * 0.5)
-                    .offset(x: Self.pad + model.position * w, y: Self.pad)
+                    .offset(x: Self.pad + CGFloat(model.position) * w, y: Self.pad)
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
