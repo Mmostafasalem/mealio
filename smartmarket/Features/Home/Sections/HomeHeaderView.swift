@@ -3,6 +3,8 @@ import SwiftUI
 /// Open typographic header. Today's nutrition, rather than decoration, leads Home.
 struct HomeHeaderView: View {
     let vm: HomeViewModel
+    /// Opens Profile and settings.
+    var onProfile: () -> Void = {}
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -22,15 +24,27 @@ struct HomeHeaderView: View {
                 }
                 Spacer(minLength: Spacing.sm)
                 // Offline status lives in Home's MorphIsland notice now.
-                Text(AppState.shared.userProfile.name.prefix(1).uppercased())
-                    .font(.headline)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.4)
+                // The avatar is the way into Profile and settings.
+                Button(action: onProfile) {
+                    Group {
+                        if let initial = AppState.shared.userProfile.name.first {
+                            Text(String(initial).uppercased())
+                                .font(.headline)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.4)
+                        } else {
+                            Image(systemName: "person.fill").font(.headline)
+                        }
+                    }
                     .padding(8)
                     .foregroundStyle(Color.onAccent)
                     .frame(width: 44, height: 44)
                     .background(Color.dullPink, in: Circle())
-                    .accessibilityHidden(true)
+                    .contentShape(Circle())
+                }
+                .buttonStyle(ScalePressStyle())
+                .accessibilityLabel("Profile and settings")
+                .accessibilityIdentifier("home.profile")
             }
 
         }

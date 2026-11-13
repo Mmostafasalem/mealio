@@ -27,7 +27,6 @@ struct MainTabView: View {
                 NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
                 StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
                 TrainView().tag(3).toolbar(.hidden, for: .tabBar)
-                NavigationStack { ProfileView() }.tag(4).toolbar(.hidden, for: .tabBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Open, results float directly above the bar; a tap outside folds it back.
@@ -139,11 +138,20 @@ struct MainTabView: View {
 
     private func chooseQuickAction(_ action: MealioQuickAction) {
         closeQuickActions()
-        if let tab = action.tab {
+        if action == .profile {
+            openProfile()
+        } else if let tab = action.tab {
             selection = tab
         } else {
             activeAction = action
         }
+    }
+
+    /// Profile lives behind the avatar on Home, not in the tab bar.
+    private func openProfile() {
+        selection = 0
+        // Let Home become the visible tab before it pushes Profile.
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .openProfile, object: nil) }
     }
 
     private func followGuide(_ pathway: BowlPathway) {
@@ -153,7 +161,7 @@ struct MainTabView: View {
         case .groceries: activeAction = .groceries
         case .meals: selection = 1
         case .shop: selection = 2
-        case .profile: selection = 4
+        case .profile: openProfile()
         case .chat: showGuideChat = true
         }
     }
@@ -187,7 +195,6 @@ private struct FloatingTabBar: View {
         ("fork.knife.circle",   "fork.knife.circle.fill",   "Meals"),
         ("storefront",          "storefront.fill",          "Shop"),
         ("figure.run",          "figure.run",               "Train"),
-        ("person.crop.circle",  "person.crop.circle.fill",  "Profile"),
     ]
 
     var body: some View {

@@ -14,7 +14,9 @@ final class ReleaseSmokeTests: XCTestCase {
             guard control.exists && control.isHittable else { return false }
             // The custom tab bar already reserves its bottom inset. Applying a
             // second artificial bottom margin rejects valid SE tap targets.
-            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
+            // The Home avatar is a header control right under the status bar,
+            // so the bottom-reach margin does not apply to it either.
+            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions" || id == "home.profile") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
             if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
                 safeFrame = safeFrame.intersection(app.collectionViews.firstMatch.frame.insetBy(dx: 0, dy: 12))
             }
@@ -60,6 +62,12 @@ final class ReleaseSmokeTests: XCTestCase {
             if Date().timeIntervalSince(stableSince) >= 0.8 { break }
         }
         control.tap()
+    }
+
+    /// Profile opens from the avatar at the top of Home.
+    private func openProfile(in app: XCUIApplication) {
+        tap("tab.home", in: app)
+        tap("home.profile", in: app)
     }
 
     private func capture(_ name: String) {
@@ -108,7 +116,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testAppStoreScreenshotCandidates() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "train", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("store-candidate-" + name)
         }
@@ -126,10 +134,7 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES",
                                "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
         app.launch()
-        tap("tab.profile", in: app)
-        // The first tap may dismiss the fresh simulator's location prompt.
-        if !app.buttons["tab.profile"].isSelected { tap("tab.profile", in: app) }
-        XCTAssertTrue(app.buttons["tab.profile"].isSelected)
+        openProfile(in: app)
         capture("live-guest-profile-navigation")
         let guest = app.buttons["profile.guestSignIn"]
         for _ in 0..<8 {
@@ -161,7 +166,7 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertFalse(app.otherElements["chat.notice"].exists)
         capture("live-guest-online-chat")
         app.buttons["Done"].tap()
-        tap("tab.profile", in: app)
+        openProfile(in: app)
         let delete = app.buttons["Delete All Data"]
         for _ in 0..<10 {
             if delete.exists && delete.isHittable { break }
@@ -204,11 +209,9 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
         tap("guide.next", in: app)
         XCTAssertFalse(app.buttons["guide.next"].exists)
-        tap("tab.profile", in: app)
-        tap("mascot.guide", in: app)
-        XCTAssertTrue(app.staticTexts["Make Nourlo yours"].waitForExistence(timeout: 5))
-        capture("floating-bowl-profile")
-        tap("guide.close", in: app)
+        openProfile(in: app)
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+        capture("profile-from-avatar")
     }
 
     func testFloatingBowlGuideLargeText() {
@@ -228,7 +231,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndAllTabs() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "train", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("system-" + name)
         }
@@ -268,7 +271,7 @@ final class ReleaseSmokeTests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
         tap("tab.home", in: app)
         XCTAssertGreaterThan(app.frame.width, app.frame.height)
-        for name in ["home", "meals", "shop", "train", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("landscape-" + name)
         }
@@ -278,7 +281,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
-        tap("tab.profile", in: app)
+        openProfile(in: app)
         let signIn = app.buttons["profile.appleSignIn"]
         for _ in 0..<8 {
             if signIn.exists && signIn.isHittable { break }
@@ -442,7 +445,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testPrivacyAndSupportAreReachable() {
         let app = XCUIApplication()
         onboard(app)
-        tap("tab.profile", in: app)
+        openProfile(in: app)
         tap("profile.privacy", in: app)
         XCTAssertTrue(app.staticTexts["Nourlo — Privacy Policy"].waitForExistence(timeout: 5))
         capture("privacy-policy")
@@ -455,7 +458,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndTabsAtLargestText() {
         let app = XCUIApplication()
         onboard(app, largeText: true)
-        for name in ["home", "meals", "shop", "train", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("largest-text-" + name)
         }

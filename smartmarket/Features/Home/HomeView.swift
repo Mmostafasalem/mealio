@@ -2,6 +2,9 @@ import SwiftUI
 
 struct HomeView: View {
 
+    /// Profile opens from the avatar in the header (and from quick actions).
+    @State private var showProfile = false
+
     @State private var vm = HomeViewModel()
     /// Shown for a moment after the connection comes back.
     @State private var showBackOnline = false
@@ -19,7 +22,7 @@ struct HomeView: View {
                     }
                 } content: {
                     VStack(spacing: Spacing.md) {
-                        HomeHeaderView(vm: vm)
+                        HomeHeaderView(vm: vm) { showProfile = true }
                         VStack(spacing: Spacing.lg) {
                             HStack {
                                 NavigationLink { StockView() } label: { Label("My Stock", systemImage: "cabinet") }
@@ -40,6 +43,10 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .navigationDestination(isPresented: $showProfile) {
+                ProfileView().navigationBarHidden(false)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openProfile)) { _ in showProfile = true }
         }
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }

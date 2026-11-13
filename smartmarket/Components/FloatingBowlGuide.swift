@@ -43,17 +43,16 @@ struct FloatingBowlGuide: View {
 
     private var title: String {
         if let step = tourStep { return tour[step].title }
-        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Move a little today", "Make Nourlo yours"][selectedTab]
+        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Move a little today"][selectedTab]
     }
 
     private var detail: String {
         if let step = tourStep { return tour[step].detail }
         return [
-            "Start small. Log a meal, make a grocery list, or let me show you around.",
+            "Start small. Log a meal, make a grocery list, or let me show you around. Your profile is behind the picture at the top.",
             "Review your suggestions and portions. Your grocery checklist is a good place to start planning.",
             "Add what you need, then open your checklist when you shop. Prices here are estimates.",
-            "Pick a type and a length, then build a workout. Save the ones you like and tick them off when done.",
-            "Your goals, privacy choices and optional AI controls live here. You can hide me here, too."
+            "Pick a type and a length, then build a workout. Save the ones you like and tick them off when done."
         ][selectedTab]
     }
 

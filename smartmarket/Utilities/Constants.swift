@@ -5,6 +5,8 @@ extension Notification.Name {
     static let mealPlanDidUpdate    = Notification.Name("mealPlanDidUpdate")
     static let groceryListDidChange = Notification.Name("groceryListDidChange")
     static let cartDidChange        = Notification.Name("cartDidChange")
+    /// Ask Home to show Profile (it lives behind the avatar, not in the tab bar).
+    static let openProfile          = Notification.Name("openProfile")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
 }
 

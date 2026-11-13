@@ -33,7 +33,6 @@ enum MealioQuickAction: String, CaseIterable, Identifiable {
         case .meals: return 1
         case .shop: return 2
         case .train: return 3
-        case .profile: return 4
         default: return nil
         }
     }

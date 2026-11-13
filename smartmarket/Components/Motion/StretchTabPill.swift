@@ -165,7 +165,7 @@ final class StretchTabPillModel {
 
 #Preview("Stretch Tab Pill") {
     @Previewable @State var selection = 0
-    let tabs = ["Home", "Meals", "Shop", "Train", "Profile"]
+    let tabs = ["Home", "Meals", "Shop", "Train"]
     HStack(spacing: 0) {
         ForEach(Array(tabs.enumerated()), id: \.offset) { i, title in
             Button { selection = i } label: {
