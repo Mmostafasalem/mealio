@@ -10,6 +10,7 @@ import hmac
 import json
 import os
 import secrets
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -20,6 +21,15 @@ from datetime import datetime, timezone, timedelta
 
 AI_PATHS = frozenset({'/api/meal-plan','/api/agent-chat','/api/recipe',
                       '/api/gap-fillers','/api/shopping-advice'})
+
+# Credits kept when the provider answered but its output failed validation. The
+# provider call was paid for, so a full refund would let one account drain the
+# shared daily attempt ceiling for free.
+UNUSABLE_OUTPUT_COST = 1
+
+# Expired-row housekeeping runs at most this often per process (seconds). Every
+# read that depends on expiry also checks it directly, so a delay is harmless.
+CLEANUP_INTERVAL = 60
 
 
 class AccountError(Exception):
@@ -132,6 +142,8 @@ class AccountService:
         self.path,self.apple,self.cipher,self.subject_secret = path,apple,cipher,subject_secret
         self.daily_limit,self.global_limit,self.clock = daily_limit,global_limit,clock
         self.guest_enabled = guest_enabled
+        self._cleanup_lock = threading.Lock()
+        self._last_cleanup = None
         self.storage = AccountStorage(path)
         with self.transaction() as db:
             db.executescript('''
@@ -195,6 +207,20 @@ class AccountService:
 
     def _day(self): return datetime.fromtimestamp(self.clock(),timezone.utc).date().isoformat()
 
+    def _cleanup_if_due(self):
+        """Run housekeeping in its own transaction, at most once per interval."""
+        now=self.clock()
+        with self._cleanup_lock:
+            last=self._last_cleanup
+            # A clock that moved backwards (tests, NTP) also triggers a run.
+            if last is not None and 0 <= now-last < CLEANUP_INTERVAL: return
+            self._last_cleanup=now
+        try:
+            with self.transaction() as db: self._cleanup(db)
+        except Exception:
+            with self._cleanup_lock: self._last_cleanup=last
+            raise
+
     def _cleanup(self,db):
         now=self.clock()
         for row in db.execute('SELECT * FROM reservations WHERE expires<=?',(now,)).fetchall():
@@ -215,8 +241,8 @@ class AccountService:
     def challenge(self):
         if self.apple is None: raise AccountError('Apple sign-in is unavailable. Use guest access.',503,'ai_unavailable')
         value={'id':secrets.token_urlsafe(32),'nonce':digest(secrets.token_urlsafe(32))}
+        self._cleanup_if_due()
         with self.transaction() as db:
-            self._cleanup(db)
             # Bound unauthenticated challenge storage; IP rate limiter applies too.
             if db.execute('SELECT COUNT(*) FROM challenges').fetchone()[0] >= 10000:
                 raise AccountError('Sign-in is busy. Please retry shortly.',503,'ai_unavailable')
@@ -226,9 +252,9 @@ class AccountService:
     def login(self,identity_token,code,challenge_id):
         if self.apple is None: raise AccountError('Apple sign-in is unavailable. Use guest access.',503,'ai_unavailable')
         if not isinstance(challenge_id,str): raise AccountError('Sign in with Apple again.')
+        self._cleanup_if_due()
         with self.transaction() as db:
-            self._cleanup(db)
-            row=db.execute('SELECT * FROM challenges WHERE id=?',(challenge_id,)).fetchone()
+            row=db.execute('SELECT * FROM challenges WHERE id=? AND expires>?',(challenge_id,self.clock())).fetchone()
             if row is None: raise AccountError('Sign-in expired. Please try again.')
             nonce=row['nonce']
         claims=self.apple.verify_identity(identity_token,nonce)
@@ -259,8 +285,8 @@ class AccountService:
         account=self._subject('guest:'+device_secret)
         network_key=self._subject('guest-network:'+self._day()+':'+network)
         token=secrets.token_urlsafe(48); expires=self.clock()+30*86400
+        self._cleanup_if_due()
         with self.transaction() as db:
-            self._cleanup(db)
             existing=db.execute('SELECT kind FROM accounts WHERE id=?',(account,)).fetchone()
             if existing is None:
                 row=db.execute('SELECT used FROM guest_registrations WHERE network=? AND day=?',(network_key,self._day())).fetchone()
@@ -278,9 +304,9 @@ class AccountService:
         if not authorization.startswith('Bearer ') or not 32 <= len(authorization[7:]) <= 256:
             raise AccountError('Sign in or continue as a guest to use online AI.')
         hashed=digest(authorization[7:])
+        self._cleanup_if_due()
         with self.transaction() as db:
-            self._cleanup(db)
-            row=db.execute('SELECT a.*,s.hash FROM sessions s JOIN accounts a ON a.id=s.account WHERE s.hash=?',(hashed,)).fetchone()
+            row=db.execute('SELECT a.*,s.hash FROM sessions s JOIN accounts a ON a.id=s.account WHERE s.hash=? AND s.expires>?',(hashed,self.clock())).fetchone()
             if row is None: raise AccountError('Sign in or continue as a guest to use online AI.')
             user=Session(row['id'],hashed)
         if row['kind'] == 'apple' and self.clock()-row['verified'] >= 86400:
@@ -298,8 +324,8 @@ class AccountService:
         return user
 
     def usage(self,user):
+        self._cleanup_if_due()
         with self.transaction() as db:
-            self._cleanup(db)
             row=db.execute('SELECT used FROM quota WHERE account=? AND day=?',(user.account_id,self._day())).fetchone()
             used=row['used'] if row else 0
         reset=datetime.fromtimestamp(self.clock(),timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=1)
@@ -315,9 +341,9 @@ class AccountService:
             if not isinstance(request_key,str) or not 8 <= len(request_key) <= 128 or not isinstance(fingerprint,str):
                 raise AccountError('Invalid request key.',400,'invalid_request')
             request_key=digest(request_key)
+        self._cleanup_if_due()
         with self.transaction() as db:
-            self._cleanup(db)
-            if not db.execute('SELECT 1 FROM sessions WHERE hash=? AND account=?',(user.session_hash,user.account_id)).fetchone():
+            if not db.execute('SELECT 1 FROM sessions WHERE hash=? AND account=? AND expires>?',(user.session_hash,user.account_id,self.clock())).fetchone():
                 raise AccountError('Sign in with Apple again.')
             if request_key is not None:
                 previous=db.execute('SELECT fingerprint FROM ai_requests WHERE account=? AND key=?',(user.account_id,request_key)).fetchone()
@@ -341,13 +367,26 @@ class AccountService:
                 db.execute('INSERT INTO ai_requests VALUES(?,?,?,?)',(user.account_id,request_key,fingerprint,self.clock()))
         return reservation
 
-    def finish(self,reservation,succeeded,attempted):
+    def finish(self,reservation,succeeded,attempted,responded=False,release_request_key=None):
+        """Settle a reservation.
+
+        succeeded: keep the full cost. responded (provider answered, output
+        unusable): keep UNUSABLE_OUTPUT_COST. Otherwise (transport/provider
+        error, cache, invalid input): full refund. The shared attempt ceiling is
+        refunded only when the provider was never attempted. release_request_key
+        (unsuccessful requests only) deletes that idempotency claim so a retry
+        with the same key runs instead of being rejected as a repeat.
+        """
         with self.transaction() as db:
             row=db.execute('SELECT * FROM reservations WHERE id=?',(reservation,)).fetchone()
             if row is None: return False
             if not succeeded:
+                kept=min(row['cost'],UNUSABLE_OUTPUT_COST) if attempted and responded else 0
                 db.execute('UPDATE quota SET used=MAX(0,used-?) WHERE account=? AND day=?',
-                           (row['cost'],row['account'],row['day']))
+                           (row['cost']-kept,row['account'],row['day']))
+                if release_request_key is not None:
+                    db.execute('DELETE FROM ai_requests WHERE account=? AND key=?',
+                               (row['account'],digest(release_request_key)))
             if not attempted:
                 db.execute('UPDATE global_quota SET used=MAX(0,used-1) WHERE day=?',(row['day'],))
             db.execute('DELETE FROM reservations WHERE id=?',(reservation,))

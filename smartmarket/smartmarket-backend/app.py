@@ -81,6 +81,25 @@ def _as_int(val, default: int) -> int:
     except (TypeError, ValueError, OverflowError):
         return default
 
+def _as_float(val, default: float, low: float = None, high: float = None) -> float:
+    """Finite float, clamped to [low, high] when given; never raises."""
+    try:
+        if isinstance(val, bool) or val is None:
+            return default
+        out = float(val)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if not math.isfinite(out):
+        return default
+    if low is not None:
+        out = max(low, out)
+    if high is not None:
+        out = min(high, out)
+    return out
+
+def _clamped_int(val, default: int, low: int, high: int) -> int:
+    return max(low, min(high, _as_int(val, default)))
+
 def _as_dict(val) -> dict:
     return val if isinstance(val, dict) else {}
 
@@ -413,6 +432,9 @@ def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=
             kwargs["response_format"] = {"type": "json_object"}
         ai_usage.attempted.set(True)
         resp = groq_client.chat.completions.create(**kwargs)
+        # The provider answered: from here on, a failure is unusable output
+        # (billed a small non-refundable charge), not a transport error.
+        ai_usage.responded.set(True)
         text = _completion_text(resp)
         text = re.sub(r"```(?:json)?\s*", "", text).strip().rstrip("```").strip()
         match = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", text)
@@ -436,6 +458,7 @@ def groq_text(messages):
             temperature=0.7,
             **_completion_options(512),
         )
+        ai_usage.responded.set(True)
         text = _completion_text(resp)
         if not text.strip(): raise ValueError("Empty provider response")
         ai_usage.succeeded.set(True)
@@ -485,7 +508,7 @@ def _normalize_meal(raw):
     kcal = raw.get("kcal") or raw.get("kalorijų") or raw.get("kalorijos") or raw.get("calories") or 0
     try:
         kcal = int(round(float(kcal)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         kcal = 0
     # IDs/amounts are resolved against the client catalog before showing macros.
     portions = raw.get("portions")
@@ -507,7 +530,7 @@ def _normalize_day(raw):
         total = sum(m["kcal"] for m in meals.values() if m)
     try:
         total = int(round(float(total)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         total = 0
     return {**meals, "visoKcal": total}
 
@@ -592,7 +615,7 @@ def handle_products(query_params) -> list[dict]:
         radius = float(query_params.get("radius", ["8000"])[0]) / 1000
         results = [p for p in results
                    if haversine_km(lat, lon, p["latitude"], p["longitude"]) <= radius]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         pass
 
     return results
@@ -607,16 +630,28 @@ def handle_deals(query_params):
         lon    = float(query_params.get("lon",    [None])[0])
         radius = float(query_params.get("radius", ["5000"])[0]) / 1000
         source = [d for d in source if haversine_km(lat, lon, d["latitude"], d["longitude"]) <= radius]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         pass
     return source
+
+# Keys are matched after lowercasing. The iOS app sends its ActivityLevel raw
+# values (sedentary, lightly_active, moderately_active, very_active,
+# super_active); the short legacy names stay accepted as aliases.
+_ACTIVITY_MULTIPLIERS = {
+    "sedentary": 1.2,
+    "lightly_active": 1.375, "light": 1.375,
+    "moderately_active": 1.55, "moderate": 1.55,
+    "very_active": 1.725, "active": 1.725,
+    "super_active": 1.9, "veryactive": 1.9,
+}
 
 def handle_bmr(body):
     try:
         w = float(body.get("weight", 70))
         h = float(body.get("height", 170))
         a = int(body.get("age", 25))
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
+        # OverflowError: int(inf) for age=1e999, or float() of a huge JSON integer.
         raise RequestError("weight, height and age must be numbers")
 
     if not (20 <= w <= 300):
@@ -627,11 +662,10 @@ def handle_bmr(body):
         raise RequestError("age must be between 13 and 100")
 
     g  = _as_str(body.get("gender"), "male").lower()
-    al = _as_str(body.get("activityLevel"), "moderate").lower()
+    al = _as_str(body.get("activityLevel"), "moderate").strip().lower().replace("-", "_").replace(" ", "_")
 
     bmr = 10*w + 6.25*h - 5*a + (5 if g == "male" else -161)
-    multipliers = {"sedentary": 1.2, "light": 1.375, "moderate": 1.55, "active": 1.725, "veryActive": 1.9}
-    tdee = bmr * multipliers.get(al, 1.55)
+    tdee = bmr * _ACTIVITY_MULTIPLIERS.get(al, 1.55)
 
     return {
         "bmr": round(bmr),
@@ -712,12 +746,16 @@ def _planning_remaining(raw):
     return {k: raw[k] for k in ("calories", "protein", "carbs", "fat")}
 
 
+_MEAL_PLAN_GOALS = frozenset({"lose", "maintain", "gain"})
+
 def handle_meal_plan(body):
     # Bodies are client-controlled — coerce every field to the expected type so a
     # malformed payload degrades gracefully instead of 500-ing a handler.
     user        = _as_dict(body.get("user"))
     bmr_data    = _as_dict(body.get("bmrData"))
-    goal        = _as_str(body.get("goal"), "maintain")
+    # Only known goals reach the prompt; anything else plans for maintenance.
+    goal        = _as_str(body.get("goal"), "maintain").strip().lower()
+    goal        = goal if goal in _MEAL_PLAN_GOALS else "maintain"
 
     # favoriteFoods is now a list of name strings sent directly from the iOS app.
     # All user-controlled lists are clamped to bound prompt size / token cost.
@@ -783,11 +821,13 @@ Respect all dietary exclusions and allergies. Do not claim certification or alle
     return result
 
 def handle_gap_fillers(body):
-    current_kcal = body.get("currentCalories", 1500)
-    target_kcal  = body.get("targetCalories",  2000)
-    protein_gap  = body.get("proteinGap",  0)
-    carbs_gap    = body.get("carbsGap",    0)
-    fat_gap      = body.get("fatGap",      0)
+    # Client numbers are coerced and clamped so arbitrary text or huge values
+    # never reach the prompt.
+    current_kcal = _clamped_int(body.get("currentCalories"), 1500, 0, 10000)
+    target_kcal  = _clamped_int(body.get("targetCalories"),  2000, 0, 10000)
+    protein_gap  = round(_as_float(body.get("proteinGap"), 0.0, -1000.0, 1000.0), 1)
+    carbs_gap    = round(_as_float(body.get("carbsGap"),   0.0, -1000.0, 1000.0), 1)
+    fat_gap      = round(_as_float(body.get("fatGap"),     0.0, -1000.0, 1000.0), 1)
 
     prompt = (
         f"You are a nutrition assistant. Suggest 3 simple snack or food additions to fill a daily nutrition gap.\n"
@@ -814,10 +854,19 @@ def _normalize_advice_item(raw):
         "makroNauda":    str(raw.get("makroNauda") or raw.get("macroBenefit") or raw.get("benefit") or ""),
     }
 
+def _grocery_names(items):
+    names = []
+    for item in items:
+        name = item.get("name") if isinstance(item, dict) else item
+        if isinstance(name, str) and name.strip():
+            names.append(name.strip()[:160])
+    return names
+
 def handle_shopping_advice(body):
+    # Only a bounded name per item reaches the prompt, never whole client objects.
     grocery_list = body.get("groceryList", [])
-    grocery_list = grocery_list[:100] if isinstance(grocery_list, list) else []
-    budget       = body.get("budget", 50)
+    grocery_list = _grocery_names(grocery_list[:100] if isinstance(grocery_list, list) else [])
+    budget       = round(_as_float(body.get("budget"), 50.0, 0.0, 10000.0), 2)
 
     prompt = (
         f"You are a smart grocery advisor for a health-focused shopper in Vilnius, Lithuania.\n"

@@ -1,5 +1,5 @@
 """
-Mealio backend — production WSGI app.
+Nourlo backend — production WSGI app.
 
 This is a thin Flask layer over the business logic in app.py. Every endpoint
 reuses the existing `handle_*` functions unchanged — we only swap the dev-grade
@@ -15,7 +15,10 @@ Production (Render / any WSGI host):
 import hmac
 import os
 
+import logging
+
 from flask import Flask, request, jsonify
+from werkzeug.exceptions import HTTPException
 from ai_accounts import AI_PATHS
 
 from app import (
@@ -48,6 +51,8 @@ app.config["MAX_CONTENT_LENGTH"] = 256 * 1024  # 256 KB
 # client IP is the entry our OWN trusted proxy appended to X-Forwarded-For — i.e.
 # counting from the RIGHT. Anything further left is attacker-controlled and must
 # never be trusted, otherwise rate limiting can be bypassed by spoofing XFF.
+# NOTE: the default of 1 is an assumption about Render's proxy chain. Verify it
+# against a real Render request (see DEPLOY.md) before relying on per-IP limits.
 _TRUSTED_PROXIES = max(1, int(os.environ.get("TRUSTED_PROXY_COUNT", "1")))
 
 
@@ -187,6 +192,16 @@ def _not_found(_):
 
 @app.errorhandler(Exception)
 def _unhandled(err: Exception):
+    # HTTP errors (405, 404, 400, ...) keep their status and headers (e.g. Allow)
+    # in the same JSON error shape; only real crashes become a 500.
+    if isinstance(err, HTTPException):
+        response = jsonify({"error": (err.name or "error").lower()})
+        response.status_code = err.code or 500
+        for header in ("Allow", "Retry-After"):
+            value = err.get_response().headers.get(header)
+            if value:
+                response.headers[header] = value
+        return response
     app.logger.exception("Unhandled error: %s", err)
     return jsonify({"error": "Internal server error"}), 500
 
@@ -215,10 +230,16 @@ def readiness():
                     'onlineAIEnabled':os.environ.get('AI_ACCOUNTS_ENABLED') == '1'}), (503 if errors else 200)
 
 
+# The Dockerfile, Procfile and render.yaml all set MEALIO_ENV=production, so a
+# deployed server fails closed on incomplete config (including a missing
+# APP_API_KEY). Local dev and tests leave it unset.
 if os.environ.get('MEALIO_ENV') == 'production':
     errors = production_errors(os.environ, accounts_ready=app.config.get('AI_ACCOUNTS') is not None)
     if errors:
         raise RuntimeError('Production configuration incomplete: '+', '.join(errors))
+elif not APP_API_KEY:
+    logging.warning('APP_API_KEY is not set and MEALIO_ENV is not production: '
+                    'X-API-Key auth is DISABLED. Use this only for local development.')
 
 
 if __name__ == "__main__":

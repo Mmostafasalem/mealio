@@ -119,7 +119,10 @@ def register_ai_accounts(app, client_ip=None):
                 raise AccountError('Invalid notification.',400,'invalid_request')
             # An old revocation must not erase an account recreated afterwards.
             event_time=event.get('event_time')
-            if not isinstance(event_time,(int,float)) or event_time>accounts().clock()+30:
+            # Apple sends event_time in milliseconds; seconds stay accepted.
+            if isinstance(event_time,(int,float)) and not isinstance(event_time,bool) and event_time>1e11:
+                event_time=event_time/1000
+            if isinstance(event_time,bool) or not isinstance(event_time,(int,float)) or event_time>accounts().clock()+30:
                 raise AccountError('Invalid notification.',400,'invalid_request')
             account=accounts()._subject(subject)
             accounts().purge(account,event_time)
@@ -130,6 +133,7 @@ def register_ai_accounts(app, client_ip=None):
     def ai_allowance():
         if request.method != 'POST' or request.path not in AI_PATHS: return None
         ai_usage.attempted.set(False);ai_usage.succeeded.set(False);ai_usage.verified_cache.set(False)
+        ai_usage.responded.set(False)
         person=user()
         key=request.headers.get('Idempotency-Key')
         fingerprint=accounts().request_fingerprint(request.path,request.get_data(cache=True)) if key is not None else None
@@ -153,9 +157,18 @@ def register_ai_accounts(app, client_ip=None):
                 # Publish under the same replay lock used by deletion. A deleted,
                 # expired or replaced reservation can never publish a late body.
                 with replay_lock:
+                    succeeded=response.status_code < 400 and ai_usage.succeeded.get()
+                    key=getattr(g,'ai_request_key',None)
+                    # A failed request (provider attempted without a usable result,
+                    # or an error status) releases its idempotency key so the client
+                    # can retry with it. Local/cached results keep the no-rerun claim.
+                    released=key is not None and not succeeded and (
+                        ai_usage.attempted.get() or response.status_code >= 400)
                     valid=accounts().finish(reservation,
-                        succeeded=response.status_code < 400 and ai_usage.succeeded.get(),
-                        attempted=ai_usage.attempted.get())
+                        succeeded=succeeded,
+                        attempted=ai_usage.attempted.get(),
+                        responded=response.status_code < 500 and ai_usage.responded.get(),
+                        release_request_key=key if released else None)
                     if not valid:
                         response=jsonify({'error':'This request is no longer available. No extra credits were used.',
                                           'code':'ai_request_invalidated'})
@@ -163,9 +176,11 @@ def register_ai_accounts(app, client_ip=None):
                         response.headers['X-AI-Error']='ai_request_invalidated'
                     else:
                         response.headers['X-AI-Result'] = 'online' if ai_usage.succeeded.get() else ('fallback' if ai_usage.attempted.get() else ('cached-online' if ai_usage.verified_cache.get() else 'cached'))
-                        key=getattr(g,'ai_request_key',None)
                         body=response.get_data()
-                        if key is not None and response.status_code < 500 and len(body)<=128*1024:
+                        # A released key must rerun on retry, not replay the failure body.
+                        if released:
+                            replays.pop(replay_key(g.ai_user,key),None)
+                        elif key is not None and response.status_code < 500 and len(body)<=128*1024:
                             replays[replay_key(g.ai_user,key)]=(accounts().clock()+180,body,response.status_code,response.content_type,g.ai_request_fingerprint,response.headers['X-AI-Result'])
                             replays.move_to_end(replay_key(g.ai_user,key))
                             while len(replays)>128: replays.popitem(last=False)
