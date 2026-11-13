@@ -99,6 +99,7 @@ final class ProfileViewModel {
                               domain: Bundle.main.bundleIdentifier ?? "com.mostafa.mealio")
         FoodLogStore.shared.clearAll()
         WorkoutStore.shared.reload()
+        ReminderStore.shared.reload()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
 

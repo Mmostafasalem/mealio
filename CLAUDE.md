@@ -149,6 +149,8 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 - All monetary values are EUR (`€`), formatted as `String(format: "%.2f", value)`
 - All weights kg, heights cm, distances metres (5000 = 5 km). Lbs / ft are display-only preferences (`Constants.Storage.weightUnit` / `heightUnit`); stored values stay metric
 - **Train:** `Features/Train/` (builder, workout detail, exercise library, history). `Models/Exercise.swift` holds the catalogue and workout types; `Services/WorkoutService.swift` has `WorkoutBuilder` (on-device fallback) and `WorkoutStore` (UserDefaults). `APIService.generateWorkout` calls `/api/workout`; any failure falls back to `WorkoutBuilder`. `Components/ExerciseFigure.swift` draws the animated how-to stick figure (`ExerciseMotion` poses; every catalogue exercise must map to one)
+- **Reminders:** `Services/ReminderStore.swift` (local repeating `UNCalendarNotificationTrigger`s, ids prefixed `reminder_`, off until the bell is turned on; `due()` feeds the Home stack). UI in `Features/Profile/RemindersView.swift`, reached from the bell in Home's header and from Profile
+- **Chat** is a half-height popup (`AgentChatSheet`) led by the animated bowl; **exercise demos** are 3D (`Components/ExerciseFigure3D.swift`, SceneKit) with the flat `ExerciseFigureCanvas` only as a fallback; the tab bar ends in a `GooMenu` of quick actions (no search field)
 - **No store names in UI.** Cart rows keep a `store` field only for storage/sync shape; everything belongs to `ShopStore.catalog`, and old retailer carts migrate on load
 - Numeric input uses `RulerPicker`, not `Slider` (the two-thumb price `RangeSlider` is the exception)
 - Onboarding screens don't scroll: use `OnboardingScaffold`, which pins the action and caps Dynamic Type at accessibility1

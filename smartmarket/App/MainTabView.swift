@@ -59,6 +59,7 @@ struct MainTabView: View {
         .ignoresSafeArea(.keyboard)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
         .sheet(isPresented: $showGuideChat) { AgentChatSheet(vm: quickLog) }
         .sheet(item: $activeAction) { action in
             switch action {

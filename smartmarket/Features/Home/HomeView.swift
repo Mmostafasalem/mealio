@@ -4,10 +4,38 @@ struct HomeView: View {
 
     /// Profile opens from the avatar in the header (and from quick actions).
     @State private var showProfile = false
+    @State private var showReminders = false
+    @State private var reminders = ReminderStore.shared
 
     @State private var vm = HomeViewModel()
     /// Shown for a moment after the connection comes back.
     @State private var showBackOnline = false
+
+    /// Today's reminders whose time has come, as a pile of cards. Tap to fan
+    /// them out, tap one to act on it, swipe one away to dismiss it.
+    @ViewBuilder
+    private var dueReminders: some View {
+        let due = reminders.due()
+        if !due.isEmpty {
+            NotificationStack(
+                notices: due.map { StackNotice(id: $0.id, symbol: $0.symbol, title: $0.title, body: $0.message, detail: $0.timeText) },
+                title: "Reminders",
+                onOpen: { notice in
+                    guard let reminder = due.first(where: { $0.id == notice.id }) else { return }
+                    reminders.dismiss(reminder)
+                    if reminder.kind == .workout {
+                        NotificationCenter.default.post(name: .openTrain, object: nil)
+                    } else {
+                        vm.openLog(slot: reminder.mealSlot)
+                    }
+                },
+                onDismiss: { notice in
+                    if let reminder = due.first(where: { $0.id == notice.id }) { reminders.dismiss(reminder) }
+                },
+                onClearAll: { reminders.dismissAllDue() })
+            .accessibilityIdentifier("home.dueReminders")
+        }
+    }
 
     private func shortcut(_ title: String, symbol: String) -> some View {
         HStack(spacing: Spacing.sm) {
@@ -35,8 +63,9 @@ struct HomeView: View {
                     }
                 } content: {
                     VStack(spacing: Spacing.md) {
-                        HomeHeaderView(vm: vm) { showProfile = true }
+                        HomeHeaderView(vm: vm, onProfile: { showProfile = true }, onReminders: { showReminders = true })
                         VStack(spacing: Spacing.lg) {
+                            dueReminders
                             // Two matching pills, side by side, each half the width.
                             HStack(spacing: Spacing.md) {
                                 NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
@@ -62,6 +91,7 @@ struct HomeView: View {
                     .allowsHitTesting(false)
             }
             .navigationBarHidden(true)
+            .navigationDestination(isPresented: $showReminders) { RemindersView() }
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView().navigationBarHidden(false)
             }

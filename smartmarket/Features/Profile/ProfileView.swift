@@ -119,6 +119,11 @@ struct ProfileView: View {
             NavigationLink {
                 EditFavoriteFoodsView(vm: vm)
             } label: { Label("Favorite Foods", systemImage: "heart") }
+
+            NavigationLink {
+                RemindersView()
+            } label: { Label("Reminders", systemImage: "bell") }
+            .accessibilityIdentifier("profile.reminders")
         }
     }
 

@@ -7,6 +7,8 @@ extension Notification.Name {
     static let cartDidChange        = Notification.Name("cartDidChange")
     /// Ask Home to show Profile (it lives behind the avatar, not in the tab bar).
     static let openProfile          = Notification.Name("openProfile")
+    /// Ask the tab bar to show Train (from a workout reminder).
+    static let openTrain            = Notification.Name("openTrain")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
 }
 

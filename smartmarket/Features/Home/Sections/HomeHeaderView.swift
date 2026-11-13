@@ -5,6 +5,9 @@ struct HomeHeaderView: View {
     let vm: HomeViewModel
     /// Opens Profile and settings.
     var onProfile: () -> Void = {}
+    /// Opens Reminders.
+    var onReminders: () -> Void = {}
+    @State private var reminders = ReminderStore.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -24,6 +27,19 @@ struct HomeHeaderView: View {
                 }
                 Spacer(minLength: Spacing.sm)
                 // Offline status lives in Home's MorphIsland notice now.
+                Button(action: onReminders) {
+                    Image(systemName: reminders.isEnabled ? "bell.fill" : "bell")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.labelPrimary)
+                        .frame(width: 44, height: 44)
+                        .background(Color.surface, in: Circle())
+                        .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1))
+                        .contentShape(Circle())
+                }
+                .buttonStyle(ScalePressStyle())
+                .accessibilityLabel("Reminders")
+                .accessibilityValue(reminders.isEnabled ? "On" : "Off")
+                .accessibilityIdentifier("home.reminders")
                 // The avatar is the way into Profile and settings.
                 Button(action: onProfile) {
                     Group {

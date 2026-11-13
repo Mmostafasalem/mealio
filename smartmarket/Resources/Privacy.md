@@ -9,6 +9,8 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
 ## Information the app uses
 
 - **Location.** Not used. Nourlo does not ask for location access.
+- **Reminders.** Optional meal, workout and logging reminders are scheduled on
+  your device by iOS. Their times stay on the device; nothing is sent to us.
 - **Profile & body stats** (name, weight, height, age, gender, goals, dietary
   preferences, favourite foods). Stored **on your device** (profile and computed
   BMR in the iOS Keychain; preferences in local app storage). Used to calculate calorie targets
