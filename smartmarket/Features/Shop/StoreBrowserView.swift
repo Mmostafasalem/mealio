@@ -178,8 +178,8 @@ struct StoreBrowserView: View {
 
     // MARK: - Budget sheet
 
-    /// The slider and the text field share `budgetInput`: dragging rewrites the text,
-    /// a valid typed amount glides the slider there (clamped to its 10…300 range).
+    /// The ruler and the text field share `budgetInput`: dragging rewrites the text,
+    /// a valid typed amount glides the ruler there (clamped to its 10…300 range).
     private var budgetSliderValue: Binding<Double> {
         Binding(
             get: {
@@ -194,9 +194,11 @@ struct StoreBrowserView: View {
         NavigationStack {
             Form {
                 Section("Weekly grocery budget") {
-                    JellySlider(value: budgetSliderValue, in: 10...300, step: 5,
-                                format: { "€\(Int($0))" }, tickLabels: [10, 50, 100, 200, 300])
-                        .accessibilityLabel("Weekly budget")
+                    RulerPicker(value: budgetSliderValue, range: 10...300, step: 5,
+                                majorEvery: 10, midEvery: 2, spacing: 12,
+                                tickLabel: { "€\(Int($0))" },
+                                accessibilityName: "Weekly budget")
+                        .frame(height: 96)
                         .padding(.vertical, Spacing.xs)
                     HStack {
                         Text("€")

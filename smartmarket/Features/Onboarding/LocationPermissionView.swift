@@ -6,94 +6,84 @@ struct LocationPermissionView: View {
     @Bindable var vm: OnboardingViewModel
 
     var body: some View {
-        AdaptiveOnboardingPage {
-        VStack(spacing: 0) {
-
-            OnboardingProgressBar(currentStep: 2)
-                .padding(.top, 8)
-                .padding(.horizontal, 24)
-
-            Spacer()
-
-            VStack(spacing: 24) {
-                Image(systemName: "location.circle.fill")
-                    .font(.system(size: 72))
-                    .foregroundStyle(Color.brandPrimary)
-
-                VStack(spacing: 8) {
-                    Text("Find stores near you")
-                        .font(.largeTitle).fontWeight(.bold)
-                    Text("Nourlo shows grocery prices at stores near you to help plan your shop.")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.labelSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+        OnboardingScaffold(vm: vm, step: .location, title: "Find stores near you",
+                           subtitle: "Nourlo shows grocery prices at stores near you to help plan your shop.") {
+            OnboardingInfoPanel(symbol: "location.fill", rows: [
+                ("map.fill", "Shows estimated prices around your location"),
+                ("battery.100", "Uses one-shot location — no background drain"),
+                ("lock.shield", "Your location is sent to our backend to find nearby stores"),
+            ])
+        } footer: {
+            Button {
+                LocationService.shared.requestPermission()
+                // Navigate after the system dialog — status update arrives
+                // via the CLLocationManagerDelegate on the next run-loop tick.
+                Task {
+                    await Task.yield()
+                    vm.advance(to: .diet)
                 }
-
-                VStack(spacing: 12) {
-                    FeatureRow(symbol: "map.fill",    text: "Shows estimated prices around your location")
-                    FeatureRow(symbol: "battery.100", text: "Uses one-shot location — no background drain")
-                    FeatureRow(symbol: "lock.shield", text: "Your location is sent to our backend to find nearby stores")
-                }
-                .padding(.horizontal, 32)
+            } label: {
+                Text("Allow location").primaryButtonLabel()
             }
+            .buttonStyle(ScalePressStyle())
 
-            Spacer()
-
-            VStack(spacing: 12) {
-                Button {
-                    LocationService.shared.requestPermission()
-                    // Navigate after the system dialog — status update arrives
-                    // via the CLLocationManagerDelegate on the next run-loop tick.
-                    Task {
-                        // Yield once so the delegate has a chance to fire before
-                        // we push the next screen.
-                        await Task.yield()
-                        vm.path.append(OnboardingStep.goal)
-                    }
-                } label: {
-                    Label("Allow Location", systemImage: "location.fill")
-                        .primaryButtonLabel()
-                }
-                .buttonStyle(ScalePressStyle())
-
-                Button {
-                    vm.path.append(OnboardingStep.goal)
-                } label: {
-                    Text("Skip for now")
-                        .font(.subheadline)
-                        .foregroundStyle(Color.labelSecondary)
-                }
-                .accessibilityIdentifier("onboarding.location.skip")
-                .frame(minHeight: 44)
+            Button { vm.advance(to: .diet) } label: {
+                Text("Skip for now")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
-            .padding(.horizontal, Spacing.xl)
-            .padding(.bottom, Spacing.xxl)
+            .accessibilityIdentifier("onboarding.location.skip")
         }
-        }
-        .navigationBarHidden(true)
-        .background(Color.surfaceGrouped.ignoresSafeArea())
     }
 }
 
-private struct FeatureRow: View {
+/// Icon badge plus a short list of plain facts, used by the permission screens.
+struct OnboardingInfoPanel: View {
     let symbol: String
-    let text: String
+    let rows: [(symbol: String, text: String)]
+
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .foregroundStyle(Color.brandPrimary)
-                .frame(width: 24)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(Color.labelSecondary)
-            Spacer()
+        // Scrolls only if it truly can't fit (small phone with enlarged text).
+        ViewThatFits(in: .vertical) {
+            panel
+            ScrollView { panel }.scrollIndicators(.hidden)
         }
+    }
+
+    private var panel: some View {
+        VStack(alignment: .leading, spacing: Spacing.xl) {
+            Image(systemName: symbol)
+                .font(.system(size: 30, weight: .medium))
+                .foregroundStyle(Color.labelPrimary)
+                .frame(width: 72, height: 72)
+                .background(Color.brandLight, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    HStack(spacing: Spacing.md) {
+                        Image(systemName: row.symbol)
+                            .foregroundStyle(Color.labelPrimary)
+                            .frame(width: 24)
+                        Text(row.text)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.labelSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, Spacing.md)
+                    if index < rows.count - 1 { Divider().overlay(Color.hairline) }
+                }
+            }
+            .padding(.horizontal, Spacing.lg)
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 #Preview {
-    NavigationStack {
-        LocationPermissionView(vm: OnboardingViewModel())
-    }
+    NavigationStack { LocationPermissionView(vm: OnboardingViewModel()) }
 }

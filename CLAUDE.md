@@ -18,14 +18,14 @@ smartmarket/
     │   ├── AppState.swift             ← @Observable singleton — shared truth for profile, deals, plan
     │   ├── AgentLoop.swift            ← Background 30s tick: refresh deals → match → notify → regen plan
     │   ├── MainTabView.swift          ← 5-tab root (Home / MealPlan / Groceries / Map / Profile)
-    │   └── OnboardingFlow.swift       ← NavigationStack wrapping the 5 onboarding screens
+    │   └── OnboardingFlow.swift       ← NavigationStack + OnboardingStep; one question per screen (11 steps)
     ├── Features/
     │   ├── Home/                      ← Calorie ring, macro bars, deals carousel, meal preview, log sheet
     │   ├── MealPlan/                  ← Today / Week segmented view, regenerate button, recommendations
     │   ├── GroceryList/               ← Grouped-by-store list with price totals and share
     │   ├── Map/                       ← MapKit map with store pins, StoreDetailSheet (deals + recipes)
     │   ├── Profile/                   ← Body stats, dietary prefs, favourite foods, notification toggles
-    │   └── Onboarding/               ← BMRInput → Location → Goal → Diet → Notifications → FavoriteFoods
+    │   └── Onboarding/               ← Name → Gender → Age → Height → Weight → Activity → Goal (→ Pace) → Location → Diet → Notifications → FavoriteFoods
     ├── Models/
     │   ├── BackendModels.swift        ← Deal, BMRRequest/Response, MealPlanRequest, WeeklyMealPlan, etc.
     │   ├── MealPlan.swift             ← MealEntry, MealPlan, GroceryItem, ShoppingRecommendation + bridge
@@ -46,7 +46,8 @@ smartmarket/
     │   ├── DealNotificationBanner.swift ← In-app banner with 8s auto-dismiss
     │   ├── Shimmer.swift              ← Skeleton loader modifier
     │   ├── FlowLayout.swift           ← Wrapping chip layout (custom Layout)
-    │   └── OnboardingProgressBar.swift ← 5-step capsule progress indicator
+    │   ├── OnboardingScaffold.swift   ← Shared onboarding frame: back, progress "3 / 11", title, pinned action; option rows
+    │   └── RulerPicker.swift          ← Drag-to-pick tick ruler (replaces sliders) + kg/lb and cm/ft unit helpers
     └── Utilities/
         ├── Constants.swift            ← API URLs, UserDefaults keys, calorie floors, onboarding limits
         └── Color+Brand.swift          ← brandPrimary, brandDark, brandAmber, brandDanger + hex init
@@ -147,4 +148,6 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 - Onboarding uses a single shared `OnboardingViewModel` passed via `@Bindable` to each screen (not environment)
 - SF Symbols only — no custom image assets
 - All monetary values are EUR (`€`), formatted as `String(format: "%.2f", value)`
-- All weights kg, heights cm, distances metres (5000 = 5 km)
+- All weights kg, heights cm, distances metres (5000 = 5 km). Lbs / ft are display-only preferences (`Constants.Storage.weightUnit` / `heightUnit`); stored values stay metric
+- Numeric input uses `RulerPicker`, not `Slider` (the two-thumb price `RangeSlider` is the exception)
+- Onboarding screens don't scroll: use `OnboardingScaffold`, which pins the action and caps Dynamic Type at accessibility1

@@ -6,31 +6,44 @@ struct FavoriteFoodsView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            itemList
-            finishBar
+        OnboardingScaffold(vm: vm, step: .favorites, title: "Build your fridge",
+                           subtitle: "Pick at least \(Constants.Onboarding.minimumFavorites) things you buy regularly. Meal plans start from these.",
+                           contentPadding: 0) {
+            VStack(spacing: 0) {
+                searchField
+                categoryStrip
+                itemList
+            }
+        } footer: {
+            finishButton
         }
-        .background(Color.surfaceGrouped.ignoresSafeArea())
-        .navigationBarHidden(true)
     }
-
-    // MARK: - Progress + title
 
     private func favoriteRow(_ item: CatalogItem) -> some View {
         ItemRow(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
     }
 
-    private var progressHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            OnboardingProgressBar(currentStep: 5).padding(.top, 8)
-            Text("Build your fridge")
-                .font(.title2).fontWeight(.bold)
-            Text("Pick everything you buy regularly. We'll use these to tailor your meal plans and grocery suggestions.")
-                .font(.subheadline).foregroundStyle(Color.labelSecondary).fixedSize(horizontal: false, vertical: true)
+    // MARK: - Search
+
+    private var searchField: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
+            TextField("Search \(CatalogItem.all.count) products", text: $vm.foodSearchQuery)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.search)
+            if !vm.foodSearchQuery.isEmpty {
+                Button { vm.foodSearchQuery = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelTertiary)
+                }
+                .accessibilityLabel("Clear search")
+            }
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 14)
-        .background(Color.surfaceGrouped)
+        .padding(.horizontal, Spacing.lg)
+        .frame(minHeight: 48)
+        .background(Color.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+        .padding(.horizontal, Spacing.xl)
     }
 
     // MARK: - Category strip
@@ -47,27 +60,16 @@ struct FavoriteFoodsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.vertical, Spacing.md)
         }
-        .background(Color.surfaceGrouped)
-        .overlay(Divider(), alignment: .bottom)
     }
 
     // MARK: - Item list
 
     private var itemList: some View {
+        // The catalogue is the one thing here that has to scroll.
         List {
-            // Keep explanatory content scrollable: at accessibility text sizes
-            // a fixed header can consume the entire product list's height.
-            progressHeader
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            categoryStrip
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
             if vm.filteredItems.isEmpty {
                 Text("No items match your search.")
                     .foregroundStyle(Color.labelSecondary)
@@ -87,54 +89,33 @@ struct FavoriteFoodsView: View {
             } else {
                 // Flat list when searching or category filtered
                 Section {
-                    ForEach(vm.filteredItems) { item in
-                        ItemRow(
-                            item: item,
-                            isSelected: vm.favoriteFoodIDs.contains(item.id)
-                        ) { vm.toggleFavorite(item) }
-                    }
+                    ForEach(vm.filteredItems, content: favoriteRow)
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $vm.foodSearchQuery, prompt: "Search \(CatalogItem.all.count) products…")
+        .scrollContentBackground(.hidden)
+        .contentMargins(.top, 0, for: .scrollContent)
         .scrollDismissesKeyboard(.immediately)
     }
 
-    // MARK: - Finish bar
+    // MARK: - Finish
 
-    private var finishBar: some View {
-        VStack(spacing: 6) {
-            if !vm.canFinish {
-                let remaining = Constants.Onboarding.minimumFavorites - vm.favoritesCount
-                Text("Pick \(remaining) more to continue")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-            }
-            Button {
-                vm.finish()
-                hasCompletedOnboarding = true
-            } label: {
-                HStack(spacing: 10) {
-                    Text(vm.canFinish ? "Done — \(vm.favoritesCount) items" : "Finish Setup")
-                        .font(.headline)
-                    Spacer()
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                }
-                .padding(.horizontal, Spacing.xl)
-                .padding(.vertical, Spacing.lg)
-                .background(vm.canFinish ? Color.dullPink : Color(.systemFill),
-                            in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .foregroundStyle(vm.canFinish ? Color.onAccent : Color.labelSecondary)
-            }
-            .disabled(!vm.canFinish)
-            .accessibilityIdentifier("onboarding.favorites.finish")
-            .animation(.spring(duration: 0.3), value: vm.canFinish)
-            .padding(.horizontal, 20)
+    private var finishButton: some View {
+        Button {
+            vm.finish()
+            hasCompletedOnboarding = true
+        } label: {
+            Text(vm.canFinish
+                 ? "Done — \(vm.favoritesCount) items"
+                 : "Pick \(Constants.Onboarding.minimumFavorites - vm.favoritesCount) more to continue")
+                .contentTransition(.numericText())
+                .primaryButtonLabel(enabled: vm.canFinish)
         }
-        .padding(.vertical, 14)
-        .background(.ultraThinMaterial)
-        .overlay(Divider(), alignment: .top)
+        .buttonStyle(ScalePressStyle())
+        .disabled(!vm.canFinish)
+        .accessibilityIdentifier("onboarding.favorites.finish")
+        .animation(.snappyValue, value: vm.favoritesCount)
     }
 }
 

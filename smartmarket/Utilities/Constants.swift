@@ -93,6 +93,10 @@ enum Constants {
         static let lang                     = "lang"
         /// "" follows the iPhone setting, otherwise "light" or "dark" (set by the pull cord in Profile).
         static let appearanceOverride       = "appearanceOverride_v1"
+        /// "kg" or "lb" — display only; weight is always stored in kg.
+        static let weightUnit               = "weightUnit_v1"
+        /// "cm" or "ft" — display only; height is always stored in cm.
+        static let heightUnit               = "heightUnit_v1"
     }
 
     // MARK: - BMR safety floors

@@ -86,10 +86,15 @@ final class ReleaseSmokeTests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         app.launch()
-        advance("onboarding.start", to: "onboarding.body.continue", in: app)
-        advance("onboarding.body.continue", to: "onboarding.location.skip", in: app)
-        advance("onboarding.location.skip", to: "onboarding.goal.continue", in: app)
-        advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
+        advance("onboarding.start", to: "onboarding.name.continue", in: app)
+        advance("onboarding.name.continue", to: "onboarding.gender.continue", in: app)
+        advance("onboarding.gender.continue", to: "onboarding.age.continue", in: app)
+        advance("onboarding.age.continue", to: "onboarding.height.continue", in: app)
+        advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
+        advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
+        advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
+        advance("onboarding.goal.continue", to: "onboarding.location.skip", in: app)
+        advance("onboarding.location.skip", to: "onboarding.diet.continue", in: app)
         advance("onboarding.diet.continue", to: "onboarding.notifications.skip", in: app)
         advance("onboarding.notifications.skip", to: "onboarding.favorites.finish", in: app)
         for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {

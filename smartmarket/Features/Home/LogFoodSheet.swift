@@ -416,8 +416,12 @@ struct ServingDetailView: View {
                         )
                         .accessibilityIdentifier("logFood.amount")
                     }
-                    Slider(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1)
-                        .tint(slot.accent)
+                    RulerPicker(value: $grams, range: food.minimumAmount...food.maximumAmount, step: amountStep,
+                                majorEvery: food.basis == .serving ? 4 : 10,
+                                midEvery: food.basis == .serving ? 2 : 5,
+                                spacing: food.basis == .serving ? 16 : 8,
+                                accessibilityName: "Amount", spokenValue: { _ in amountLabel })
+                        .frame(height: 96)
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
                             Button("\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
