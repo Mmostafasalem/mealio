@@ -34,12 +34,7 @@ struct MealPlanView: View {
                 SpringSegmentedControl(
                     selection: $vm.selectedTab,
                     options: MealPlanTab.allCases,
-                    label: \.displayName,
-                    caption: { tab in
-                        tab == .today
-                            ? "Your meals for today, built from your goal and stock."
-                            : "Seven days of meals within your weekly budget."
-                    }
+                    label: \.displayName
                 )
                 .padding(.horizontal, Spacing.lg)
 
