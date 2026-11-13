@@ -3,10 +3,6 @@ import SwiftUI
 struct MainTabView: View {
 
     @State private var selection = 0
-    @State private var showQuickActions = false
-    @State private var quickQuery = ""
-    /// The bar rides the keyboard while the command field is open (and until that keyboard is gone).
-    @State private var barFollowsKeyboard = false
     @State private var activeAction: MealioQuickAction?
     @State private var quickLog = HomeViewModel()
     @State private var showGuideChat = false
@@ -29,34 +25,18 @@ struct MainTabView: View {
                 TrainView().tag(3).toolbar(.hidden, for: .tabBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Open, results float directly above the bar; a tap outside folds it back.
-            .overlay(alignment: .bottom) {
-                if showQuickActions {
-                    ZStack(alignment: .bottom) {
-                        Color.clear
-                            .contentShape(Rectangle())
-                            .onTapGesture { closeQuickActions() }
-                            .accessibilityHidden(true)
-                        QuickActionsPanel(query: quickQuery, choose: chooseQuickAction)
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.top, Spacing.xl)
-                            .padding(.bottom, Spacing.sm)
-                            .transition(panelTransition)
-                    }
-                }
-            }
             // Reserve the small companion's footprint so it never covers the
             // last row or a screen's bottom action.
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if guideVisible && !keyboardVisible { Color.clear.frame(height: 84) }
             }
             // A sibling reserves real layout space on every tab, including iPad.
-            FloatingTabBar(
-                selection: $selection,
-                isOpen: quickActionsOpen,
-                query: $quickQuery,
-                choose: chooseQuickAction
-            )
+            FloatingTabBar(selection: $selection, choose: chooseQuickAction, openChat: {
+                guard activeAction == nil else { return }
+                showGuideChat = true
+            })
+                // Its goo menu pours out over the content above the bar.
+                .zIndex(2)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: NavigationHeightKey.self, value: geometry.size.height)
                 })
@@ -64,7 +44,7 @@ struct MainTabView: View {
         .onPreferenceChange(NavigationHeightKey.self) { navigationHeight = $0 }
         // Keep the companion outside TabView's UIKit hierarchy.
         .overlay(alignment: .bottom) {
-            if !keyboardVisible && !showQuickActions {
+            if !keyboardVisible {
                 GeometryReader { geometry in
                     FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - navigationHeight,
                                       attention: activeAction != nil || showGuideChat, choose: followGuide)
@@ -75,17 +55,10 @@ struct MainTabView: View {
             }
         }
         .background(Color.surfaceGrouped)
-        // Tab screens keep their layout under the keyboard; only the open
-        // command field lifts the bar above it.
-        .ignoresSafeArea(showQuickActions || barFollowsKeyboard ? [] : .keyboard)
+        // Tab screens keep their layout under the keyboard.
+        .ignoresSafeArea(.keyboard)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            keyboardVisible = false
-            if !showQuickActions { barFollowsKeyboard = false }
-        }
-        .onChange(of: showQuickActions) { _, open in
-            if open { barFollowsKeyboard = true } else if !keyboardVisible { barFollowsKeyboard = false }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
         .sheet(isPresented: $showGuideChat) { AgentChatSheet(vm: quickLog) }
         .sheet(item: $activeAction) { action in
             switch action {
@@ -111,33 +84,7 @@ struct MainTabView: View {
         }
     }
 
-    /// Opening is gated on no action sheet being up; closing always goes through.
-    private var quickActionsOpen: Binding<Bool> {
-        Binding(
-            get: { showQuickActions },
-            set: { open in if !open || activeAction == nil { showQuickActions = open } }
-        )
-    }
-
-    /// Results rise with the field's stretch (no entry delay).
-    private var panelTransition: AnyTransition {
-        .asymmetric(
-            insertion: .opacity.combined(with: .offset(y: 8))
-                .animation(reduceMotion ? .easeOut(duration: 0.12) : CommandButtonMotion.swapCurve),
-            removal: .opacity.animation(CommandButtonMotion.swapCurve))
-    }
-
-    private func closeQuickActions() {
-        guard showQuickActions else { return }
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        withAnimation(reduceMotion ? nil : CommandButtonMotion.open) {
-            showQuickActions = false
-            quickQuery = ""
-        }
-    }
-
     private func chooseQuickAction(_ action: MealioQuickAction) {
-        closeQuickActions()
         if action == .profile {
             openProfile()
         } else if let tab = action.tab {
@@ -155,7 +102,7 @@ struct MainTabView: View {
     }
 
     private func followGuide(_ pathway: BowlPathway) {
-        guard activeAction == nil, !showQuickActions else { return }
+        guard activeAction == nil else { return }
         switch pathway {
         case .logFood: activeAction = .logFood
         case .groceries: activeAction = .groceries
@@ -177,24 +124,24 @@ private struct NavigationHeightKey: PreferenceKey {
 private struct FloatingTabBar: View {
 
     @Binding var selection: Int
-    @Binding var isOpen: Bool
-    @Binding var query: String
     let choose: (MealioQuickAction) -> Void
+    let openChat: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    init(selection: Binding<Int>, isOpen: Binding<Bool>, query: Binding<String>,
-         choose: @escaping (MealioQuickAction) -> Void) {
-        _selection = selection
-        _isOpen = isOpen
-        _query = query
-        self.choose = choose
-    }
 
     private let items: [(icon: String, filled: String, label: String)] = [
         ("house",               "house.fill",               "Home"),
         ("fork.knife.circle",   "fork.knife.circle.fill",   "Meals"),
         ("storefront",          "storefront.fill",          "Shop"),
         ("figure.run",          "figure.run",               "Train"),
+    ]
+
+    /// The + at the end of the bar pours these out. Ids are `MealioQuickAction`
+    /// raw values, except "chat".
+    private static let quickItems: [GooMenuItem] = [
+        GooMenuItem(id: MealioQuickAction.logFood.rawValue, title: "Log food", systemImage: "fork.knife"),
+        GooMenuItem(id: MealioQuickAction.cart.rawValue, title: "Cart", systemImage: "cart"),
+        GooMenuItem(id: MealioQuickAction.groceries.rawValue, title: "Checklist", systemImage: "checklist"),
+        GooMenuItem(id: "chat", title: "Ask Nourlo", systemImage: "bubble.left.and.text.bubble.right"),
     ]
 
     var body: some View {
@@ -211,30 +158,24 @@ private struct FloatingTabBar: View {
                         selection = idx
                     }
                 }
-                // Open, the tabs collapse so the field spans the bar.
                 .frame(minWidth: 0, maxWidth: .infinity)
-                .opacity(isOpen ? 0 : 1)
-                .blur(radius: isOpen && !reduceMotion ? CommandButtonMotion.swapBlur : 0)
-                .clipped()
-                .disabled(isOpen)
-                .accessibilityHidden(isOpen)
             }
-            CommandButton(
-                isOpen: $isOpen,
-                query: $query,
-                label: "Quick Actions",
-                idle: .icon,
-                buttonIdentifier: "navigation.quickActions",
-                fieldIdentifier: "quickActions.search",
-                onSubmit: { if let first = MealioQuickAction.matching(query).first { choose(first) } }
-            )
-            .layoutPriority(1)
+            // Bubbles fan out above the bar, clear of the tabs.
+            GooMenu(items: Self.quickItems, accessibilityLabel: "Quick actions",
+                    startAngle: 204, endAngle: 264,
+                    openValue: "Quick actions shown", openHint: "Shows quick actions",
+                    closeHint: "Closes the quick actions", itemHint: { "Opens \($0)" },
+                    buttonIdentifier: "navigation.quickActions", itemIdentifierPrefix: "quickActions.") { item in
+                if item.id == "chat" { openChat() }
+                else if let action = MealioQuickAction(rawValue: item.id) { choose(action) }
+            }
+            .padding(.horizontal, Spacing.sm)
         }
         // One shared pill behind the tabs: its edges are springs that chase the
         // selected tab's icon frame, so it stretches toward the new tab.
         .backgroundPreferenceValue(StretchTabPillAnchors.self) { anchors in
             GeometryReader { geometry in
-                StretchTabPill(target: anchors[selection].map { geometry[$0] }, id: selection, isHidden: isOpen) {
+                StretchTabPill(target: anchors[selection].map { geometry[$0] }, id: selection, isHidden: false) {
                     RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.brandLight)
                 }
             }
@@ -244,53 +185,6 @@ private struct FloatingTabBar: View {
         .glassCard(radius: 24)
         .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.sm)
-    }
-}
-
-/// Results for the command field: local screens and actions only, never AI.
-private struct QuickActionsPanel: View {
-    let query: String
-    let choose: (MealioQuickAction) -> Void
-
-    var body: some View {
-        let matches = MealioQuickAction.matching(query)
-        ViewThatFits(in: .vertical) {
-            content(matches)
-            ScrollView { content(matches) }.scrollBounceBehavior(.basedOnSize)
-        }
-        .glassCard(radius: Radius.card)
-    }
-
-    private func content(_ matches: [MealioQuickAction]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if matches.isEmpty {
-                Text("No screen or action matches \u{201C}\(query)\u{201D}.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.labelSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            } else {
-                ForEach(matches) { action in
-                    Button { choose(action) } label: {
-                        HStack(spacing: Spacing.md) {
-                            Image(systemName: action.symbol)
-                                .frame(width: 24).foregroundStyle(Color.brandPrimary)
-                            Text(action.title).foregroundStyle(Color.labelPrimary)
-                            Spacer(minLength: Spacing.sm)
-                        }
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("quickActions." + action.rawValue)
-                }
-            }
-            Text("Nothing here uses online AI.")
-                .font(.footnote)
-                .foregroundStyle(Color.labelSecondary)
-                .padding(.top, Spacing.sm)
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
     }
 }
 

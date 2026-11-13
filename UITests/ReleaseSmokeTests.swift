@@ -293,14 +293,11 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertEqual(app.tabBars.count, 0)
     }
 
-    func testQuickActionsSearchAndCartSheet() {
+    func testQuickActionsMenuOpensCartAndChecklist() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let search = app.textFields["quickActions.search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap(); search.typeText("cart")
         tap("quickActions.cart", in: app)
         XCTAssertTrue(app.buttons["quickCart.done"].waitForExistence(timeout: 5))
         capture("quick-actions-cart")
@@ -308,10 +305,6 @@ final class ReleaseSmokeTests: XCTestCase {
         if app.buttons["quickCart.done"].exists { tap("quickCart.done", in: app) }
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
         tap("navigation.quickActions", in: app)
-        let again = app.textFields["quickActions.search"]
-        XCTAssertTrue(again.waitForExistence(timeout: 5))
-        again.tap(); again.typeText("checklist")
-        capture("quick-actions-search")
         tap("quickActions.groceries", in: app)
         XCTAssertTrue(app.buttons["groceries.done"].waitForExistence(timeout: 5))
         tap("groceries.done", in: app)
@@ -323,9 +316,6 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let menuSearch = app.textFields["quickActions.search"]
-        XCTAssertTrue(menuSearch.waitForExistence(timeout: 5))
-        menuSearch.tap(); menuSearch.typeText("log food")
         tap("quickActions.logFood", in: app)
         let foodSearch = app.textFields["logFood.search"]
         XCTAssertTrue(foodSearch.waitForExistence(timeout: 5))
@@ -346,9 +336,6 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let actionSearch = app.textFields["quickActions.search"]
-        XCTAssertTrue(actionSearch.waitForExistence(timeout: 5))
-        actionSearch.tap(); actionSearch.typeText("log food")
         tap("quickActions.logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         app.segmentedControls["customFood.mode"].buttons["Restaurant menu"].tap()
@@ -399,9 +386,6 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let actionSearch = app.textFields["quickActions.search"]
-        XCTAssertTrue(actionSearch.waitForExistence(timeout: 5))
-        actionSearch.tap(); actionSearch.typeText("log food")
         tap("quickActions.logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         let name = app.textFields["customFood.name"]

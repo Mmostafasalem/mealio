@@ -30,6 +30,15 @@ struct GooMenu: View {
     /// Arc of the bubbles, degrees clockwise from +x (screen coordinates, y down).
     var startAngle: Double = 180
     var endAngle: Double = 90
+    /// Spoken with the main button while the bubbles are out / in.
+    var openValue: String = "Meal choices shown"
+    var openHint: String = "Shows meal choices"
+    var closeHint: String = "Closes the meal choices"
+    /// Spoken hint for a bubble; receives the bubble's title.
+    var itemHint: (String) -> String = { "Log food to \($0)" }
+    /// UI-test identifiers: the main button, and a prefix for each bubble (`prefix + item.id`).
+    var buttonIdentifier: String? = nil
+    var itemIdentifierPrefix: String? = nil
     let onSelect: (GooMenuItem) -> Void
 
     @State private var engine = GooMenuEngine()
@@ -67,13 +76,15 @@ struct GooMenu: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabel)
-            .accessibilityValue(s.open ? "Meal choices shown" : "")
-            .accessibilityHint(s.open ? "Closes the meal choices" : "Shows meal choices")
+            .accessibilityValue(s.open ? openValue : "")
+            .accessibilityHint(s.open ? closeHint : openHint)
+            .accessibilityIdentifier(buttonIdentifier ?? "")
+            .accessibilityAction(.escape) { engine.setOpen(false) }
         }
         .frame(width: 44, height: 44)
         .sensoryFeedback(.selection, trigger: s.open)
-        .accessibilityElement(children: .contain)
-        .accessibilityAction(.escape) { engine.setOpen(false) }
+        // No accessibility container here: its frame would span the whole goo
+        // canvas and sit over neighbouring controls (the tabs beside it).
         .onAppear { engine.configure(count: min(items.count, GooMenuEngine.maxItems), from: startAngle, to: endAngle) }
         .onDisappear { engine.reset() }
     }
@@ -96,7 +107,8 @@ struct GooMenu: View {
             .buttonStyle(.plain)
             .scaleEffect(b.scale)
             .accessibilityLabel(item.title)
-            .accessibilityHint("Log food to \(item.title)")
+            .accessibilityHint(itemHint(item.title))
+            .accessibilityIdentifier(itemIdentifierPrefix.map { $0 + item.id } ?? "")
 
             // The name sits outside the arc, so it never covers a neighbour.
             Text(item.title)
