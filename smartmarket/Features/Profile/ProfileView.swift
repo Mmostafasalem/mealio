@@ -41,8 +41,15 @@ struct ProfileView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
+                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in; if that fails you can still erase this iPhone. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
             }
+            .alert("Online AI account not deleted", isPresented: Binding(get: { vm.serverDeletionFailure != nil }, set: { if !$0 { vm.serverDeletionFailure = nil } })) {
+                Button("Erase This iPhone Only", role: .destructive) {
+                    vm.serverDeletionFailure = nil
+                    Task { await vm.resetOnboarding(localOnly: true) }
+                }
+                Button("Cancel", role: .cancel) { vm.serverDeletionFailure = nil }
+            } message: { Text(vm.serverDeletionFailure ?? "") }
             .alert("Deletion could not start", isPresented: Binding(get: { vm.deletionError != nil }, set: { if !$0 { vm.deletionError = nil } })) {
                 Button("OK", role: .cancel) { vm.deletionError = nil }
             } message: { Text(vm.deletionError ?? "Please try again.") }

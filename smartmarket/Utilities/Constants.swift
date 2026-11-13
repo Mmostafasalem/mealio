@@ -11,10 +11,7 @@ extension Notification.Name {
 // MARK: - Grocery list persistence (used by AppDelegate, ViewModels, and Views)
 enum GroceryStorage {
     static func load() -> [GroceryItem] {
-        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.groceryList),
-              let items = try? JSONDecoder().decode([GroceryItem].self, from: data)
-        else { return [] }
-        return items
+        ResilientStorage.loadArray(GroceryItem.self, key: Constants.Storage.groceryList)
     }
 
     static func save(_ items: [GroceryItem]) {
@@ -47,7 +44,7 @@ enum Constants {
         #if DEBUG
         private static let defaultBaseURL = "http://localhost:5000"
         #else
-        private static let defaultBaseURL = "https://mealio-backend-17qg.onrender.com"
+        private static let defaultBaseURL = "https://mealio-backend-d7aa.onrender.com"
         #endif
 
         /// Shared secret that must match the backend's `APP_API_KEY` env var.
@@ -67,7 +64,6 @@ enum Constants {
             static let health           = "/api/health"
             static let products         = "/api/products"
             static let deals            = "/api/deals"
-            static let bmr              = "/api/bmr"
             static let mealPlan         = "/api/meal-plan"
             static let gapFillers       = "/api/gap-fillers"
             static let shoppingAdvice   = "/api/shopping-advice"

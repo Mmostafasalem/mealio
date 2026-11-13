@@ -19,6 +19,16 @@ final class StockStore {
         var logs: [FoodLogEntry] = []
         var mealOperations: [String]? = nil
     }
+    /// Element-by-element fallback used only when the strict decode fails.
+    private struct LossySnapshot: Decodable {
+        var items: [ResilientStorage.Lossy<StockItem>]?
+        var logs: [ResilientStorage.Lossy<FoodLogEntry>]?
+        var mealOperations: [String]?
+        var snapshot: Snapshot {
+            Snapshot(items: (items ?? []).compactMap(\.value), logs: (logs ?? []).compactMap(\.value),
+                     mealOperations: mealOperations)
+        }
+    }
     private let defaults: UserDefaults
     private let key = "nourloStock_v1"
     private var snapshot: Snapshot
@@ -27,7 +37,16 @@ final class StockStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        snapshot = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(Snapshot.self, from: $0) } ?? Snapshot()
+        snapshot = Self.loadSnapshot(defaults: defaults, key: key)
+    }
+
+    /// Strict decode first; on failure back up the raw bytes and keep every
+    /// readable item and log so the next save can't drop them all.
+    private static func loadSnapshot(defaults: UserDefaults, key: String) -> Snapshot {
+        guard let data = defaults.data(forKey: key) else { return Snapshot() }
+        if let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) { return snapshot }
+        ResilientStorage.backUp(data, key: key, defaults: defaults)
+        return (try? JSONDecoder().decode(LossySnapshot.self, from: data))?.snapshot ?? Snapshot()
     }
 
     enum StockError: LocalizedError {

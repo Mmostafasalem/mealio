@@ -4,8 +4,8 @@
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<!-- Backend base URL. Replace with your deployed Render URL before release,
-	     e.g. https://mealio-backend.onrender.com -->
+	<!-- Backend base URL: the production HTTPS Render service. Constants.swift
+	     uses the same host as its release fallback when this value is empty. -->
 	<key>API_BASE_URL</key>
 	<string>https://mealio-backend-d7aa.onrender.com</string>
 	<!-- Shared secret. Must match the backend's APP_API_KEY env var.

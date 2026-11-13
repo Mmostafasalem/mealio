@@ -214,9 +214,9 @@ private struct MealEntryRow: View {
                     Text("\(entry.calories) kcal")
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
-                    Text(entry.nutritionIngredients == nil ? "Estimated calories · macros unavailable" : "Calculated from ingredient portions")
+                    Text(entry.macrosAvailable ? "Calculated from ingredient portions" : "Estimated calories · macros unavailable")
                         .font(.caption2).foregroundStyle(Color.labelSecondary)
-                    if entry.proteinG + entry.carbsG + entry.fatG > 0 {
+                    if entry.macrosAvailable {
                         Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
@@ -231,9 +231,9 @@ private struct MealEntryRow: View {
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, Spacing.xs)
-        .accessibilityHint(entry.nutritionIngredients == nil ? "Opens the recipe" : "Review ingredient portions and log from stock")
+        .accessibilityHint(entry.macrosAvailable ? "Review ingredient portions and log from stock" : "Opens the recipe")
         .sheet(isPresented: $showRecipe) {
-            if entry.nutritionIngredients != nil {
+            if entry.macrosAvailable {
                 PlannedMealStockSheet(entry: entry, slot: slot)
             } else {
                 RecipeSheet(mealName: entry.foodName)

@@ -39,7 +39,7 @@ struct SmartMarketAgentApp: App {
                     .padding().frame(maxWidth: .infinity).background(.regularMaterial)
                 }
             }
-            .id(appState.dataGeneration)
+            .id(appState.uiIdentity)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
             }

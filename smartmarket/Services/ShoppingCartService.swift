@@ -410,14 +410,11 @@ final class ShoppingCartService {
     }
 
     private func load() {
-        if let data = UserDefaults.standard.data(forKey: cartKey),
-           let items = try? JSONDecoder().decode([CartItem].self, from: data) {
-            cartItems = items
-        }
+        cartItems = ResilientStorage.loadArray(CartItem.self, key: cartKey)
         let saved = UserDefaults.standard.double(forKey: budgetKey)
         weeklyBudget = saved > 0 ? saved : 60.0
         if let data = UserDefaults.standard.data(forKey: overridesKey),
-           let overrides = try? JSONDecoder().decode([String: Double].self, from: data) {
+           let overrides = ResilientStorage.decode([String: Double].self, from: data, key: overridesKey) {
             priceOverrides = overrides
         }
         syncToGroceryList()   // ensure the Groceries tab reflects the cart on launch

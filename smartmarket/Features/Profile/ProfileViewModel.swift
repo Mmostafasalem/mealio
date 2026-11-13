@@ -12,6 +12,9 @@ final class ProfileViewModel {
     var showResetAlert = false
     var isSaving = false
     var deletionError: String?
+    /// Set when the server AI account couldn't be deleted; the user may still
+    /// erase this iPhone's data after confirming.
+    var serverDeletionFailure: String?
     @ObservationIgnored private var didLoad = false
 
     var initials: String {
@@ -37,6 +40,12 @@ final class ProfileViewModel {
         profile.save()
         selectedPreferences.save()
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
+        // Propagate like onboarding does, so Home, the planner and the agent
+        // use the new body stats, goal and keto macro split immediately.
+        AppState.shared.userProfile = profile
+        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
+                                                       isKeto: selectedPreferences.contains(.keto)))
+        NotificationCenter.default.post(name: .personalDataDidChange, object: nil)
     }
 
     func togglePreference(_ pref: DietaryPreference) {
@@ -57,14 +66,18 @@ final class ProfileViewModel {
 
     private(set) var isDeletingData = false
 
-    func resetOnboarding() async {
+    /// `localOnly` skips the server AI account deletion after the user has
+    /// confirmed erasing this iPhone anyway.
+    func resetOnboarding(localOnly: Bool = false) async {
         guard !isDeletingData else { return }
         isDeletingData = true
         defer { isDeletingData = false }
-        do { try await AIAccountService.shared.deleteAccountIfPresent() }
-        catch {
-            deletionError = "Could not delete the online AI account. Connect to the internet and sign in again if needed, then retry. Local data has not been erased."
-            return
+        if !localOnly {
+            do { try await AIAccountService.shared.deleteAccountIfPresent() }
+            catch {
+                serverDeletionFailure = "The online AI account on Nourlo's server could not be deleted (\(error.localizedDescription)). You can erase this iPhone's data anyway, but the server account and its AI usage record will remain. To delete it later, finish setup, sign in with the same Apple Account in Profile, then use Delete All Data again. Guest access can't be restored after erasing, so for a guest account ask the person who provided your build to delete it. Or cancel, connect to the internet, sign in again and retry."
+                return
+            }
         }
         do { try PrivateSyncService.shared.beginDeletion() }
         catch {
@@ -77,6 +90,7 @@ final class ProfileViewModel {
         }
         AIAccountService.shared.clearLocalSession()
         AppState.shared.dataGeneration = UUID()
+        AppState.shared.uiIdentity = UUID()
         AppState.shared.agentLoop.invalidateUserData()
         // Initialize and reset the cart before clearing grocery storage: cart
         // initialization can mirror existing cart lines into the grocery list.

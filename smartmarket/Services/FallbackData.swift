@@ -50,71 +50,78 @@ enum FallbackData {
         )
     }
 
-    // MARK: - BMR (local Mifflin-St Jeor, mirrors the backend /api/bmr)
-
-    static func bmr(for request: BMRRequest) -> BMRResponse {
-        let base = 10 * request.weight + 6.25 * request.height - 5 * Double(request.age)
-        let bmr  = request.gender.lowercased() == "male" ? base + 5 : base - 161
-        let multipliers: [String: Double] = [
-            "sedentary": 1.2, "light": 1.375, "moderate": 1.55,
-            "active": 1.725, "veryActive": 1.9,
-        ]
-        let tdee = bmr * (multipliers[request.activityLevel] ?? 1.55)
-        return BMRResponse(
-            bmr:              Int(bmr.rounded()),
-            tdee:             Int(tdee.rounded()),
-            loseCalories:     Int((tdee - 500).rounded()),
-            maintainCalories: Int(tdee.rounded()),
-            gainCalories:     Int((tdee + 500).rounded()),
-            macros: BMRResponse.MacroTargets(
-                protein: Int((request.weight * 2.0).rounded()),
-                carbs:   Int((tdee * 0.45 / 4).rounded()),
-                fat:     Int((tdee * 0.25 / 9).rounded())
-            )
-        )
-    }
-
     // MARK: - Meal plan (local generator)
 
     private struct StockFood {
         let name: String
         let category: String   // lowercased category key
         let kcal100: Int       // realistic kcal per 100g
+        var allergens: [String] = []
+
+        func isAllowed(by prefs: Set<DietaryPreference>) -> Bool {
+            prefs.allows(name: name, category: category, allergens: allergens)
+        }
     }
 
     /// Builds a realistic offline 7-day plan. Composes balanced meals
     /// (protein + carb + veg) from the user's in-stock foods at believable
     /// serving sizes — not one giant single food. Calories 25/35/30/10.
-    static func mealPlan(targetKcal: Int, pantry: [Deal] = []) -> WeeklyMealPlan {
+    ///
+    /// Every food (cart items and built-in defaults) is checked against the
+    /// user's diets and allergies; a conflicting food is substituted with a
+    /// safe alternative or left out, never shown.
+    static func mealPlan(targetKcal: Int, pantry: [Deal] = [],
+                         preferences: Set<DietaryPreference> = .load()) -> WeeklyMealPlan {
         let kcal = max(targetKcal, 1200)
-        let (stock, planMessage) = resolveStock(pantry: pantry)
-        guard !stock.isEmpty else { return genericMealPlan(targetKcal: kcal) }
+        let (allStock, baseMessage) = resolveStock(pantry: pantry)
+        let stock = allStock.filter { $0.isAllowed(by: preferences) }
+        guard !stock.isEmpty else { return genericMealPlan(targetKcal: kcal, preferences: preferences) }
+        let planMessage = stock.count < allStock.count
+            ? baseMessage + " Items that conflict with your dietary preferences were left out."
+            : baseMessage
 
         // Group in-stock foods by culinary role.
-        let proteins = stock.filter { ["meat", "poultry", "seafood", "fish", "eggs"].contains($0.category) }
+        let proteins = stock.filter { ["meat", "poultry", "seafood", "fish", "eggs", "legumes"].contains($0.category) }
         let carbs    = stock.filter { ["grains", "pasta", "bread", "rice"].contains($0.category) }
         let veg       = stock.filter { $0.category == "vegetables" }
         let fruits   = stock.filter { ["fruit", "fruits"].contains($0.category) }
         let dairy    = stock.filter { $0.category == "dairy" }
         let nutsSnacks = stock.filter { ["nuts", "snacks", "seeds"].contains($0.category) }
 
+        func firstSafe(_ options: [StockFood]) -> StockFood? {
+            options.first { $0.isAllowed(by: preferences) }
+        }
         // Balanced defaults so meals stay realistic even if the cart is one-note.
-        let defCarb  = carbs.first  ?? StockFood(name: "Rice", category: "grains", kcal100: 130)
-        let defVeg   = veg.first    ?? StockFood(name: "Mixed vegetables", category: "vegetables", kcal100: 42)
-        let defFruit = fruits.first ?? StockFood(name: "Banana", category: "fruits", kcal100: 89)
-        let oats     = StockFood(name: "Oats", category: "grains", kcal100: 389)
-        let yogurt   = dairy.first  ?? StockFood(name: "Greek yogurt", category: "dairy", kcal100: 97)
-        let snackNut = nutsSnacks.first ?? StockFood(name: "Almonds", category: "nuts", kcal100: 579)
-        func protein(_ i: Int) -> StockFood {
-            proteins.isEmpty ? StockFood(name: "Chicken breast", category: "meat", kcal100: 165)
-                             : proteins[i % proteins.count]
+        // Each slot lists safe-for-more-diets alternatives after the usual pick.
+        let mixedVeg = StockFood(name: "Mixed vegetables", category: "vegetables", kcal100: 42)
+        let defCarb  = firstSafe(carbs + [StockFood(name: "Rice", category: "grains", kcal100: 130),
+                                          StockFood(name: "Potatoes", category: "vegetables", kcal100: 87)])
+        let defVeg   = firstSafe(veg) ?? mixedVeg
+        let defFruit = firstSafe(fruits + [StockFood(name: "Banana", category: "fruits", kcal100: 89),
+                                           StockFood(name: "Strawberries", category: "fruits", kcal100: 32)])
+        let grain    = firstSafe([StockFood(name: "Oats", category: "grains", kcal100: 389),
+                                  StockFood(name: "Buckwheat", category: "grains", kcal100: 343)])
+        let yogurt   = firstSafe(dairy + [StockFood(name: "Greek yogurt", category: "dairy", kcal100: 97),
+                                          StockFood(name: "Soy yogurt", category: "legumes", kcal100: 60),
+                                          StockFood(name: "Chia pudding", category: "seeds", kcal100: 120)])
+        let snackNut = firstSafe(nutsSnacks + [StockFood(name: "Almonds", category: "nuts", kcal100: 579),
+                                               StockFood(name: "Pumpkin seeds", category: "seeds", kcal100: 559)])
+        let defaultProteins = [StockFood(name: "Chicken breast", category: "meat", kcal100: 165),
+                               StockFood(name: "Baked cod", category: "fish", kcal100: 105),
+                               StockFood(name: "Eggs", category: "eggs", kcal100: 155),
+                               StockFood(name: "Tofu", category: "legumes", kcal100: 144),
+                               StockFood(name: "Lentils", category: "legumes", kcal100: 116)]
+        let safeProteins = proteins.isEmpty ? defaultProteins.filter { $0.isAllowed(by: preferences) } : proteins
+        func protein(_ i: Int) -> StockFood? {
+            safeProteins.isEmpty ? nil : safeProteins[i % safeProteins.count]
         }
 
+        typealias Component = (food: StockFood, base: Int, maxG: Int, label: String)
         // Compose a meal from components, nudging portions toward the calorie
         // target but capping them so servings stay believable.
-        func compose(_ name: String,
-                     _ comps: [(food: StockFood, base: Int, maxG: Int, label: String)],
-                     target: Int) -> MealItem {
+        func compose(_ comps: [Component?], target: Int, name: (([StockFood]) -> String)? = nil) -> MealItem {
+            var comps = comps.compactMap { $0 }
+            if comps.isEmpty { comps = [(mixedVeg, 200, 300, "1 bowl")] }
             let baseKcal = comps.reduce(0) { $0 + $1.base * $1.food.kcal100 / 100 }
             let factor = baseKcal > 0 ? Double(target) / Double(baseKcal) : 1
             var total = 0
@@ -124,7 +131,20 @@ enum FallbackData {
                 total += g * c.food.kcal100 / 100
                 ings.append("\(c.food.name) · \(c.label) (\(g)g)")
             }
-            return MealItem(pavadinimas: name, ingredientai: ings, kcal: total)
+            let foods = comps.map(\.food)
+            let title = name?(foods) ?? Self.title(foods)
+            return MealItem(pavadinimas: title, ingredientai: ings, kcal: total)
+        }
+        func plate(_ p: StockFood?, carbBase: Int, carbMax: Int, target: Int) -> MealItem {
+            compose([
+                p.map { ($0, 170, 250, "½ plate") },
+                defCarb.map { ($0, carbBase, carbMax, "¼ plate") },
+                (defVeg, 120, 200, "¼ plate"),
+            ], target: target) { foods in
+                guard let first = foods.first else { return "Vegetables" }
+                let rest = foods.dropFirst().map { $0.name == defVeg.name ? "veg" : $0.name.lowercased() }
+                return rest.isEmpty ? first.name : "\(first.name) with \(rest.joined(separator: " & "))"
+            }
         }
 
         let bT = Int(Double(kcal) * 0.25)
@@ -133,25 +153,16 @@ enum FallbackData {
         let sT = kcal - bT - lT - dT
 
         func day(_ i: Int) -> DayPlan {
-            let p1 = protein(i), p2 = protein(i + 1)
-            let breakfast = compose("Oats, \(defFruit.name.lowercased()) & yogurt", [
-                (oats,     60, 100, "1 bowl"),
-                (defFruit, 120, 160, "1 piece"),
-                (yogurt,   150, 250, "½ cup"),
+            let breakfast = compose([
+                grain.map    { ($0, 60, 100, "1 bowl") },
+                defFruit.map { ($0, 120, 160, "1 piece") },
+                yogurt.map   { ($0, 150, 250, "½ cup") },
             ], target: bT)
-            let lunch = compose("\(p1.name) with \(defCarb.name.lowercased()) & veg", [
-                (p1,      170, 250, "½ plate"),
-                (defCarb, 150, 250, "¼ plate"),
-                (defVeg,  120, 200, "¼ plate"),
-            ], target: lT)
-            let dinner = compose("\(p2.name) with \(defCarb.name.lowercased()) & veg", [
-                (p2,      170, 250, "½ plate"),
-                (defCarb, 130, 220, "¼ plate"),
-                (defVeg,  120, 200, "¼ plate"),
-            ], target: dT)
-            let snack = compose("\(defFruit.name) & nuts", [
-                (defFruit, 120, 160, "1 piece"),
-                (snackNut, 25,  40,  "1 handful"),
+            let lunch  = plate(protein(i),     carbBase: 150, carbMax: 250, target: lT)
+            let dinner = plate(protein(i + 1), carbBase: 130, carbMax: 220, target: dT)
+            let snack = compose([
+                defFruit.map { ($0, 120, 160, "1 piece") },
+                snackNut.map { ($0, 25, 40, "1 handful") },
             ], target: sT)
             let total = breakfast.kcal + lunch.kcal + dinner.kcal + snack.kcal
             return DayPlan(pusryciai: breakfast, pietus: lunch, vakariene: dinner, uzkandziai: snack, visoKcal: total)
@@ -169,6 +180,13 @@ enum FallbackData {
         )
     }
 
+    /// "Oats, banana & greek yogurt" from the meal's component names.
+    private static func title(_ foods: [StockFood]) -> String {
+        let names = foods.enumerated().map { $0.offset == 0 ? $0.element.name : $0.element.name.lowercased() }
+        guard names.count > 1 else { return names.first ?? "" }
+        return names.dropLast().joined(separator: ", ") + " & " + names.last!
+    }
+
     // MARK: - Stock resolution
 
     private static func resolveStock(pantry: [Deal]) -> (stock: [StockFood], message: String) {
@@ -182,7 +200,8 @@ enum FallbackData {
             return (groceries, "Offline plan built around your shopping list — \(groceries.count) items.")
         }
         let deals = pantry.map {
-            StockFood(name: $0.name, category: $0.category.lowercased(), kcal100: max($0.kcalPer100g, 1))
+            StockFood(name: $0.name, category: $0.category.lowercased(), kcal100: max($0.kcalPer100g, 1),
+                      allergens: $0.allergens)
         }
         if !deals.isEmpty {
             return (deals, "Offline plan built from this week's deals.")
@@ -193,9 +212,8 @@ enum FallbackData {
     /// Shop-tab cart (ShoppingCartService) read from disk, with real per-item
     /// calories via the catalog id.
     private static func cartPantry() -> [StockFood]? {
-        guard let data = UserDefaults.standard.data(forKey: "shoppingCart_v1"),
-              let items = try? JSONDecoder().decode([CartItem].self, from: data),
-              !items.isEmpty else { return nil }
+        let items = ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1")
+        guard !items.isEmpty else { return nil }
         return items.map { item in
             let cat = item.category.lowercased()
             let kcal = itemKcal[item.catalogId] ?? categoryKcal[cat] ?? 150
@@ -262,7 +280,9 @@ enum FallbackData {
     ]
 
     /// 7 balanced template days — used when no groceries are logged yet.
-    private static func genericMealPlan(targetKcal: Int) -> WeeklyMealPlan {
+    /// A template meal that conflicts with the user's diets/allergies is
+    /// replaced by the next safe alternative for that slot.
+    private static func genericMealPlan(targetKcal: Int, preferences: Set<DietaryPreference>) -> WeeklyMealPlan {
         let kcal = max(targetKcal, 1200)
         let b = Int(Double(kcal) * 0.25)
         let l = Int(Double(kcal) * 0.35)
@@ -279,25 +299,44 @@ enum FallbackData {
             ("Cottage cheese & fruit",  "Salmon rice bowl",          "Beef burger (no bun)",       "Apple & peanut butter"),
             ("Muesli with milk",        "Vegetable omelette",        "Roast chicken & veggies",    "Mixed nuts"),
         ]
+        // Substitutes in rough order of how many diets they suit. The last
+        // entry in each list conflicts with no DietaryPreference case.
+        let alternatives: [[String]] = [
+            ["Tofu scramble with spinach", "Buckwheat porridge with berries", "Chia pudding with berries",
+             "Avocado, tomato & cucumber plate"],
+            ["Chickpea & vegetable stew", "Quinoa & roasted vegetable bowl", "Baked cod with green beans",
+             "Mixed vegetable salad with olive oil"],
+            ["Vegetable curry with rice", "Stuffed peppers with rice", "Grilled salmon with broccoli",
+             "Roasted vegetables with olive oil"],
+            ["Apple", "Hummus & carrot sticks", "Strawberries", "Cucumber & carrot sticks"],
+        ]
+        func safe(_ name: String) -> Bool { preferences.allows(name: name) }
+        func pick(_ name: String, slot: Int, day: Int) -> String {
+            if safe(name) { return name }
+            let options = alternatives[slot].filter(safe)
+            return options.isEmpty ? alternatives[slot].last! : options[day % options.count]
+        }
 
         func meal(_ name: String, _ c: Int) -> MealItem {
             MealItem(pavadinimas: name, ingredientai: [], kcal: c)
         }
-        func day(_ t: (String, String, String, String)) -> DayPlan {
-            DayPlan(pusryciai: meal(t.0, b), pietus: meal(t.1, l),
-                    vakariene: meal(t.2, d), uzkandziai: meal(t.3, s),
-                    visoKcal: kcal)
+        func day(_ i: Int) -> DayPlan {
+            let t = days[i]
+            return DayPlan(pusryciai: meal(pick(t.0, slot: 0, day: i), b), pietus: meal(pick(t.1, slot: 1, day: i), l),
+                           vakariene: meal(pick(t.2, slot: 2, day: i), d), uzkandziai: meal(pick(t.3, slot: 3, day: i), s),
+                           visoKcal: kcal)
         }
 
+        let note = preferences.isEmpty ? "" : " Meals follow your dietary preferences."
         return WeeklyMealPlan(
-            agentMessage: "Offline plan targeting \(kcal) kcal/day. Connect to get AI-personalised plans.",
-            pirmadienis:  day(days[0]),
-            antradienis:  day(days[1]),
-            treciadienis: day(days[2]),
-            ketvirtadienis: day(days[3]),
-            pentadienis:  day(days[4]),
-            sestadienis:  day(days[5]),
-            sekmadienis:  day(days[6])
+            agentMessage: "Offline plan targeting \(kcal) kcal/day.\(note) Connect to get AI-personalised plans.",
+            pirmadienis:  day(0),
+            antradienis:  day(1),
+            treciadienis: day(2),
+            ketvirtadienis: day(3),
+            pentadienis:  day(4),
+            sestadienis:  day(5),
+            sekmadienis:  day(6)
         )
     }
 }

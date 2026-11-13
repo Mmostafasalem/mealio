@@ -12,7 +12,9 @@ struct AgentChatSheet: View {
     @State private var localInput: String = ""
     @State private var pendingOwnerMessage: String?
     @State private var showOwnerConsent = false
+    @State private var showOnlineSetup = false
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
+    @AppStorage("aiSharingConsent_v1") private var onlineAISharingConsent = false
 
     var body: some View {
         NavigationStack {
@@ -25,6 +27,7 @@ struct AgentChatSheet: View {
                             if vm.chatMessages.isEmpty { emptyPrompt }
                             ForEach(vm.chatMessages) { msg in
                                 ChatBubble(message: msg).id(msg.id.uuidString)
+                                    .accessibilityIdentifier(msg.role == "assistant" ? "chat.assistantReply" : "chat.userMessage")
                             }
                             if vm.isChatLoading {
                                 HStack(spacing: Spacing.sm) {
@@ -37,6 +40,19 @@ struct AgentChatSheet: View {
                                     .padding(.horizontal, Spacing.lg)
                                     .id("typing")
                             }
+                            if let notice = vm.chatNotice, !notice.isEmpty {
+                                VStack(alignment: .leading, spacing: Spacing.sm) {
+                                    Label(notice, systemImage: "exclamationmark.bubble")
+                                        .font(.subheadline)
+                                        .accessibilityIdentifier("chat.notice")
+                                    if needsOnlineSetup { onlineSetupButton }
+                                }
+                                .padding(Spacing.lg)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.tile))
+                                .padding(.horizontal, Spacing.lg)
+                                .id("notice")
+                            }
                         }
                         .padding(.vertical, Spacing.lg)
                     }
@@ -48,6 +64,11 @@ struct AgentChatSheet: View {
                     .onChange(of: vm.isChatLoading) {
                         if vm.isChatLoading {
                             withAnimation(reduceMotion ? .none : .snappyValue) { proxy.scrollTo("typing", anchor: .bottom) }
+                        }
+                    }
+                    .onChange(of: vm.chatNotice) { _, notice in
+                        if notice != nil {
+                            withAnimation(reduceMotion ? .none : .snappyValue) { proxy.scrollTo("notice", anchor: .bottom) }
                         }
                     }
                 }
@@ -65,6 +86,7 @@ struct AgentChatSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .sheet(isPresented: $showOnlineSetup) { ChatAISetupView() }
         .alert("Use AI on your Mac?", isPresented: $showOwnerConsent) {
             Button("Allow and send") {
                 ownerAISharingConsent = true
@@ -100,13 +122,6 @@ struct AgentChatSheet: View {
                 }
                 Spacer(minLength: 0)
             }
-            if let notice = vm.chatNotice, !notice.isEmpty {
-                Label(notice, systemImage: vm.lastChatFailed ? "exclamationmark.bubble" : "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Color.labelSecondary)
-                    .accessibilityAddTraits(.updatesFrequently)
-                    .accessibilityIdentifier("chat.notice")
-            }
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.sm)
@@ -123,6 +138,8 @@ struct AgentChatSheet: View {
                 .foregroundStyle(Color.labelSecondary)
                 .multilineTextAlignment(.center)
 
+            if needsOnlineSetup { onlineSetupButton }
+
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 prompt("Plan a simple meal", text: "Suggest a simple meal using the foods I have.")
                 prompt("Build a grocery list", text: "Help me build a grocery list for my next few meals.")
@@ -131,6 +148,19 @@ struct AgentChatSheet: View {
         }
         .padding(.top, Spacing.lg)
         .padding(.horizontal, Spacing.xxl)
+    }
+
+    private var needsOnlineSetup: Bool {
+        OwnerAITestConfiguration.current == nil && (!AIAccountService.shared.isSignedIn || !onlineAISharingConsent)
+    }
+
+    private var onlineSetupButton: some View {
+        Button("Set up online AI") {
+            inputFocused = false
+            showOnlineSetup = true
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("chat.setup")
     }
 
     private func prompt(_ title: String, text: String) -> some View {
@@ -192,6 +222,12 @@ struct AgentChatSheet: View {
             showOwnerConsent = true
             return
         }
+        // Keep the typed text when sign-in or consent is missing.
+        if needsOnlineSetup {
+            inputFocused = false
+            showOnlineSetup = true
+            return
+        }
         sendPrepared(cleaned)
     }
 
@@ -199,6 +235,32 @@ struct AgentChatSheet: View {
         vm.chatInput = cleaned
         localInput = ""
         Task { await vm.sendChatMessage() }
+    }
+}
+
+private struct ChatAISetupView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("aiSharingConsent_v1") private var sharingConsent = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                AIAccountSection()
+                Section {
+                    Toggle("Allow online AI suggestions", isOn: $sharingConsent)
+                        .accessibilityIdentifier("chat.aiConsent")
+                    NavigationLink("Privacy Policy") { LegalDocumentView(resource: "Privacy", title: "Privacy Policy") }
+                } header: {
+                    Text("AI sharing")
+                } footer: {
+                    Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through Nourlo's backend to Groq. Account access and sharing are separate choices. Turning sharing off stops future AI requests. Read the Privacy Policy before enabling.")
+                }
+            }
+            .navigationTitle("Online AI")
+            .toolbar { ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { dismiss() }.accessibilityIdentifier("chat.setupDone")
+            } }
+        }
     }
 }
 // MARK: - Chat bubble

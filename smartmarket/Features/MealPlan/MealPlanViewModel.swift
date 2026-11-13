@@ -40,8 +40,6 @@ final class MealPlanViewModel {
     func regenerate() async {
         guard !isGenerating else { return }
         errorMessage = nil
-        // Clear cache and daily-refresh gate so backend is always hit fresh
-        UserDefaults.standard.removeObject(forKey: "lastMealPlanGeneratedDate")
         // Preserve the saved plan until its replacement is ready.
         await fetchTodaysPlan()
         if selectedTab == .week { await loadWeekPlans() }
@@ -56,44 +54,12 @@ final class MealPlanViewModel {
         errorMessage = nil
         defer { isGenerating = false }
         do {
-            // Read actual user preferences
-            let favNames = ProductCatalogService.shared.nameFor(ids: AppState.shared.favoriteFoodIDs)
-            let dietaryPrefs = Set<DietaryPreference>.load()
-            let dietOptions = dietaryPrefs.filter { !$0.isAllergy }.map { $0.rawValue }
-            let allergies = dietaryPrefs.filter { $0.isAllergy }.map { $0.rawValue }
-            // Prefer the Shop cart (what the user is buying) for the plan.
-            let cartDeals = ShoppingCartService.shared.planDeals()
-            let groceriesForPlan = cartDeals.isEmpty ? AppState.shared.groceryList : cartDeals
-
-            let request = MealPlanRequest(
-                user: MealPlanUser(
-                    name:           "",
-                    age:            profile.age,
-                    gender:         profile.gender == .male ? "male" : "female",
-                    weight:         profile.weight,
-                    height:         profile.height,
-                    goal:           profile.weightGoal.rawValue,
-                    activityLevel:  profile.activityLevel.rawValue,
-                    dietaryOptions: dietOptions,
-                    allergies:      allergies,
-                    favoriteFoods:  favNames
-                ),
-                bmrData: AppState.shared.bmrData ?? BMRResponse(
-                    bmr:              Int(profile.bmr),
-                    tdee:             Int(profile.tdee),
-                    loseCalories:     max(Int(profile.tdee) - 350, 1200),
-                    maintainCalories: Int(profile.tdee),
-                    gainCalories:     Int(profile.tdee) + 350,
-                    macros: BMRResponse.MacroTargets(protein: 150, carbs: 200, fat: 60)
-                ),
-                groceryList: groceriesForPlan,
-                goal: profile.weightGoal.rawValue,
-                lang: AppState.shared.lang
-            )
+            let request = MealPlanRequest.current(profile: profile, bmr: AppState.shared.bmrData)
             let weekly = try await APIService.shared.generateMealPlan(request)
             guard !Task.isCancelled, AppState.shared.dataGeneration == generation else { return }
             todaysPlan = MealPlan.from(weekly: weekly)
             AppState.shared.saveMealPlan(weekly)
+            AgentLoop.markPlanGeneratedToday()
         } catch {
             appLog("[MealPlan] load failed:", error)
             errorMessage = "Could not update your meal plan. Your saved plan is kept. Check the AI connection in Profile, then retry."

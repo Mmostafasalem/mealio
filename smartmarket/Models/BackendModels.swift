@@ -125,16 +125,6 @@ struct Deal: Codable, Identifiable, Hashable {
     let longitude: Double?
 }
 
-// MARK: - BMR (POST /api/bmr request)
-
-struct BMRRequest: Codable {
-    let weight: Double
-    let height: Double
-    let age: Int
-    let gender: String       // "male" | "female"
-    let activityLevel: String
-}
-
 // MARK: - BMR Response
 
 struct BMRResponse: Codable {
@@ -150,6 +140,15 @@ struct BMRResponse: Codable {
         let carbs: Int
         let fat: Int
     }
+
+    /// Daily calorie target for a "lose" | "maintain" | "gain" goal string.
+    func calories(forGoal goal: String) -> Int {
+        switch goal {
+        case "lose": return loseCalories
+        case "gain": return gainCalories
+        default:     return maintainCalories
+        }
+    }
 }
 
 // MARK: - Meal Plan (POST /api/meal-plan)
@@ -162,6 +161,44 @@ struct MealPlanRequest: Encodable {
     let groceryList: [Deal]
     let goal: String   // "lose" | "maintain" | "gain"
     let lang: String   // "en" | "lt"
+}
+
+extension MealPlanRequest {
+    /// Single builder for every meal-plan request (planner screen and agent
+    /// loop): exact body stats, binary gender for the BMR formula, the stored
+    /// dietary options/allergies, and the Shop cart in preference to the
+    /// legacy agent list.
+    @MainActor static func current(profile: UserProfile, bmr: BMRResponse?) -> MealPlanRequest {
+        let appState = AppState.shared
+        let dietaryPrefs = Set<DietaryPreference>.load()
+        let cartDeals = ShoppingCartService.shared.planDeals()
+        let goal = profile.weightGoal.rawValue
+        return MealPlanRequest(
+            user: MealPlanUser(
+                name:           "",
+                age:            profile.age,
+                gender:         profile.gender == .male ? "male" : "female",
+                weight:         profile.weight,
+                height:         profile.height,
+                goal:           goal,
+                activityLevel:  profile.activityLevel.rawValue,
+                dietaryOptions: dietaryPrefs.filter { !$0.isAllergy }.map(\.rawValue).sorted(),
+                allergies:      dietaryPrefs.filter { $0.isAllergy }.map(\.rawValue).sorted(),
+                favoriteFoods:  ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
+            ),
+            bmrData: bmr ?? BMRResponse(
+                bmr:              Int(profile.bmr),
+                tdee:             Int(profile.tdee),
+                loseCalories:     max(Int(profile.tdee) - 350, 1200),
+                maintainCalories: Int(profile.tdee),
+                gainCalories:     Int(profile.tdee) + 350,
+                macros: BMRResponse.MacroTargets(protein: 150, carbs: 200, fat: 60)
+            ),
+            groceryList: cartDeals.isEmpty ? appState.groceryList : cartDeals,
+            goal: goal,
+            lang: appState.lang
+        )
+    }
 }
 
 struct PlanningTargets: Codable {

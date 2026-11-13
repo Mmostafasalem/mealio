@@ -106,6 +106,66 @@ final class ReleaseSmokeTests: XCTestCase {
         }
     }
 
+    /// Explicitly selected live integration test; uses only the default synthetic
+    /// local profile in a dedicated disposable simulator. Onboarding has its
+    /// own UI journeys; this test starts at the account settings.
+    func testLiveGuestSignInChatAndAccountDeletion() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["NOURLO_LIVE_GUEST_UI"] == "1",
+                          "Set TEST_RUNNER_NOURLO_LIVE_GUEST_UI=1 on an isolated simulator.")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Nourlo Guest AI Verification",
+                          "This test may delete only its dedicated disposable simulator's app data.")
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES",
+                               "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+        app.launch()
+        tap("tab.profile", in: app)
+        // The first tap may dismiss the fresh simulator's location prompt.
+        if !app.buttons["tab.profile"].isSelected { tap("tab.profile", in: app) }
+        XCTAssertTrue(app.buttons["tab.profile"].isSelected)
+        capture("live-guest-profile-navigation")
+        let guest = app.buttons["profile.guestSignIn"]
+        for _ in 0..<8 {
+            if guest.exists && guest.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(guest.waitForExistence(timeout: 90))
+        tap("profile.guestSignIn", in: app)
+        XCTAssertTrue(app.staticTexts["Guest access on this device"].waitForExistence(timeout: 120))
+        capture("live-guest-account-allowance")
+        let consent = app.switches["profile.aiConsent"]
+        for _ in 0..<8 {
+            if consent.exists && consent.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(consent.isHittable)
+        if consent.value as? String == "0" { consent.tap() }
+        tap("tab.home", in: app)
+        tap("mascot.guide", in: app)
+        tap("guide.chat", in: app)
+        let field = app.textFields["Ask about meals or groceries…"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("Synthetic connection test: briefly confirm you can help plan a meal.")
+        tap("chat.send", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["chat.assistantReply"].firstMatch.waitForExistence(timeout: 120),
+                      "The live authenticated AI must return a response.")
+        XCTAssertFalse(app.otherElements["chat.notice"].exists)
+        capture("live-guest-online-chat")
+        app.buttons["Done"].tap()
+        tap("tab.profile", in: app)
+        let delete = app.buttons["Delete All Data"]
+        for _ in 0..<10 {
+            if delete.exists && delete.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(delete.isHittable)
+        delete.tap()
+        app.alerts.buttons["Delete Data"].tap()
+        XCTAssertTrue(app.buttons["onboarding.start"].waitForExistence(timeout: 120),
+                      "Test account deletion must complete before onboarding restarts.")
+        capture("live-guest-account-deleted")
+    }
+
     func testMascotGuideExpressionsAndLoggingShortcut() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-ownerAISharingConsent_v1", "NO"]

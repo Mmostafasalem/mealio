@@ -16,7 +16,11 @@ struct PlannedMealStockSheet: View {
         NavigationStack {
             Form {
                 Section(entry.foodName) {
-                    Text("\(entry.calories) kcal · P \(entry.proteinG.formatted()) g · C \(entry.carbsG.formatted()) g · F \(entry.fatG.formatted()) g")
+                    if entry.macrosAvailable {
+                        Text("\(entry.calories) kcal · P \(entry.proteinG.formatted()) g · C \(entry.carbsG.formatted()) g · F \(entry.fatG.formatted()) g")
+                    } else {
+                        Text("\(entry.calories) kcal · protein, carbs and fat not available")
+                    }
                     Text("Calculated from these ingredient portions. Review the preparation and quantities before logging. Logging removes these amounts from My Stock.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }

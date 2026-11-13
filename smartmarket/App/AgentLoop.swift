@@ -1,5 +1,4 @@
 import Foundation
-import CoreLocation
 
 @MainActor
 final class AgentLoop {
@@ -9,10 +8,22 @@ final class AgentLoop {
     private var cartObserver: NSObjectProtocol?
     private weak var appState: AppState?
     private var dataGeneration = 0
+    /// Set once a live (non-fallback) deals response has been seen.
+    private var hasLiveDeals = false
+    /// Serialises online regenerations so one can't clear the other's flag.
+    private var isRegenerating = false
+
+    static let lastPlanDateKey = "lastMealPlanGeneratedDate"
+
+    /// Records that today's plan is fresh. Call only after a plan was saved.
+    static func markPlanGeneratedToday() {
+        UserDefaults.standard.set(Calendar.current.startOfDay(for: Date()), forKey: lastPlanDateKey)
+    }
 
     /// Invalidates responses that were requested before the user's data was erased.
     func invalidateUserData() {
         dataGeneration += 1
+        hasLiveDeals = false
         regenTask?.cancel()
         regenTask = nil
     }
@@ -30,11 +41,12 @@ final class AgentLoop {
                 try? await Task.sleep(for: .seconds(300))
             }
         }
-        // Regenerate the plan shortly after the shopping cart changes (debounced).
+        // Cart edits rebuild only the on-device plan (debounced). They never
+        // call the online AI; the user regenerates an AI plan explicitly.
         cartObserver = NotificationCenter.default.addObserver(
             forName: .cartDidChange, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.scheduleRegen() }
+            Task { @MainActor [weak self] in self?.scheduleLocalRegen() }
         }
     }
 
@@ -47,14 +59,24 @@ final class AgentLoop {
         }
     }
 
-    /// Coalesces rapid cart edits into a single plan regeneration.
-    private func scheduleRegen() {
+    /// Coalesces rapid cart edits into a single local plan rebuild.
+    private func scheduleLocalRegen() {
         regenTask?.cancel()
         regenTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled, let self, let appState = self.appState else { return }
-            await self.regenerateMealPlan(appState: appState)
+            self.regenerateLocalPlan(appState: appState)
         }
+    }
+
+    /// Replaces only a missing or on-device plan; an AI or saved plan is kept.
+    private func regenerateLocalPlan(appState: AppState) {
+        guard appState.isOnboarded, let bmr = appState.bmrData else { return }
+        if let current = appState.weeklyMealPlan, current.generationSource != "local" { return }
+        let goal = appState.userProfile.weightGoal.rawValue
+        var plan = FallbackData.mealPlan(targetKcal: bmr.calories(forGoal: goal), pantry: [])
+        plan.generationSource = "local"
+        appState.saveMealPlan(plan)
     }
 
     // MARK: - Tick
@@ -62,91 +84,55 @@ final class AgentLoop {
     private func tick(appState: AppState) async {
         guard appState.isOnboarded else { return }
         let generation = dataGeneration
-        // 1. Refresh deals — pass user location for server-side proximity filter
-        let userLoc = LocationService.shared.userLocation
-        let hadNoDeals = appState.activeDeals.isEmpty
-        let deals: [Deal]
-        if let loc = userLoc {
-            deals = (try? await APIService.shared.getDeals(near: loc.coordinate.latitude,
-                                                           lon: loc.coordinate.longitude,
-                                                           radiusKm: 8)) ?? []
-        } else {
-            deals = (try? await APIService.shared.getDeals()) ?? []
-        }
+        // 1. Refresh deals. No location is sent; nearby filtering is on-device.
+        let deals = (try? await APIService.shared.getDeals()) ?? []
+        let dealsAreLive = !APIService.shared.lastDealsWereFallback
         guard !Task.isCancelled, generation == dataGeneration else { return }
         if !deals.isEmpty { appState.activeDeals = deals }
 
         // Catalog estimates still support browsing/planning, but never generate
         // discount, proximity, availability or expiry notifications.
 
-        // 5. Regenerate meal plan if needed
+        // 2. Regenerate meal plan if needed. Bundled offline deals never count
+        // as "deals just arrived".
         let currentCount = appState.groceryList.count
         let needsPlan = appState.weeklyMealPlan == nil
         let listGrew  = currentCount > appState.lastGroceryCount
         let needsDailyRefresh = isDueForDailyRefresh()
-        let dealsJustArrived = !deals.isEmpty && hadNoDeals
+        let dealsJustArrived = dealsAreLive && !deals.isEmpty && !hasLiveDeals
+        if dealsAreLive && !deals.isEmpty { hasLiveDeals = true }
         if needsPlan || listGrew || needsDailyRefresh || dealsJustArrived {
             appState.lastGroceryCount = currentCount
             await regenerateMealPlan(appState: appState)
         }
     }
 
+    /// Read-only check; the date is stamped only after a plan is saved.
     private func isDueForDailyRefresh() -> Bool {
         let today = Calendar.current.startOfDay(for: Date())
-        let key = "lastMealPlanGeneratedDate"
-        let last = UserDefaults.standard.object(forKey: key) as? Date ?? .distantPast
-        if last < today {
-            UserDefaults.standard.set(today, forKey: key)
-            return true
-        }
-        return false
+        let last = UserDefaults.standard.object(forKey: Self.lastPlanDateKey) as? Date ?? .distantPast
+        return last < today
     }
 
     // MARK: - Meal plan regeneration
 
     private func regenerateMealPlan(appState: AppState) async {
-        guard let bmr = appState.bmrData else { return }
+        guard !isRegenerating, let bmr = appState.bmrData else { return }
         let generation = dataGeneration
+        isRegenerating = true
         appState.isGeneratingMealPlan = true
-        defer { appState.isGeneratingMealPlan = false }
+        defer {
+            isRegenerating = false
+            appState.isGeneratingMealPlan = false
+        }
 
-        let profile = appState.userProfile
-        let goalString: String = {
-            switch profile.weightGoal {
-            case .lose:     return "lose"
-            case .maintain: return "maintain"
-            case .gain:     return "gain"
-            }
-        }()
-
-        let dietaryPrefs = Set<DietaryPreference>.load()
-        let planUser = MealPlanUser(
-            name:           "",
-            age:            profile.age,
-            gender:         profile.gender.rawValue,
-            weight:         Double(Int(profile.weight)),
-            height:         Double(Int(profile.height)),
-            goal:           goalString,
-            activityLevel:  profile.activityLevel.rawValue,
-            dietaryOptions: dietaryPrefs.filter { !$0.isAllergy }.map(\.rawValue),
-            allergies:      dietaryPrefs.filter { $0.isAllergy }.map(\.rawValue),
-            favoriteFoods:  ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
-        )
-
-        let cartDeals = ShoppingCartService.shared.planDeals()
-        let groceriesForPlan = cartDeals.isEmpty ? appState.groceryList : cartDeals
-        let request = MealPlanRequest(
-            user:        planUser,
-            bmrData:     bmr,
-            groceryList: groceriesForPlan,
-            goal:        goalString,
-            lang:        appState.lang
-        )
+        let request = MealPlanRequest.current(profile: appState.userProfile, bmr: bmr)
 
         do {
             let plan = try await APIService.shared.generateMealPlan(request)
             guard !Task.isCancelled, generation == dataGeneration else { return }
             appState.saveMealPlan(plan)
+            Self.markPlanGeneratedToday()
             appLog("[AgentLoop] meal plan regenerated successfully")
         } catch {
             appLog("[AgentLoop] meal plan generation failed:", error)

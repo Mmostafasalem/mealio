@@ -1,6 +1,6 @@
 # Nourlo — Privacy Policy
 
-_Last updated: 2026-11-07_
+_Last updated: 2026-11-13_
 
 Nourlo ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not
@@ -8,9 +8,10 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
 
 ## Information the app uses
 
-- **Location (precise), while in use.** Used only to find grocery deals and
-  stores near you. Your location is sent to our backend solely to filter deals
-  by proximity for that request; it is not stored or linked to your identity.
+- **Location (precise), while in use.** Used only to show nearby stores and
+  estimated deals. Distance filtering happens on your device; your location is
+  **not** sent to our backend. The Map tab asks Apple Maps for supermarkets
+  around the area shown, which Apple processes under its own privacy policy.
   You can deny location access — the app still works using the city centre.
 - **Profile & body stats** (name, weight, height, age, gender, goals, dietary
   preferences, favourite foods). Stored **on your device** (profile and computed
@@ -21,7 +22,9 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
   If you enable shopping sync in Profile, these and your language setting are
   also stored in your private Apple CloudKit database. No Nourlo account is
   required. Profile/body measurements, BMR, food intake, dietary restrictions and
-  nutrition meal plans are excluded from this app's iCloud sync.
+  nutrition meal plans are excluded from this app's iCloud sync. Grocery rows
+  added from a meal plan ("Add missing ingredients to groceries") are derived
+  from your nutrition plan, so they stay on this device and are not synced.
 
 ## Optional shopping sync
 Sync starts only after you enable it in Profile and requires an available iCloud
@@ -56,11 +59,19 @@ lookup sends no precise location. Nearby supermarkets are found through Apple Ma
 
 ## Information sent to our servers
 
-Online AI features are optional and require the sharing permission in Profile.
-When enabled and you generate a meal plan, ask the in-app assistant, or request a recipe, we
+Online AI features are optional and require a guest or Apple session plus the
+sharing permission in Profile. Without both, nothing is sent to the AI and meal
+plans are built on your device; those offline plans follow the diets and
+allergies you selected. With sharing on, an online meal plan is requested when
+you tap regenerate, and by the background agent only when you have no plan,
+once a day, when your agent grocery list grows, or when live deals first load.
+Editing the Shop cart never sends an online request; it only rebuilds an
+on-device plan. When sharing is enabled and you generate a meal plan, ask the
+in-app assistant, or request a recipe, we
 send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
 foods, shopping list, owned food names, quantities, units and reference nutrition,
-remaining daily calorie and macro totals, your message) to our backend, which uses **Groq** (an AI
+remaining daily calorie and macro totals, your message and up to the 20 most
+recent chat messages for context) to our backend, which uses **Groq** (an AI
 provider) to generate the response. Product nutrition is looked up from **Open
 Food Facts**. We send the minimum needed for the feature and do not attach your name. Online AI requests use a Nourlo session linked to
 your optional Apple account. The session and Apple identifier are not included
@@ -113,7 +124,9 @@ Apple Account. Other offline devices clear pre-deletion shopping data when they
 next sync. A minimal reset generation remains in CloudKit to prevent restoration
 of old records; it contains no previous shopping items. Deleting the app alone
 does not request deletion of cloud data, and Keychain items can survive app
-removal. Nourlo's backend has no user-profile or food-log database. Apple AI account records
+removal. If a saved list on this device can't be read, the unreadable copy is
+kept locally under a backup key instead of being overwritten; Delete All Data
+clears it too. Nourlo's backend has no user-profile or food-log database. Apple AI account records
 remain until deleted. Guest account records without any unexpired session are
 removed after 30 days from their initial creation, on subsequent service activity;
 recovering a guest session extends its session expiry. App sessions expire after 30 days, pending sign-in
@@ -126,8 +139,15 @@ If an AI account is saved on this device, Delete All Data first requires a
 connection and valid sign-in to revoke any Apple grant and erase its server
 account and sessions. A keyed subject hash and today’s spent-credit count are
 retained solely to prevent deletion/recreation from resetting the daily allowance;
-they expire at the next UTC day and are removed on subsequent service activity. If that step fails, the app reports the
-failure and keeps local data so deletion can be retried. Signing out keeps a minimal on-device marker that an online account may remain
+they expire at the next UTC day and are removed on subsequent service activity. If that step fails (for example
+offline or the session can't sign in again), the app explains that the server AI
+account could not be deleted and lets you either cancel and retry later, or
+erase this iPhone's data anyway. If you erase locally only, the server AI
+account, its sessions and allowance records remain until you delete them: finish
+setup, sign in with the same Apple Account in Profile and use Delete All Data
+again. Erasing removes the guest secret, so a guest account can't be signed in
+again; it is removed by the guest cleanup described above, or ask the person who
+provided your build to delete it sooner. Signing out keeps a minimal on-device marker that an online account may remain
 and clears the device session; it does not delete the account. If guest and Apple
 accounts have both been used, the app retains their identifiers securely and requires
 each retained account to be handled before reporting complete deletion. To delete after sign-out,

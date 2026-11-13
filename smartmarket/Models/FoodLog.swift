@@ -109,8 +109,8 @@ final class FoodLogStore {
     /// Reads legacy logs without discarding previous days.
     func reload() {
         recentFoodIDs = defaults.stringArray(forKey: recentsKey) ?? []
-        history = defaults.data(forKey: key)
-            .flatMap { try? JSONDecoder().decode([FoodLogEntry].self, from: $0) } ?? []
+        // One bad entry must not wipe the log; unreadable bytes are backed up.
+        history = ResilientStorage.loadArray(FoodLogEntry.self, key: key, defaults: defaults)
     }
 
     // MARK: Totals

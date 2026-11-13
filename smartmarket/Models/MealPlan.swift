@@ -14,6 +14,10 @@ struct MealEntry: Codable, Identifiable {
     var nutritionIngredients: [NutritionIngredient]? = nil
     var stockOperationID: String? = nil
 
+    /// Protein/carbs/fat are only known when the entry has ingredient
+    /// portions. Otherwise the stored 0 g values mean "not available".
+    var macrosAvailable: Bool { nutritionIngredients?.isEmpty == false }
+
     enum CodingKeys: String, CodingKey {
         case id, calories, notes, nutritionIngredients, stockOperationID
         case foodName  = "food_name"
@@ -37,6 +41,13 @@ struct MealPlan: Codable, Identifiable {
     let totalCarbsG: Double
     let totalFatG: Double
     let agentNotes: String      // agent explains why this plan was chosen
+
+    /// Macro totals are meaningful only when every entry has ingredient
+    /// portions; otherwise they'd under-count, so show them as unavailable.
+    var macrosAvailable: Bool {
+        let entries = breakfast + lunch + dinner + snacks
+        return !entries.isEmpty && entries.allSatisfy(\.macrosAvailable)
+    }
 
     var allMeals: [(title: String, sfSymbol: String, entries: [MealEntry])] {
         [
@@ -124,7 +135,7 @@ extension MealPlan {
 
     static func entry(_ item: MealItem?) -> [MealEntry] {
         guard let item else { return [] }
-        let ingredients = item.nutritionIngredients
+        let ingredients = item.nutritionIngredients.flatMap { $0.isEmpty ? nil : $0 }
         let totals = ingredients?.map { $0.food.portion($0.amount) }
         let grams = ingredients?.allSatisfy { $0.food.basis == .grams } == true
             ? Int((ingredients?.reduce(0) { $0 + $1.amount } ?? 0).rounded()) : 0
@@ -140,7 +151,7 @@ extension MealPlan {
     static func from(day: DayPlan, date: Date, notes: String) -> MealPlan {
         func meals(_ item: MealItem?, slot: MealSlot) -> [MealEntry] {
             var entries = entry(item)
-            guard let item, item.nutritionIngredients != nil, !entries.isEmpty else { return entries }
+            guard let item, entries.first?.macrosAvailable == true else { return entries }
             let dayStamp = String(Calendar.current.startOfDay(for: date).timeIntervalSince1970)
             let portions = (item.portions ?? []).map { "\($0.foodID):\($0.amount)" }.joined(separator: "|")
             let payload = dayStamp + "|" + slot.rawValue + "|" + item.pavadinimas + "|" + portions
