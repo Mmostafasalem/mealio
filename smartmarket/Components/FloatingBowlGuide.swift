@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum BowlPathway: String, Identifiable {
-    case logFood, groceries, meals, shop, map, profile, chat
+    case logFood, groceries, meals, shop, profile, chat
     var id: String { rawValue }
 }
 
@@ -43,7 +43,7 @@ struct FloatingBowlGuide: View {
 
     private var title: String {
         if let step = tourStep { return tour[step].title }
-        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Find your way there", "Make Nourlo yours"][selectedTab]
+        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Make Nourlo yours"][selectedTab]
     }
 
     private var detail: String {
@@ -52,7 +52,6 @@ struct FloatingBowlGuide: View {
             "Start small. Log a meal, make a grocery list, or let me show you around.",
             "Review your suggestions and portions. Your grocery checklist is a good place to start planning.",
             "Add what you need, then open your checklist when you shop. Prices here are estimates.",
-            "Use the map to explore stores. Check the retailer for opening hours, stock and shelf prices.",
             "Your goals, privacy choices and optional AI controls live here. You can hide me here, too."
         ][selectedTab]
     }

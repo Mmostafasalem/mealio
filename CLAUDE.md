@@ -17,13 +17,12 @@ smartmarket/
     │   ├── SmartMarketAgentApp.swift  ← @main, AppDelegate, Notification.Name extensions
     │   ├── AppState.swift             ← @Observable singleton — shared truth for profile, deals, plan
     │   ├── AgentLoop.swift            ← Background 30s tick: refresh deals → match → notify → regen plan
-    │   ├── MainTabView.swift          ← 5-tab root (Home / MealPlan / Groceries / Map / Profile)
+    │   ├── MainTabView.swift          ← 4-tab root (Home / Meals / Shop / Profile)
     │   └── OnboardingFlow.swift       ← NavigationStack + OnboardingStep; one question per screen (11 steps)
     ├── Features/
     │   ├── Home/                      ← Calorie ring, macro bars, deals carousel, meal preview, log sheet
     │   ├── MealPlan/                  ← Today / Week segmented view, regenerate button, recommendations
     │   ├── GroceryList/               ← Grouped-by-store list with price totals and share
-    │   ├── Map/                       ← MapKit map with store pins, StoreDetailSheet (deals + recipes)
     │   ├── Profile/                   ← Body stats, dietary prefs, favourite foods, notification toggles
     │   └── Onboarding/               ← Name → Gender → Age → Height → Weight → Activity → Goal (→ Pace) → Location → Diet → Notifications → FavoriteFoods
     ├── Models/

@@ -26,8 +26,7 @@ struct MainTabView: View {
                 HomeView().tag(0).toolbar(.hidden, for: .tabBar)
                 NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
                 StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
-                StoreMapView().tag(3).toolbar(.hidden, for: .tabBar)
-                NavigationStack { ProfileView() }.tag(4).toolbar(.hidden, for: .tabBar)
+                NavigationStack { ProfileView() }.tag(3).toolbar(.hidden, for: .tabBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Open, results float directly above the bar; a tap outside folds it back.
@@ -47,7 +46,7 @@ struct MainTabView: View {
                 }
             }
             // Reserve the small companion's footprint so it never covers the
-            // last row, map controls or a screen's bottom action.
+            // last row or a screen's bottom action.
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if guideVisible && !keyboardVisible { Color.clear.frame(height: 84) }
             }
@@ -63,8 +62,7 @@ struct MainTabView: View {
                 })
         }
         .onPreferenceChange(NavigationHeightKey.self) { navigationHeight = $0 }
-        // Keep the companion outside TabView's UIKit hierarchy. In particular,
-        // MapKit's gesture surface must not intercept the floating button.
+        // Keep the companion outside TabView's UIKit hierarchy.
         .overlay(alignment: .bottom) {
             if !keyboardVisible && !showQuickActions {
                 GeometryReader { geometry in
@@ -154,8 +152,7 @@ struct MainTabView: View {
         case .groceries: activeAction = .groceries
         case .meals: selection = 1
         case .shop: selection = 2
-        case .map: selection = 3
-        case .profile: selection = 4
+        case .profile: selection = 3
         case .chat: showGuideChat = true
         }
     }
@@ -188,7 +185,6 @@ private struct FloatingTabBar: View {
         ("house",               "house.fill",               "Home"),
         ("fork.knife.circle",   "fork.knife.circle.fill",   "Meals"),
         ("storefront",          "storefront.fill",          "Shop"),
-        ("map",                 "map.fill",                 "Map"),
         ("person.crop.circle",  "person.crop.circle.fill",  "Profile"),
     ]
 

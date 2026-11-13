@@ -61,7 +61,7 @@ final class APIService {
     private(set) var lastDealsWereFallback = false
 
     /// No location is sent: distance filtering happens on-device
-    /// (`HomeViewModel.nearbyDeals`, `StoreMapViewModel`).
+    /// (`HomeViewModel.nearbyDeals`).
     func getDeals() async throws -> [Deal] {
         do {
             let req = try get(Constants.API.Endpoint.deals)

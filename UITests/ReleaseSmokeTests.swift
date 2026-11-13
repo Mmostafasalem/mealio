@@ -109,7 +109,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testAppStoreScreenshotCandidates() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "profile"] {
             tap("tab." + name, in: app)
             capture("store-candidate-" + name)
         }
@@ -205,10 +205,6 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
         tap("guide.next", in: app)
         XCTAssertFalse(app.buttons["guide.next"].exists)
-        tap("tab.map", in: app)
-        tap("mascot.guide", in: app)
-        XCTAssertTrue(app.staticTexts["Find your way there"].waitForExistence(timeout: 5))
-        tap("guide.close", in: app)
         tap("tab.profile", in: app)
         tap("mascot.guide", in: app)
         XCTAssertTrue(app.staticTexts["Make Nourlo yours"].waitForExistence(timeout: 5))
@@ -233,7 +229,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndAllTabs() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "profile"] {
             tap("tab." + name, in: app)
             capture("system-" + name)
         }
@@ -273,7 +269,7 @@ final class ReleaseSmokeTests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
         tap("tab.home", in: app)
         XCTAssertGreaterThan(app.frame.width, app.frame.height)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "profile"] {
             tap("tab." + name, in: app)
             capture("landscape-" + name)
         }
@@ -477,7 +473,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndTabsAtLargestText() {
         let app = XCUIApplication()
         onboard(app, largeText: true)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "profile"] {
             tap("tab." + name, in: app)
             capture("largest-text-" + name)
         }

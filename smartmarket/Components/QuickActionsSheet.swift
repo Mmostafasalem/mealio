@@ -1,14 +1,13 @@
 import SwiftUI
 
 enum MealioQuickAction: String, CaseIterable, Identifiable {
-    case home, meals, shop, map, profile, logFood, cart, groceries
+    case home, meals, shop, profile, logFood, cart, groceries
     var id: String { rawValue }
     var title: String {
         switch self {
         case .home: return "Home"
         case .meals: return "Meal plan"
         case .shop: return "Browse groceries"
-        case .map: return "Nearby stores"
         case .profile: return "Profile and settings"
         case .logFood: return "Log food"
         case .cart: return "View cart"
@@ -20,7 +19,6 @@ enum MealioQuickAction: String, CaseIterable, Identifiable {
         case .home: return "house"
         case .meals: return "fork.knife"
         case .shop: return "storefront"
-        case .map: return "map"
         case .profile: return "person.crop.circle"
         case .logFood: return "plus.circle"
         case .cart: return "cart"
@@ -32,8 +30,7 @@ enum MealioQuickAction: String, CaseIterable, Identifiable {
         case .home: return 0
         case .meals: return 1
         case .shop: return 2
-        case .map: return 3
-        case .profile: return 4
+        case .profile: return 3
         default: return nil
         }
     }
