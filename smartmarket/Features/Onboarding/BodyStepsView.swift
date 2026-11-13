@@ -114,47 +114,22 @@ struct HeightStepView: View {
     @AppStorage(Constants.Storage.heightUnit) private var unit: HeightUnit = .cm
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var mascot = MascotRig()
+    /// 0 at the shortest height, 1 at the tallest. Starts small so Nourlo grows in.
+    @State private var growth: Double = 0
+    @State private var settleTask: Task<Void, Never>?
 
     private let range: ClosedRange<Double> = 140...220
-    /// Share of the mascot's square frame that is empty above its bowl.
-    private let mascotHeadroom: CGFloat = 0.1
+
+    private var targetGrowth: Double {
+        min(max((vm.height - range.lowerBound) / (range.upperBound - range.lowerBound), 0), 1)
+    }
 
     var body: some View {
         OnboardingScaffold(vm: vm, step: .height, title: "What's your height?", contentPadding: 0) {
             VStack(spacing: Spacing.md) {
                 UnitToggle(selection: $unit, options: HeightUnit.allCases, label: \.label,
                            accessibilityName: "Height unit")
-                GeometryReader { geo in
-                    // Nourlo stands on the floor and grows with the chosen height;
-                    // the marker line rests on top of the bowl, so it rises too.
-                    let tallest = max(0, min(geo.size.height - 64, geo.size.width * 0.62) / (1 - mascotHeadroom))
-                    let growth = CGFloat((vm.height - range.lowerBound) / (range.upperBound - range.lowerBound))
-                    let size = tallest * (0.55 + 0.45 * min(max(growth, 0), 1))
-                    let lineY = geo.size.height - size * (1 - mascotHeadroom)
-                    ZStack(alignment: .topLeading) {
-                        HeightRuler(centimetres: $vm.height, unit: unit, axis: .vertical,
-                                    anchor: lineY / max(geo.size.height, 1), showsMarker: false, range: range)
-
-                        MascotFigure(pose: mascot.pose, size: size)
-                            .frame(width: size, height: size)
-                            .offset(x: Spacing.lg, y: geo.size.height - size)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
-
-                        readout
-                            .padding(.leading, Spacing.xl)
-                            .frame(height: lineY, alignment: .bottomLeading)
-
-                        HStack(spacing: 0) {
-                            Circle().frame(width: 9, height: 9)
-                            Rectangle().frame(height: 2)
-                        }
-                        .foregroundStyle(Color.labelPrimary)
-                        .padding(.leading, Spacing.xl)
-                        .offset(y: lineY - 4.5)
-                        .allowsHitTesting(false)
-                    }
-                }
+                HeightScene(growth: growth, height: $vm.height, unit: unit, range: range, pose: mascot.pose)
             }
         } footer: {
             OnboardingNextButton(vm: vm, next: .weight, identifier: "onboarding.height.continue")
@@ -163,17 +138,94 @@ struct HeightStepView: View {
             mascot.reduceMotion = reduceMotion
             mascot.set(mood: .happy)
             mascot.setActive(true)
+            // Grow in from small, then say hello.
+            withAnimation(reduceMotion ? .reducedFade : .spring(response: 0.7, dampingFraction: 0.62).delay(0.15)) {
+                growth = targetGrowth
+            }
+            mascot.react(.tap)
         }
-        .onDisappear { mascot.setActive(false) }
+        .onDisappear {
+            settleTask?.cancel()
+            mascot.setActive(false)
+        }
         .onChange(of: reduceMotion) { _, on in mascot.reduceMotion = on }
+        .onChange(of: vm.height) { old, new in heightChanged(from: old, to: new) }
+    }
+
+    /// Nourlo stretches or squashes toward the new height, watches the marker
+    /// while it moves, and does a little hop once the ruler comes to rest.
+    private func heightChanged(from old: Double, to new: Double) {
+        withAnimation(reduceMotion ? .reducedFade : .spring(response: 0.45, dampingFraction: 0.6)) {
+            growth = targetGrowth
+        }
+        mascot.resize(by: (new - old) / 6)
+        mascot.look(at: CGPoint(x: 0.5, y: -1))
+        settleTask?.cancel()
+        settleTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.6))
+            guard !Task.isCancelled else { return }
+            mascot.look(at: nil)
+            mascot.hop()
+        }
+    }
+}
+
+/// The ruler, Nourlo and the marker line. `growth` is animatable, so a change
+/// in height springs the mascot's size (and the line resting on its bowl)
+/// instead of jumping.
+private struct HeightScene: View, Animatable {
+    var growth: Double
+    @Binding var height: Double
+    let unit: HeightUnit
+    let range: ClosedRange<Double>
+    let pose: MascotPose
+
+    /// Share of the mascot's square frame that is empty above its bowl.
+    private let headroom: CGFloat = 0.1
+
+    var animatableData: Double {
+        get { growth }
+        set { growth = newValue }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            // Nourlo stands on the floor; the marker line rests on top of the bowl.
+            let tallest = max(0, min(geo.size.height - 64, geo.size.width * 0.62) / (1 - headroom))
+            let size = max(1, tallest * (0.55 + 0.45 * CGFloat(growth)))
+            let lineY = min(max(geo.size.height - size * (1 - headroom), 56), geo.size.height)
+            ZStack(alignment: .topLeading) {
+                HeightRuler(centimetres: $height, unit: unit, axis: .vertical,
+                            anchor: lineY / max(geo.size.height, 1), showsMarker: false, range: range)
+
+                MascotFigure(pose: pose, size: size)
+                    .frame(width: size, height: size)
+                    .offset(x: Spacing.lg, y: geo.size.height - size)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+
+                readout
+                    .padding(.leading, Spacing.xl)
+                    .frame(height: lineY, alignment: .bottomLeading)
+
+                HStack(spacing: 0) {
+                    Circle().frame(width: 9, height: 9)
+                    Rectangle().frame(height: 2)
+                }
+                .foregroundStyle(Color.labelPrimary)
+                .padding(.leading, Spacing.xl)
+                .offset(y: lineY - 4.5)
+                .allowsHitTesting(false)
+            }
+        }
     }
 
     private var readout: some View {
         Group {
             if unit == .cm {
-                OnboardingReadout(number: String(format: "%.0f", vm.height), unit: "cm")
+                OnboardingReadout(number: String(format: "%.0f", height), unit: "cm")
             } else {
-                OnboardingReadout(number: HeightRuler.text(vm.height, .ft))
+                OnboardingReadout(number: HeightRuler.text(height, .ft))
             }
         }
         .scaleEffect(0.8, anchor: .bottomLeading)

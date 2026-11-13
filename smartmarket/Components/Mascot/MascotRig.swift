@@ -268,6 +268,23 @@ final class MascotRig {
         }
     }
 
+    /// The host is resizing the mascot. Positive `amount` (up to 1) stretches it
+    /// taller for a moment, negative squashes it; the toppings jiggle either way.
+    func resize(by amount: Double) {
+        liven(5)
+        guard !reduceMotion else { wake(); return }
+        let a = motionClamp(amount, -1, 1)
+        springs[S.sq.rawValue].v += 2.4 * a
+        springs[S.cY.rawValue].v += 110 * abs(a)
+        springs[S.cRot.rawValue].v += 0.6 * a
+        for i in 0..<6 {
+            springs[S.f0.rawValue + i].v -= (70 + Double((i * 37) % 5) * 14) * abs(a)
+            springs[S.r0.rawValue + i].v += (i % 2 == 0 ? 1 : -1) * 1.2 * a
+        }
+        busy(0.5)
+        wake()
+    }
+
     /// Walk in place: 0 stops, 1 is a brisk two steps a second.
     func walk(speed: Double) {
         walkSpeed = reduceMotion ? 0 : motionClamp(speed, 0, 1.5)
