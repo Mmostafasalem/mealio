@@ -129,6 +129,7 @@ struct TrainView: View {
             }
 
             VStack(spacing: Spacing.xs) {
+                caption("Length")
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("\(Int(vm.minutes))")
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
@@ -143,22 +144,30 @@ struct TrainView: View {
                     .frame(height: 96)
             }
 
-            SpringSegmentedControl(selection: $vm.level, options: ExerciseLevel.allCases, label: \.title,
-                                   accessibilityName: "Experience level")
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                caption("Level")
+                FlowLayout(spacing: Spacing.sm) {
+                    ForEach(ExerciseLevel.allCases) { level in
+                        ChoiceChip(label: level.title, isSelected: vm.level == level) { vm.level = level }
+                            .accessibilityIdentifier("train.level." + level.rawValue)
+                    }
+                }
+            }
 
             if vm.kind == .gym || vm.kind == .home {
-                FlowLayout(spacing: Spacing.sm) {
-                    ForEach(ExerciseFocus.allCases) { focus in
-                        ChoiceChip(label: focus.title, isSelected: vm.focus == focus) { vm.focus = focus }
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    caption("Focus")
+                    FlowLayout(spacing: Spacing.sm) {
+                        ForEach(ExerciseFocus.allCases) { focus in
+                            ChoiceChip(label: focus.title, isSelected: vm.focus == focus) { vm.focus = focus }
+                        }
                     }
                 }
                 .transition(.opacity)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Anything specific?")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(Color.labelSecondary)
+                caption("Anything specific?")
                 TextField("e.g. only dumbbells, easy on the knees", text: $vm.wishes, axis: .vertical)
                     .lineLimit(1...3)
                     .focused($wishesFocused)
@@ -182,6 +191,13 @@ struct TrainView: View {
         .padding(Spacing.lg)
         .premiumCard()
         .animation(.snappyValue, value: vm.kind)
+    }
+
+    private func caption(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(Color.labelSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Saved

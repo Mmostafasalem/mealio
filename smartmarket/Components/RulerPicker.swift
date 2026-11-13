@@ -198,33 +198,52 @@ private struct RulerTicks: View, Animatable {
         Canvas { context, size in
             if axis == .horizontal { drawHorizontal(&context, size) } else { drawVertical(&context, size) }
         }
+        // The ruler fades out toward its ends instead of being cut off.
+        .mask {
+            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.1),
+                                   .init(color: .black, location: 0.9), .init(color: .clear, location: 1)],
+                           startPoint: axis == .horizontal ? .leading : .top,
+                           endPoint: axis == .horizontal ? .trailing : .bottom)
+        }
         .accessibilityHidden(true)
+    }
+
+    /// Ticks past either end of the range are still drawn, faintly and without
+    /// labels, so the ruler fills its width even when the value sits at a limit.
+    private func isInRange(_ tick: Int) -> Bool { tick >= lowTick && tick <= highTick }
+
+    private func tickColor(_ tick: Int, major: Bool, mid: Bool) -> Color {
+        guard isInRange(tick) else { return Color.labelTertiary.opacity(0.14) }
+        return major ? tint : Color.labelTertiary.opacity(mid ? 0.6 : 0.35)
     }
 
     private func drawHorizontal(_ context: inout GraphicsContext, _ size: CGSize) {
         let origin = size.width * anchor
         let base = size.height - 24                 // ticks stand on this line; labels sit below
         let tall = min(base - 6, 64)
-        // Soft tint over everything above the current value, as on a tape measure.
-        let band = CGRect(x: origin, y: base - tall * 0.7, width: max(0, size.width - origin), height: tall * 0.7)
-        context.fill(Path(band), with: .linearGradient(
-            Gradient(colors: [tint.opacity(0.05), tint.opacity(0.28)]),
-            startPoint: CGPoint(x: band.minX, y: 0), endPoint: CGPoint(x: band.maxX, y: 0)))
+        // Soft tint over the values above the current one, as on a tape measure.
+        let bandEnd = min(size.width, origin + CGFloat(Double(highTick) - position) * spacing)
+        if bandEnd > origin {
+            let band = CGRect(x: origin, y: base - tall * 0.55, width: bandEnd - origin, height: tall * 0.55)
+            context.fill(Path(band), with: .linearGradient(
+                Gradient(colors: [tint.opacity(0.04), tint.opacity(0.2)]),
+                startPoint: CGPoint(x: band.minX, y: 0), endPoint: CGPoint(x: size.width, y: 0)))
+        }
 
-        let first = max(lowTick, Int((position - Double(origin / spacing)).rounded(.down)) - 1)
-        let last = min(highTick, Int((position + Double((size.width - origin) / spacing)).rounded(.up)) + 1)
-        guard first <= last else { return }
+        let first = Int((position - Double(origin / spacing)).rounded(.down)) - 1
+        let last = Int((position + Double((size.width - origin) / spacing)).rounded(.up)) + 1
         for tick in first...last {
             let x = origin + CGFloat(Double(tick) - position) * spacing
+            let inRange = isInRange(tick)
             let major = tick % majorEvery == 0
             let mid = tick % midEvery == 0
-            let height = major ? tall : (mid ? tall * 0.72 : tall * 0.55)
+            let height = major && inRange ? tall : (mid ? tall * 0.72 : tall * 0.55)
             var line = Path()
             line.move(to: CGPoint(x: x, y: base))
             line.addLine(to: CGPoint(x: x, y: base - height))
-            context.stroke(line, with: .color(major ? tint : Color.labelTertiary.opacity(mid ? 0.6 : 0.35)),
-                           lineWidth: major ? 1.5 : 1)
-            if major {
+            context.stroke(line, with: .color(tickColor(tick, major: major, mid: mid)),
+                           lineWidth: major && inRange ? 1.5 : 1)
+            if major && inRange {
                 context.draw(Text(tickLabel(Double(tick) * step)).font(.footnote).foregroundStyle(Color.labelSecondary),
                              at: CGPoint(x: x, y: base + 14))
             }
@@ -235,27 +254,30 @@ private struct RulerTicks: View, Animatable {
         let origin = size.height * anchor
         let long = min(size.width - 44, 72)
         // Tint below the marker: the height already "filled in".
-        let band = CGRect(x: size.width - long * 0.7, y: origin, width: long * 0.7, height: max(0, size.height - origin))
-        context.fill(Path(band), with: .linearGradient(
-            Gradient(colors: [tint.opacity(0.28), tint.opacity(0.05)]),
-            startPoint: CGPoint(x: 0, y: band.minY), endPoint: CGPoint(x: 0, y: band.maxY)))
+        let bandEnd = min(size.height, origin + CGFloat(position - Double(lowTick)) * spacing)
+        if bandEnd > origin {
+            let band = CGRect(x: size.width - long * 0.55, y: origin, width: long * 0.55, height: bandEnd - origin)
+            context.fill(Path(band), with: .linearGradient(
+                Gradient(colors: [tint.opacity(0.2), tint.opacity(0.04)]),
+                startPoint: CGPoint(x: 0, y: band.minY), endPoint: CGPoint(x: 0, y: size.height)))
+        }
 
         // Larger values are drawn higher up.
-        let first = max(lowTick, Int((position - Double((size.height - origin) / spacing)).rounded(.down)) - 1)
-        let last = min(highTick, Int((position + Double(origin / spacing)).rounded(.up)) + 1)
-        guard first <= last else { return }
+        let first = Int((position - Double((size.height - origin) / spacing)).rounded(.down)) - 1
+        let last = Int((position + Double(origin / spacing)).rounded(.up)) + 1
         for tick in first...last {
             let y = origin - CGFloat(Double(tick) - position) * spacing
+            let inRange = isInRange(tick)
             let major = tick % majorEvery == 0
             let mid = tick % midEvery == 0
-            let length = major ? long : (mid ? long * 0.72 : long * 0.55)
+            let length = major && inRange ? long : (mid ? long * 0.72 : long * 0.55)
             var line = Path()
             line.move(to: CGPoint(x: size.width, y: y))
             line.addLine(to: CGPoint(x: size.width - length, y: y))
-            context.stroke(line, with: .color(major ? tint : Color.labelTertiary.opacity(mid ? 0.6 : 0.35)),
-                           lineWidth: major ? 1.5 : 1)
+            context.stroke(line, with: .color(tickColor(tick, major: major, mid: mid)),
+                           lineWidth: major && inRange ? 1.5 : 1)
             // A label passing under the marker line would be struck through; fade it there.
-            if major {
+            if major && inRange {
                 context.opacity = min(1, max(0, (abs(y - origin) - 6) / 10))
                 defer { context.opacity = 1 }
                 context.draw(Text(tickLabel(Double(tick) * step)).font(.footnote).foregroundStyle(Color.labelSecondary),
