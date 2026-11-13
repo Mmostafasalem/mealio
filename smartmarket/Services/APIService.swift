@@ -104,15 +104,6 @@ final class APIService {
         }
     }
 
-    // MARK: - Gap Fillers (AI)
-
-    func getGapFillers(_ request: GapFillerRequest) async throws -> [GapFiller] {
-        let req = try post(Constants.API.Endpoint.gapFillers, body: request, timeout: 30)
-        let (data, response) = try await ownerSession.data(for: req)
-        try validateResponse(response, requireAI: true)
-        return try decoder.decode([GapFiller].self, from: data)
-    }
-
     // MARK: - Shopping Advice (AI)
 
     func getShoppingAdvice(_ request: ShoppingAdviceRequest) async throws -> [ShoppingAdvice] {

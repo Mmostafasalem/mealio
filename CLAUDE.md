@@ -3,7 +3,7 @@
 ## What This App Is
 Nourlo (folder/target still named `smartmarket`; user-facing name is **Nourlo**) is an iOS app (SwiftUI) for Vilnius, Lithuania. It watches nearby grocery deals, matches them against the user's cart/favourites, builds AI meal plans around those foods within the user's weekly budget, and tracks daily calorie/macro intake with real food logging.
 
-**Backend:** a Python Flask/WSGI app — `smartmarket-backend/server.py` wraps the business logic in `app.py` (run via gunicorn; deploy on **Render**, see `DEPLOY.md`). It serves a **curated product catalog** (`deals_data.json`) enriched with **Open Food Facts** nutrition (`openfoodfacts.py`), and uses **Groq** for AI meal plans / chat / recipes (model via `GROQ_MODEL` env, default `llama-3.3-70b-versatile`; object endpoints use Groq JSON mode + a 25s/1-retry client). No live scraping.
+**Backend:** a Python Flask/WSGI app — `smartmarket-backend/server.py` wraps the business logic in `app.py` (run via gunicorn; deploy on **Render**, see `DEPLOY.md`). It serves a **curated product catalog** (`deals_data.json`) enriched with **Open Food Facts** nutrition (`openfoodfacts.py`), and uses **Groq** for AI meal plans / chat / recipes (model via `GROQ_MODEL` env, default `openai/gpt-oss-120b`; object endpoints use Groq JSON mode + a 25s/1-retry client). AI is only reachable when `AI_ACCOUNTS_ENABLED=1`; the hosted backend runs catalog-only until activation. No live scraping.
 
 **Offline-first:** when the backend is unreachable the iOS app falls back to on-device data — bundled deals, local Mifflin-St Jeor BMR, and a **realistic meal plan composed from the user's Shop cart within budget** (`Services/FallbackData.swift`).
 
@@ -64,7 +64,7 @@ smartmarket/
 |--------|------|---------|
 | GET | `/api/health` | Liveness check |
 | GET | `/api/deals` | All deals (optional `?lat=&lon=&radius=` filter) |
-| POST | `/api/bmr` | BMR/TDEE calc from `{weight,height,age,gender,activityLevel}` |
+| POST | `/api/bmr` | BMR/TDEE calc from `{weight,height,age,gender,activityLevel}` (web only; iOS computes BMR on-device via `BMRCalculator`) |
 | POST | `/api/meal-plan` | 7-day meal plan from `{user,bmrData,groceryList,goal,lang}` |
 | POST | `/api/gap-fillers` | Filler foods for calorie gaps |
 | POST | `/api/shopping-advice` | Ranked shopping recommendations |
@@ -136,7 +136,8 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 - **Bundle ID:** `com.mostafa.mealio` · **Display name:** Nourlo · **Swift:** 5.0
 - **iOS Deployment Target:** 17.0
 - **No SPM/CocoaPods dependencies** (pure Apple frameworks)
-- Backend dev: `cd smartmarket/smartmarket-backend && GROQ_API_KEY=... python app.py` (stdlib dev server) or `gunicorn server:app` (prod). See `DEPLOY.md`.
+- Backend dev: `cd smartmarket/smartmarket-backend && python app.py` (Flask dev server; `GROQ_API_KEY` only needed with `AI_ACCOUNTS_ENABLED=1`) or `gunicorn server:app` (prod). The Docker image defaults to `MEALIO_ENV=production` (fail-closed); pass `-e MEALIO_ENV=development` locally. See `DEPLOY.md`.
+- Backend tests: `python -m pytest -q` in the backend folder (needs `pip install -r requirements.lock pytest`).
 - Point the app at a backend by setting `API_BASE_URL` (and `API_KEY`) in `smartmarket/Info.plist`.
 
 ## Conventions

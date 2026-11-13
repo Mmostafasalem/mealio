@@ -65,7 +65,6 @@ enum Constants {
             static let products         = "/api/products"
             static let deals            = "/api/deals"
             static let mealPlan         = "/api/meal-plan"
-            static let gapFillers       = "/api/gap-fillers"
             static let shoppingAdvice   = "/api/shopping-advice"
             static let agentChat        = "/api/agent-chat"
             static let recipe           = "/api/recipe"

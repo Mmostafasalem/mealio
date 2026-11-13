@@ -72,5 +72,5 @@ privacy/support URLs and a verified support contact in App Store Connect.
 
 Automated simulator screenshots are QA evidence. Select/re-capture final marketing
 screens after account-side services and the sample content have been verified.
-The current pink monogram icon remains unchanged and needs an explicit final
-branding decision; do not describe it as final approved artwork.
+The app icon is the owner-selected bowl mascot (applied 2026-11-06). Confirm it
+as final artwork before describing it as approved in store listings.

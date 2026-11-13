@@ -272,24 +272,6 @@ struct MealItem: Codable, Equatable {
     let kcal: Int
 }
 
-// MARK: - Gap Fillers (POST /api/gap-fillers)
-
-struct GapFillerRequest: Codable {
-    let targetCalories: Int
-    let macros: BMRResponse.MacroTargets
-    let lang: String
-}
-
-struct GapFiller: Codable, Identifiable {
-    var id: String { pavadinimas }
-    let pavadinimas: String     // name
-    let aprasymas: String       // description
-    let kcal: Int
-    let baltymai: Int           // protein
-    let angliavandeniai: Int    // carbs
-    let riebalai: Int           // fat
-}
-
 // MARK: - Nutritional gaps (computed locally, passed to shopping advice)
 
 struct NutritionalGaps {
