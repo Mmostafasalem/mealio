@@ -37,34 +37,10 @@ enum MealioQuickAction: String, CaseIterable, Identifiable {
         default: return nil
         }
     }
-    var shortcut: Character {
-        switch self {
-        case .home: return "1"
-        case .meals: return "2"
-        case .shop: return "3"
-        case .map: return "4"
-        case .profile: return "5"
-        case .logFood: return "l"
-        case .cart: return "b"
-        case .groceries: return "g"
-        }
-    }
     static func matching(_ query: String) -> [Self] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return allCases }
         return allCases.filter { ($0.title + " " + $0.rawValue).localizedStandardContains(query) }
-    }
-}
-
-struct ShortcutHint: View {
-    let text: String
-    var body: some View {
-        Text(text)
-            .font(.caption.monospaced())
-            .foregroundStyle(Color.labelSecondary)
-            .padding(.horizontal, Spacing.sm).padding(.vertical, Spacing.xs)
-            .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .accessibilityHidden(true)
     }
 }
 
@@ -106,18 +82,16 @@ struct QuickActionsSheet: View {
                                         .frame(width: 24).foregroundStyle(Color.brandPrimary)
                                     Text(action.title).foregroundStyle(Color.labelPrimary)
                                     Spacer(minLength: Spacing.sm)
-                                    ShortcutHint(text: "⌘" + String(action.shortcut).uppercased())
                                 }
                                 .frame(minHeight: 44)
                             }
                             .listRowBackground(Color.surface)
-                            .keyboardShortcut(KeyEquivalent(action.shortcut), modifiers: .command)
                             .accessibilityIdentifier("quickActions." + action.rawValue)
                         }
                     }
                 }
                 Section {
-                    Text("Use ⌘K to open Quick Actions with a keyboard. These shortcuts work without online AI.")
+                    Text("Nothing here uses online AI.")
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                 }
             }
@@ -129,7 +103,6 @@ struct QuickActionsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
-                        .keyboardShortcut(.escape, modifiers: [])
                         .accessibilityIdentifier("quickActions.close")
                 }
             }

@@ -7,7 +7,7 @@ import SwiftUI
 // stiff (620, 40) and the other soft (170, 19), so the pill stretches toward the
 // new tab and then pulls its tail in. Values are the literal ones in tabs.js.
 // Reduce Motion: both edges share one calm spring (fade), so the pill slides
-// without stretching. `animated: false` (keyboard tab switches) jumps.
+// without stretching. The first frame jumps into place.
 //
 // Usage: tag each tab's highlight area with `.stretchTabPillAnchor(index)` and
 // draw one pill behind them all:
@@ -45,15 +45,12 @@ struct StretchTabPill<Shape: View>: View {
     let id: Int
     /// Fades the pill out (for example while the tabs are collapsed).
     let isHidden: Bool
-    /// `false` moves the pill with no motion (e.g. a ⌘-number tab switch).
-    var animated: Bool = true
     @ViewBuilder let shape: () -> Shape
 
-    init(target: CGRect?, id: Int, isHidden: Bool, animated: Bool = true, @ViewBuilder shape: @escaping () -> Shape) {
+    init(target: CGRect?, id: Int, isHidden: Bool, @ViewBuilder shape: @escaping () -> Shape) {
         self.target = target
         self.id = id
         self.isHidden = isHidden
-        self.animated = animated
         self.shape = shape
     }
 
@@ -78,7 +75,7 @@ struct StretchTabPill<Shape: View>: View {
             .onAppear { model.update(target: target, id: id, hidden: isHidden, animated: false) }
             // One change handler so a new tab and its new frame arrive together.
             .onChange(of: Inputs(target: target, id: id, hidden: isHidden)) { _, n in
-                model.update(target: n.target, id: n.id, hidden: n.hidden, animated: animated)
+                model.update(target: n.target, id: n.id, hidden: n.hidden)
             }
             .onDisappear { model.stop() }
     }
