@@ -163,6 +163,15 @@ extension UserProfile {
 // MARK: - Persistence helper (Keychain — health data is sensitive)
 extension UserProfile {
     static func load() -> UserProfile {
+        var profile = loadStored()
+        // The Keychain item is this-device-only, but the onboarding flag in
+        // UserDefaults survives a restore to a new iPhone. Never hand Home a
+        // zero goal: derive targets from the stored (or default) body stats.
+        if profile.dailyCalorieGoal <= 0 { BMRCalculator.populate(profile: &profile) }
+        return profile
+    }
+
+    private static func loadStored() -> UserProfile {
         // Keychain is the source of truth
         if let profile = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) {
             return profile

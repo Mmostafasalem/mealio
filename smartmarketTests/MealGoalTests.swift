@@ -27,6 +27,20 @@ final class MealGoalTests: XCTestCase {
         XCTAssertEqual(payload["lang"] as? String, "ar")
     }
 
+    /// A restore to a new iPhone keeps the onboarding flag but not the
+    /// this-device-only Keychain profile; Home must still get a real goal.
+    func testMissingProfileStillLoadsWithARealCalorieGoal() {
+        let key = Constants.Storage.userProfile
+        let saved = KeychainHelper.load(UserProfile.self, key: key)
+        defer { if let saved { KeychainHelper.save(saved, key: key) } }
+        KeychainHelper.delete(key: key)
+        UserDefaults.standard.removeObject(forKey: key)
+
+        let profile = UserProfile.load()
+        XCTAssertGreaterThanOrEqual(profile.dailyCalorieGoal, Constants.Calories.minimumFemale)
+        XCTAssertGreaterThan(profile.bmr, 0)
+    }
+
     func testRemainingGoalsSubtractLoggedPortionsAndClampAtZero() {
         let vm = MealPlanViewModel()
         let empty = vm.nutritionalGaps(entries: [])
