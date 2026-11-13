@@ -112,9 +112,12 @@ struct HeightStepView: View {
 
     @Bindable var vm: OnboardingViewModel
     @AppStorage(Constants.Storage.heightUnit) private var unit: HeightUnit = .cm
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var mascot = MascotRig()
 
-    /// The marker line sits this far down the ruler; the figure stands under it.
-    private let anchor: CGFloat = 0.22
+    private let range: ClosedRange<Double> = 140...220
+    /// Share of the mascot's square frame that is empty above its bowl.
+    private let mascotHeadroom: CGFloat = 0.1
 
     var body: some View {
         OnboardingScaffold(vm: vm, step: .height, title: "What's your height?", contentPadding: 0) {
@@ -122,19 +125,19 @@ struct HeightStepView: View {
                 UnitToggle(selection: $unit, options: HeightUnit.allCases, label: \.label,
                            accessibilityName: "Height unit")
                 GeometryReader { geo in
-                    let lineY = geo.size.height * anchor
+                    // Nourlo stands on the floor and grows with the chosen height;
+                    // the marker line rests on top of the bowl, so it rises too.
+                    let tallest = max(0, min(geo.size.height - 64, geo.size.width * 0.62) / (1 - mascotHeadroom))
+                    let growth = CGFloat((vm.height - range.lowerBound) / (range.upperBound - range.lowerBound))
+                    let size = tallest * (0.55 + 0.45 * min(max(growth, 0), 1))
+                    let lineY = geo.size.height - size * (1 - mascotHeadroom)
                     ZStack(alignment: .topLeading) {
                         HeightRuler(centimetres: $vm.height, unit: unit, axis: .vertical,
-                                    anchor: anchor, showsMarker: false)
+                                    anchor: lineY / max(geo.size.height, 1), showsMarker: false, range: range)
 
-                        // Head at the marker line, feet on the floor.
-                        Image(systemName: vm.gender == .female ? "figure.stand.dress" : "figure.stand")
-                            .resizable()
-                            .scaledToFit()
-                            .foregroundStyle(Color.progress)
-                            .frame(width: geo.size.width * 0.5, height: max(0, geo.size.height - lineY - 6))
-                            .offset(x: geo.size.width * 0.1, y: lineY + 6)
-                            .opacity(0.85)
+                        MascotFigure(pose: mascot.pose, size: size)
+                            .frame(width: size, height: size)
+                            .offset(x: Spacing.lg, y: geo.size.height - size)
                             .allowsHitTesting(false)
                             .accessibilityHidden(true)
 
@@ -156,6 +159,13 @@ struct HeightStepView: View {
         } footer: {
             OnboardingNextButton(vm: vm, next: .weight, identifier: "onboarding.height.continue")
         }
+        .onAppear {
+            mascot.reduceMotion = reduceMotion
+            mascot.set(mood: .happy)
+            mascot.setActive(true)
+        }
+        .onDisappear { mascot.setActive(false) }
+        .onChange(of: reduceMotion) { _, on in mascot.reduceMotion = on }
     }
 
     private var readout: some View {
