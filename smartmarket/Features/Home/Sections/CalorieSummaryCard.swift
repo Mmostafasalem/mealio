@@ -63,6 +63,8 @@ struct CalorieSummaryCard: View {
                 .accessibilityIdentifier("home.logFood")
                 .padding([.horizontal, .bottom], Spacing.lg)
         }
+        // The three macro "i" buttons share one travelling tooltip bubble.
+        .morphTooltipHost()
         .premiumCard(surface: .hero)
     }
 

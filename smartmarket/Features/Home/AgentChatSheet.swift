@@ -19,6 +19,8 @@ struct AgentChatSheet: View {
     @State private var lastFollowHeight: CGFloat = 0
     /// Set when the person drags the conversation back; auto-scroll stops until they send again.
     @State private var userScrolledUp = false
+    /// The send in flight, so the composer's Stop button can cancel it.
+    @State private var chatTask: Task<Void, Never>?
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
     @AppStorage("aiSharingConsent_v1") private var onlineAISharingConsent = false
 
@@ -217,31 +219,31 @@ struct AgentChatSheet: View {
         .accessibilityHint("Fills the message field. Review it before sending to online AI.")
     }
 
-    private var inputBar: some View {
-        HStack(spacing: Spacing.sm) {
-            TextField("Ask about meals or groceries…", text: $localInput)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.sentences)
-                .padding(.horizontal, Spacing.lg)
-                .padding(.vertical, Spacing.md)
-                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
-                .focused($inputFocused)
-                .frame(minHeight: 44)
-                .submitLabel(.send)
-                .onSubmit(send)
+    /// The backend clamps a chat message to 2,000 characters (`handle_agent_chat`).
+    static let messageLimit = 2000
 
-            Button(action: send) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(canSend ? Color.brandPrimary : Color.secondary)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .accessibilityLabel("Send message")
-            .accessibilityIdentifier("chat.send")
-            .disabled(!canSend)
-        }
+    private var inputBar: some View {
+        PromptBox(
+            text: $localInput,
+            placeholder: "Ask about meals or groceries…",
+            isLoading: vm.isChatLoading,
+            canSend: canSend,
+            limit: Self.messageLimit,
+            focused: $inputFocused,
+            sendIdentifier: "chat.send",
+            onSend: send,
+            onStop: stopReply
+        )
         .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.md)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.md)
+    }
+
+    /// Cancels the request in flight: the model's task sees the cancellation and
+    /// drops the reply, and `isChatLoading` turns off when it returns.
+    private func stopReply() {
+        chatTask?.cancel()
+        chatTask = nil
     }
 
     private var canSend: Bool {
@@ -269,7 +271,7 @@ struct AgentChatSheet: View {
         vm.chatInput = cleaned
         localInput = ""
         userScrolledUp = false   // sending means they are back at the conversation's end
-        Task { await vm.sendChatMessage() }
+        chatTask = Task { await vm.sendChatMessage() }
     }
 }
 

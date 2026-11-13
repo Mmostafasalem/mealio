@@ -6,6 +6,26 @@ struct StoreDetailSheet: View {
     @Bindable var vm: StoreMapViewModel
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @State private var openRecipe: StoreRecipe?
+
+    /// Recipes this store's products cover, best match first.
+    private var storeRecipes: [StoreRecipe] {
+        let deals = vm.deals(for: store)
+        var ids = Set(deals.map(\.productId))
+        let names = Set(deals.map { $0.productName.lowercased() })
+        // productId is a catalog id offline and the backend integer online; names cover both
+        for food in Food.catalog {
+            if let b = food.backendId, ids.contains(String(b)) { ids.insert(food.id) }
+            if names.contains(food.name.lowercased()) || names.contains(food.nameEn.lowercased()) { ids.insert(food.id) }
+        }
+        return StoreRecipe.recipesMatching(discountedIDs: ids)
+    }
+
+    /// The fan holds a hand of five; the rest stay in the list fallback.
+    private static let fanLimit = 5
 
     // Deals whose name matches any favorited product name (name-based, works across all stores)
     private var favDeals: [MarketDeal] {
@@ -65,6 +85,33 @@ struct StoreDetailSheet: View {
                     }
                 }
 
+                // Recipes from this store's products
+                let recipes = storeRecipes
+                if !recipes.isEmpty {
+                    Section {
+                        if FanCards<StoreRecipe, RecipeFanCard>.prefersStaticList(voiceOver: voiceOver, reduceMotion: reduceMotion, typeSize: typeSize) {
+                            ForEach(recipes) { recipe in
+                                RecipeListRow(recipe: recipe) { openRecipe = recipe }
+                            }
+                        } else {
+                            FanCards(items: Array(recipes.prefix(Self.fanLimit)),
+                                     label: { "\($0.name), \(Self.coverage($0))" },
+                                     onOpen: { openRecipe = $0 }) { recipe in
+                                RecipeFanCard(recipe: recipe, coverage: Self.coverage(recipe))
+                            }
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
+                        }
+                    } header: {
+                        Label("Recipes from this store", systemImage: "frying.pan")
+                            .foregroundStyle(Color.labelSecondary)
+                    } footer: {
+                        if recipes.count > Self.fanLimit && !FanCards<StoreRecipe, RecipeFanCard>.prefersStaticList(voiceOver: voiceOver, reduceMotion: reduceMotion, typeSize: typeSize) {
+                            Text("Showing the \(Self.fanLimit) best matches of \(recipes.count) recipes.")
+                        }
+                    }
+                }
+
                 // Meal plan matches
                 let matches = mealPlanMatches()
                 if !matches.isEmpty {
@@ -100,6 +147,13 @@ struct StoreDetailSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(item: $openRecipe) { recipe in
+            RecipeSheet(mealName: recipe.name)
+        }
+    }
+
+    static func coverage(_ recipe: StoreRecipe) -> String {
+        "\(recipe.matchCount) of \(recipe.totalIngredients) ingredients here"
     }
 
     private func addToGrocery(_ marketDeal: MarketDeal) {
@@ -203,6 +257,78 @@ private struct DealRow: View {
             .accessibilityLabel("Add \(deal.productName) to cart")
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// One recipe card in the fan.
+private struct RecipeFanCard: View {
+    let recipe: StoreRecipe
+    let coverage: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                .fill(Color.brandLight)
+                .frame(height: 96)
+                .overlay(
+                    Image(systemName: recipe.coverSymbol)
+                        .font(.title)
+                        .foregroundStyle(Color.labelPrimary)
+                )
+            Text(recipe.name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.labelPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+            Spacer(minLength: 0)
+            Text(coverage)
+                .font(.caption2)
+                .foregroundStyle(Color.labelSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+        .elevation(Elevation.card)
+    }
+}
+
+/// The plain list used under VoiceOver, Reduce Motion and large text.
+private struct RecipeListRow: View {
+    let recipe: StoreRecipe
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: recipe.coverSymbol)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.labelPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Color.brandLight, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(recipe.name)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.labelPrimary)
+                    Text(StoreDetailSheet.coverage(recipe))
+                        .font(.caption)
+                        .foregroundStyle(Color.labelSecondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.labelTertiary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the recipe")
     }
 }
 

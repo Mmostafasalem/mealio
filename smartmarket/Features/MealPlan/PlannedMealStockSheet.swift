@@ -69,7 +69,16 @@ struct PlannedMealStockSheet: View {
     }
 
     private func addMissing(_ missing: [NutritionIngredient]) {
-        guard let operationID = entry.stockOperationID else { return }
+        guard Self.addMissingToGroceries(entry: entry, missing: missing) else { return }
+        notice = "Missing quantities added to Groceries."
+    }
+
+    /// Adds (or refreshes) the missing quantities as unbought grocery rows. Shared
+    /// with the expanded meal card on the Meal Plan screen. Returns false when the
+    /// entry has no stock operation to key the rows by.
+    @discardableResult
+    static func addMissingToGroceries(entry: MealEntry, missing: [NutritionIngredient]) -> Bool {
+        guard let operationID = entry.stockOperationID else { return false }
         var groceries = GroceryStorage.load()
         for ingredient in missing {
             let id = "planned_" + operationID + "_" + ingredient.food.id
@@ -85,6 +94,6 @@ struct PlannedMealStockSheet: View {
         }
         GroceryStorage.save(groceries)
         NotificationCenter.default.post(name: .groceryListDidChange, object: nil)
-        notice = "Missing quantities added to Groceries."
+        return true
     }
 }

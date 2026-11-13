@@ -219,8 +219,6 @@ struct StoreBrowserView: View {
                         }
                         showBudgetEditor = false
                     }
-                    .keyboardShortcut("s", modifiers: .command)
-                    .help("Save (⌘S)")
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showBudgetEditor = false }

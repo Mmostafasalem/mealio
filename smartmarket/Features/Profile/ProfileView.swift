@@ -238,6 +238,10 @@ struct ProfileView: View {
             }
             .accessibilityHint("Opens Mail to write to \(Constants.Support.email)")
             .accessibilityIdentifier("profile.emailSupport")
+            MorphPopover(footnote: "Opens Mail to \(Constants.Support.email). Nothing is sent until you tap Send there.") { message in
+                await SupportMail.send(message)
+            }
+            .listRowInsets(EdgeInsets(top: Spacing.sm, leading: Spacing.md, bottom: Spacing.sm, trailing: Spacing.md))
         } header: {
             Text("Privacy & Help")
         } footer: {

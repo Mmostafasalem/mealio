@@ -160,8 +160,13 @@ final class MealPlanViewModel {
     // MARK: - Add recommendations to grocery list
 
     func addAllToGroceryList() {
+        addToGroceryList(recommendations)
+    }
+
+    /// Adds the given recommendations (skipping names already on the list).
+    func addToGroceryList(_ items: [ShoppingRecommendation]) {
         var list = GroceryStorage.load()
-        for rec in recommendations {
+        for rec in items {
             guard !list.contains(where: { $0.foodName == rec.foodName }) else { continue }
             list.append(GroceryItem(
                 id: UUID().uuidString,

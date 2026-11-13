@@ -4,6 +4,7 @@ struct GroceryListView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var vm = GroceryListViewModel()
+    @State private var actionsMenu = DynamicMenuModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -26,16 +27,18 @@ struct GroceryListView: View {
                 }
                 if !vm.items.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
-                        ShareLink(item: vm.shareText()) {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                        .accessibilityLabel("Share list")
-                    }
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Clear bought") { vm.clearBought() }
-                            .disabled(!vm.items.contains { $0.isBought })
+                        DynamicMenuToggle(model: actionsMenu, items: listActions, label: "List actions")
+                            .accessibilityIdentifier("groceries.actions")
                     }
                 }
+            }
+            .overlay(alignment: .topTrailing) {
+                if !vm.items.isEmpty {
+                    DynamicMenuPanel(model: actionsMenu, items: listActions)
+                }
+            }
+            .onChange(of: vm.items.isEmpty) { _, empty in
+                if empty && actionsMenu.isOpen { actionsMenu.set(false, count: listActions.count) }
             }
 
         }
@@ -48,6 +51,17 @@ struct GroceryListView: View {
         }
         .animation(reduceMotion ? .none : .snappyValue, value: vm.undoMessage)
         .onAppear { vm.loadItems() }
+    }
+
+    /// Share and Clear bought, in the toolbar's springy menu.
+    private var listActions: [DynamicMenuItem] {
+        [
+            DynamicMenuItem("Share list", systemImage: "square.and.arrow.up",
+                            id: "groceries.share", share: vm.shareText()),
+            DynamicMenuItem("Clear bought", systemImage: "checkmark.circle",
+                            id: "groceries.clearBought",
+                            isDisabled: !vm.items.contains { $0.isBought }) { vm.clearBought() },
+        ]
     }
 
     // A typed View closure avoids MapKit's competing ForEach result builder

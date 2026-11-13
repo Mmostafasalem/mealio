@@ -2,7 +2,11 @@ import XCTest
 
 @MainActor
 final class ReleaseSmokeTests: XCTestCase {
-    override func setUpWithError() throws { continueAfterFailure = false }
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        // An interrupted landscape run leaves the simulator rotated; start upright.
+        XCUIDevice.shared.orientation = .portrait
+    }
 
     private func tap(_ id: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         let control = app.buttons[id].firstMatch
@@ -142,7 +146,8 @@ final class ReleaseSmokeTests: XCTestCase {
         tap("tab.home", in: app)
         tap("mascot.guide", in: app)
         tap("guide.chat", in: app)
-        let field = app.textFields["Ask about meals or groceries…"]
+        // The composer grows to several lines, so it may be a text view.
+        let field = app.descendants(matching: .any)["Ask about meals or groceries…"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("Synthetic connection test: briefly confirm you can help plan a meal.")

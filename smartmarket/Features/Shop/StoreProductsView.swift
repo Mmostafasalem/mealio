@@ -9,11 +9,22 @@ struct StoreProductsView: View {
     @State private var selectedCategory: CatalogCategory? = nil
     @State private var filterTask: Task<Void, Never>?
     @State private var displayItems: [CatalogItem] = CatalogItem.all
+    /// Items that match category + search, before the price filter (for "12 of 40 products").
+    @State private var matchingCount = CatalogItem.all.count
+    @State private var showPriceFilter = false
+    /// `nil` = no limit on that side.
+    @State private var minPrice: Double?
+    @State private var maxPrice: Double?
+    @State private var priceBounds: ClosedRange<Double> = 0...1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Slider step: ten cents.
+    private static let priceStep = 0.1
 
     var body: some View {
         VStack(spacing: 0) {
             categoryStrip
+            priceFilter
             productList
             cartBar
         }
@@ -29,6 +40,8 @@ struct StoreProductsView: View {
         }
         .onChange(of: searchQuery)      { _, _ in scheduleFilter() }
         .onChange(of: selectedCategory) { _, _ in scheduleFilter() }
+        .onChange(of: minPrice)         { _, _ in scheduleFilter() }
+        .onChange(of: maxPrice)         { _, _ in scheduleFilter() }
         .onAppear { scheduleFilter() }
     }
 
@@ -53,6 +66,100 @@ struct StoreProductsView: View {
         .overlay(Divider(), alignment: .bottom)
     }
 
+    // MARK: - Price filter
+
+    /// Cheapest to dearest product in this store, widened to the 10-cent grid.
+    private func computePriceBounds() -> ClosedRange<Double> {
+        let prices = CatalogItem.all.map { cart.effectivePrice(for: $0, store: store) }.filter { $0.isFinite && $0 > 0 }
+        guard let lo = prices.min(), let hi = prices.max() else { return 0...1 }
+        let step = Self.priceStep
+        let a = (lo / step).rounded(.down) * step
+        let b = max((hi / step).rounded(.up) * step, a + step)
+        return ((a * 100).rounded() / 100)...((b * 100).rounded() / 100)
+    }
+
+    private var isPriceFiltered: Bool { minPrice != nil || maxPrice != nil }
+
+    private func euro(_ v: Double) -> String { String(format: "€%.2f", v) }
+
+    private var priceSummary: String {
+        let b = priceBounds
+        guard isPriceFiltered else { return "Any price" }
+        return euro(max(minPrice ?? b.lowerBound, b.lowerBound)) + "–" + euro(min(maxPrice ?? b.upperBound, b.upperBound))
+    }
+
+    private var priceFilter: some View {
+        let b = priceBounds
+        let low = Binding<Double>(
+            get: { motionClamp(minPrice ?? b.lowerBound, b.lowerBound, b.upperBound) },
+            set: { minPrice = $0 <= b.lowerBound + 0.001 ? nil : $0 }
+        )
+        let high = Binding<Double>(
+            get: { motionClamp(maxPrice ?? b.upperBound, b.lowerBound, b.upperBound) },
+            set: { maxPrice = $0 >= b.upperBound - 0.001 ? nil : $0 }
+        )
+        return VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showPriceFilter.toggle()
+            } label: {
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "eurosign.circle")
+                        .foregroundStyle(Color.labelSecondary)
+                    Text("Price")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.labelPrimary)
+                    Spacer(minLength: Spacing.sm)
+                    Text(priceSummary)
+                        .font(.subheadline)
+                        .monospacedDigit()
+                        .foregroundStyle(isPriceFiltered ? Color.labelPrimary : Color.labelSecondary)
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.labelTertiary)
+                        .rotationEffect(.degrees(showPriceFilter ? 180 : 0))
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Price filter")
+            .accessibilityValue(priceSummary)
+            .accessibilityHint(showPriceFilter ? "Hides the price range" : "Shows a price range for \(store.name) products")
+            .accessibilityAddTraits(showPriceFilter ? .isSelected : [])
+            .accessibilityIdentifier("shop.priceFilter")
+
+            if showPriceFilter {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    RangeSlider(lower: low, upper: high, in: b, step: Self.priceStep,
+                                lowerLabel: "Minimum price", upperLabel: "Maximum price", format: euro)
+                        .padding(.horizontal, Spacing.xs)
+                    HStack {
+                        Text("\(displayItems.count) of \(matchingCount) products")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.labelSecondary)
+                            .accessibilityIdentifier("shop.priceFilterCount")
+                        Spacer()
+                        if isPriceFiltered {
+                            Button("Clear filter") { minPrice = nil; maxPrice = nil }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.brandPrimary)
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("shop.priceFilterClear")
+                        }
+                    }
+                    .frame(minHeight: 44)
+                }
+                .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 16)
+        .background(Color.surface)
+        .overlay(Divider(), alignment: .bottom)
+        .animation(reduceMotion ? .none : .snappyValue, value: showPriceFilter)
+        .animation(reduceMotion ? .none : .snappyValue, value: isPriceFiltered)
+    }
+
     // MARK: - Product list
 
     @ViewBuilder
@@ -61,6 +168,15 @@ struct StoreProductsView: View {
             if displayItems.isEmpty && !searchQuery.isEmpty {
                 ContentUnavailableView.search(text: searchQuery)
                     .listRowBackground(Color.clear)
+            } else if displayItems.isEmpty && isPriceFiltered {
+                ContentUnavailableView {
+                    Label("No products in this price range", systemImage: "eurosign.circle")
+                } description: {
+                    Text("Widen the range or clear the price filter.")
+                } actions: {
+                    Button("Clear filter") { minPrice = nil; maxPrice = nil }
+                }
+                .listRowBackground(Color.clear)
             } else {
                 ForEach(displayItems) { item in
                     ProductShopRow(item: item, store: store)
@@ -134,10 +250,21 @@ struct StoreProductsView: View {
         filterTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 80_000_000)
             guard !Task.isCancelled else { return }
+            let bounds = computePriceBounds()
+            if bounds != priceBounds { priceBounds = bounds }
             var base = CatalogItem.all
             if let cat = selectedCategory { base = base.filter { $0.category == cat } }
             let q = searchQuery.lowercased()
             if !q.isEmpty { base = base.filter { $0.name.lowercased().contains(q) } }
+            matchingCount = base.count
+            if minPrice != nil || maxPrice != nil {
+                let lo = minPrice ?? -.infinity, hi = maxPrice ?? .infinity
+                // a cent of slack so a €2.40 limit keeps a €2.40 product
+                base = base.filter {
+                    let p = cart.effectivePrice(for: $0, store: store)
+                    return p >= lo - 0.005 && p <= hi + 0.005
+                }
+            }
             displayItems = base
         }
     }
@@ -266,8 +393,6 @@ struct ProductShopRow: View {
                         }
                         showPriceEditor = false
                     }
-                    .keyboardShortcut("s", modifiers: .command)
-                    .help("Save (⌘S)")
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showPriceEditor = false }

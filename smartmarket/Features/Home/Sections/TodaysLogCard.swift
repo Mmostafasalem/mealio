@@ -10,13 +10,19 @@ struct TodaysLogCard: View {
             HStack {
                 Label("Today's Log", systemImage: "list.bullet.clipboard.fill")
                     .font(.sectionTitle)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Text("\(vm.remaining) kcal left")
                     .font(.caption).fontWeight(.semibold)
                     .foregroundStyle(Color.calorieAccent)
                     .contentTransition(.numericText())
+                    .accessibilityAddTraits(.isHeader)
+                GooMenu(items: Self.quickAddItems, accessibilityLabel: "Add food to a meal") { item in
+                    if let slot = MealSlot(rawValue: item.id) { vm.openLog(slot: slot) }
+                }
             }
-            .accessibilityAddTraits(.isHeader)
+            // The menu's bubbles pour down over the rows below.
+            .zIndex(1)
 
             ForEach(Array(MealSlot.allCases.enumerated()), id: \.element) { idx, slot in
                 MealSlotRow(
@@ -34,6 +40,14 @@ struct TodaysLogCard: View {
         .premiumCard()
         .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
     }
+
+    /// Goo menu bubbles, one per meal slot (ids are `MealSlot` raw values).
+    static let quickAddItems: [GooMenuItem] = [
+        GooMenuItem(id: MealSlot.breakfast.rawValue, title: MealSlot.breakfast.title, systemImage: "sunrise"),
+        GooMenuItem(id: MealSlot.lunch.rawValue, title: MealSlot.lunch.title, systemImage: "sun.max"),
+        GooMenuItem(id: MealSlot.dinner.rawValue, title: MealSlot.dinner.title, systemImage: "moon"),
+        GooMenuItem(id: MealSlot.snack.rawValue, title: MealSlot.snack.title, systemImage: "sparkles"),
+    ]
 }
 
 /// One meal slot with its logged entries.

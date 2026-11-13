@@ -21,7 +21,7 @@ struct HomeHeaderView: View {
                         .accessibilityAddTraits(.isHeader)
                 }
                 Spacer(minLength: Spacing.sm)
-                if !NetworkMonitor.shared.isOnline { OfflineBadge() }
+                // Offline status lives in Home's MorphIsland notice now.
                 Text(AppState.shared.userProfile.name.prefix(1).uppercased())
                     .font(.headline)
                     .lineLimit(1)
