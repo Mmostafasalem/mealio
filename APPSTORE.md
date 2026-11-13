@@ -6,7 +6,7 @@ signed-device and TestFlight checks remain required.
 
 ## Already done (in code)
 - Bundle ID `com.mostafa.mealio`, display name **Nourlo**, iOS 17 deployment target.
-- App icon present (1024×1024, no alpha): the owner-selected bowl mascot (applied 2026-11-06). Confirm it is the final artwork before upload.
+- App icon (1024×1024, opaque): flat bowl mascot on Rhino navy, final as of 2026-11-13. Source: `docs/brand/app-icon.swift`.
 - `PrivacyInfo.xcprivacy` declares precise location, separate Health and Fitness
   categories, and Other User Content for optional chat/private shopping sync.
   Online health/fitness and user content are conservatively marked linked;
@@ -22,7 +22,7 @@ signed-device and TestFlight checks remain required.
 ## You must do
 1. **Apple Developer Program** membership; register the App ID `com.mostafa.mealio`.
 2. **Signing**: set your team + automatic signing in Xcode (Release config).
-3. **App icon sign-off**: the bowl mascot in `Assets.xcassets/AppIcon` is in place; confirm it is final.
+3. **App icon**: done (flat bowl mascot on navy).
 4. **Screenshots** for the iPhone and iPad sizes required in App Store Connect.
    This target supports both device families; iPhone-only QA is insufficient.
 5. **Privacy Policy URL** — host `PRIVACY.md` (e.g. GitHub Pages / your site) and

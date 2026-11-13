@@ -94,8 +94,9 @@ on `codex/stock-and-goals`:
 
 ## External blockers — still open
 1. **Apple Developer membership** → signing profile, TestFlight, submission.
-2. **Private support contact and operator/trader information** for
-   `SUPPORT.md`, `PRIVACY.md` and App Store Connect.
+2. **Support contact: done** — nourlo.app.support@gmail.com is in
+   `SUPPORT.md`, `PRIVACY.md` and the bundled copies. Still open: EU trader
+   information in App Store Connect if selling in the EU.
 3. **AI activation:** real Groq + Apple credentials on Render, durable
    allowance storage, live inference / auth / revocation checks.
 4. **CloudKit production schema**, two-device sync/deletion, Sign in with
@@ -108,8 +109,8 @@ on `codex/stock-and-goals`:
    next green run.
 6. **Phone-test profile** `com.mostafa.mealio.phonetest` expired 2026-11-13;
    re-provision before the next device test.
-7. **App icon:** the bowl mascot is applied; `APPSTORE.md` and
-   `APPSTORE_COPY.md` now say so. Give it a final yes/no.
+7. **App icon: done.** New flat bowl mascot on navy, drawn in code
+   (`docs/brand/app-icon.swift`); previous clay render kept in `docs/brand/`.
 
 No merge to main, paid subscription, Apple agreement or App Store submission
 is authorized by this status record.
