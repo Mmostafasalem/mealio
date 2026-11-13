@@ -25,30 +25,12 @@ struct GrainyGradient: View {
         }
     }
 
+    /// Flat canvas in the "Quiet pantry" palette (2026-11-13): the colour washes
+    /// and grain are retired so the colours match the approved mockup.
     var body: some View {
-        GeometryReader { geometry in
-            let radius = max(max(geometry.size.width, geometry.size.height), 1)
-            ZStack {
-                base
-                if contrast != .increased {
-                    RadialGradient(colors: [.dullPink.opacity(strength), .clear],
-                                   center: .topTrailing, startRadius: 0, endRadius: radius * 0.85)
-                    RadialGradient(colors: [Color.grainBlue.opacity(strength * 0.9), .clear],
-                                   center: .bottomLeading, startRadius: 0, endRadius: radius * 0.9)
-                    RadialGradient(colors: [.almond.opacity(dark ? strength * 0.2 : strength * 0.8), .clear],
-                                   center: .topLeading, startRadius: 0, endRadius: radius * 0.65)
-                    Image(decorative: GrainTexture.image, scale: 2)
-                        .resizable(resizingMode: .tile)
-                        .interpolation(.none)
-                        .blendMode(.softLight)
-                        .opacity(surface == .card ? 0.16 : 0.28)
-                }
-            }
-            .compositingGroup()
-        }
-        .clipped()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        base
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
