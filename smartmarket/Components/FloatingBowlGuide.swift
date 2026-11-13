@@ -61,7 +61,9 @@ struct FloatingBowlGuide: View {
         if visible {
             GeometryReader { geometry in
                 ZStack(alignment: .topLeading) {
-                    if expanded {
+                    // At accessibility text sizes the guide opens as a sheet instead
+                    // (see `.sheet` below): the small floating panel can't hold it.
+                    if expanded && !typeSize.isAccessibilitySize {
                         VStack(alignment: leading ? .leading : .trailing, spacing: Spacing.sm) {
                             panel
                             Color.clear.frame(width: Self.slot, height: Self.slot).accessibilityHidden(true)
@@ -79,6 +81,12 @@ struct FloatingBowlGuide: View {
                 .coordinateSpace(name: Self.space)
                 .onAppear { configure(geometry.size) }
                 .onChange(of: geometry.size) { _, size in configure(size) }
+            }
+            .sheet(isPresented: Binding(
+                get: { expanded && typeSize.isAccessibilitySize },
+                set: { if !$0 && expanded { close() } }
+            )) {
+                largeTextPanel
             }
             .animation(reduceMotion ? nil : .snappyValue, value: expanded)
             .onChange(of: FoodLogStore.shared.entries.count) { old, new in
@@ -109,6 +117,7 @@ struct FloatingBowlGuide: View {
     /// The bowl's button slot: 52 pt character plus the 12 pt touch padding on each side.
     private static let slot: CGFloat = 76
     private static let space = "bowlGuideRegion"
+    private static let panelTop = "bowlGuidePanelTop"
 
     private var mood: MascotMood {
         expanded ? .help : (celebrating ? .celebrate : (AppState.shared.isGeneratingMealPlan ? .thinking : .idle))
@@ -238,9 +247,25 @@ struct FloatingBowlGuide: View {
                 .accessibilityIdentifier("guide.close")
             }
 
-            ScrollView { panelContent }
+            // Always open (and change step) at the top, so the first pathway is
+            // in view even when large text makes the panel scroll.
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Color.clear.frame(height: 0).id(Self.panelTop)
+                    panelContent
+                }
                 .scrollBounceBehavior(.basedOnSize)
+                // Large text keeps growing the content while the panel lays out;
+                // anchor to the top so it never opens scrolled down.
+                .defaultScrollAnchor(.top)
                 .frame(maxHeight: max(60, min(typeSize.isAccessibilitySize ? 330 : (tourStep == nil ? 380 : 270), availableHeight - 144)))
+                .task(id: tourStep) {
+                    proxy.scrollTo(Self.panelTop, anchor: .top)
+                    // Again once the opening transition and text layout have settled.
+                    try? await Task.sleep(for: .milliseconds(350))
+                    proxy.scrollTo(Self.panelTop, anchor: .top)
+                }
+            }
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.sm)
@@ -250,6 +275,34 @@ struct FloatingBowlGuide: View {
         .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: Radius.sheet, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Radius.sheet, style: .continuous).strokeBorder(Color.hairline.opacity(0.5), lineWidth: 0.7))
         .elevation(Elevation.high)
+    }
+
+    /// The guide at accessibility text sizes: a full sheet with native scrolling,
+    /// same content, actions and identifiers as the floating panel.
+    private var largeTextPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label(tourStep == nil ? "YOUR BOWL GUIDE" : "A QUICK LOOK AROUND", systemImage: "sparkles")
+                    .font(.caption2.weight(.semibold)).tracking(1)
+                    .foregroundStyle(Color.labelSecondary)
+                Spacer(minLength: Spacing.sm)
+                Button(action: close) {
+                    Image(systemName: "xmark").font(.footnote.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close guide")
+                .accessibilityIdentifier("guide.close")
+            }
+            ScrollView { panelContent.padding(.top, Spacing.sm) }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.md)
+        .foregroundStyle(Color.labelPrimary)
+        .tint(Color.brandPrimary)
+        .background(Color.surfaceElevated.ignoresSafeArea())
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
     }
 
     private var panelContent: some View {

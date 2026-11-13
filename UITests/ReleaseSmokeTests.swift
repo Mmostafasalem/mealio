@@ -215,7 +215,10 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
+        // At the largest text size a cold simulator can still be finishing its
+        // first layout when the bowl appears; a tap then is lost. Retry once.
         tap("mascot.guide", in: app)
+        if !app.buttons["guide.close"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
         XCTAssertTrue(app.buttons["guide.close"].waitForExistence(timeout: 5))
         capture("floating-bowl-large-text")
         tap("guide.path.logFood", in: app)
