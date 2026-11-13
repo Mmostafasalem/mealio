@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
 import Link from "next/link";
+import { isWebAiEnabled } from "@/lib/flags";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 
@@ -20,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <body className="min-h-full">
-        <Nav />
+        <Nav aiEnabled={isWebAiEnabled()} />
         <div className="mx-auto max-w-3xl px-4 pb-16 pt-6">{children}</div>
         <footer className="mx-auto max-w-3xl px-4 pb-8 text-sm text-muted">
           <nav aria-label="Legal and support" className="flex flex-wrap gap-6">

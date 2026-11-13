@@ -8,7 +8,7 @@ import { PageHeader, EmptyState } from "@/components/ui";
 
 interface Msg { role: "user" | "assistant"; content: string }
 
-export default function ChatPage() {
+export function ChatClient() {
   const [profile] = useLocalStorage<Profile | null>(STORAGE.profile, null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
