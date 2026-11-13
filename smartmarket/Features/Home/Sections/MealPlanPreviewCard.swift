@@ -9,7 +9,9 @@ struct MealPlanPreviewCard: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
                 Label("Today's Meals", systemImage: "fork.knife.circle.fill")
-                    .font(.sectionTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer()
                 NavigationLink { MealPlanView() } label: {
                     Text("Full Plan")

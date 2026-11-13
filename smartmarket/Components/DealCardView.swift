@@ -11,26 +11,19 @@ struct DealCardView: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
 
-                // ── Header: store stripe ───────────────────────────────────
-                HStack(spacing: 0) {
-                    Rectangle()
+                // ── Header ─────────────────────────────────────────────────
+                HStack(spacing: 6) {
+                    Circle()
                         .fill(storeColor)
-                        .frame(width: 3)
-
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(storeColor)
-                            .frame(width: 6, height: 6)
-                        Text("ESTIMATE")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(storeColor)
-                            .kerning(0.8)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(storeColor.opacity(0.07))
+                        .frame(width: 6, height: 6)
+                    Text("ESTIMATE")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.labelSecondary)
+                        .kerning(0.8)
+                    Spacer()
                 }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
 
                 // ── Product name ───────────────────────────────────────────
                 VStack(alignment: .leading, spacing: 4) {
@@ -46,7 +39,7 @@ struct DealCardView: View {
                         .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 10)
+                .padding(.top, 8)
 
                 Spacer(minLength: 6)
 

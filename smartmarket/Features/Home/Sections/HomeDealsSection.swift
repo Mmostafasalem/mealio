@@ -9,7 +9,7 @@ struct HomeDealsSection: View {
             HStack {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "basket.fill").foregroundStyle(Color.brandPrimary)
-                    Text("Grocery estimates").font(.sectionTitle)
+                    Text("Grocery estimates").font(.headline).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 Spacer()
                 if vm.isRefreshing {

@@ -9,6 +9,19 @@ struct HomeView: View {
     /// Shown for a moment after the connection comes back.
     @State private var showBackOnline = false
 
+    private func shortcut(_ title: String, symbol: String) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: symbol)
+            Text(title).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Color.labelPrimary)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(Color.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+        .contentShape(Capsule())
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
@@ -24,13 +37,13 @@ struct HomeView: View {
                     VStack(spacing: Spacing.md) {
                         HomeHeaderView(vm: vm) { showProfile = true }
                         VStack(spacing: Spacing.lg) {
-                            HStack {
-                                NavigationLink { StockView() } label: { Label("My Stock", systemImage: "cabinet") }
+                            // Two matching pills, side by side, each half the width.
+                            HStack(spacing: Spacing.md) {
+                                NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
                                     .accessibilityIdentifier("home.stock")
-                                Spacer()
-                                NavigationLink { FoodHistoryView() } label: { Label("History", systemImage: "clock") }
+                                NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
                             }
-                            .font(.subheadline.weight(.semibold))
+                            .buttonStyle(ScalePressStyle())
                             CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
                             // Above the cards below it: its goo menu pours out over them.
                             TodaysLogCard(vm: vm).zIndex(1)

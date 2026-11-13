@@ -72,7 +72,9 @@ final class BowlGuideMover {
     private var lane: CGRect {
         let minX = region.minX + inset.width + radius
         let maxX = region.maxX - inset.width - radius
-        let minY = region.minY + inset.height + radius
+        // Stay clear of the screen's header, where the title and the profile
+        // avatar live; a bowl resting there would cover them.
+        let minY = region.minY + inset.height + radius + 96
         let maxY = region.maxY - inset.height - radius
         return CGRect(x: minX, y: minY, width: max(0, maxX - minX), height: max(0, maxY - minY))
     }

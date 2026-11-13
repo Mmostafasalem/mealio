@@ -7,16 +7,21 @@ struct TodaysLogCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                Label("Today's Log", systemImage: "list.bullet.clipboard.fill")
-                    .font(.sectionTitle)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Text("\(vm.remaining) kcal left")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(Color.calorieAccent)
-                    .contentTransition(.numericText())
-                    .accessibilityAddTraits(.isHeader)
+            HStack(spacing: Spacing.md) {
+                // Title on one line, the remaining calories under it.
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Today's Log", systemImage: "list.bullet.clipboard.fill")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("\(vm.remaining) kcal left")
+                        .font(.footnote.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.labelSecondary)
+                        .contentTransition(.numericText())
+                }
+                Spacer(minLength: Spacing.sm)
                 GooMenu(items: Self.quickAddItems, accessibilityLabel: "Add food to a meal") { item in
                     if let slot = MealSlot(rawValue: item.id) { vm.openLog(slot: slot) }
                 }
