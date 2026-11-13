@@ -120,6 +120,7 @@ private struct CheckBoxPath: Shape {
     }
 }
 
+@MainActor
 @Observable
 final class AnimatedCheckModel {
     private(set) var fill: Double = 0
@@ -299,6 +300,7 @@ private struct DigitColumn: View {
     }
 }
 
+@MainActor
 @Observable
 final class RollingNumberModel {
     private(set) var x: Double = 0

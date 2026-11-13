@@ -132,6 +132,7 @@ struct CopyButton: View {
     }
 }
 
+@MainActor
 @Observable
 final class CopyButtonModel {
     private(set) var roll: Double = 0

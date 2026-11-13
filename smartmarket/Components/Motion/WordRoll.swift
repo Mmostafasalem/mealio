@@ -151,6 +151,7 @@ private struct RollLetter: ViewModifier {
 
 // MARK: - Engine
 
+@MainActor
 @Observable
 final class WordRollModel {
     struct Word: Identifiable {

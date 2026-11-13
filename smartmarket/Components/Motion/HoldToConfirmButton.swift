@@ -174,6 +174,7 @@ private struct HoldCheckShape: Shape {
 
 // MARK: - Engine
 
+@MainActor
 @Observable
 final class HoldToConfirmModel {
     enum Mode { case idle, holding, done }

@@ -122,6 +122,7 @@ struct SpringStepper: View {
     }
 }
 
+@MainActor
 @Observable
 final class SpringStepperModel {
     private(set) var roll: Double = 0

@@ -96,6 +96,7 @@ private struct StepCheckShape: Shape {
 
 // MARK: - Engine
 
+@MainActor
 @Observable
 final class StepProgressModel {
     struct StepState: Equatable {

@@ -112,18 +112,19 @@ enum MotionTokens {
 
 enum MotionSettings {
     /// Mirrors `prefers-reduced-motion`; springs become critically damped and
-    /// decorative autoplay stops. Cached and kept current by the system
-    /// notification, because it is read on every spring step.
-    @MainActor static var reduceMotion: Bool {
-        if !observing { startObserving() }
-        return cached
-    }
+    /// decorative autoplay stops. Read on every spring step from any context, so
+    /// it returns a cached value that the main actor keeps current from the
+    /// system notification (see `prepare()`, called when a clock starts).
+    nonisolated static var reduceMotion: Bool { cached }
 
-    @MainActor private static var cached = UIAccessibility.isReduceMotionEnabled
-    @MainActor private static var observing = false
+    nonisolated(unsafe) private static var cached = false
+    nonisolated(unsafe) private static var observing = false
 
-    @MainActor private static func startObserving() {
+    /// Reads the current setting and starts following changes. Idempotent.
+    @MainActor static func prepare() {
+        guard !observing else { return }
         observing = true
+        cached = UIAccessibility.isReduceMotionEnabled
         NotificationCenter.default.addObserver(
             forName: UIAccessibility.reduceMotionStatusDidChangeNotification,
             object: nil, queue: .main
@@ -169,6 +170,7 @@ final class MotionClock {
 
     func start() {
         guard link == nil else { return }
+        MotionSettings.prepare()
         let proxy = Proxy { [weak self] now in self?.tick(now) }
         let l = CADisplayLink(target: proxy, selector: #selector(Proxy.fire(_:)))
         l.preferredFrameRateRange = frameRange

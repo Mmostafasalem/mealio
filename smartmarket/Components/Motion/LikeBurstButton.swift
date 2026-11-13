@@ -122,6 +122,7 @@ struct LikeBurstHeart: View {
 
 // MARK: - Engine
 
+@MainActor
 @Observable
 final class LikeBurstModel {
     // Published per frame for SwiftUI.

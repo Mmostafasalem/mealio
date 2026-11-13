@@ -75,6 +75,7 @@ private struct SpringSwitchTrack: View {
 
 // MARK: - Engine
 
+@MainActor
 @Observable
 final class SpringToggleModel {
     private(set) var knobWidth: Double = 26

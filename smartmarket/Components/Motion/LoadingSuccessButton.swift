@@ -177,6 +177,7 @@ private struct CheckShape: Shape {
 
 // MARK: - Engine
 
+@MainActor
 @Observable
 final class LoadingSuccessModel {
     enum State { case idle, loading, done }
