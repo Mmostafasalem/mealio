@@ -491,16 +491,25 @@ struct ExerciseFigureCanvas: View {
     }
 }
 
-/// A single still frame: the start or the finish position.
+/// A single still frame: the start or the finish position, in 3D.
 struct ExerciseFrame: View {
     let motion: ExerciseMotion
     /// `false` for the start position, `true` for the finish.
     let finish: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ExerciseFigureCanvas(pose: finish ? motion.poses.1 : motion.poses.0, prop: motion.prop,
-                             working: motion.workingLimbs)
-            .aspectRatio(1, contentMode: .fit)
+        Group {
+            if let image = ExerciseSnapshot.image(motion, finish: finish, dark: colorScheme == .dark) {
+                Image(uiImage: image).resizable().interpolation(.high)
+            } else {
+                // Flat drawing if the 3D renderer is unavailable.
+                ExerciseFigureCanvas(pose: finish ? motion.poses.1 : motion.poses.0, prop: motion.prop,
+                                     working: motion.workingLimbs)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .accessibilityHidden(true)
     }
 }
 
@@ -525,32 +534,34 @@ struct ExerciseDemo: View {
             TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
                 let elapsed = startedAt.map { timeline.date.timeIntervalSince($0) } ?? runTime
                 let done = elapsed >= runTime
-                ExerciseFigureCanvas(pose: done ? a : a.lerp(to: b, phase(elapsed)), prop: motion.prop,
-                                     working: motion.workingLimbs)
+                ExerciseFigure3DView(pose: done ? a : a.lerp(to: b, phase(elapsed)), motion: motion)
                     .onChange(of: done) { _, finished in if finished { startedAt = nil } }
             }
-            .aspectRatio(1, contentMode: .fit)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if !isPlaying && !reduceMotion {
-                Label("Play", systemImage: "play.fill")
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Color.surface, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
-                    .foregroundStyle(Color.labelPrimary)
-                    .padding(Spacing.md)
-                    .transition(.opacity)
+            // Dragging the figure turns the view, so playing has its own button.
+            if !reduceMotion {
+                Button { play() } label: {
+                    Label(isPlaying ? "Playing" : "Play", systemImage: isPlaying ? "waveform" : "play.fill")
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Color.surface, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+                        .foregroundStyle(Color.labelPrimary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(ScalePressStyle())
+                .disabled(isPlaying)
+                .opacity(isPlaying ? 0.6 : 1)
+                .padding(.horizontal, Spacing.md)
+                .padding(.bottom, Spacing.xs)
+                .accessibilityLabel("Play the movement")
+                .accessibilityIdentifier("exerciseDemo.play")
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture { play() }
         .onAppear { play() }
         .animation(.snappyValue, value: isPlaying)
-        .accessibilityElement()
-        .accessibilityLabel("Movement demo")
-        .accessibilityHint("Plays the movement")
-        .accessibilityAddTraits(.isButton)
     }
 
     /// 0 at the start position, 1 at the finish.
