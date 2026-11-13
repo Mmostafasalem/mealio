@@ -7,12 +7,18 @@ enum BowlPathway: String, Identifiable {
 
 /// A local companion, independent of accounts and model availability.
 /// The panel occupies only its own hit area; navigation remains reachable.
+/// The bowl can be picked up and thrown anywhere above the tab bar; it lands and
+/// walks to the nearest spot on the left or right edge (see `BowlGuideMover`).
 struct FloatingBowlGuide: View {
     @Binding var selectedTab: Int
     var availableHeight: CGFloat = 640
+    /// True while a sheet or notice is up; the bowl glances toward it as it appears.
+    var attention: Bool = false
     let choose: (BowlPathway) -> Void
     @AppStorage("bowlGuideIntroduced_v2") private var introduced = false
     @AppStorage("bowlGuideLeading_v2") private var leading = false
+    /// Resting height along the side: 0 top … 1 bottom (just above the tab bar).
+    @AppStorage("bowlGuideRestY_v3") private var restFraction: Double = 1
     @AppStorage("bowlGuideVisible_v2") private var visible = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -20,7 +26,14 @@ struct FloatingBowlGuide: View {
     @State private var tourStep: Int?
     @State private var celebrating = false
     @State private var celebration: UUID?
+    @State private var mover = BowlGuideMover(rig: MascotRig())
+    @State private var carrying = false
+    @State private var lastCarryEnd = Date.distantPast
+    @GestureState private var carryGesture = false
+    @State private var pickups = 0
     @AccessibilityFocusState private var titleFocused: Bool
+    /// The tour's titles live on sliding pages, one per step.
+    @AccessibilityFocusState private var tourTitleFocus: Int?
 
     private let tour: [(title: String, detail: String, tab: Int, action: BowlPathway, cta: String)] = [
         ("Start with one meal", "Log something you ate. Choose its portion and meal, then your daily totals update here.", 0, .logFood, "Log my first food"),
@@ -46,37 +59,37 @@ struct FloatingBowlGuide: View {
 
     var body: some View {
         if visible {
-            VStack(alignment: leading ? .leading : .trailing, spacing: Spacing.sm) {
-                if expanded {
-                    panel
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: leading ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
-                }
-                HStack(spacing: Spacing.sm) {
-                    if !introduced && !expanded && !typeSize.isAccessibilitySize && !leading {
-                        invitation
-                    }
-                    MascotGuideView(mood: expanded ? .help : (celebrating ? .celebrate : (AppState.shared.isGeneratingMealPlan ? .thinking : .idle)), size: 52, onTap: toggle)
-                        .background(Color.surfaceElevated, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.hairline.opacity(0.5), lineWidth: 0.7))
-                        .elevation(Elevation.high)
-                        .accessibilityHint(expanded ? "Closes your local guide." : "Opens helpful next steps and a short tour. No AI request is sent.")
-                        .accessibilityAction(named: "Take a quick tour", startTour)
-                        .contextMenu {
-                            Button("Take a quick tour", systemImage: "sparkles", action: startTour)
-                            Button(leading ? "Move to right" : "Move to left", systemImage: "arrow.left.arrow.right") { leading.toggle() }
-                            Button("Hide guide", systemImage: "eye.slash") { close(); visible = false }
+            GeometryReader { geometry in
+                ZStack(alignment: .topLeading) {
+                    if expanded {
+                        VStack(alignment: leading ? .leading : .trailing, spacing: Spacing.sm) {
+                            panel
+                            Color.clear.frame(width: Self.slot, height: Self.slot).accessibilityHidden(true)
                         }
-                    if !introduced && !expanded && !typeSize.isAccessibilitySize && leading { invitation }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: leading ? .bottomLeading : .bottomTrailing)
+                        .padding(.horizontal, Spacing.lg)
+                        .padding(.bottom, Spacing.sm)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: leading ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
+                    }
+                    mascot
+                        .offset(x: mover.position.x - Self.slot / 2, y: mover.position.y - Self.slot / 2)
+                        .opacity(mover.isPlaced ? 1 : 0)
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .coordinateSpace(name: Self.space)
+                .onAppear { configure(geometry.size) }
+                .onChange(of: geometry.size) { _, size in configure(size) }
             }
-            .frame(maxWidth: .infinity, alignment: leading ? .leading : .trailing)
-            .padding(.horizontal, Spacing.lg)
-            .padding(.bottom, Spacing.sm)
             .animation(reduceMotion ? nil : .snappyValue, value: expanded)
-            .animation(reduceMotion ? nil : .snappyValue, value: leading)
             .onChange(of: FoodLogStore.shared.entries.count) { old, new in
                 if new > old { celebration = UUID() }
             }
+            .onChange(of: expanded) { _, open in
+                // Open: dock at the bottom of its side under the panel, looking up at it.
+                mover.settle(leading: leading, fraction: open ? 1 : restFraction, remember: false)
+                mover.rig.look(at: open ? CGPoint(x: leading ? 0.5 : -0.5, y: -1) : nil)
+            }
+            .onChange(of: attention) { _, on in if on { glanceAtNotice() } }
             .task(id: celebration) {
                 guard celebration != nil else { return }
                 celebrating = true
@@ -84,7 +97,113 @@ struct FloatingBowlGuide: View {
                 catch { celebrating = false; return }
                 celebrating = false
             }
-            .onDisappear { celebrating = false }
+            .sensoryFeedback(.impact(weight: .light), trigger: pickups)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: mover.landings)
+            .onDisappear {
+                celebrating = false
+                mover.stop()
+            }
+        }
+    }
+
+    /// The bowl's button slot: 52 pt character plus the 12 pt touch padding on each side.
+    private static let slot: CGFloat = 76
+    private static let space = "bowlGuideRegion"
+
+    private var mood: MascotMood {
+        expanded ? .help : (celebrating ? .celebrate : (AppState.shared.isGeneratingMealPlan ? .thinking : .idle))
+    }
+
+    private var mascot: some View {
+        MascotGuideView(mood: mood, size: 52, onTap: tapMascot, rig: mover.rig)
+            // Just the character, no disc: a soft shadow that follows its
+            // silhouette keeps it legible over any content.
+            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
+            .frame(width: Self.slot, height: Self.slot)
+            .overlay(alignment: leading ? .leading : .trailing) {
+                if !introduced && !expanded && !typeSize.isAccessibilitySize && !mover.isMoving {
+                    invitation
+                        .fixedSize()
+                        .alignmentGuide(leading ? .leading : .trailing) { d in
+                            leading ? d[.leading] - (Self.slot + Spacing.sm) : d[.trailing] + Self.slot + Spacing.sm
+                        }
+                }
+            }
+            .accessibilityHint(expanded ? "Closes your local guide." : "Opens helpful next steps and a short tour. No AI request is sent.")
+            .accessibilityAction(named: expanded ? "Close guide" : "Open guide") { toggle() }
+            .accessibilityAction(named: "Take a quick tour", startTour)
+            .accessibilityAction(named: "Move to other side", moveToOtherSide)
+            .accessibilityAction(named: "Hide") { hide() }
+            .contextMenu {
+                Button("Take a quick tour", systemImage: "sparkles", action: startTour)
+                Button(leading ? "Move to right" : "Move to left", systemImage: "arrow.left.arrow.right", action: moveToOtherSide)
+                Button("Hide guide", systemImage: "eye.slash") { hide() }
+            }
+            .simultaneousGesture(carry)
+            .onChange(of: carryGesture) { _, active in
+                if !active { endCarry(velocity: .zero) }
+            }
+    }
+
+    /// Press and move to pick the bowl up (no long press); a plain tap still opens the guide.
+    private var carry: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .named(Self.space))
+            .onChanged { value in
+                if !carrying {
+                    carrying = true
+                    if expanded { close() }
+                    mover.grab(at: value.startLocation)
+                    pickups += 1
+                }
+                mover.drag(to: value.location, velocity: value.velocity)
+            }
+            .updating($carryGesture) { _, active, _ in active = true }
+            .onEnded { value in
+                endCarry(velocity: value.velocity)
+            }
+    }
+
+    private func configure(_ size: CGSize) {
+        mover.onRest = { side, fraction in
+            leading = side
+            restFraction = fraction
+        }
+        mover.configure(region: CGRect(origin: .zero, size: size), radius: Self.slot / 2,
+                        inset: CGSize(width: Spacing.lg, height: Spacing.sm),
+                        leading: leading, fraction: expanded ? 1 : restFraction)
+    }
+
+    /// Release (or a cancelled gesture, which never reaches `onEnded`).
+    private func endCarry(velocity: CGSize) {
+        guard carrying else { return }
+        carrying = false
+        lastCarryEnd = Date()
+        mover.release(velocity: velocity, reduceMotion: reduceMotion)
+    }
+
+    private func tapMascot() {
+        // The button's own tap fires on the touch-up that ends a carry; ignore it.
+        guard !carrying, Date().timeIntervalSince(lastCarryEnd) > 0.35 else { return }
+        mover.rig.react(.tap)
+        toggle()
+    }
+
+    private func moveToOtherSide() {
+        leading.toggle()
+        mover.settle(leading: leading, fraction: expanded ? 1 : restFraction, remember: !expanded)
+    }
+
+    private func hide() {
+        close()
+        visible = false
+    }
+
+    /// A sheet or notice just appeared: look toward it, then back.
+    private func glanceAtNotice() {
+        mover.rig.look(at: CGPoint(x: leading ? 0.7 : -0.7, y: -0.7))
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.4))
+            if !expanded && !carrying { mover.rig.look(at: nil) }
         }
     }
 
@@ -136,40 +255,41 @@ struct FloatingBowlGuide: View {
     private var panelContent: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             if let step = tourStep {
-                HStack(spacing: Spacing.xs) {
-                    ForEach(0..<3) { index in
-                        Capsule().fill(index <= step ? Color.brandPrimary : Color.surfaceSecondary)
-                            .frame(height: 3)
-                    }
-                    Text("\(step + 1) / 3").font(.caption.monospacedDigit()).padding(.leading, Spacing.xs)
+                HStack(spacing: Spacing.sm) {
+                    PaginationDots(count: tour.count, selection: step,
+                                   pageLabel: { "Step \($0 + 1) of \(tour.count): \(tour[$0].title)" },
+                                   onSelect: goToStep)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Tour step \(step + 1) of \(tour.count)")
+                        .accessibilityIdentifier("guide.dots")
+                    Spacer(minLength: 0)
+                    Text("\(step + 1) / \(tour.count)").font(.caption.monospacedDigit())
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityHidden(true)
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Tour step \(step + 1) of 3")
-            }
-            Text(title).font(.title2.weight(.semibold))
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($titleFocused)
-                .accessibilityIdentifier("guide.title")
-            Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let step = tourStep {
-                PrimaryButton(title: tour[step].cta) { route(tour[step].action) }
-                    .accessibilityIdentifier("guide.tryStep")
+                PaginationStrip(count: tour.count, selection: step) { i in
+                    tourPage(i)
+                }
                 HStack {
                     Button("Skip tour", action: close).frame(minHeight: 44)
                         .accessibilityIdentifier("guide.skip")
                     Spacer()
-                    Button(step == 2 ? "Finish" : "Next") {
-                        if step == 2 { close() }
-                        else { tourStep = step + 1; selectedTab = tour[step + 1].tab; titleFocused = true }
+                    Button(step == tour.count - 1 ? "Finish" : "Next") {
+                        if step == tour.count - 1 { close() }
+                        else { goToStep(step + 1) }
                     }
                     .fontWeight(.semibold).frame(minHeight: 44)
                     .accessibilityIdentifier("guide.next")
                 }
                 .font(.subheadline)
             } else {
+                Text(title).font(.title2.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityFocused($titleFocused)
+                    .accessibilityIdentifier("guide.title")
+                Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
                 pathway("Grocery checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
                 pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)
@@ -187,6 +307,29 @@ struct FloatingBowlGuide: View {
             }
         }
         .padding(.bottom, Spacing.sm)
+    }
+
+    /// One tour step on the sliding strip: title, detail and its try-it button.
+    private func tourPage(_ i: Int) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text(tour[i].title).font(.title2.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($tourTitleFocus, equals: i)
+                .accessibilityIdentifier("guide.title")
+            Text(tour[i].detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            PrimaryButton(title: tour[i].cta) { route(tour[i].action) }
+                .accessibilityIdentifier("guide.tryStep")
+        }
+    }
+
+    /// Jump to a tour step (Next, or a tapped dot).
+    private func goToStep(_ i: Int) {
+        guard tour.indices.contains(i) else { return }
+        tourStep = i
+        selectedTab = tour[i].tab
+        tourTitleFocus = i
     }
 
     private func pathway(_ title: String, subtitle: String, symbol: String, action: BowlPathway) -> some View {
@@ -217,11 +360,11 @@ struct FloatingBowlGuide: View {
     }
 
     private func startTour() {
-        introduced = true; expanded = true; tourStep = 0; selectedTab = 0; titleFocused = true
+        introduced = true; expanded = true; tourStep = 0; selectedTab = tour[0].tab; tourTitleFocus = 0
     }
 
     private func close() {
-        introduced = true; expanded = false; tourStep = nil; titleFocused = false
+        introduced = true; expanded = false; tourStep = nil; titleFocused = false; tourTitleFocus = nil
     }
 
     private func route(_ action: BowlPathway) {
