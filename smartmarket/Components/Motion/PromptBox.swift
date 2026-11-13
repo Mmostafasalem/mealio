@@ -45,7 +45,9 @@ struct PromptBox: View {
             status
             HStack(alignment: .bottom, spacing: 10) {
                 field
-                if let limit, !text.isEmpty || limitModel.fill > 0.001 {
+                // The ring only appears as the limit gets close; at a few
+                // characters of a long limit it is just a stray dot.
+                if let limit, text.count * 5 >= limit * 4 {
                     LetterLimitRing(model: limitModel, count: text.count, limit: limit)
                         .padding(.bottom, (button - 20) / 2 + 6)
                         .transition(.opacity)

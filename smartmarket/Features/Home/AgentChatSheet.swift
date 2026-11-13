@@ -105,8 +105,11 @@ struct AgentChatSheet: View {
                 Divider()
                 inputBar
             }
+            // One surface for the whole sheet: header, conversation and composer.
+            .background(Color.surfaceGrouped.ignoresSafeArea())
             .navigationTitle("Nourlo chat")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.surfaceGrouped, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }.frame(minHeight: 44)
@@ -115,6 +118,7 @@ struct AgentChatSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .presentationBackground(Color.surfaceGrouped)
         .sheet(isPresented: $showOnlineSetup) { ChatAISetupView() }
         .alert("Use AI on your Mac?", isPresented: $showOwnerConsent) {
             Button("Allow and send") {
@@ -147,21 +151,20 @@ struct AgentChatSheet: View {
     }
 
     private var assistantHeader: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.sm) {
-                MascotGuideView(mood: mood, size: 36)
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(vm.assistantModeLabel).font(.subheadline.weight(.semibold))
-                        .accessibilityIdentifier("chat.assistantMode")
-                    Text("Tap the bowl for local app help.")
-                        .font(.footnote).foregroundStyle(Color.labelSecondary)
-                }
-                Spacer(minLength: 0)
+        HStack(spacing: Spacing.sm) {
+            // The small bowl only joins once a conversation is under way; the
+            // empty state already shows a large one.
+            if !vm.chatMessages.isEmpty || vm.isChatLoading {
+                MascotGuideView(mood: mood, size: 32)
             }
+            Text(vm.assistantModeLabel)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.labelSecondary)
+                .accessibilityIdentifier("chat.assistantMode")
+            Spacer(minLength: 0)
         }
+        .frame(minHeight: 44)
         .padding(.horizontal, Spacing.lg)
-        .padding(.vertical, Spacing.sm)
-        .background(Color.surface)
     }
 
     private var emptyPrompt: some View {
@@ -169,10 +172,13 @@ struct AgentChatSheet: View {
             MascotGuideView(size: 108)
             Text("What would help today?")
                 .font(.title2.weight(.semibold))
-            Text("Your bowl has local tips. For online AI, choose a question below, edit it, then tap Send.")
+            Text(needsOnlineSetup
+                 ? "Online AI needs a quick setup before it can answer. You can still write your question first."
+                 : "Pick a question below or type your own, then send.")
                 .font(.subheadline)
                 .foregroundStyle(Color.labelSecondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             if needsOnlineSetup { onlineSetupButton }
 
@@ -183,7 +189,7 @@ struct AgentChatSheet: View {
             }
         }
         .padding(.top, Spacing.lg)
-        .padding(.horizontal, Spacing.xxl)
+        .padding(.horizontal, Spacing.xl)
     }
 
     private var needsOnlineSetup: Bool {
@@ -191,11 +197,21 @@ struct AgentChatSheet: View {
     }
 
     private var onlineSetupButton: some View {
-        Button("Set up online AI") {
+        // A bordered-prominent button took the brand tint as its fill and drew
+        // white text on it, which is invisible in dark mode.
+        Button {
             inputFocused = false
             showOnlineSetup = true
+        } label: {
+            Label("Set up online AI", systemImage: "sparkles")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.onAccent)
+                .padding(.horizontal, Spacing.xl)
+                .frame(minHeight: 44)
+                .background(Color.dullPink, in: Capsule())
+                .contentShape(Capsule())
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(ScalePressStyle())
         .accessibilityIdentifier("chat.setup")
     }
 
@@ -207,12 +223,14 @@ struct AgentChatSheet: View {
             HStack(spacing: Spacing.sm) {
                 Text(title).font(.subheadline)
                 Spacer(minLength: 0)
-                Image(systemName: "arrow.down.to.line").font(.caption)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.labelTertiary)
             }
             .foregroundStyle(Color.labelPrimary)
-            .padding(Spacing.md)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip))
+            .padding(.horizontal, Spacing.lg)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .disabled(vm.isChatLoading)

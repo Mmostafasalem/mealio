@@ -49,7 +49,7 @@ struct FloatingBowlGuide: View {
     private var detail: String {
         if let step = tourStep { return tour[step].detail }
         return [
-            "Start small. Log a meal, make a grocery list, or let me show you around. Your profile is behind the picture at the top.",
+            "Start small. Log a meal, make a grocery list, or let me show you around.",
             "Review your suggestions and portions. Your grocery checklist is a good place to start planning.",
             "Add what you need, then open your checklist when you shop. Prices here are estimates.",
             "Pick a type and a length, then build a workout. Save the ones you like and tick them off when done."
