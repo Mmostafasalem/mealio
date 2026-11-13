@@ -14,9 +14,8 @@ struct HomeHeaderView: View {
                          : .dateTime.weekday(.wide).day().month(.wide))
                         .font(.captionText)
                         .foregroundStyle(Color.labelSecondary)
-                    Text("Today")
-                        .font(.largeTitle.weight(.bold))
-                        .tracking(-1)
+                    // The wave sets its own Dynamic Type-scaled font; kerning -1 matches the old tracking.
+                    WeightWaveText("Today", kerning: -1)
                         .foregroundStyle(Color.labelPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityAddTraits(.isHeader)

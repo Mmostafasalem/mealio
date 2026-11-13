@@ -407,15 +407,17 @@ struct ServingDetailView: View {
         .navigationTitle(food.name)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
-            Button {
-                guard !didAdd else { return }
+            LoadingSuccessButton(
+                title: actionTitle ?? "Add to \(slot.title)",
+                doneTitle: "Added",
+                systemImage: "plus"
+            ) {
+                guard !didAdd else { return false }
                 didAdd = true
+                return true
+            } onFinished: {
+                // Close after the success moment.
                 onAdd(grams)
-            } label: {
-                Label(actionTitle ?? "Add to \(slot.title)", systemImage: "plus")
-                    .font(.headline).foregroundStyle(Color.almond)
-                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.pill))
             }
             .disabled(didAdd)
             .accessibilityIdentifier("logFood.addServing")

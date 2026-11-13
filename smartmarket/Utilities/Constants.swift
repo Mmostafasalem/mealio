@@ -30,6 +30,12 @@ enum GroceryStorage {
 
 enum Constants {
 
+    // MARK: - Support
+    enum Support {
+        static let email = "nourlo.app.support@gmail.com"
+        static let mailURL = URL(string: "mailto:nourlo.app.support@gmail.com?subject=Nourlo%20support")!
+    }
+
     // MARK: - API
     enum API {
         /// Base URL of the backend.
@@ -85,6 +91,8 @@ enum Constants {
         static let currentMealPlan          = "currentMealPlan"
         static let notifiedDealIds          = "notifiedDealIds"
         static let lang                     = "lang"
+        /// "" follows the iPhone setting, otherwise "light" or "dark" (set by the pull cord in Profile).
+        static let appearanceOverride       = "appearanceOverride_v1"
     }
 
     // MARK: - BMR safety floors

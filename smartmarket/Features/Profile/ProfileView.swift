@@ -11,6 +11,8 @@ struct ProfileView: View {
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
     @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
+    @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -18,6 +20,7 @@ struct ProfileView: View {
                 headerSection
                 statsSection
                 editSection
+                appearanceSection
                 notificationSection
                 Section {
                     Toggle("Floating bowl guide", isOn: $bowlGuideVisible)
@@ -119,6 +122,36 @@ struct ProfileView: View {
         }
     }
 
+    /// Light when overridden to light, or when following an iPhone that is in light mode.
+    private var lightAppearance: Binding<Bool> {
+        Binding(
+            get: { appearanceOverride == "light" || (appearanceOverride.isEmpty && colorScheme == .light) },
+            set: { appearanceOverride = $0 ? "light" : "dark" }
+        )
+    }
+
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                PullCordToggle(isOn: lightAppearance)
+                    .frame(height: 240)
+                    .frame(maxWidth: .infinity)
+                    .premiumCard()
+                    .accessibilityIdentifier("profile.appearanceCord")
+                Text("Pull the cord to switch between light and dark. Nourlo follows your iPhone setting until you pull it.")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !appearanceOverride.isEmpty {
+                    Button("Follow iPhone setting") { appearanceOverride = "" }
+                        .font(.footnote.weight(.semibold))
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("profile.followSystemAppearance")
+                }
+            }
+            .padding(.vertical, Spacing.xs)
+        }
+    }
+
     private var notificationSection: some View {
         Section("Notifications") {
             Label("Retail alerts are off", systemImage: "bell.slash")
@@ -182,6 +215,11 @@ struct ProfileView: View {
                 LegalDocumentView(resource: "Support", title: "Help & Support")
             } label: { Label("Help & Support", systemImage: "questionmark.circle") }
             .accessibilityIdentifier("profile.support")
+            Link(destination: Constants.Support.mailURL) {
+                Label("Email Support", systemImage: "envelope")
+            }
+            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)")
+            .accessibilityIdentifier("profile.emailSupport")
         } header: {
             Text("Privacy & Help")
         } footer: {

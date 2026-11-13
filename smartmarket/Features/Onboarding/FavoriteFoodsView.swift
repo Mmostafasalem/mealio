@@ -254,15 +254,14 @@ struct ProductFavoriteCard: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.labelPrimary)
                 Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
-                    .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
+                // Like Burst heart; the whole row stays the tap target.
+                LikeBurstHeart(isOn: isSelected)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

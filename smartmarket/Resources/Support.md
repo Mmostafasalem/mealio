@@ -2,12 +2,10 @@
 
 Need help with Nourlo? We're happy to assist.
 
-For technical issues in this pre-release build, use the
-[Nourlo issue tracker](https://github.com/Mmostafasalem/mealio/issues).
-The tracker is public: do not post body measurements, food logs, account tokens,
-API keys or other private information. For private help, contact the person who
-provided your build. A dedicated verified contact and hosted support URL still
-need to be supplied before App Store submission; no public mailbox is claimed.
+Email **[nourlo.app.support@gmail.com](mailto:nourlo.app.support@gmail.com)** for
+help, bug reports, privacy questions or data requests. Tell us your iPhone model,
+iOS version and what happened. Please don't send passwords, account tokens or
+more health detail than the question needs. We aim to reply within a few days.
 
 ## FAQ
 

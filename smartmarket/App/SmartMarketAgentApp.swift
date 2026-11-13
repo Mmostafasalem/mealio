@@ -7,6 +7,16 @@ struct SmartMarketAgentApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState = AppState.shared
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
+
+    /// nil follows the iPhone setting.
+    private var preferredScheme: ColorScheme? {
+        switch appearanceOverride {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -26,6 +36,7 @@ struct SmartMarketAgentApp: App {
             }
             .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
             .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
+            .preferredColorScheme(preferredScheme)
             .foregroundStyle(Color.labelPrimary)
             .environment(appState)
             .tint(Color.brandPrimary)

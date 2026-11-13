@@ -179,6 +179,7 @@ preparation. Nourlo is not a medical device and does not provide medical advice.
 Consult a professional before making significant dietary changes.
 
 ## Contact
-For questions about this pre-release build, contact the person who provided it.
-A verified public support contact and hosted policy URL must be supplied before
-App Store submission.
+For privacy questions or requests about your data, email
+[nourlo.app.support@gmail.com](mailto:nourlo.app.support@gmail.com).
+Most data stays on your iPhone, and you can erase it at any time with
+Profile → Delete All Data.

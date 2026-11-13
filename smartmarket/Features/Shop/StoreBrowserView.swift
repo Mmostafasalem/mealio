@@ -177,10 +177,26 @@ struct StoreBrowserView: View {
 
     // MARK: - Budget sheet
 
+    /// The slider and the text field share `budgetInput`: dragging rewrites the text,
+    /// a valid typed amount glides the slider there (clamped to its 10…300 range).
+    private var budgetSliderValue: Binding<Double> {
+        Binding(
+            get: {
+                let typed = Double(budgetInput.replacingOccurrences(of: ",", with: "."))
+                return min(max(typed ?? cart.weeklyBudget, 10), 300)
+            },
+            set: { budgetInput = String(format: "%.0f", $0) }
+        )
+    }
+
     private var budgetSheet: some View {
         NavigationStack {
             Form {
                 Section("Weekly grocery budget") {
+                    JellySlider(value: budgetSliderValue, in: 10...300, step: 5,
+                                format: { "€\(Int($0))" }, tickLabels: [10, 50, 100, 200, 300])
+                        .accessibilityLabel("Weekly budget")
+                        .padding(.vertical, Spacing.xs)
                     HStack {
                         Text("€")
                         TextField("60", text: $budgetInput)

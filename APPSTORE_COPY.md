@@ -60,7 +60,8 @@ are clearly estimates and are not live retailer offers.
 
 Before submission: activate and verify backend authentication and CloudKit
 Production, confirm both features work on the submitted build, and supply working
-privacy/support URLs and a verified support contact in App Store Connect.
+privacy/support URLs in App Store Connect. Support contact:
+nourlo.app.support@gmail.com.
 
 ## Screenshots to prepare from the verified build
 1. Home with a realistic synthetic profile and logged foods.
@@ -72,5 +73,5 @@ privacy/support URLs and a verified support contact in App Store Connect.
 
 Automated simulator screenshots are QA evidence. Select/re-capture final marketing
 screens after account-side services and the sample content have been verified.
-The app icon is the owner-selected bowl mascot (applied 2026-11-06). Confirm it
-as final artwork before describing it as approved in store listings.
+The app icon is final: a flat, smiling bowl of oats with banana and strawberry in
+Dull Pink on Rhino navy (2026-11-13).
