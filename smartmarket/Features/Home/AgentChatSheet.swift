@@ -24,11 +24,12 @@ struct AgentChatSheet: View {
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
     @AppStorage("aiSharingConsent_v1") private var onlineAISharingConsent = false
 
+    /// Starts as a compact popup; drag up for the whole conversation.
+    @State private var detent: PresentationDetent = .medium
+
     var body: some View {
-        NavigationStack {
             VStack(spacing: 0) {
                 assistantHeader
-                Divider()
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: Spacing.md) {
@@ -102,23 +103,18 @@ struct AgentChatSheet: View {
                     }
                 }
 
-                Divider()
                 inputBar
             }
-            // One surface for the whole sheet: header, conversation and composer.
+            // One surface for the whole popup: Nourlo, conversation and composer.
             .background(Color.surfaceGrouped.ignoresSafeArea())
-            .navigationTitle("Nourlo chat")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.surfaceGrouped, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.frame(minHeight: 44)
-                }
-            }
-        }
-        .presentationDetents([.large])
+        .presentationDetents([.medium, .large], selection: $detent)
         .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Radius.sheet)
         .presentationBackground(Color.surfaceGrouped)
+        // Sending a message opens the popup fully so the reply has room.
+        .onChange(of: vm.chatMessages.count) { _, count in
+            if count > 1 { detent = .large }
+        }
         .sheet(isPresented: $showOnlineSetup) { ChatAISetupView() }
         .alert("Use AI on your Mac?", isPresented: $showOwnerConsent) {
             Button("Allow and send") {
@@ -150,46 +146,74 @@ struct AgentChatSheet: View {
         return vm.chatMessages.last?.role == "assistant" ? .celebrate : .idle
     }
 
+    /// Nourlo leads the popup: the bowl reacts to what is happening (thinking,
+    /// celebrating a reply, offering help) and says what it is doing.
     private var assistantHeader: some View {
-        HStack(spacing: Spacing.sm) {
-            // The small bowl only joins once a conversation is under way; the
-            // empty state already shows a large one.
-            if !vm.chatMessages.isEmpty || vm.isChatLoading {
-                MascotGuideView(mood: mood, size: 32)
+        HStack(alignment: .center, spacing: Spacing.md) {
+            MascotGuideView(mood: mood, size: 64)
+                .frame(width: 72, height: 72)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Nourlo")
+                    .font(.system(.title3, design: .rounded).weight(.bold))
+                    .foregroundStyle(Color.labelPrimary)
+                if vm.isChatLoading {
+                    ThinkingText(phrases: ["Thinking…", "Checking your stock…", "Reading your goals…", "Writing a reply…"],
+                                 font: .subheadline.weight(.medium), color: .labelSecondary,
+                                 label: "Nourlo is working on a reply")
+                } else {
+                    Text(vm.assistantModeLabel)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityIdentifier("chat.assistantMode")
+                }
             }
-            Text(vm.assistantModeLabel)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.labelSecondary)
-                .accessibilityIdentifier("chat.assistantMode")
-            Spacer(minLength: 0)
+            Spacer(minLength: Spacing.sm)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(Color.labelSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.surfaceSecondary, in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ScalePressStyle())
+            .accessibilityLabel("Done")
+            .accessibilityIdentifier("chat.done")
         }
-        .frame(minHeight: 44)
-        .padding(.horizontal, Spacing.lg)
+        .padding(.leading, Spacing.md)
+        .padding(.trailing, Spacing.sm)
+        .padding(.top, Spacing.lg)
+        .padding(.bottom, Spacing.xs)
     }
 
+    /// The first thing in an empty popup: a message from Nourlo, then things to ask.
     private var emptyPrompt: some View {
-        VStack(spacing: Spacing.md) {
-            MascotGuideView(size: 108)
-            Text("What would help today?")
-                .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: Spacing.md) {
             Text(needsOnlineSetup
-                 ? "Online AI needs a quick setup before it can answer. You can still write your question first."
-                 : "Pick a question below or type your own, then send.")
+                 ? "Hi! I can answer once online AI is set up. You can write your question first."
+                 : "Hi! What would help today? Pick one or ask me anything about meals, groceries or logging.")
                 .font(.subheadline)
-                .foregroundStyle(Color.labelSecondary)
-                .multilineTextAlignment(.center)
+                .foregroundStyle(Color.labelPrimary)
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.md)
+                .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.trailing, 40)
                 .fixedSize(horizontal: false, vertical: true)
 
             if needsOnlineSetup { onlineSetupButton }
 
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                prompt("Plan a simple meal", text: "Suggest a simple meal using the foods I have.")
-                prompt("Build a grocery list", text: "Help me build a grocery list for my next few meals.")
-                prompt("Understand food logging", text: "How can I estimate a portion before logging food?")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.sm) {
+                    prompt("Plan a simple meal", text: "Suggest a simple meal using the foods I have.")
+                    prompt("Build a grocery list", text: "Help me build a grocery list for my next few meals.")
+                    prompt("Estimate a portion", text: "How can I estimate a portion before logging food?")
+                }
+                .padding(.horizontal, Spacing.lg)
             }
+            .padding(.horizontal, -Spacing.lg)
         }
-        .padding(.top, Spacing.lg)
-        .padding(.horizontal, Spacing.xl)
+        .padding(.horizontal, Spacing.lg)
     }
 
     private var needsOnlineSetup: Bool {
@@ -220,19 +244,16 @@ struct AgentChatSheet: View {
             localInput = text
             inputFocused = true
         } label: {
-            HStack(spacing: Spacing.sm) {
-                Text(title).font(.subheadline)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.labelTertiary)
-            }
-            .foregroundStyle(Color.labelPrimary)
-            .padding(.horizontal, Spacing.lg)
-            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.labelPrimary)
+                .padding(.horizontal, Spacing.lg)
+                .frame(minHeight: 44)
+                .background(Color.surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+                .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScalePressStyle())
         .disabled(vm.isChatLoading)
         .accessibilityHint("Fills the message field. Review it before sending to online AI.")
     }
