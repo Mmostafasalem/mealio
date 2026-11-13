@@ -9,6 +9,7 @@ struct WorkoutDetailView: View {
 
     @State private var store = WorkoutStore.shared
     @State private var markedDone = false
+    @State private var guide: ExerciseGuide?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var weight: Double { AppState.shared.userProfile.weight }
@@ -41,24 +42,45 @@ struct WorkoutDetailView: View {
                 Section("Warm-up") { Text(workout.warmup).font(.subheadline) }
             }
 
-            Section("Exercises") {
+            Section {
                 ForEach(Array(workout.exercises.enumerated()), id: \.offset) { index, exercise in
-                    HStack(alignment: .top, spacing: Spacing.md) {
-                        stepMarker(index + 1, motion: ExerciseMotion.matching(name: exercise.name))
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(exercise.name).font(.headline)
-                            Text(exercise.restSeconds > 0
-                                 ? "\(exercise.prescription) · rest \(exercise.restSeconds) sec"
-                                 : exercise.prescription)
-                                .font(.subheadline.weight(.medium))
-                                .monospacedDigit()
-                            if !exercise.note.isEmpty {
-                                Text(exercise.note).font(.footnote).foregroundStyle(Color.labelSecondary)
+                    let item = ExerciseGuide(step: exercise)
+                    Button { guide = item } label: {
+                        HStack(alignment: .center, spacing: Spacing.md) {
+                            if let motion = item.motion {
+                                ExerciseFrame(motion: motion, finish: true)
+                                    .padding(4)
+                                    .frame(width: 72, height: 72)
+                                    .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                             }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(index + 1). \(exercise.name)")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.labelPrimary)
+                                    .multilineTextAlignment(.leading)
+                                Text(item.prescription ?? exercise.prescription)
+                                    .font(.subheadline.weight(.medium))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Color.labelPrimary)
+                                Text("How to do it")
+                                    .font(.footnote)
+                                    .foregroundStyle(Color.labelSecondary)
+                            }
+                            Spacer(minLength: Spacing.sm)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Color.labelTertiary)
                         }
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("workout.step.\(index + 1)")
                 }
+            } header: {
+                Text("Exercises")
+            } footer: {
+                Text("Tap an exercise to see the movement and step-by-step notes.")
             }
 
             if !workout.cooldown.isEmpty {
@@ -89,6 +111,7 @@ struct WorkoutDetailView: View {
                 .accessibilityIdentifier("workout.save")
             }
         }
+        .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
         .safeAreaInset(edge: .bottom) {
             PrimaryButton(title: markedDone ? "Logged for today" : "Mark as done",
                           systemImage: markedDone ? "checkmark" : "checkmark.circle") {
@@ -101,26 +124,6 @@ struct WorkoutDetailView: View {
             .padding(.horizontal, Spacing.xl)
             .padding(.vertical, Spacing.sm)
             .background(.ultraThinMaterial)
-        }
-    }
-
-    /// The step number, on top of an animated demo when the movement is known.
-    @ViewBuilder
-    private func stepMarker(_ number: Int, motion: ExerciseMotion?) -> some View {
-        let badge = Text("\(number)")
-            .font(.footnote.weight(.bold))
-            .monospacedDigit()
-            .foregroundStyle(Color.onAccent)
-            .frame(width: 24, height: 24)
-            .background(Color.dullPink, in: Circle())
-            .accessibilityHidden(true)
-        if let motion {
-            ExerciseDemo(motion: motion, reps: 3)
-                .frame(width: 76, height: 76)
-                .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                .overlay(alignment: .topLeading) { badge.offset(x: -6, y: -6) }
-        } else {
-            badge
         }
     }
 
@@ -168,7 +171,7 @@ struct WorkoutHistoryView: View {
 struct ExerciseLibraryView: View {
     @State private var query = ""
     @State private var kind: ExerciseKind?
-    @State private var expanded: Set<String> = []
+    @State private var guide: ExerciseGuide?
 
     private var exercises: [Exercise] {
         Exercise.catalog.filter { exercise in
@@ -197,38 +200,27 @@ struct ExerciseLibraryView: View {
                     Text("No exercise matches your search.").foregroundStyle(Color.labelSecondary)
                 }
                 ForEach(exercises) { exercise in
-                    DisclosureGroup(isExpanded: Binding(
-                        get: { expanded.contains(exercise.id) },
-                        set: { open in if open { expanded.insert(exercise.id) } else { expanded.remove(exercise.id) } }
-                    )) {
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            if let motion = exercise.motion {
-                                ExerciseDemo(motion: motion)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 170)
-                                    .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                                Text("Tap the figure to replay.")
-                                    .font(.caption)
-                            }
-                            Text(exercise.howTo).font(.subheadline).foregroundStyle(Color.labelPrimary)
-                            Label(exercise.equipment, systemImage: "wrench.and.screwdriver")
-                            Label("Typical: \(exercise.prescription)", systemImage: "repeat")
-                            Label(exercise.level.title, systemImage: "chart.bar.fill")
-                        }
-                        .font(.footnote)
-                        .foregroundStyle(Color.labelSecondary)
-                        .padding(.vertical, Spacing.xs)
-                    } label: {
+                    Button { guide = ExerciseGuide(exercise: exercise) } label: {
                         HStack(spacing: Spacing.md) {
-                            Image(systemName: exercise.kind.symbol)
-                                .foregroundStyle(Color.labelPrimary)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(exercise.name).foregroundStyle(Color.labelPrimary)
-                                Text(exercise.muscles).font(.caption).foregroundStyle(Color.labelSecondary)
+                            if let motion = exercise.motion {
+                                ExerciseFrame(motion: motion, finish: true)
+                                    .padding(4)
+                                    .frame(width: 60, height: 60)
+                                    .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                             }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(exercise.name).font(.headline).foregroundStyle(Color.labelPrimary)
+                                Text("\(exercise.kind.title) · \(exercise.muscles)")
+                                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                            }
+                            Spacer(minLength: Spacing.sm)
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Color.labelTertiary)
                         }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("exercise." + exercise.id)
                 }
             }
@@ -238,5 +230,6 @@ struct ExerciseLibraryView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarHidden(false)
         .searchable(text: $query, prompt: "Search exercises or muscles")
+        .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
     }
 }

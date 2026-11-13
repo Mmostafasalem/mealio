@@ -153,10 +153,10 @@ enum ExerciseMotion: String, CaseIterable {
             return (seated.arms(elbow: pt(0.58, 0.5), hand: pt(0.72, 0.52)),
                     back.arms(elbow: pt(0.3, 0.58), hand: pt(0.46, 0.55)))
         case .pulldown:
-            let seated = FigurePose(head: pt(0.5, 0.36), shoulder: pt(0.5, 0.48), hip: pt(0.5, 0.74))
-                .legs(knee: pt(0.68, 0.72), foot: pt(0.68, 0.9))
-            return (seated.arms(elbow: pt(0.52, 0.3), hand: pt(0.54, 0.12)),
-                    seated.arms(elbow: pt(0.56, 0.6), hand: pt(0.56, 0.44)))
+            let seated = FigurePose(head: pt(0.44, 0.36), shoulder: pt(0.45, 0.48), hip: pt(0.46, 0.74))
+                .legs(knee: pt(0.66, 0.73), foot: pt(0.67, 0.92))
+            return (seated.arms(elbow: pt(0.5, 0.31), hand: pt(0.54, 0.14)),
+                    seated.arms(elbow: pt(0.5, 0.64), hand: pt(0.57, 0.47)))
         case .bentRow:
             let bent = FigurePose(head: pt(0.76, 0.44), shoulder: pt(0.65, 0.48), hip: pt(0.41, 0.55))
                 .legs(knee: pt(0.47, 0.72), foot: pt(0.5, 0.9))
@@ -229,8 +229,8 @@ enum ExerciseMotion: String, CaseIterable {
             cat.spine = pt(0.52, 0.5); cat.head = pt(0.8, 0.72)
             return (base, cat)
         case .armCircle:
-            return (stand.arms(elbow: pt(0.57, 0.16), hand: pt(0.62, 0.04)),
-                    stand.arms(elbow: pt(0.42, 0.36), hand: pt(0.36, 0.48)))
+            return (stand.arms(elbow: pt(0.6, 0.16), hand: pt(0.68, 0.04)),
+                    stand.arms(elbow: pt(0.38, 0.36), hand: pt(0.28, 0.46)))
         case .dip:
             let top = FigurePose(head: pt(0.43, 0.24), shoulder: pt(0.43, 0.36), hip: pt(0.48, 0.62))
                 .legs(knee: pt(0.66, 0.64), foot: pt(0.74, 0.9))
@@ -275,8 +275,8 @@ enum ExerciseMotion: String, CaseIterable {
                 .arms(elbow: pt(0.2, 0.62), hand: pt(0.36, 0.58))
             return (front, back)
         case .twist:
-            return (stand.arms(elbow: pt(0.44, 0.24), hand: pt(0.4, 0.12)),
-                    stand.arms(elbow: pt(0.6, 0.46), hand: pt(0.68, 0.6)))
+            return (stand.arms(elbow: pt(0.4, 0.2), hand: pt(0.32, 0.08)),
+                    stand.arms(elbow: pt(0.62, 0.44), hand: pt(0.74, 0.6)))
         case .lungeReach:
             var base = FigurePose(head: pt(0.52, 0.27), shoulder: pt(0.5, 0.39), hip: pt(0.48, 0.68))
             base.kneeF = pt(0.65, 0.72); base.footF = pt(0.66, 0.9)
@@ -353,31 +353,54 @@ extension Exercise {
 
 // MARK: - Drawing
 
-/// Draws one pose. `ghost` is drawn faintly behind it (the other end of the movement).
+extension ExerciseMotion {
+    /// Movements that swing continuously from side to side (no start and finish to pause on).
+    var isContinuous: Bool {
+        switch self {
+        case .run, .walk, .cycle, .climber: return true
+        default: return false
+        }
+    }
+
+    /// Which limbs do the work, so they can be highlighted. Measured as how far
+    /// the hand moves relative to the shoulder and the foot relative to the hip.
+    var workingLimbs: (arms: Bool, legs: Bool) {
+        let (a, b) = poses
+        func travel(_ root: KeyPath<FigurePose, CGPoint>, _ end: KeyPath<FigurePose, CGPoint>) -> CGFloat {
+            let da = CGPoint(x: a[keyPath: end].x - a[keyPath: root].x, y: a[keyPath: end].y - a[keyPath: root].y)
+            let db = CGPoint(x: b[keyPath: end].x - b[keyPath: root].x, y: b[keyPath: end].y - b[keyPath: root].y)
+            return hypot(da.x - db.x, da.y - db.y)
+        }
+        let arms = max(travel(\.shoulder, \.handF), travel(\.shoulder, \.handB))
+        let legs = max(travel(\.hip, \.footF), travel(\.hip, \.footB), travel(\.hip, \.kneeF))
+        if isContinuous { return (true, true) }
+        if arms < 0.08 && legs < 0.08 { return (false, false) }       // a hold
+        // Highlight the clear leader; both only when they move about equally.
+        return (arms >= legs * 0.7, legs >= arms * 0.7)
+    }
+}
+
+/// Draws one pose of the figure: a solid body, the far-side limbs paler so
+/// they read as behind, and the working limbs in the accent colour.
 struct ExerciseFigureCanvas: View {
     let pose: FigurePose
-    var ghost: FigurePose? = nil
     let prop: ExerciseMotion.Prop
+    var working: (arms: Bool, legs: Bool) = (false, false)
 
     var body: some View {
         Canvas { context, size in
             let side = min(size.width, size.height)
             let origin = CGPoint(x: (size.width - side) / 2, y: (size.height - side) / 2)
             func at(_ p: CGPoint) -> CGPoint { CGPoint(x: origin.x + p.x * side, y: origin.y + p.y * side) }
-            let limb = side * 0.045
 
             // Floor
             var floor = Path()
-            floor.move(to: at(pt(0.04, 0.925))); floor.addLine(to: at(pt(0.96, 0.925)))
-            context.stroke(floor, with: .color(Color.hairline), style: StrokeStyle(lineWidth: max(1, side * 0.012), lineCap: .round))
+            floor.move(to: at(pt(0.04, 0.935))); floor.addLine(to: at(pt(0.96, 0.935)))
+            context.stroke(floor, with: .color(Color.labelTertiary.opacity(0.35)),
+                           style: StrokeStyle(lineWidth: max(1, side * 0.012), lineCap: .round))
 
             drawProp(&context, pose: pose, at: at, side: side)
-            if let ghost {
-                context.opacity = 0.18
-                drawFigure(&context, ghost, at: at, limb: limb, side: side)
-                context.opacity = 1
-            }
-            drawFigure(&context, pose, at: at, limb: limb, side: side)
+            drawFigure(&context, pose, at: at, side: side)
         }
         .accessibilityHidden(true)
     }
@@ -389,28 +412,38 @@ struct ExerciseFigureCanvas: View {
         return path
     }
 
-    private func drawFigure(_ context: inout GraphicsContext, _ p: FigurePose, at: (CGPoint) -> CGPoint, limb: CGFloat, side: CGFloat) {
-        let style = StrokeStyle(lineWidth: limb, lineCap: .round, lineJoin: .round)
-        let far = Color.labelTertiary
-        let near = Color.labelPrimary
-        // Far limbs first so the near ones overlap them.
-        context.stroke(line([at(p.hip), at(p.kneeB), at(p.footB)]), with: .color(far), style: style)
-        context.stroke(line([at(p.shoulder), at(p.elbowB), at(p.handB)]), with: .color(far), style: style)
+    private func drawFigure(_ context: inout GraphicsContext, _ p: FigurePose, at: (CGPoint) -> CGPoint, side: CGFloat) {
+        let body = Color.labelPrimary
+        let accent = Color.progress
+        func limb(_ points: [CGPoint], active: Bool, far: Bool) {
+            let colour = (active ? accent : body).opacity(far ? 0.38 : 1)
+            context.stroke(line(points.map(at)), with: .color(colour),
+                           style: StrokeStyle(lineWidth: side * (far ? 0.05 : 0.062), lineCap: .round, lineJoin: .round))
+        }
+        // Far side first, then torso and head, then the near side on top.
+        limb([p.hip, p.kneeB, p.footB], active: working.legs, far: true)
+        limb([p.shoulder, p.elbowB, p.handB], active: working.arms, far: true)
+
         let mid = p.spine ?? CGPoint(x: (p.shoulder.x + p.hip.x) / 2, y: (p.shoulder.y + p.hip.y) / 2)
         var torso = Path()
         torso.move(to: at(p.shoulder))
         torso.addQuadCurve(to: at(p.hip), control: at(CGPoint(x: mid.x * 2 - (p.shoulder.x + p.hip.x) / 2,
                                                               y: mid.y * 2 - (p.shoulder.y + p.hip.y) / 2)))
-        context.stroke(torso, with: .color(near), style: StrokeStyle(lineWidth: limb * 1.25, lineCap: .round))
-        context.stroke(line([at(p.hip), at(p.kneeF), at(p.footF)]), with: .color(near), style: style)
-        context.stroke(line([at(p.shoulder), at(p.elbowF), at(p.handF)]), with: .color(near), style: style)
-        let r = side * 0.075
+        context.stroke(torso, with: .color(body), style: StrokeStyle(lineWidth: side * 0.105, lineCap: .round))
+
+        // A short neck joins the head to the shoulders so the head never floats.
+        context.stroke(line([at(p.shoulder), at(p.head)]), with: .color(body),
+                       style: StrokeStyle(lineWidth: side * 0.045, lineCap: .round))
+        let r = side * 0.078
         let head = at(p.head)
-        context.fill(Path(ellipseIn: CGRect(x: head.x - r, y: head.y - r, width: r * 2, height: r * 2)), with: .color(near))
+        context.fill(Path(ellipseIn: CGRect(x: head.x - r, y: head.y - r, width: r * 2, height: r * 2)), with: .color(body))
+
+        limb([p.hip, p.kneeF, p.footF], active: working.legs, far: false)
+        limb([p.shoulder, p.elbowF, p.handF], active: working.arms, far: false)
     }
 
     private func drawProp(_ context: inout GraphicsContext, pose p: FigurePose, at: (CGPoint) -> CGPoint, side: CGFloat) {
-        let tint = Color.progress
+        let kit = Color.labelSecondary
         let thin = StrokeStyle(lineWidth: side * 0.03, lineCap: .round)
         func disc(_ c: CGPoint, _ r: CGFloat) -> Path { Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)) }
         switch prop {
@@ -418,76 +451,120 @@ struct ExerciseFigureCanvas: View {
             break
         case .barbell:
             // Seen end-on from the side: a plate at the hands.
-            context.fill(disc(at(p.handF), side * 0.075), with: .color(tint))
+            context.stroke(disc(at(p.handF), side * 0.07), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.03))
+            context.fill(disc(at(p.handF), side * 0.02), with: .color(kit))
         case .dumbbells:
-            context.fill(disc(at(p.handF), side * 0.045), with: .color(tint))
-            context.fill(disc(at(p.handB), side * 0.045), with: .color(tint.opacity(0.6)))
+            context.fill(Path(roundedRect: CGRect(x: at(p.handF).x - side * 0.05, y: at(p.handF).y - side * 0.028,
+                                                  width: side * 0.1, height: side * 0.056), cornerRadius: side * 0.02), with: .color(kit))
         case .bench:
-            context.stroke(line([at(pt(0.18, 0.67)), at(pt(0.66, 0.67))]), with: .color(tint), style: StrokeStyle(lineWidth: side * 0.045, lineCap: .round))
-            context.stroke(line([at(pt(0.26, 0.69)), at(pt(0.26, 0.9))]), with: .color(tint), style: thin)
-            context.stroke(line([at(pt(0.58, 0.69)), at(pt(0.58, 0.9))]), with: .color(tint), style: thin)
-            context.fill(disc(at(p.handF), side * 0.07), with: .color(tint))
+            context.stroke(line([at(pt(0.16, 0.685)), at(pt(0.68, 0.685))]), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.04, lineCap: .round))
+            context.stroke(line([at(pt(0.24, 0.7)), at(pt(0.24, 0.93))]), with: .color(kit), style: thin)
+            context.stroke(line([at(pt(0.6, 0.7)), at(pt(0.6, 0.93))]), with: .color(kit), style: thin)
+            context.stroke(disc(at(p.handF), side * 0.07), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.03))
         case .highBar:
-            let y = min(p.handF.y, 0.12)
-            context.stroke(line([at(pt(0.36, y)), at(pt(0.7, y))]), with: .color(tint), style: StrokeStyle(lineWidth: side * 0.035, lineCap: .round))
-            // The bar travels with the hands on a pulldown; the cable stays up.
-            if p.handF.y > 0.14 {
-                context.stroke(line([at(pt(0.55, 0.0)), at(p.handF)]), with: .color(tint.opacity(0.5)), style: StrokeStyle(lineWidth: side * 0.015))
-                context.stroke(line([at(pt(p.handF.x - 0.12, p.handF.y)), at(pt(p.handF.x + 0.12, p.handF.y))]), with: .color(tint), style: StrokeStyle(lineWidth: side * 0.035, lineCap: .round))
+            if p.handF.y > 0.1 && p.hip.y > 0.6 {
+                // Pulldown: the bar travels with the hands on a cable.
+                context.stroke(line([at(pt(p.handF.x, 0.0)), at(p.handF)]), with: .color(kit.opacity(0.6)), style: StrokeStyle(lineWidth: side * 0.014))
+                context.stroke(line([at(pt(p.handF.x - 0.13, p.handF.y)), at(pt(p.handF.x + 0.13, p.handF.y))]), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.035, lineCap: .round))
+            } else {
+                // A fixed bar to hang from.
+                context.stroke(line([at(pt(0.3, 0.055)), at(pt(0.74, 0.055))]), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.035, lineCap: .round))
             }
         case .step:
-            let box = CGRect(x: at(pt(0.3, 0.64)).x, y: at(pt(0.3, 0.64)).y, width: side * 0.16, height: side * 0.28)
-            let stepBox = CGRect(x: at(pt(0.55, 0.8)).x, y: at(pt(0.55, 0.8)).y, width: side * 0.22, height: side * 0.12)
             // A chair behind for dips, a low box in front for step-ups.
-            let rect = p.handF.y > 0.55 && p.hip.y > 0.55 && p.footF.y > 0.85 ? box : stepBox
-            context.fill(Path(roundedRect: rect, cornerRadius: side * 0.02), with: .color(tint.opacity(0.55)))
+            let chair = p.handF.y > 0.55 && p.footF.y > 0.85 && p.handF.x < 0.5
+            let rect = chair
+                ? CGRect(x: at(pt(0.26, 0.64)).x, y: at(pt(0.26, 0.64)).y, width: side * 0.2, height: side * 0.295)
+                : CGRect(x: at(pt(0.54, 0.8)).x, y: at(pt(0.54, 0.8)).y, width: side * 0.24, height: side * 0.135)
+            context.fill(Path(roundedRect: rect, cornerRadius: side * 0.02), with: .color(kit.opacity(0.45)))
         case .wheels:
             let ring = StrokeStyle(lineWidth: side * 0.025)
-            context.stroke(disc(at(pt(0.26, 0.76)), side * 0.15), with: .color(tint), style: ring)
-            context.stroke(disc(at(pt(0.78, 0.76)), side * 0.15), with: .color(tint), style: ring)
-            context.stroke(line([at(pt(0.26, 0.76)), at(pt(0.4, 0.52)), at(pt(0.53, 0.8)), at(pt(0.26, 0.76))]), with: .color(tint), style: ring)
-            context.stroke(line([at(pt(0.53, 0.8)), at(pt(0.72, 0.5)), at(pt(0.78, 0.76))]), with: .color(tint), style: ring)
+            context.stroke(disc(at(pt(0.26, 0.77)), side * 0.15), with: .color(kit), style: ring)
+            context.stroke(disc(at(pt(0.78, 0.77)), side * 0.15), with: .color(kit), style: ring)
+            context.stroke(line([at(pt(0.26, 0.77)), at(pt(0.4, 0.54)), at(pt(0.53, 0.8)), at(pt(0.26, 0.77))]), with: .color(kit), style: ring)
+            context.stroke(line([at(pt(0.53, 0.8)), at(pt(0.74, 0.5)), at(pt(0.78, 0.77))]), with: .color(kit), style: ring)
         case .seat:
-            context.stroke(line([at(pt(p.hip.x - 0.08, p.hip.y + 0.06)), at(pt(p.hip.x + 0.08, p.hip.y + 0.06))]),
-                           with: .color(tint), style: StrokeStyle(lineWidth: side * 0.04, lineCap: .round))
-            context.stroke(line([at(pt(0.14, 0.9)), at(pt(0.86, 0.9))]), with: .color(tint.opacity(0.5)), style: thin)
+            context.stroke(line([at(pt(p.hip.x - 0.09, p.hip.y + 0.075)), at(pt(p.hip.x + 0.09, p.hip.y + 0.075))]),
+                           with: .color(kit), style: StrokeStyle(lineWidth: side * 0.04, lineCap: .round))
+            context.stroke(line([at(pt(0.12, 0.93)), at(pt(0.88, 0.93))]), with: .color(kit.opacity(0.5)), style: thin)
         }
     }
 }
 
-/// The looping demo. It plays a few reps when it appears and when tapped, then
-/// rests on the end position (with the start shown faintly), so nothing on
-/// screen animates forever. Under Reduce Motion it never moves.
+/// A single still frame: the start or the finish position.
+struct ExerciseFrame: View {
+    let motion: ExerciseMotion
+    /// `false` for the start position, `true` for the finish.
+    let finish: Bool
+
+    var body: some View {
+        ExerciseFigureCanvas(pose: finish ? motion.poses.1 : motion.poses.0, prop: motion.prop,
+                             working: motion.workingLimbs)
+            .aspectRatio(1, contentMode: .fit)
+    }
+}
+
+/// The moving demo. It plays a few reps when it appears and when tapped, then
+/// rests on the start position, so nothing on screen animates forever. Each
+/// rep pauses at the start and at the finish so both positions register.
+/// Under Reduce Motion it never moves (the still frames carry the meaning).
 struct ExerciseDemo: View {
     let motion: ExerciseMotion
-    var reps: Int = 4
+    var reps: Int = 5
 
     @State private var startedAt: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var runTime: Double { motion.period * Double(reps) }
+    private var period: Double { motion.isContinuous ? motion.period : max(motion.period, 2.6) }
+    private var runTime: Double { period * Double(reps) }
+    private var isPlaying: Bool { startedAt != nil }
 
     var body: some View {
         let (a, b) = motion.poses
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: startedAt == nil)) { timeline in
-            let elapsed = startedAt.map { timeline.date.timeIntervalSince($0) } ?? runTime
-            if elapsed >= runTime || reduceMotion {
-                ExerciseFigureCanvas(pose: b, ghost: a, prop: motion.prop)
-                    .onChange(of: elapsed >= runTime, initial: true) { _, done in if done { startedAt = nil } }
-            } else {
-                // Ease there and back: 0 → 1 → 0 once per period.
-                let phase = 0.5 - 0.5 * cos(2 * .pi * elapsed / motion.period)
-                ExerciseFigureCanvas(pose: a.lerp(to: b, phase), prop: motion.prop)
+        ZStack(alignment: .bottomTrailing) {
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
+                let elapsed = startedAt.map { timeline.date.timeIntervalSince($0) } ?? runTime
+                let done = elapsed >= runTime
+                ExerciseFigureCanvas(pose: done ? a : a.lerp(to: b, phase(elapsed)), prop: motion.prop,
+                                     working: motion.workingLimbs)
+                    .onChange(of: done) { _, finished in if finished { startedAt = nil } }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if !isPlaying && !reduceMotion {
+                Label("Play", systemImage: "play.fill")
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Color.surface, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+                    .foregroundStyle(Color.labelPrimary)
+                    .padding(Spacing.md)
+                    .transition(.opacity)
             }
         }
-        .aspectRatio(1, contentMode: .fit)
         .contentShape(Rectangle())
         .onTapGesture { play() }
         .onAppear { play() }
+        .animation(.snappyValue, value: isPlaying)
         .accessibilityElement()
         .accessibilityLabel("Movement demo")
-        .accessibilityHint("Replays the animation")
+        .accessibilityHint("Plays the movement")
         .accessibilityAddTraits(.isButton)
+    }
+
+    /// 0 at the start position, 1 at the finish.
+    private func phase(_ elapsed: Double) -> CGFloat {
+        let t = (elapsed / period).truncatingRemainder(dividingBy: 1)
+        if motion.isContinuous { return 0.5 - 0.5 * cos(2 * .pi * t) }
+        // Hold start, move, hold finish, return.
+        func ease(_ x: Double) -> Double { 0.5 - 0.5 * cos(.pi * min(max(x, 0), 1)) }
+        switch t {
+        case ..<0.12: return 0
+        case ..<0.47: return ease((t - 0.12) / 0.35)
+        case ..<0.65: return 1
+        default:      return 1 - ease((t - 0.65) / 0.35)
+        }
     }
 
     private func play() {
