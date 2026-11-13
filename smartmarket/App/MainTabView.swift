@@ -12,6 +12,9 @@ struct MainTabView: View {
     @State private var showGuideChat = false
     @State private var keyboardVisible = false
     @State private var navigationHeight: CGFloat = 80
+    /// The last quick-actions or tab change came from the keyboard (⌘K, Esc, ⌘1–⌘5):
+    /// those apply with no motion, taps keep theirs.
+    @State private var keyboardChange = false
     @AppStorage("bowlGuideVisible_v2") private var guideVisible = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -36,17 +39,13 @@ struct MainTabView: View {
                     ZStack(alignment: .bottom) {
                         Color.clear
                             .contentShape(Rectangle())
-                            .onTapGesture { closeQuickActions() }
+                            .onTapGesture { closeQuickActions(fromKeyboard: false) }
                             .accessibilityHidden(true)
                         QuickActionsPanel(query: quickQuery, choose: chooseQuickAction)
                             .padding(.horizontal, Spacing.lg)
                             .padding(.top, Spacing.xl)
                             .padding(.bottom, Spacing.sm)
-                            .transition(.asymmetric(
-                                insertion: .opacity.combined(with: .offset(y: 8))
-                                    .animation((reduceMotion ? .easeOut(duration: 0.12) : CommandButtonMotion.swapCurve)
-                                        .delay(CommandButtonMotion.swapDelay)),
-                                removal: .opacity.animation(CommandButtonMotion.swapCurve)))
+                            .transition(panelTransition)
                     }
                 }
             }
@@ -60,7 +59,8 @@ struct MainTabView: View {
                 selection: $selection,
                 isOpen: quickActionsOpen,
                 query: $quickQuery,
-                choose: chooseQuickAction
+                keyboardChange: $keyboardChange,
+                choose: { chooseQuickAction($0, fromKeyboard: false) }
             )
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: NavigationHeightKey.self, value: geometry.size.height)
@@ -124,18 +124,36 @@ struct MainTabView: View {
         )
     }
 
-    private func closeQuickActions() {
+    /// Results rise with the field's stretch (no entry delay); from the keyboard they just appear.
+    private var panelTransition: AnyTransition {
+        guard !keyboardChange else { return .identity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(y: 8))
+                .animation(reduceMotion ? .easeOut(duration: 0.12) : CommandButtonMotion.swapCurve),
+            removal: .opacity.animation(CommandButtonMotion.swapCurve))
+    }
+
+    private func closeQuickActions(fromKeyboard: Bool) {
         guard showQuickActions else { return }
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        withAnimation(reduceMotion ? nil : CommandButtonMotion.open) {
-            showQuickActions = false
-            quickQuery = ""
+        MotionKeyboard.change(fromKeyboard, flag: $keyboardChange) {
+            guard showQuickActions else { return }
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            let fold = {
+                showQuickActions = false
+                quickQuery = ""
+            }
+            if fromKeyboard { MotionKeyboard.withoutMotion(fold) }
+            else { withAnimation(reduceMotion ? nil : CommandButtonMotion.open, fold) }
         }
     }
 
-    private func chooseQuickAction(_ action: MealioQuickAction) {
-        closeQuickActions()
-        if let tab = action.tab { selection = tab } else { activeAction = action }
+    private func chooseQuickAction(_ action: MealioQuickAction, fromKeyboard: Bool) {
+        closeQuickActions(fromKeyboard: fromKeyboard)
+        if let tab = action.tab {
+            if fromKeyboard { MotionKeyboard.withoutMotion { selection = tab } } else { selection = tab }
+        } else {
+            activeAction = action
+        }
     }
 
     private func followGuide(_ pathway: BowlPathway) {
@@ -164,17 +182,19 @@ private struct FloatingTabBar: View {
     @Binding var selection: Int
     @Binding var isOpen: Bool
     @Binding var query: String
+    @Binding var keyboardChange: Bool
     let choose: (MealioQuickAction) -> Void
-    @Namespace private var pill
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var barWidth: CGFloat = 0
 
     init(selection: Binding<Int>, isOpen: Binding<Bool>, query: Binding<String>,
+         keyboardChange: Binding<Bool>,
          choose: @escaping (MealioQuickAction) -> Void) {
         _selection = selection
         _isOpen = isOpen
         _query = query
+        _keyboardChange = keyboardChange
         self.choose = choose
     }
 
@@ -197,9 +217,17 @@ private struct FloatingTabBar: View {
                     filled:    item.filled,
                     label:     item.label,
                     isActive:  selection == idx,
-                    namespace: pill,
-                    shortcut: KeyEquivalent(Character(String(idx + 1)))
+                    index:     idx,
+                    shortcut: KeyEquivalent(Character(String(idx + 1))),
+                    keyboardAction: {
+                        // ⌘1–⌘5: switch at once, no pill stretch or icon spring.
+                        MotionKeyboard.withoutMotion {
+                            keyboardChange = true
+                            selection = idx
+                        }
+                    }
                 ) {
+                    keyboardChange = false
                     withAnimation(reduceMotion ? .none : .snappyValue) {
                         selection = idx
                     }
@@ -220,9 +248,20 @@ private struct FloatingTabBar: View {
                 idle: showsKeys ? .keys : .icon,
                 buttonIdentifier: "navigation.quickActions",
                 fieldIdentifier: "quickActions.search",
+                keyboardChange: $keyboardChange,
                 onSubmit: { if let first = MealioQuickAction.matching(query).first { choose(first) } }
             )
             .layoutPriority(1)
+        }
+        // One shared pill behind the tabs: its edges are springs that chase the
+        // selected tab's icon frame, so it stretches toward the new tab.
+        .backgroundPreferenceValue(StretchTabPillAnchors.self) { anchors in
+            GeometryReader { geometry in
+                StretchTabPill(target: anchors[selection].map { geometry[$0] }, id: selection, isHidden: isOpen,
+                               animated: !keyboardChange) {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.brandLight)
+                }
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
@@ -240,7 +279,8 @@ private struct FloatingTabBar: View {
 /// Results for the command field: local screens and actions only, never AI.
 private struct QuickActionsPanel: View {
     let query: String
-    let choose: (MealioQuickAction) -> Void
+    /// The action, and whether it came from its keyboard shortcut.
+    let choose: (MealioQuickAction, Bool) -> Void
 
     var body: some View {
         let matches = MealioQuickAction.matching(query)
@@ -260,7 +300,7 @@ private struct QuickActionsPanel: View {
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             } else {
                 ForEach(matches) { action in
-                    Button { choose(action) } label: {
+                    Button { choose(action, false) } label: {
                         HStack(spacing: Spacing.md) {
                             Image(systemName: action.symbol)
                                 .frame(width: 24).foregroundStyle(Color.brandPrimary)
@@ -272,8 +312,10 @@ private struct QuickActionsPanel: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .keyboardShortcut(KeyEquivalent(action.shortcut), modifiers: .command)
                     .accessibilityIdentifier("quickActions." + action.rawValue)
+                    .background {
+                        MotionKeyboard.shortcut(action.title, KeyEquivalent(action.shortcut)) { choose(action, true) }
+                    }
                 }
             }
             Text("⌘K opens this. Nothing here uses online AI.")
@@ -292,8 +334,11 @@ private struct TabItem: View {
     let filled: String
     let label: String
     let isActive: Bool
-    let namespace: Namespace.ID
+    /// Tab index; reports the icon frame for the shared stretch pill.
+    let index: Int
     let shortcut: KeyEquivalent
+    /// The ⌘-number shortcut's path (no motion); `action` is the tap's.
+    let keyboardAction: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     let action: () -> Void
@@ -301,20 +346,13 @@ private struct TabItem: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                ZStack {
-                    if isActive {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.brandLight)
-                            .frame(width: 46, height: 30)
-                            .matchedGeometryEffect(id: "tabPill", in: namespace)
-                    }
-                    Image(systemName: isActive ? filled : icon)
-                        .font(.body.weight(isActive ? .semibold : .regular))
-                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                        .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
-                        .animation(reduceMotion ? .none : .snappyValue, value: isActive)
-                }
-                .frame(width: 46, height: 30)
+                Image(systemName: isActive ? filled : icon)
+                    .font(.body.weight(isActive ? .semibold : .regular))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
+                    .animation(reduceMotion ? .none : .snappyValue, value: isActive)
+                    .frame(width: 46, height: 30)
+                    .stretchTabPillAnchor(index)
 
                 if !typeSize.isAccessibilitySize {
                     Text(label)
@@ -330,7 +368,7 @@ private struct TabItem: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .keyboardShortcut(shortcut, modifiers: .command)
+        .background { MotionKeyboard.shortcut(label, shortcut, action: keyboardAction) }
         .accessibilityLabel(label)
         .accessibilityIdentifier("tab.\(label.lowercased())")
         .accessibilityAddTraits(isActive ? .isSelected : [])

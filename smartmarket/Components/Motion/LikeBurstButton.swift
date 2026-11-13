@@ -6,6 +6,8 @@ import SwiftUI
 // Like: the heart squashes down and bounces up, fills, and a ring of dots flies
 // out and fades. The count rolls up by one. Unlike rolls it back and the heart
 // empties with a small dip. No autoplay: it only moves when `isOn` changes.
+// A rare delight moment, so it keeps the bouncy (520, 13) squash. Reduce Motion:
+// no squash or burst, the heart and the count crossfade.
 
 /// Pill button with the animated heart and an optional rolling count.
 struct LikeBurstButton: View {
@@ -41,6 +43,7 @@ struct LikeBurstHeart: View {
     @State private var model = LikeBurstModel()
     @ScaledMetric(relativeTo: .title3) private var side: CGFloat = 26
     @ScaledMetric(relativeTo: .headline) private var row: CGFloat = 22
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let dotColors: [Color] = [
         .dullPink, .almond, .rhino, .brandLight, .dullPink, .almond, .rhino, .brandLight,
@@ -89,7 +92,22 @@ struct LikeBurstHeart: View {
         }
     }
 
-    private func counter(_ base: Int) -> some View {
+    @ViewBuilder private func counter(_ base: Int) -> some View {
+        if reduceMotion {
+            // Crossfade in place instead of rolling.
+            ZStack {
+                Text(base.formatted()).opacity(1 - motionClamp(model.roll, 0, 1))
+                Text((base + 1).formatted()).opacity(motionClamp(model.roll, 0, 1))
+            }
+            .font(.headline.monospacedDigit())
+            .foregroundStyle(Color.labelPrimary)
+            .frame(height: row)
+        } else {
+            rollingCounter(base)
+        }
+    }
+
+    private func rollingCounter(_ base: Int) -> some View {
         VStack(spacing: 0) {
             Text(base.formatted()).frame(height: row)
             Text((base + 1).formatted()).frame(height: row)
@@ -137,11 +155,17 @@ final class LikeBurstModel {
             render()
             return
         }
-        if on {
-            h.x = 0.6; h.v = 9; f.t = 1; n.t = 1
-            bt = MotionSettings.reduceMotion ? 9 : 0
+        f.t = on ? 1 : 0; n.t = on ? 1 : 0
+        if MotionSettings.reduceMotion {
+            // No squash or burst: fill and count crossfade only.
+            h.snap(1); bt = 9
         } else {
-            h.x = 0.85; h.v = 3; f.t = 0; n.t = 0
+            // Add to the heart's motion rather than restarting it, so a quick
+            // like-unlike never jumps; only a heart at rest gets squashed first.
+            if h.isSettled && h.x == 1 { h.x = on ? 0.6 : 0.85 }
+            h.v += on ? 9 : 3
+            h.t = 1
+            if on { bt = 0 }
         }
         clock.start()
     }

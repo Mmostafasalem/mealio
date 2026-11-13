@@ -22,6 +22,8 @@ struct LogFoodSheet: View {
     @State private var productNotice: String?
     @State private var isSearching = false
     @State private var lookupTask: Task<Void, Never>?
+    @State private var toastDismissTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @FocusState private var searchFocused: Bool
 
@@ -256,7 +258,7 @@ struct LogFoodSheet: View {
                 .padding(.horizontal, 16).padding(.vertical, 10)
                 .background(Color.rhino, in: Capsule())
                 .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         }
     }
 
@@ -274,10 +276,14 @@ struct LogFoodSheet: View {
     }
 
     private func showToast(_ message: String) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { addedToast = message }
-        Task {
+        // Cancel the previous dismiss so a second add isn't cleared early.
+        toastDismissTask?.cancel()
+        withAnimation(.snappyValue) { addedToast = message }
+        UIAccessibility.post(notification: .announcement, argument: message)
+        toastDismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.4))
-            withAnimation { addedToast = nil }
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappyValue) { addedToast = nil }
         }
     }
 
@@ -329,6 +335,24 @@ struct ServingDetailView: View {
     }
 
     private var factor: Double { grams / food.referenceAmount }
+
+    // Portion stepper: whole steps of 0.25 serving or 1 g / ml, same as before.
+    private var amountStep: Double { food.basis == .serving ? 0.25 : 1 }
+    private var amountStepRange: ClosedRange<Int> {
+        Int((food.minimumAmount / amountStep).rounded())...Int((food.maximumAmount / amountStep).rounded())
+    }
+    private var amountSteps: Binding<Int> {
+        Binding(
+            get: { Int((grams / amountStep).rounded()) },
+            set: { grams = Double($0) * amountStep }
+        )
+    }
+    private var amountLabel: String {
+        food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres")
+    }
+    private func formatAmount(_ amount: Double) -> String {
+        "\(amount.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)"
+    }
     private var kcal: Int { Int((food.kcal * factor).rounded()) }
 
     var body: some View {
@@ -357,15 +381,24 @@ struct ServingDetailView: View {
 
                 // Serving stepper
                 VStack(spacing: 12) {
-                    HStack {
-                        Text("Serving").font(.headline)
-                        Spacer()
-                        Text("\(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.headline).monospacedDigit()
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Serving").font(.headline)
+                            Text(amountLabel)
+                                .font(.caption).foregroundStyle(Color.labelSecondary)
+                        }
+                        Spacer(minLength: 8)
+                        SpringStepper(
+                            value: amountSteps,
+                            in: amountStepRange,
+                            format: { formatAmount(Double($0) * amountStep) },
+                            label: amountLabel,
+                            decrementLabel: "Less",
+                            incrementLabel: "More",
+                            font: .system(.headline, design: .rounded).weight(.bold)
+                        )
+                        .accessibilityIdentifier("logFood.amount")
                     }
-                    Stepper(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1) {
-                        Text(food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres"))
-                    }
-                    .accessibilityIdentifier("logFood.amount")
                     Slider(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1)
                         .tint(slot.accent)
                     HStack(spacing: 8) {

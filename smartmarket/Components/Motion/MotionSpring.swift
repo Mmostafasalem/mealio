@@ -17,13 +17,20 @@ struct MotionSpring {
     /// Target the spring pulls toward.
     var t: Double
     var k: Double
-    var c: Double
+    /// The designed damping. The damping actually applied is `c`, which follows
+    /// Reduce Motion live (critically damped while it is on), so a spring created
+    /// before the person toggles the setting still obeys it on the next frame.
+    var damping: Double
+    var c: Double {
+        get { MotionSettings.reduceMotion ? 2 * k.squareRoot() : damping }
+        set { damping = newValue }
+    }
 
     init(_ x: Double, _ k: Double, _ c: Double) {
         self.x = x
         self.t = x
         self.k = k
-        self.c = MotionSettings.reduceMotion ? 2 * k.squareRoot() : c
+        self.damping = c
     }
 
     init(_ x: Double, _ preset: MotionTokens.Preset) {
@@ -33,7 +40,7 @@ struct MotionSpring {
     /// Change stiffness and damping. Reduce Motion makes every spring critically damped.
     mutating func tune(_ k: Double, _ c: Double) {
         self.k = k
-        self.c = MotionSettings.reduceMotion ? 2 * k.squareRoot() : c
+        self.damping = c
     }
 
     mutating func tune(_ preset: MotionTokens.Preset) { tune(preset.k, preset.c) }
@@ -52,7 +59,21 @@ struct MotionSpring {
         v = 0
     }
 
-    var isSettled: Bool { abs(x - t) < 0.0005 && abs(v) < 0.0005 }
+    /// Settled for unit-scale values (opacity, 0…1 progress, scale).
+    var isSettled: Bool { isSettled(within: 0.001) }
+
+    /// Settled within `epsilon` of the target, in the spring's own units, with a
+    /// velocity that can't visibly move it any more. Use `MotionSpring.points`
+    /// for springs measured in points, `MotionSpring.degrees` for angles in degrees.
+    func isSettled(within epsilon: Double) -> Bool {
+        abs(x - t) < epsilon && abs(v) < epsilon * 4
+    }
+
+    /// Below a quarter point nothing visibly moves, even at 3× scale.
+    static let points: Double = 0.25
+    static let degrees: Double = 0.1
+    /// Font weight on the 100…900 axis.
+    static let fontWeight: Double = 1
 }
 
 // MARK: - Tokens (stiffness, damping) from tokens.css
@@ -91,8 +112,25 @@ enum MotionTokens {
 
 enum MotionSettings {
     /// Mirrors `prefers-reduced-motion`; springs become critically damped and
-    /// decorative autoplay stops.
-    static var reduceMotion: Bool { UIAccessibility.isReduceMotionEnabled }
+    /// decorative autoplay stops. Cached and kept current by the system
+    /// notification, because it is read on every spring step.
+    @MainActor static var reduceMotion: Bool {
+        if !observing { startObserving() }
+        return cached
+    }
+
+    @MainActor private static var cached = UIAccessibility.isReduceMotionEnabled
+    @MainActor private static var observing = false
+
+    @MainActor private static func startObserving() {
+        observing = true
+        NotificationCenter.default.addObserver(
+            forName: UIAccessibility.reduceMotionStatusDidChangeNotification,
+            object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { cached = UIAccessibility.isReduceMotionEnabled }
+        }
+    }
 }
 
 // MARK: - Clock
@@ -114,10 +152,21 @@ final class MotionClock {
 
     var isRunning: Bool { link != nil }
 
+    /// Frame-rate ceiling. 60 is plenty for decorative and state motion and halves
+    /// the cost on ProMotion iPhones; pass 120 for motion that follows a finger.
+    var maxFramesPerSecond: Float = 60 {
+        didSet { link?.preferredFrameRateRange = frameRange }
+    }
+
+    private var frameRange: CAFrameRateRange {
+        CAFrameRateRange(minimum: min(30, maxFramesPerSecond), maximum: maxFramesPerSecond, preferred: maxFramesPerSecond)
+    }
+
     func start() {
         guard link == nil else { return }
         let proxy = Proxy { [weak self] now in self?.tick(now) }
         let l = CADisplayLink(target: proxy, selector: #selector(Proxy.fire(_:)))
+        l.preferredFrameRateRange = frameRange
         l.add(to: .main, forMode: .common)
         last = CACurrentMediaTime()
         link = l

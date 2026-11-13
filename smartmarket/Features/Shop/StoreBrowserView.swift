@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StoreBrowserView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var cart = ShoppingCartService.shared
     @State private var showBudgetEditor = false
@@ -92,7 +93,7 @@ struct StoreBrowserView: View {
                     Capsule()
                         .fill(Color.dullPink)
                         .frame(width: geo.size.width * cart.budgetFraction, height: 8)
-                        .animation(.spring(duration: 0.5), value: cart.budgetFraction)
+                        .animation(reduceMotion ? .none : .snappyValue, value: cart.budgetFraction)
                 }
             }
             .frame(height: 8)

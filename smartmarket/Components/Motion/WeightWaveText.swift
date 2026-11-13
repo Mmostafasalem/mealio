@@ -4,25 +4,29 @@ import SwiftUI
 //
 // Port of designbookmark.com/motion "Weight wave" (weight-wave/wave.js).
 // Each letter's weight is a spring pulled toward a bell curve around a focus
-// point, so a swell of bold rolls through the word. With no finger on it the
-// swell sweeps back and forth by itself.
+// point, so a swell of extra weight rolls through the word. The line rests as a
+// bold headline; the swell plays once left to right the first time the word
+// appears in a session, and after that only follows a finger. Idle costs nothing:
+// the clock stops as soon as every letter has landed.
 
 enum WeightWaveMotion {
-    static let light: Double = 300
+    /// Resting weight: the word reads as a headline.
+    static let rest: Double = 700
+    /// Peak of the swell under the focus point.
     static let bold: Double = 820
     /// Width of the swell, as a share of the line.
     static let spread: Double = 0.13
     static let letter = MotionTokens.Preset(k: 260, c: 22)
     static let focus = MotionTokens.Preset(k: 150, c: 22)
-    /// Seconds for one full sweep there and back.
-    static let period: Double = 4.6
-    /// Seconds after a release before the sweep resumes.
-    static let resumeDelay: Double = 2
+    /// The one intro sweep runs the focus from just left of the line to just right of it.
+    static let sweepFrom: Double = -0.06
+    static let sweepTo: Double = 1.06
     static let reducedWeight: Double = 700
 }
 
 struct WeightWaveText: View {
     let text: String
+    /// Play the one intro sweep the first time this word appears in the session.
     var autoplay: Bool = true
     /// Extra space between letters (the old headline used tracking -1).
     var kerning: CGFloat = 0
@@ -51,7 +55,6 @@ struct WeightWaveText: View {
                 let weight = reduceMotion ? WeightWaveMotion.reducedWeight : model.weight(at: index)
                 Text(letter)
                     .font(Font(UIFont.systemFont(ofSize: fontSize, weight: .css(weight))))
-                    .opacity(reduceMotion ? 1 : model.opacity(at: index))
                     .fixedSize()
                     .background(GeometryReader { geometry in
                         Color.clear.preference(
@@ -77,14 +80,18 @@ struct WeightWaveText: View {
                     guard !reduceMotion else { return }
                     model.point(at: value.location.x)
                 }
-                .onEnded { _ in model.release() }
+                .onEnded { _ in
+                    guard !reduceMotion else { return }
+                    model.release()
+                }
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(text)
         .accessibilityAddTraits(.isHeader)
         .onAppear {
-            model.configure(count: letters.count, autoplay: autoplay)
+            model.configure(count: letters.count)
             model.visible = true
+            if autoplay && !reduceMotion { model.playIntroOnce(key: text) }
             updateRunning()
         }
         .onDisappear {
@@ -92,8 +99,11 @@ struct WeightWaveText: View {
             updateRunning()
         }
         .onChange(of: scenePhase) { _, _ in updateRunning() }
-        .onChange(of: reduceMotion) { _, _ in updateRunning() }
-        .onChange(of: text) { _, _ in model.configure(count: letters.count, autoplay: autoplay) }
+        .onChange(of: reduceMotion) { _, reduced in
+            if reduced { model.rest() }
+            updateRunning()
+        }
+        .onChange(of: text) { _, _ in model.configure(count: letters.count) }
     }
 
     private func updateRunning() {
@@ -107,7 +117,10 @@ struct WeightWaveText: View {
 final class WeightWaveModel {
     static let space = "weightWave"
 
-    /// Published once per frame for SwiftUI.
+    /// Words whose intro sweep already played this session.
+    private static var introPlayed: Set<String> = []
+
+    /// Published only when a letter's weight actually changed.
     private(set) var weights: [Double] = []
 
     @ObservationIgnored var centres: [Int: CGFloat] = [:]
@@ -115,11 +128,11 @@ final class WeightWaveModel {
     @ObservationIgnored var visible = false
     @ObservationIgnored private var springs: [MotionSpring] = []
     /// Where the swell is: 0 = left end of the line, 1 = right end.
-    @ObservationIgnored private var focus = MotionSpring(-0.2, WeightWaveMotion.focus)
+    @ObservationIgnored private var focus = MotionSpring(WeightWaveMotion.sweepFrom, WeightWaveMotion.focus)
     @ObservationIgnored private var touching = false
-    @ObservationIgnored private var sweepTime: Double = 0
-    @ObservationIgnored private var autoplay = true
-    @ObservationIgnored private var resumeToken: Int?
+    @ObservationIgnored private var sweeping = false
+    @ObservationIgnored private var allowedToRun = false
+    @ObservationIgnored private var buffer: [Double] = []
     @ObservationIgnored private let clock = MotionClock()
 
     init() {
@@ -127,95 +140,91 @@ final class WeightWaveModel {
         clock.render = { [weak self] in self?.render() }
     }
 
-    func configure(count: Int, autoplay: Bool) {
-        self.autoplay = autoplay
+    func configure(count: Int) {
         guard springs.count != count else { return }
-        springs = (0..<count).map { _ in MotionSpring(WeightWaveMotion.light, WeightWaveMotion.letter) }
+        springs = (0..<count).map { _ in MotionSpring(WeightWaveMotion.rest, WeightWaveMotion.letter) }
         weights = springs.map(\.x)
+        buffer = weights
     }
 
     func weight(at index: Int) -> Double {
-        index < weights.count ? weights[index] : WeightWaveMotion.light
+        index < weights.count ? weights[index] : WeightWaveMotion.rest
     }
 
-    func opacity(at index: Int) -> Double {
-        let w = weight(at: index)
-        let g = motionClamp((w - WeightWaveMotion.light) / (WeightWaveMotion.bold - WeightWaveMotion.light), 0, 1)
-        return 0.42 + 0.58 * g
+    /// One left-to-right swell, the first time this word appears in the session.
+    func playIntroOnce(key: String) {
+        guard !Self.introPlayed.contains(key) else { return }
+        Self.introPlayed.insert(key)
+        sweeping = true
+        focus.snap(WeightWaveMotion.sweepFrom)
+        focus.t = WeightWaveMotion.sweepTo
     }
 
-    @ObservationIgnored private var wantsToRun = false
-    @ObservationIgnored private var coverPoll: Timer?
+    /// Jump every letter to rest (Reduce Motion switched on).
+    func rest() {
+        touching = false
+        sweeping = false
+        for i in springs.indices { springs[i].snap(WeightWaveMotion.rest) }
+        focus.snap(focus.t)
+        publish()
+        clock.stop()
+    }
 
-    /// Runs while visible and active, and pauses while a sheet or full-screen
-    /// cover hides the line (onDisappear does not fire for those).
+    /// Runs only while visible, in an active scene, and something still moves.
     func setRunning(_ running: Bool) {
-        wantsToRun = running
-        coverPoll?.invalidate()
-        coverPoll = nil
-        guard running else { clock.stop(); return }
-        applyCover()
-        let poll = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyCover() }
-        }
-        RunLoop.main.add(poll, forMode: .common)
-        coverPoll = poll
+        allowedToRun = running
+        if running && isMoving { clock.start() } else { clock.stop() }
     }
 
-    private func applyCover() {
-        guard wantsToRun else { return }
-        Self.isCovered ? clock.stop() : clock.start()
+    private var isMoving: Bool {
+        touching || sweeping
+            || !focus.isSettled
+            || springs.contains { !$0.isSettled(within: MotionSpring.fontWeight) }
     }
-
-    private static var isCovered: Bool {
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow)
-        return window?.rootViewController?.presentedViewController != nil
-    }
-
-    deinit { coverPoll?.invalidate() }
 
     func point(at x: CGFloat) {
-        if let token = resumeToken { clock.cancel(token); resumeToken = nil }
         touching = true
+        sweeping = false
         focus.t = Double(x / max(lineWidth, 1))
-        if visible { clock.start() }
+        if allowedToRun { clock.start() }
     }
 
     func release() {
-        if let token = resumeToken { clock.cancel(token) }
-        resumeToken = clock.after(WeightWaveMotion.resumeDelay) { [weak self] in
-            guard let self else { return }
-            touching = false
-            sweepTime = 0
-            resumeToken = nil
-        }
-        if !visible { clock.stop() }
+        touching = false
     }
 
     private func frame(_ dt: Double) {
-        if !touching && autoplay {
-            sweepTime += dt
-            focus.t = -0.06 + 1.12 * (0.5 - 0.5 * cos(sweepTime * .pi * 2 / WeightWaveMotion.period))
-        }
+        // Wait for the letters to be measured before moving anything.
+        guard centres.count >= springs.count else { return }
         focus.step(dt)
+        if sweeping && focus.x >= WeightWaveMotion.sweepTo - 0.01 { sweeping = false }
+        let swelling = touching || sweeping
         let total = Double(max(lineWidth, 1))
         for i in springs.indices {
-            let centre = Double(centres[i] ?? 0) / total
-            let d = (centre - focus.x) / WeightWaveMotion.spread
-            springs[i].t = WeightWaveMotion.light + (WeightWaveMotion.bold - WeightWaveMotion.light) * exp(-d * d)
+            if swelling {
+                let centre = Double(centres[i] ?? 0) / total
+                let d = (centre - focus.x) / WeightWaveMotion.spread
+                springs[i].t = WeightWaveMotion.rest + (WeightWaveMotion.bold - WeightWaveMotion.rest) * exp(-d * d)
+            } else {
+                springs[i].t = WeightWaveMotion.rest
+            }
             springs[i].step(dt)
         }
     }
 
     private func render() {
-        weights = springs.map { motionClamp($0.x, 100, 900) }
-        // Without autoplay there is nothing to sweep: rest once everything has landed.
-        if !autoplay && !touching && resumeToken == nil && focus.isSettled && springs.allSatisfy(\.isSettled) {
+        publish()
+        if !isMoving {
+            for i in springs.indices { springs[i].snap(WeightWaveMotion.rest) }
+            publish()
             clock.stop()
         }
+    }
+
+    private func publish() {
+        if buffer.count != springs.count { buffer = Array(repeating: WeightWaveMotion.rest, count: springs.count) }
+        for i in springs.indices { buffer[i] = motionClamp(springs[i].x, 100, 900) }
+        if buffer != weights { weights = buffer }
     }
 }
 

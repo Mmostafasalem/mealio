@@ -24,10 +24,11 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         manager.requestWhenInUseAuthorization()
     }
 
+    /// Refreshes the location only if the person already allowed it. Never shows
+    /// the permission prompt: that is asked for only from an explicit action
+    /// (onboarding's Allow, or the Map's locate button), so choosing Skip sticks.
     func startUpdating() {
         switch authorizationStatus {
-        case .notDetermined:
-            manager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways:
             manager.requestLocation()
         default:

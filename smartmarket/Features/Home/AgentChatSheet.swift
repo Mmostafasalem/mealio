@@ -13,6 +13,12 @@ struct AgentChatSheet: View {
     @State private var pendingOwnerMessage: String?
     @State private var showOwnerConsent = false
     @State private var showOnlineSetup = false
+    /// Message count when the pending request started; only a reply past it animates in.
+    @State private var liveReplyFloor: Int?
+    /// Live reply height at the last auto-scroll; we follow it a line (≥ 12 pt) at a time.
+    @State private var lastFollowHeight: CGFloat = 0
+    /// Set when the person drags the conversation back; auto-scroll stops until they send again.
+    @State private var userScrolledUp = false
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
     @AppStorage("aiSharingConsent_v1") private var onlineAISharingConsent = false
 
@@ -26,17 +32,27 @@ struct AgentChatSheet: View {
                         LazyVStack(spacing: Spacing.md) {
                             if vm.chatMessages.isEmpty { emptyPrompt }
                             ForEach(vm.chatMessages) { msg in
-                                ChatBubble(message: msg).id(msg.id.uuidString)
+                                let live = msg.id == liveReplyID
+                                ChatBubble(message: msg, isLive: live,
+                                           onFinished: {
+                                               liveReplyFloor = nil
+                                               // catch the last few points the per-line follow skipped
+                                               if !userScrolledUp { proxy.scrollTo(msg.id.uuidString, anchor: .bottom) }
+                                           },
+                                           onHeightChange: { height in
+                                               guard live, !userScrolledUp,
+                                                     height - lastFollowHeight >= 12 else { return }
+                                               lastFollowHeight = height
+                                               proxy.scrollTo(msg.id.uuidString, anchor: .bottom)
+                                           })
+                                    .id(msg.id.uuidString)
                                     .accessibilityIdentifier(msg.role == "assistant" ? "chat.assistantReply" : "chat.userMessage")
                             }
                             if vm.isChatLoading {
-                                HStack(spacing: Spacing.sm) {
-                                    MascotGuideView(mood: .thinking, size: 36)
-                                    Text("Waiting for online AI…")
-                                        .font(.subheadline)
-                                        .foregroundStyle(Color.labelSecondary)
-                                    Spacer(minLength: 0)
-                                }
+                                // Same place as the reply bubble, which picks up from these dots.
+                                GooThinkingBubble()
+                                    .padding(.trailing, 60)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.horizontal, Spacing.lg)
                                     .id("typing")
                             }
@@ -56,13 +72,24 @@ struct AgentChatSheet: View {
                         }
                         .padding(.vertical, Spacing.lg)
                     }
+                    // iOS 17 has no onScrollGeometryChange: a finger pulling the content
+                    // down means the person is reading back, so stop following the reply.
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 12).onChanged { drag in
+                            if drag.translation.height > 0 && !userScrolledUp { userScrolledUp = true }
+                        }
+                    )
                     .onChange(of: vm.chatMessages.count) {
+                        guard !userScrolledUp else { return }
                         withAnimation(reduceMotion ? .none : .snappyValue) {
                             proxy.scrollTo(vm.chatMessages.last?.id.uuidString ?? "typing", anchor: .bottom)
                         }
                     }
                     .onChange(of: vm.isChatLoading) {
                         if vm.isChatLoading {
+                            // The next assistant message after this point is the one that animates.
+                            liveReplyFloor = vm.chatMessages.count
+                            lastFollowHeight = 0
                             withAnimation(reduceMotion ? .none : .snappyValue) { proxy.scrollTo("typing", anchor: .bottom) }
                         }
                     }
@@ -102,6 +129,13 @@ struct AgentChatSheet: View {
                 UIAccessibility.post(notification: .announcement, argument: notice)
             }
         }
+    }
+
+    /// The newest assistant message, while it is still streaming in. History renders statically.
+    private var liveReplyID: UUID? {
+        guard let floor = liveReplyFloor, let last = vm.chatMessages.last,
+              last.role == "assistant", vm.chatMessages.count > floor else { return nil }
+        return last.id
     }
 
     private var mood: MascotMood {
@@ -234,6 +268,7 @@ struct AgentChatSheet: View {
     private func sendPrepared(_ cleaned: String) {
         vm.chatInput = cleaned
         localInput = ""
+        userScrolledUp = false   // sending means they are back at the conversation's end
         Task { await vm.sendChatMessage() }
     }
 }
@@ -267,24 +302,44 @@ private struct ChatAISetupView: View {
 
 private struct ChatBubble: View {
     let message: ChatMessage
+    /// The newest reply: it opens out of the thinking dots and streams in.
+    var isLive = false
+    var onFinished: () -> Void = {}
+    var onHeightChange: (CGFloat) -> Void = { _ in }
     var isUser: Bool { message.role == "user" }
 
     var body: some View {
-        HStack {
-            if isUser { Spacer(minLength: 60) }
-            Text(message.content)
-                .font(.subheadline)
-                .foregroundStyle(isUser ? Color.onAccent : Color.labelPrimary)
-                .padding(.horizontal, Spacing.lg)
-                .padding(.vertical, Spacing.md)
-                .background(
-                    isUser ? Color.dullPink : Color.surfaceElevated,
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                )
-            if !isUser { Spacer(minLength: 60) }
+        Group {
+            if isLive && !isUser {
+                GooThinkingBubble(isAnswered: true, accessibilityText: message.content) {
+                    StreamingReplyText(text: message.content, delay: 0.6, onFinished: onFinished)
+                        .modifier(BubbleText(isUser: false))
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { onHeightChange($0) }
+            } else {
+                Text(message.content)
+                    .modifier(BubbleText(isUser: isUser))
+                    .background(
+                        isUser ? Color.dullPink : Color.surfaceElevated,
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+            }
         }
+        .padding(isUser ? .leading : .trailing, 60)
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .padding(.horizontal, Spacing.lg)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isUser ? "You: \(message.content)" : "Online assistant: \(message.content)")
+    }
+}
+
+private struct BubbleText: ViewModifier {
+    let isUser: Bool
+    func body(content: Content) -> some View {
+        content
+            .font(.subheadline)
+            .foregroundStyle(isUser ? Color.onAccent : Color.labelPrimary)
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.md)
     }
 }

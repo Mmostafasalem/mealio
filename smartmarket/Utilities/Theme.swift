@@ -92,4 +92,6 @@ extension Animation {
     static let snappyValue = Animation.spring(response: 0.28, dampingFraction: 0.82)
     /// Gentle card / section transitions.
     static let smoothCard  = Animation.spring(response: 0.42, dampingFraction: 0.85)
+    /// Reduce Motion: keep a short fade so state changes stay readable, drop movement.
+    static let reducedFade = Animation.easeOut(duration: 0.2)
 }

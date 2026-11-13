@@ -43,6 +43,15 @@ struct WelcomeView: View {
                     }
                     .opacity(headerVisible ? 1 : 0)
                     .offset(y: headerVisible || reduceMotion ? 0 : 12)
+                    WordRoll(
+                        lead: "Nourlo helps you",
+                        words: ["plan meals", "track calories", "shop on budget", "cook what you have"],
+                        font: .headline,
+                        leadColor: .almond.opacity(0.75),
+                        wordColor: .almond,
+                        accessibilityText: "Nourlo helps you plan meals, track calories, shop on budget and cook what you have."
+                    )
+                    .opacity(headerVisible ? 1 : 0)
                     Text("Tap your bowl guide for a little help.")
                         .font(.footnote)
                         .foregroundStyle(Color.almond.opacity(0.75))

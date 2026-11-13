@@ -4,8 +4,9 @@ import UIKit
 // MARK: - Loading > Success
 //
 // Port of designbookmark.com/motion "Loading > Success" (loading-success/submit.js).
-// Tap: the label drops away and the pill closes into a circle with a spinner.
-// When the work succeeds the circle opens into a pill tinted toward dull pink,
+// Tap: work that returns within 0.15 s goes straight to done (the label crossfades
+// to the check + done title). Slower work: the label drops away and the pill
+// closes into a circle with a spinner. When the work succeeds the circle opens into a pill tinted toward dull pink,
 // the check draws itself and the done title rises in. A moment later
 // `onFinished` runs and the button settles back. A failure returns to idle.
 
@@ -24,10 +25,13 @@ struct LoadingSuccessButton: View {
     let doneTitle: String
     var systemImage: String? = nil
     var style: Style = .rhino
+    /// Announced to VoiceOver when `action` returns false.
+    var failureMessage: String = "Couldn't add. Try again."
     let action: () async -> Bool
     var onFinished: (() -> Void)? = nil
 
     @State private var model = LoadingSuccessModel()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .headline) private var height: CGFloat = 52
     @ScaledMetric(relativeTo: .headline) private var checkSide: CGFloat = 22
 
@@ -36,6 +40,7 @@ struct LoadingSuccessButton: View {
         doneTitle: String,
         systemImage: String? = nil,
         style: Style = .rhino,
+        failureMessage: String = "Couldn't add. Try again.",
         action: @escaping () async -> Bool,
         onFinished: (() -> Void)? = nil
     ) {
@@ -43,13 +48,16 @@ struct LoadingSuccessButton: View {
         self.doneTitle = doneTitle
         self.systemImage = systemImage
         self.style = style
+        self.failureMessage = failureMessage
         self.action = action
         self.onFinished = onFinished
     }
 
     var body: some View {
         Button {
-            model.go(circle: height, doneTitle: doneTitle, action: action, onFinished: onFinished)
+            model.go(
+                circle: height, doneTitle: doneTitle, failureMessage: failureMessage,
+                action: action, onFinished: onFinished)
         } label: {
             pill
                 .frame(maxWidth: .infinity)
@@ -67,7 +75,7 @@ struct LoadingSuccessButton: View {
         .disabled(model.state != .idle)
         .accessibilityLabel(model.state == .done ? doneTitle : title)
         .accessibilityValue(accessibilityValue)
-        .onAppear { model.isVisible = true }
+        .onAppear { model.appeared() }
         .onDisappear { model.disappeared() }
     }
 
@@ -93,7 +101,8 @@ struct LoadingSuccessButton: View {
             .fixedSize()
             .foregroundStyle(style.text)
             .opacity(model.label)
-            .offset(y: 14 * (1 - model.labelRaw))
+            // Reduce Motion: a plain crossfade, no slide.
+            .offset(y: reduceMotion ? 0 : 14 * (1 - model.labelRaw))
 
             LoadingSpinner(color: style.text)
                 .frame(width: 24, height: 24)
@@ -111,7 +120,7 @@ struct LoadingSuccessButton: View {
             .fixedSize()
             .foregroundStyle(Color.onAccent)
             .opacity(model.done)
-            .offset(y: 12 * (1 - model.doneRaw))
+            .offset(y: reduceMotion ? 0 : 12 * (1 - model.doneRaw))
             .background {
                 GeometryReader { g in
                     Color.clear
@@ -173,7 +182,7 @@ final class LoadingSuccessModel {
     enum State { case idle, loading, done }
 
     private(set) var state: State = .idle
-    // Published per frame.
+    // Published per frame, and only when the value changed.
     private(set) var width: Double = 0
     private(set) var label: Double = 1
     private(set) var labelRaw: Double = 1
@@ -199,12 +208,22 @@ final class LoadingSuccessModel {
     @ObservationIgnored private var rot: Double = 0
     @ObservationIgnored private var pendingTimers = 0
     @ObservationIgnored private var run: Task<Void, Never>?
+    @ObservationIgnored private var spinStart: Task<Void, Never>?
+    /// True once the work outlasted `fastPath` and the pill closed into the spinner.
+    @ObservationIgnored private var spinning = false
+    @ObservationIgnored private var spinBegan: CFTimeInterval = 0
+    @ObservationIgnored private var circle: Double = 52
+    @ObservationIgnored private var finished: (() -> Void)?
     @ObservationIgnored private let clock = MotionClock()
 
-    /// The spinner stays at least this long so it reads.
+    /// Work that returns within this long skips the spinner and goes straight to done.
+    private static let fastPath: Double = 0.15
+    /// Once shown, the spinner stays at least this long so it reads.
     private static let minSpin: Double = 0.6
-    /// How long the done pill holds before `onFinished`.
-    private static let hold: Double = 1.2
+    /// How long the done pill holds before `onFinished`, after an instant success.
+    private static let fastHold: Double = 0.45
+    /// How long the done pill holds before `onFinished`, after the spinner.
+    private static let slowHold: Double = 0.6
 
     init() {
         clock.frame = { [weak self] dt in self?.frame(dt) }
@@ -215,50 +234,117 @@ final class LoadingSuccessModel {
         guard value > 0, value != full else { return }
         let first = full == 0
         full = value
-        if state == .idle {
+        if state == .idle || (state == .done && !spinning) {
             if first { w.snap(value) } else { w.t = value; clock.start() }
             if first { render() }
         }
     }
 
-    func go(circle: Double, doneTitle: String, action: @escaping () async -> Bool, onFinished: (() -> Void)?) {
+    func go(
+        circle: Double,
+        doneTitle: String,
+        failureMessage: String,
+        action: @escaping () async -> Bool,
+        onFinished: (() -> Void)?
+    ) {
         guard state == .idle else { return }
         state = .loading
-        t.t = 0; w.t = circle; p.t = 1
-        clock.start()
+        spinning = false
+        self.circle = circle
+        finished = onFinished
+        // Only close into the spinner if the work is genuinely slow.
+        spinStart = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.fastPath))
+            guard let self, !Task.isCancelled, self.state == .loading, self.isVisible else { return }
+            self.beginSpin()
+        }
         run = Task { [weak self] in
-            let started = CACurrentMediaTime()
             let ok = await action()
-            let wait = Self.minSpin - (CACurrentMediaTime() - started)
-            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
-            guard let self, !Task.isCancelled else { return }
-            guard ok else { self.reset(); return }
-            self.succeed(doneTitle: doneTitle)
-            try? await Task.sleep(for: .seconds(Self.hold))
+            guard let self else { return }
+            self.spinStart?.cancel()
+            self.spinStart = nil
+            if self.spinning {
+                let wait = Self.minSpin - (CACurrentMediaTime() - self.spinBegan)
+                if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            }
+            // Gone from screen: no more motion, but a success must still report.
+            guard self.isVisible else {
+                self.snapIdle()
+                if ok { self.finish() }
+                return
+            }
+            guard ok else { self.fail(message: failureMessage); return }
+            let fast = !self.spinning
+            self.succeed(doneTitle: doneTitle, fast: fast)
+            try? await Task.sleep(for: .seconds(fast ? Self.fastHold : Self.slowHold))
             guard !Task.isCancelled else { return }
-            onFinished?()
+            self.finish()
             if self.isVisible { self.reset() } else { self.snapIdle() }
         }
     }
 
-    func disappeared() {
-        isVisible = false
-        // Let a running flow finish (onFinished must still fire); just stop drawing.
-        if state == .idle { clock.stop() }
+    func appeared() {
+        isVisible = true
     }
 
-    private func succeed(doneTitle: String) {
+    func disappeared() {
+        isVisible = false
+        spinStart?.cancel()
+        spinStart = nil
+        clock.cancelAllTimers()
+        pendingTimers = 0
+        clock.stop()
+        switch state {
+        case .idle:
+            break
+        case .done:
+            // The work already succeeded: report it now instead of after the hold.
+            run?.cancel()
+            run = nil
+            snapIdle()
+            finish()
+        case .loading:
+            // The work is still out; the run task reports when it returns.
+            break
+        }
+    }
+
+    private func finish() {
+        let f = finished
+        finished = nil
+        f?()
+    }
+
+    private func beginSpin() {
+        spinning = true
+        spinBegan = CACurrentMediaTime()
+        t.t = 0; w.t = circle; p.t = 1
+        clock.start()
+    }
+
+    private func succeed(doneTitle: String, fast: Bool) {
         state = .done
-        p.t = 0; g.t = 1; d.t = 1
-        let doneWidth = max(140, doneContent + 48)
-        w.t = full > 0 ? min(full, doneWidth) : doneWidth
-        later(0.15) { [weak self] in self?.k.t = 1 }
+        p.t = 0; g.t = 1; d.t = 1; t.t = 0
+        if spinning {
+            let doneWidth = max(140, doneContent + 48)
+            w.t = full > 0 ? min(full, doneWidth) : doneWidth
+        } else {
+            w.t = full
+        }
+        later(fast ? 0.08 : 0.15) { [weak self] in self?.k.t = 1 }
         clock.start()
         UIAccessibility.post(notification: .announcement, argument: doneTitle)
     }
 
+    private func fail(message: String) {
+        UINotificationFeedbackGenerator().notificationOccurred(.error)
+        UIAccessibility.post(notification: .announcement, argument: message)
+        reset()
+    }
+
     private func reset() {
         state = .idle
+        spinning = false
         d.t = 0; g.t = 0; k.t = 0; p.t = 0
         w.t = full
         later(0.12) { [weak self] in self?.t.t = 1 }
@@ -267,6 +353,7 @@ final class LoadingSuccessModel {
 
     private func snapIdle() {
         state = .idle
+        spinning = false
         clock.cancelAllTimers(); pendingTimers = 0
         w.snap(full); t.snap(1); p.snap(0); d.snap(0); g.snap(0); k.snap(0)
         render()
@@ -286,23 +373,30 @@ final class LoadingSuccessModel {
         w.step(dt); t.step(dt); p.step(dt); d.step(dt); g.step(dt); k.step(dt)
     }
 
-    private func render() {
-        width = max(0, w.x)
-        labelRaw = t.x
-        label = motionClamp(t.x, 0, 1)
-        spinner = motionClamp(p.x, 0, 1)
-        spinnerScale = motionClamp(p.x, 0, 1.2)
-        rotation = rot.truncatingRemainder(dividingBy: 360)
-        doneRaw = d.x
-        done = motionClamp(d.x, 0, 1)
-        green = motionClamp(g.x, 0, 1)
-        check = motionClamp(k.x, 0, 1)
+    private func publish(_ key: ReferenceWritableKeyPath<LoadingSuccessModel, Double>, _ value: Double) {
+        if self[keyPath: key] != value { self[keyPath: key] = value }
+    }
 
-        let settled = w.isSettled && t.isSettled && p.isSettled && d.isSettled && g.isSettled && k.isSettled
-        if clock.isRunning, settled, pendingTimers == 0, state != .loading {
+    private func render() {
+        publish(\.width, max(0, w.x))
+        publish(\.labelRaw, t.x)
+        publish(\.label, motionClamp(t.x, 0, 1))
+        publish(\.spinner, motionClamp(p.x, 0, 1))
+        publish(\.spinnerScale, motionClamp(p.x, 0, 1.2))
+        // The ring only needs to turn while it can be seen.
+        if p.x > 0.001 { publish(\.rotation, rot.truncatingRemainder(dividingBy: 360)) }
+        publish(\.doneRaw, d.x)
+        publish(\.done, motionClamp(d.x, 0, 1))
+        publish(\.green, motionClamp(g.x, 0, 1))
+        publish(\.check, motionClamp(k.x, 0, 1))
+
+        let settled = w.isSettled(within: MotionSpring.points)
+            && t.isSettled && p.isSettled && d.isSettled && g.isSettled && k.isSettled
+        if clock.isRunning, settled, pendingTimers == 0, !(state == .loading && spinning) {
             w.snap(w.t); t.snap(t.t); p.snap(p.t); d.snap(d.t); g.snap(g.t); k.snap(k.t)
-            width = w.x; label = t.x; labelRaw = t.x; spinner = p.x; spinnerScale = p.x
-            done = d.x; doneRaw = d.x; green = g.x; check = k.x
+            publish(\.width, max(0, w.x)); publish(\.label, t.x); publish(\.labelRaw, t.x)
+            publish(\.spinner, p.x); publish(\.spinnerScale, p.x)
+            publish(\.done, d.x); publish(\.doneRaw, d.x); publish(\.green, g.x); publish(\.check, k.x)
             clock.stop()
         }
     }

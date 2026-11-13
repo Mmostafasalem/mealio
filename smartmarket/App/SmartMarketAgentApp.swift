@@ -18,15 +18,19 @@ struct SmartMarketAgentApp: App {
         }
     }
 
+    /// One curve for every root swap; a short fade under Reduce Motion.
+    private var rootTransition: Animation? {
+        UIAccessibility.isReduceMotionEnabled ? .reducedFade : .smoothCard
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {
                 if !appState.hasSeenWelcome {
                     WelcomeView {
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            appState.hasSeenWelcome = true
-                            UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
-                        }
+                        // The Group's implicit animation drives this transition.
+                        appState.hasSeenWelcome = true
+                        UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
                     }
                 } else if appState.isOnboarded {
                     MainTabView()
@@ -34,8 +38,8 @@ struct SmartMarketAgentApp: App {
                     OnboardingFlow()
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
-            .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
+            .animation(rootTransition, value: appState.isOnboarded)
+            .animation(rootTransition, value: appState.hasSeenWelcome)
             .preferredColorScheme(preferredScheme)
             .foregroundStyle(Color.labelPrimary)
             .environment(appState)

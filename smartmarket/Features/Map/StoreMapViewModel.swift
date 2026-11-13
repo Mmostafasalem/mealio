@@ -127,13 +127,14 @@ final class StoreMapViewModel {
         centreOn(loc.coordinate, zoom: 5_000)
     }
 
-    private func centreOn(_ coord: CLLocationCoordinate2D, zoom: CLLocationDistance) {
-        withAnimation(.easeInOut(duration: 0.6)) {
-            cameraPosition = .region(MKCoordinateRegion(
-                center: coord,
-                latitudinalMeters: zoom,
-                longitudinalMeters: zoom
-            ))
+    /// - Parameter verticalBias: fraction of the visible latitude span to move the
+    ///   camera centre south of `coord`, so the target sits higher on screen.
+    private func centreOn(_ coord: CLLocationCoordinate2D, zoom: CLLocationDistance, verticalBias: Double = 0) {
+        var region = MKCoordinateRegion(center: coord, latitudinalMeters: zoom, longitudinalMeters: zoom)
+        region.center.latitude -= region.span.latitudeDelta * verticalBias
+        let animation: Animation? = UIAccessibility.isReduceMotionEnabled ? nil : .smoothCard
+        withAnimation(animation) {
+            cameraPosition = .region(region)
         }
     }
 
@@ -141,8 +142,9 @@ final class StoreMapViewModel {
 
     func selectStore(_ store: Store) {
         selectedStore = store
-        // Animate map to selected store
-        centreOn(CLLocationCoordinate2D(latitude: store.latitude, longitude: store.longitude), zoom: 2_000)
+        // Animate map to selected store, keeping the pin in the upper third above the .medium sheet.
+        centreOn(CLLocationCoordinate2D(latitude: store.latitude, longitude: store.longitude),
+                 zoom: 2_000, verticalBias: 0.25)
     }
 
     // MARK: - Deal helpers

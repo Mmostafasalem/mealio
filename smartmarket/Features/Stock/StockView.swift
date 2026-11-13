@@ -132,6 +132,12 @@ struct FoodHistoryView: View {
         List {
             if log.allEntries.isEmpty {
                 ContentUnavailableView("No food logged yet", systemImage: "clock", description: Text("Your recorded meals will appear here."))
+            } else {
+                Section {
+                    CalorieTrendCard(entries: log.allEntries)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
             }
             ForEach(log.allEntries.reversed()) { entry in
                 VStack(alignment: .leading, spacing: 4) {

@@ -108,13 +108,14 @@ private struct StorePinView: View {
     let store: Store
     let dealCount: Int
     let isSelected: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 2) {
                 Text(store.chainIcon)
                     .font(.title2)
-                    .frame(width: isSelected ? 48 : 40, height: isSelected ? 48 : 40)
+                    .frame(width: 40, height: 40)
                     .background(isSelected ? Color.dullPink : Color.almond)
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.2), radius: 3, y: 2)
@@ -136,6 +137,8 @@ private struct StorePinView: View {
                     .offset(x: 4, y: -4)
             }
         }
-        .animation(.spring(duration: 0.2), value: isSelected)
+        // Grow from the pin's tip so it stays anchored to the coordinate.
+        .scaleEffect(isSelected && !reduceMotion ? 1.2 : 1, anchor: .bottom)
+        .animation(reduceMotion ? .none : .snappyValue, value: isSelected)
     }
 }

@@ -119,7 +119,8 @@ private struct CategoryChip: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(.spring(duration: 0.2), value: isSelected)
+        // Colour-only change, so it stays animated under Reduce Motion.
+        .animation(.snappyValue, value: isSelected)
     }
 }
 
@@ -148,6 +149,7 @@ private struct ItemRow: View {
     let item: CatalogItem
     let isSelected: Bool
     let onTap: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
@@ -160,7 +162,8 @@ private struct ItemRow: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
                     .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
-                    .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
+                    .contentTransition(.symbolEffect(.replace))
+                    .animation(reduceMotion ? .none : .snappyValue, value: isSelected)
             }
             .contentShape(Rectangle())
         }

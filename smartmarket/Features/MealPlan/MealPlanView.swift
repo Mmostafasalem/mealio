@@ -27,12 +27,16 @@ struct MealPlanView: View {
                     Text(message).font(.footnote).foregroundStyle(Color.brandDanger)
                         .padding(.horizontal, Spacing.lg)
                 }
-                Picker("View", selection: $vm.selectedTab) {
-                    ForEach(MealPlanTab.allCases) { tab in
-                        Text(tab.displayName).tag(tab)
+                SpringSegmentedControl(
+                    selection: $vm.selectedTab,
+                    options: MealPlanTab.allCases,
+                    label: \.displayName,
+                    caption: { tab in
+                        tab == .today
+                            ? "Your meals for today, built from your goal and stock."
+                            : "Seven days of meals within your weekly budget."
                     }
-                }
-                .pickerStyle(.segmented)
+                )
                 .padding(.horizontal, Spacing.lg)
 
                 if vm.isGenerating && vm.todaysPlan != nil {
@@ -41,6 +45,7 @@ struct MealPlanView: View {
                         Text("Updating plan…").font(.footnote)
                     }
                     .foregroundStyle(Color.labelSecondary)
+                    .transition(.opacity)
                 }
                 switch vm.selectedTab {
                 case .today: todayContent
@@ -49,6 +54,7 @@ struct MealPlanView: View {
             }
             .padding(.vertical, Spacing.lg)
             .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedTab)
+            .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.isGenerating)
         }
         .background { GrainyGradient().ignoresSafeArea() }
         .navigationTitle("Meal Plan")
@@ -78,9 +84,14 @@ struct MealPlanView: View {
                 .padding(.top, Spacing.xxl)
         } else if let plan = vm.todaysPlan {
             VStack(spacing: Spacing.lg) {
-                ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
-                    MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries)
+                // New identity per plan content, so a regenerated plan cross-fades in.
+                VStack(spacing: Spacing.lg) {
+                    ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
+                        MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries)
+                    }
                 }
+                .id(planGenerationToken(plan))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
 
                 WhyThisPlanCard(notes: plan.agentNotes)
 
@@ -102,12 +113,20 @@ struct MealPlanView: View {
                     .padding(.top, 2)
             }
             .padding(.horizontal, Spacing.lg)
+            .animation(.smoothCard, value: planGenerationToken(plan))
         } else {
             EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
                            message: "Generate a plan tailored to your goals and favourite foods.",
                            actionTitle: "Generate Plan") { Task { await vm.loadTodaysPlan() } }
                 .padding(.top, Spacing.xxl)
         }
+    }
+
+    /// Changes only when the plan's meals change (not on a reload of the same plan).
+    private func planGenerationToken(_ plan: MealPlan) -> String {
+        plan.allMeals
+            .flatMap { meal in meal.entries.map { "\(meal.title):\($0.foodName):\($0.portionG)" } }
+            .joined(separator: "|")
     }
 
     // MARK: - Week

@@ -70,70 +70,68 @@ struct JellySlider: View {
     // MARK: Rail: track, fill, goo (thumb + drop) and the drop label
 
     private func rail(_ s: JellySliderEngine.Snapshot) -> some View {
-        Color.clear
-            .frame(height: JellySliderEngine.railHeight)
+        let E = JellySliderEngine.self
+        // The goo layer only covers the blobs: a small box centred between thumb and drop,
+        // so the blur + threshold pass costs the same at any slider width.
+        let gooLeft = (s.x + s.dropX) / 2 - E.gooWidth / 2
+        return Color.clear
+            .frame(height: E.railHeight)
+            .overlay { JellyTrack(fill: s.fill).allowsHitTesting(false) }
+            .overlay(alignment: .topLeading) {
+                Canvas { ctx, _ in drawGoo(s, left: gooLeft, in: &ctx) }
+                    .frame(width: E.gooWidth, height: E.gooHeight)
+                    .offset(x: gooLeft, y: -E.oy)
+                    .allowsHitTesting(false)
+            }
             .overlay {
-                Canvas { ctx, size in
-                    draw(s, in: &ctx, size: size)
+                if s.reduced {
+                    // Reduce Motion: the bubble waits in place above the thumb and fades.
+                    Circle()
+                        .fill(Color.brandPrimary)
+                        .frame(width: 2 * E.dropR, height: 2 * E.dropR)
+                        .position(x: s.dropX, y: s.dropY)
+                        .opacity(s.labelOpacity)
+                        .allowsHitTesting(false)
                 }
-                // The goo layer reaches past the rail like the original (40 each side, 80 above).
-                .padding(.horizontal, -JellySliderEngine.ox)
-                .padding(.top, -JellySliderEngine.oy)
-                .padding(.bottom, -28)
-                .dynamicTypeSize(...DynamicTypeSize.xLarge)
-                .allowsHitTesting(false)
+            }
+            .overlay {
+                if s.labelOpacity > 0.01 {
+                    JellyDropLabel(text: format(s.labelValue))
+                        .scaleEffect(s.dropScale)
+                        .rotationEffect(.degrees(s.tilt))
+                        .opacity(s.labelOpacity)
+                        .position(x: s.dropX, y: s.dropY)
+                        .dynamicTypeSize(...DynamicTypeSize.xLarge)
+                        .allowsHitTesting(false)
+                }
             }
     }
 
-    private func draw(_ s: JellySliderEngine.Snapshot, in ctx: inout GraphicsContext, size: CGSize) {
-        let ox = JellySliderEngine.ox, oy = JellySliderEngine.oy
-        let w = s.width
-        guard w > 0 else { return }
-
-        // track (6 tall, 13 from the rail top) and fill, clipped to the track
-        let track = Path(roundedRect: CGRect(x: ox, y: oy + 13, width: w, height: 6), cornerRadius: 3)
-        ctx.fill(track, with: .color(.surfaceSecondary))
-        if s.fill > 0.5 {
-            var clipped = ctx
-            clipped.clip(to: track)
-            clipped.fill(Path(roundedRect: CGRect(x: ox, y: oy + 13, width: s.fill, height: 6), cornerRadius: 3),
-                         with: .color(.brandPrimary))
-        }
-
+    private func drawGoo(_ s: JellySliderEngine.Snapshot, left: Double, in ctx: inout GraphicsContext) {
+        let oy = JellySliderEngine.oy
+        guard s.width > 0 else { return }
         // goo: blur the blobs, then cut the blur at half alpha, so they fuse into one liquid shape
         ctx.drawLayer { goo in
             goo.addFilter(.alphaThreshold(min: 0.5, color: .brandPrimary))
             goo.addFilter(.blur(radius: JellySliderEngine.blur))
             goo.drawLayer { blobs in
-                // drop: rises and leans the way it is being dragged from
-                var d = blobs
-                d.translateBy(x: ox + s.dropX, y: oy + s.dropY)
-                d.rotate(by: .degrees(s.tilt))
-                d.scaleBy(x: s.dropScale, y: s.dropScale)
-                let D = JellySliderEngine.dropR
-                d.fill(Path(ellipseIn: CGRect(x: -D, y: -D, width: 2 * D, height: 2 * D)), with: .color(.black))
+                if !s.reduced {
+                    // drop: rises and leans the way it is being dragged from
+                    var d = blobs
+                    d.translateBy(x: s.dropX - left, y: oy + s.dropY)
+                    d.rotate(by: .degrees(s.tilt))
+                    d.scaleBy(x: s.dropScale, y: s.dropScale)
+                    let D = JellySliderEngine.dropR
+                    d.fill(Path(ellipseIn: CGRect(x: -D, y: -D, width: 2 * D, height: 2 * D)), with: .color(.black))
+                }
 
                 // thumb: stretched along the track with speed, area preserving
                 var t = blobs
-                t.translateBy(x: ox + s.x, y: oy + JellySliderEngine.cy)
+                t.translateBy(x: s.x - left, y: oy + JellySliderEngine.cy)
                 t.scaleBy(x: s.thumbSX, y: s.thumbSY)
                 let TR = JellySliderEngine.thumbDrawR
                 t.fill(Path(ellipseIn: CGRect(x: -TR, y: -TR, width: 2 * TR, height: 2 * TR)), with: .color(.black))
             }
-        }
-
-        // the value, riding in the drop
-        if s.labelOpacity > 0.01 {
-            var l = ctx
-            l.opacity = s.labelOpacity
-            l.translateBy(x: ox + s.dropX, y: oy + s.dropY)
-            l.rotate(by: .degrees(s.tilt))
-            l.scaleBy(x: s.dropScale, y: s.dropScale)
-            let text = l.resolve(Text(format(s.labelValue))
-                .font(.caption.weight(.bold))
-                .monospacedDigit()
-                .foregroundStyle(Color.jellyOnLiquid))
-            l.draw(text, at: .zero, anchor: .center)
         }
     }
 
@@ -146,22 +144,8 @@ struct JellySlider: View {
         let current = value
         let labels = tickLabels ?? stride(from: 0.0, through: 1.0, by: 0.25).map { lo + $0 * (hi - lo) }
         return VStack(spacing: 6) {
-            Canvas { ctx, _ in
-                guard s.width > 0 else { return }
-                for i in 0...20 {
-                    let p = Double(i) / 20
-                    let major = i % 5 == 0
-                    let on = p * 100 <= s.litPercent && s.litPercent > 0
-                    let x = R + p * span
-                    let h: CGFloat = major ? 8 : 4
-                    let color: Color = major
-                        ? (on ? .labelPrimary : .labelTertiary)
-                        : (on ? .labelSecondary : .surfaceSecondary)
-                    ctx.fill(Path(roundedRect: CGRect(x: x - 0.75, y: 0, width: 1.5, height: h), cornerRadius: 1),
-                             with: .color(color))
-                }
-            }
-            .frame(height: 8)
+            JellyTicks(litPercent: s.litPercent)
+                .frame(height: 8)
 
             ZStack(alignment: .topLeading) {
                 ForEach(labels, id: \.self) { v in
@@ -190,6 +174,68 @@ struct JellySlider: View {
     }
 }
 
+// MARK: - Pieces
+
+/// Track and fill. Redraws only when the fill length changes.
+private struct JellyTrack: View, Equatable {
+    let fill: Double
+
+    var body: some View {
+        Canvas { ctx, size in
+            // track (6 tall, 13 from the rail top) and fill, clipped to the track
+            let track = Path(roundedRect: CGRect(x: 0, y: 13, width: size.width, height: 6), cornerRadius: 3)
+            ctx.fill(track, with: .color(.surfaceSecondary))
+            if fill > 0.5 {
+                var clipped = ctx
+                clipped.clip(to: track)
+                clipped.fill(Path(roundedRect: CGRect(x: 0, y: 13, width: fill, height: 6), cornerRadius: 3),
+                             with: .color(.brandPrimary))
+            }
+        }
+        .frame(height: JellySliderEngine.railHeight)
+    }
+}
+
+/// The marks under the track. Takes only the rounded lit percentage, so it redraws
+/// when a mark lights up, not every frame.
+private struct JellyTicks: View, Equatable {
+    let litPercent: Double
+
+    var body: some View {
+        Canvas { ctx, size in
+            let R = JellySliderEngine.R
+            let span = max(size.width - 2 * R, 1)
+            guard size.width > 0 else { return }
+            for i in 0...20 {
+                let p = Double(i) / 20
+                let major = i % 5 == 0
+                let on = p * 100 <= litPercent && litPercent > 0
+                let x = R + p * span
+                let h: CGFloat = major ? 8 : 4
+                let color: Color = major
+                    ? (on ? .labelPrimary : .labelTertiary)
+                    : (on ? .labelSecondary : .surfaceSecondary)
+                ctx.fill(Path(roundedRect: CGRect(x: x - 0.75, y: 0, width: 1.5, height: h), cornerRadius: 1),
+                         with: .color(color))
+            }
+        }
+    }
+}
+
+/// The value riding in the drop. Its text is laid out again only when the value changes;
+/// the per-frame motion is transforms on top.
+private struct JellyDropLabel: View, Equatable {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.caption.weight(.bold))
+            .monospacedDigit()
+            .foregroundStyle(Color.jellyOnLiquid)
+            .fixedSize()
+    }
+}
+
 // MARK: - Engine
 
 @MainActor
@@ -209,6 +255,8 @@ final class JellySliderEngine {
         var labelValue: Double = 0
         var fill: Double = 0
         var litPercent: Double = 0
+        /// Reduce Motion: no goo drop, the bubble fades in place.
+        var reduced = false
     }
 
     // R thumb radius, D drop radius, CY track centre inside the rail, OX/OY goo layer offset.
@@ -223,6 +271,10 @@ final class JellySliderEngine {
     static let restDrop: Double = 0.5
     static let railHeight: Double = 32
     static let blur: Double = MotionTokens.sliderBlur
+    /// The goo box around thumb and drop: wide enough for the drop's lag and the blur,
+    /// tall enough for the risen drop (oy above the rail, 28 below it).
+    static let gooWidth: Double = 120
+    static let gooHeight: Double = 140
 
     private(set) var snap = Snapshot()
     /// Last value this slider wrote to the binding (or accepted from it).
@@ -318,6 +370,7 @@ final class JellySliderEngine {
         guard width > 0 else { return }
         if !dragging {
             dragging = true
+            clock.maxFramesPerSecond = 120
             X.tune(MotionTokens.sliderFollow)
             sync()
         }
@@ -329,6 +382,7 @@ final class JellySliderEngine {
     func release() {
         guard dragging else { return }
         dragging = false
+        clock.maxFramesPerSecond = 60
         X.tune(MotionTokens.sliderRelease)
         // The target is clamped back inside the track and lands on the step grid.
         let v = stepped(toRatio(motionClamp(X.t, Self.R, width - Self.R)))
@@ -346,8 +400,14 @@ final class JellySliderEngine {
 
     private func sync() {
         let up = dragging || lifted
-        DY.t = up ? Self.cy + Self.rise : Self.cy
-        DS.t = up ? 1 : Self.restDrop
+        if MotionSettings.reduceMotion {
+            // No rise: the bubble already sits above the thumb; only its opacity moves.
+            DY.snap(Self.cy + Self.rise)
+            DS.t = up ? 1 : 0
+        } else {
+            DY.t = up ? Self.cy + Self.rise : Self.cy
+            DS.t = up ? 1 : Self.restDrop
+        }
         PS.t = dragging ? 1.16 : 1
     }
 
@@ -355,6 +415,7 @@ final class JellySliderEngine {
 
     private func frame(_ dt: Double) {
         DX.t = X.x
+        if MotionSettings.reduceMotion { DX.snap(X.x) }
         if width > 2 * Self.R { ratio = toRatio(X.t) }
         X.step(dt); DX.step(dt); DY.step(dt); DS.step(dt); PS.step(dt)
     }
@@ -365,15 +426,23 @@ final class JellySliderEngine {
         // stretch along the track with speed, area preserving (none with Reduce Motion)
         let st = reduce ? 1 : 1 + min(abs(X.v) / 2400, 0.4)
         var s = Snapshot()
+        s.reduced = reduce
         s.width = width
         s.x = x
         s.thumbSX = st * PS.x
         s.thumbSY = PS.x / st
         s.dropX = DX.x
         s.dropY = DY.x
-        s.dropScale = DS.x
-        s.tilt = motionClamp((DX.x - X.x) * 0.9, -28, 28)
-        s.labelOpacity = motionClamp((DS.x - 0.7) / 0.25, 0, 1)
+        if reduce {
+            s.dropX = X.x
+            s.dropScale = 1
+            s.tilt = 0
+            s.labelOpacity = motionClamp(DS.x, 0, 1)
+        } else {
+            s.dropScale = DS.x
+            s.tilt = motionClamp((DX.x - X.x) * 0.9, -28, 28)
+            s.labelOpacity = motionClamp((DS.x - 0.7) / 0.25, 0, 1)
+        }
         let r = toRatio(x)
         s.labelValue = stepped(r)
         // the fill ends under the thumb centre, and is gone by the time the thumb sits at 0
@@ -381,7 +450,8 @@ final class JellySliderEngine {
         s.litPercent = (r * 100).rounded()
         if s != snap { snap = s }
 
-        let settled = X.isSettled && DX.isSettled && DY.isSettled && DS.isSettled && PS.isSettled
+        let settled = X.isSettled(within: MotionSpring.points) && DX.isSettled(within: MotionSpring.points)
+            && DY.isSettled(within: MotionSpring.points) && DS.isSettled && PS.isSettled
         if !dragging && liftTimer == nil && settled && clock.isRunning { clock.stop() }
     }
 }

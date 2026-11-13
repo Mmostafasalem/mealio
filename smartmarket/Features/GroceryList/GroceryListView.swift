@@ -64,6 +64,13 @@ struct GroceryListView: View {
     private var listContent: some View {
         VStack(spacing: 0) {
             List {
+                Section {
+                    GrocerySummaryRow(
+                        bought: vm.items.filter(\.isBought).count,
+                        total: vm.items.count,
+                        copyText: copyText
+                    )
+                }
                 ForEach(vm.sortedStores, id: \.self) { store in
                     Section {
                         ForEach(vm.groupedByStore[store] ?? [], content: groceryRow)
@@ -83,6 +90,20 @@ struct GroceryListView: View {
         }
 
     }
+
+    /// Unbought items as plain lines for the pasteboard: "• Milk 2 × 1 L — Rimi".
+    private var copyText: String {
+        vm.sortedStores
+            .flatMap { vm.groupedByStore[$0] ?? [] }
+            .filter { !$0.isBought }
+            .map { item in
+                let q = item.quantity.trimmingCharacters(in: .whitespaces)
+                // Cart rows store a bare count ("2"); show it as "× 2".
+                let amount = q.isEmpty ? "" : (Int(q) != nil ? " × \(q)" : " \(q)")
+                return "• \(item.foodName)\(amount) — \(item.storeName)"
+            }
+            .joined(separator: "\n")
+    }
 }
 
 // MARK: - Row
@@ -91,33 +112,56 @@ private struct GroceryRow: View {
     let item: GroceryItem
     let onToggle: () -> Void
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onToggle) {
-                Image(systemName: item.isBought ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(item.isBought ? Color.brandPrimary : Color.labelSecondary)
-                    .minTapTarget()
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .sensoryFeedback(.selection, trigger: item.isBought)
-            .accessibilityLabel(item.isBought ? "Mark \(item.foodName) as not bought" : "Mark \(item.foodName) as bought")
+    private var priceText: String {
+        item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice)
+    }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.foodName)
-                    .font(.subheadline).fontWeight(.medium)
-                    .strikethrough(item.isBought)
-                    .foregroundStyle(item.isBought ? .secondary : .primary)
-                Text(item.quantity)
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-            }
-            Spacer()
-            Text(item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice))
+    var body: some View {
+        AnimatedCheckRow(
+            title: item.foodName,
+            isOn: item.isBought,
+            action: onToggle,
+            stateLabels: ("Bought", "Not bought"),
+            accessibilityDetail: [item.quantity, priceText].filter { !$0.isEmpty }.joined(separator: ", ")
+        ) {
+            Text(item.quantity)
+                .font(.caption).foregroundStyle(Color.labelSecondary)
+        } trailing: {
+            Text(priceText)
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(item.isBought ? .tertiary : .secondary)
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - List summary
+
+/// "N of M bought" rolling count and the Copy list button, above the stores.
+private struct GrocerySummaryRow: View {
+    let bought: Int
+    let total: Int
+    let copyText: String
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                RollingNumber(value: bought)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.labelPrimary)
+                Text("of \(total) bought")
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            .font(.subheadline)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(bought) of \(total) bought")
+            .accessibilityIdentifier("groceries.boughtCount")
+            Spacer(minLength: Spacing.sm)
+            CopyButton(title: "Copy list", doneTitle: "Copied", announcement: "Shopping list copied") { copyText }
+                .disabled(copyText.isEmpty)
+                .accessibilityHint(copyText.isEmpty ? "Everything is bought" : "Copies the items still to buy")
+                .accessibilityIdentifier("groceries.copy")
+        }
     }
 }
 

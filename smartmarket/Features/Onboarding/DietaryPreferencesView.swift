@@ -3,6 +3,7 @@ import SwiftUI
 struct DietaryPreferencesView: View {
 
     @Bindable var vm: OnboardingViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
 
@@ -35,28 +36,32 @@ struct DietaryPreferencesView: View {
                 }
                 .padding(.horizontal, 24)
 
-                // Info note
-                if vm.selectedPreferences.isEmpty {
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(Color.labelSecondary)
-                        Text("No restrictions selected — we'll include all food types.")
-                            .font(.caption)
-                            .foregroundStyle(Color.labelSecondary)
+                // Info note — the parent animates the empty/non-empty swap; the count rolls in place.
+                Group {
+                    if vm.selectedPreferences.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(Color.labelSecondary)
+                            Text("No restrictions selected — we'll include all food types.")
+                                .font(.caption)
+                                .foregroundStyle(Color.labelSecondary)
+                        }
+                        .transition(.opacity)
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.shield.fill")
+                                .foregroundStyle(Color.brandPrimary)
+                            Text("\(vm.selectedPreferences.count) preference\(vm.selectedPreferences.count == 1 ? "" : "s") selected. Check every suggestion against your dietary needs.")
+                                .font(.caption)
+                                .foregroundStyle(Color.brandPrimary)
+                                .contentTransition(.numericText())
+                                .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedPreferences.count)
+                        }
+                        .transition(.opacity)
                     }
-                    .padding(.horizontal, 24)
-                } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.shield.fill")
-                            .foregroundStyle(Color.brandPrimary)
-                        Text("\(vm.selectedPreferences.count) preference\(vm.selectedPreferences.count == 1 ? "" : "s") selected. Check every suggestion against your dietary needs.")
-                            .font(.caption)
-                            .foregroundStyle(Color.brandPrimary)
-                    }
-                    .padding(.horizontal, 24)
-                    .transition(.opacity)
-                    .animation(.easeIn, value: vm.selectedPreferences.count)
                 }
+                .padding(.horizontal, 24)
+                .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedPreferences.isEmpty)
 
                 // Continue — no minimum required, dietary prefs are optional
                 NavigationLink(value: OnboardingStep.notifications) {

@@ -24,6 +24,7 @@ struct ProfileView: View {
                 notificationSection
                 Section {
                     Toggle("Floating bowl guide", isOn: $bowlGuideVisible)
+                        .toggleStyle(.spring)
                         .accessibilityIdentifier("profile.bowlGuide")
                 } header: {
                     Text("Your companion")
@@ -40,7 +41,7 @@ struct ProfileView: View {
             .navigationTitle("Profile")
             .alert("Delete all Nourlo data?", isPresented: $vm.showResetAlert) {
                 Button("Delete Data", role: .destructive) {
-                    Task { await vm.resetOnboarding() }
+                    deleteAllData()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -163,14 +164,29 @@ struct ProfileView: View {
 
     private var dangerSection: some View {
         Section {
-            Button(role: .destructive) {
-                vm.showResetAlert = true
-            } label: {
-                Label("Delete All Data", systemImage: "trash")
+            // Hold to delete; a tap, VoiceOver or Switch Control opens the confirmation alert instead.
+            HoldToConfirmButton(
+                title: "Hold to delete all data",
+                holdingTitle: "Keep holding to delete",
+                doneTitle: "Deleting all data",
+                tint: .brandDanger,
+                systemImage: "trash",
+                accessibilityName: "Delete All Data",
+                accessibilityActionName: "Delete all data",
+                fallback: { vm.showResetAlert = true }
+            ) {
+                deleteAllData()
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: Spacing.xs, leading: 0, bottom: Spacing.xs, trailing: 0))
         } footer: {
             Text("Deletes your online AI account, clears local data and requests deletion of your Nourlo iCloud data, then restarts setup.")
         }
+    }
+
+    /// What the "Delete Data" confirmation runs; the hold button calls the same.
+    private func deleteAllData() {
+        Task { await vm.resetOnboarding() }
     }
 
     private var syncSection: some View {
@@ -179,6 +195,7 @@ struct ProfileView: View {
                 get: { sync.isEnabled },
                 set: { enabled in Task { await sync.setEnabled(enabled) } }
             ))
+            .toggleStyle(.spring)
             .disabled(sync.isSyncing || !sync.isAvailable)
             .accessibilityIdentifier("profile.icloudSync")
             Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
@@ -206,6 +223,7 @@ struct ProfileView: View {
     private var privacySection: some View {
         Section {
             Toggle("Allow online AI suggestions", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
+                .toggleStyle(.spring)
                 .accessibilityIdentifier("profile.aiConsent")
             NavigationLink {
                 LegalDocumentView(resource: "Privacy", title: "Privacy Policy")

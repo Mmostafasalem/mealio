@@ -76,6 +76,9 @@ final class PullCordEngine {
         var beadAngle: Double = 0
         var lightCentre: CGPoint = .zero
         var lightRadius: Double = 0
+        /// Reduce Motion: the light room is crossfaded in at this opacity instead of wiped.
+        var lightOpacity: Double = 1
+        var crossfade = false
     }
 
     // wire length; where the cord leaves the shade
@@ -87,6 +90,12 @@ final class PullCordEngine {
     static let CLICK: Double = 22, MAXS: Double = 54
     /// Lowest point of the resting bead in scene units (anchor + cord + bead).
     static let restBottom = WIRE + AY + L + 27
+    /// The app-wide appearance change waits at least this long after the click…
+    static let flipNotBefore: Double = 0.35
+    /// …and until the light has (nearly) finished opening or closing, but no longer than this.
+    static let flipNotAfter: Double = 0.8
+    /// Reduce Motion crossfade between the rooms.
+    static let crossfadeDuration: Double = 0.25
 
     private(set) var snap = Snapshot()
     private(set) var hapticTick = 0
@@ -117,6 +126,11 @@ final class PullCordEngine {
     @ObservationIgnored private var pts: [Point] = []
     @ObservationIgnored private var pendingTimers = 0
     @ObservationIgnored private var started = false
+    /// Reduce Motion: opacity of the light room (0 dark … 1 light).
+    @ObservationIgnored private var fade: Double = 0
+    /// A flip the app hasn't been told about yet, and the time since the click.
+    @ObservationIgnored private var pendingFlip: Bool?
+    @ObservationIgnored private var sinceFlip: Double = 0
     @ObservationIgnored private let clock = MotionClock()
 
     init() {
@@ -159,6 +173,7 @@ final class PullCordEngine {
         started = true
         on = value
         if on { R.snap(1) }
+        fade = on ? 1 : 0
         render()
     }
 
@@ -171,17 +186,22 @@ final class PullCordEngine {
     private func flip(to: Bool, fromUser: Bool) {
         guard to != on else { return }
         on = to
-        BP.x = on ? 1.35 : 0.8
-        TUG.v += 150
-        clock.start()
-        guard fromUser else { return }
-        hapticTick += 1
-        // tell the app a moment later, so the light starts opening before the whole UI changes
-        let now = on
-        later(0.14) { [weak self] in
-            guard let self, now == self.on else { return }
-            self.onFlip?(now)
+        if !MotionSettings.reduceMotion {
+            BP.x = on ? 1.35 : 0.8
+            TUG.v += 150
         }
+        clock.start()
+        guard fromUser else { pendingFlip = nil; return }
+        hapticTick += 1
+        // Tell the app once the light has finished opening, so the whole UI re-rendering
+        // for the new appearance doesn't hitch the wipe mid-way (see `render`).
+        pendingFlip = on
+        sinceFlip = 0
+    }
+
+    /// Light (or crossfade) is close enough to its target that the app can change underneath.
+    private var lightLanded: Bool {
+        MotionSettings.reduceMotion ? abs(fade - (on ? 1 : 0)) < 0.02 : abs(R.x - R.t) < 0.05
     }
 
     private func later(_ seconds: Double, _ fn: @escaping () -> Void) {
@@ -216,11 +236,13 @@ final class PullCordEngine {
         guard !pts.isEmpty, !ignoringTouch else { return }
         let x = location.x, y = location.y - shift
         if held == nil {
+            clock.maxFramesPerSecond = 120
             let sx = start.x, sy = start.y - shift
             let b = pts[Self.N]
             // hit area 44×52 around the bead (22 either side, 12 above, 40 below)
             guard sx >= b.x - 22, sx <= b.x + 22, sy >= b.y - 12, sy <= b.y + 40 else {
                 ignoringTouch = true
+                clock.maxFramesPerSecond = 60
                 return
             }
             held = Held(x: b.x, y: b.y, ox: b.x - sx, oy: b.y - sy, moved: 0, sx: sx, sy: sy, flipped: false)
@@ -235,6 +257,7 @@ final class PullCordEngine {
 
     func letGo() {
         defer { ignoringTouch = false }
+        clock.maxFramesPerSecond = 60
         guard let h = held else { return }
         let tap = h.moved < 5 && !h.flipped
         held = nil
@@ -245,6 +268,12 @@ final class PullCordEngine {
     // MARK: Simulation
 
     private func frame(_ dt: Double) {
+        if pendingFlip != nil { sinceFlip += dt }
+        let fadeTarget: Double = on ? 1 : 0
+        if fade != fadeTarget {
+            let stepBy = dt / Self.crossfadeDuration
+            fade = fade < fadeTarget ? min(fadeTarget, fade + stepBy) : max(fadeTarget, fade - stepBy)
+        }
         TH.step(dt); TUG.step(dt); R.step(dt); BP.step(dt); HX.step(dt); HY.step(dt); K.step(dt)
         guard dt > 0, pts.count == Self.N + 1 else { return }
         let N = Self.N, L = Self.L
@@ -329,13 +358,29 @@ final class PullCordEngine {
         let byCard = by + shift
         let far = hypot(max(bx, W - bx), max(byCard, H - byCard)) + 24
         s.lightCentre = CGPoint(x: bx, y: by)
-        s.lightRadius = max(0, R.x) * far
+        if MotionSettings.reduceMotion {
+            // No wipe: the light room covers the card and crossfades in.
+            s.crossfade = true
+            s.lightRadius = fade > 0 ? far : 0
+            s.lightOpacity = fade
+        } else {
+            s.lightRadius = max(0, R.x) * far
+        }
         if s != snap { snap = s }
 
-        // pause when nothing moves
-        let springs = TH.isSettled && TUG.isSettled && R.isSettled && BP.isSettled && K.isSettled
-        let still = pts.allSatisfy { abs($0.vx) < 0.5 && abs($0.vy) < 0.5 }
-        if held == nil && !ghost && pendingTimers == 0 && springs && still && clock.isRunning {
+        if let flipped = pendingFlip,
+           sinceFlip >= Self.flipNotBefore && (lightLanded || sinceFlip >= Self.flipNotAfter) {
+            pendingFlip = nil
+            if flipped == on { onFlip?(flipped) }
+        }
+
+        // pause when nothing moves: the lamp's slow swing ends well before 0.001 rad
+        let springs = TH.isSettled(within: 0.002) && TUG.isSettled(within: MotionSpring.points)
+            && R.isSettled && BP.isSettled && K.isSettled
+        let still = pts.allSatisfy { abs($0.vx) < 2 && abs($0.vy) < 2 }
+        let crossfading = fade != (on ? 1 : 0)
+        if held == nil && !ghost && pendingTimers == 0 && pendingFlip == nil && !crossfading
+            && springs && still && clock.isRunning {
             clock.stop()
         }
     }
@@ -377,7 +422,13 @@ private enum PullCordRenderer {
         }
         room(s, dark, in: ctx, size: size)
         let r = s.lightRadius
-        if r >= 4 {
+        if s.crossfade {
+            if s.lightOpacity > 0 {
+                var lit = ctx
+                lit.opacity = s.lightOpacity
+                room(s, light, in: lit, size: size)
+            }
+        } else if r >= 4 {
             var lit = ctx
             let c = CGPoint(x: s.lightCentre.x, y: s.lightCentre.y + s.shift)
             lit.clip(to: Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)))

@@ -73,9 +73,18 @@ struct StoreProductsView: View {
 
     // MARK: - Sticky cart bar
 
-    @ViewBuilder
     private var cartBar: some View {
-        if cart.itemCount > 0 {
+        // Own container so the implicit animation scopes to the bar's insert/remove only.
+        VStack(spacing: 0) {
+            if cart.itemCount > 0 {
+                cartBarContent
+            }
+        }
+        .animation(reduceMotion ? .none : .snappyValue, value: cart.itemCount > 0)
+    }
+
+    private var cartBarContent: some View {
+        Group {
             NavigationLink(destination: CartView()) {
                 HStack(spacing: 14) {
                     // Item count badge
@@ -114,8 +123,8 @@ struct StoreProductsView: View {
                 )
             }
             .buttonStyle(.plain)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - Filtering
@@ -290,36 +299,26 @@ struct QuantityStepper: View {
             .accessibilityLabel("Add to cart")
             .sensoryFeedback(.impact, trigger: quantity)
         } else {
-            HStack(spacing: 12) {
-                Button(action: onRemove) {
-                    Image(systemName: "minus.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(quantity == 1 ? Color.brandDanger : Color.brandPrimary)
-                        .minTapTarget()
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Decrease quantity")
-
-                Text("\(quantity)")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .frame(minWidth: 20, alignment: .center)
-                    .contentTransition(.numericText())
-
-                Button(action: onAdd) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.brandPrimary)
-                        .minTapTarget()
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Increase quantity")
-            }
-            .sensoryFeedback(.selection, trigger: quantity)
+            // Spring roll on change; stepping down from 1 removes the line (the
+            // view then swaps back to "Add to cart").
+            SpringStepper(
+                value: Binding(
+                    get: { quantity },
+                    set: { new in
+                        if new > quantity { onAdd() } else if new < quantity { onRemove() }
+                    }
+                ),
+                in: 0...Self.maxQuantity,
+                label: "Quantity",
+                decrementLabel: "Decrease quantity",
+                incrementLabel: "Increase quantity",
+                font: .system(.callout, design: .rounded).weight(.bold)
+            )
         }
     }
+
+    /// Past this the plus kicks back instead of adding.
+    static let maxQuantity = 99
 }
 
 #Preview {

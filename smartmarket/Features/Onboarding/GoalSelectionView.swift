@@ -3,6 +3,7 @@ import SwiftUI
 struct GoalSelectionView: View {
 
     @Bindable var vm: OnboardingViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
 
@@ -46,7 +47,7 @@ struct GoalSelectionView: View {
                             isSelected: vm.weightGoal == goal,
                             calorieTarget: calorieTarget(for: goal)
                         ) {
-                            withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
+                            withAnimation(reduceMotion ? .reducedFade : .snappyValue) {
                                 vm.weightGoal = goal
                             }
                         }
@@ -57,7 +58,7 @@ struct GoalSelectionView: View {
                 // Pace selector (only when Lose is selected)
                 if vm.weightGoal == .lose {
                     PaceSelectorSection(pace: $vm.lossPace, tdee: vm.liveTDEE)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
                         .padding(.horizontal, 24)
                 }
 

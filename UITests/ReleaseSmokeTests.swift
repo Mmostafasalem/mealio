@@ -326,8 +326,9 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["USDA SR Legacy · April 2018"].waitForExistence(timeout: 5))
         capture("nutrition-source-detail")
         tap("logFood.addServing", in: app)
-        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["logFood.addServing"].exists)
+        // The Add button plays a short "Added" success moment before the sheet closes.
+        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["navigation.quickActions"].exists)
     }
 
     func testRestaurantMenuDishCanBeSavedAndLoggedPerServing() {
@@ -344,7 +345,13 @@ final class ReleaseSmokeTests: XCTestCase {
         for (id, value) in [("name", "QA Menu Plate"), ("restaurant", "QA Restaurant"), ("energy", "650"), ("protein", "35"), ("carbs", "80"), ("fat", "21")] {
             let field = app.textFields["customFood." + id]
             XCTAssertTrue(field.waitForExistence(timeout: 5))
-            field.tap(); field.typeText(value)
+            // A tap during the previous field's keyboard dismissal can miss; retry until focused.
+            let focused = NSPredicate(format: "hasKeyboardFocus == true")
+            for _ in 0..<3 {
+                field.tap()
+                if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { break }
+            }
+            field.typeText(value)
             let done = app.buttons["customFood.keyboardDone"]
             XCTAssertTrue(done.waitForExistence(timeout: 5))
             done.tap()

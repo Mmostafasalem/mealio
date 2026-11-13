@@ -13,6 +13,8 @@ import SwiftUI
 // - Open: layout spring stiffness 300, damping 34 - 20 * bounce/100, bounce 30.
 // - Swap: 0.18 s cubic-bezier(.23, 1, .32, 1) with a 4 pt blur; the entering
 //   side waits 0.06 s.
+// - Keyboard (⌘K to open, Esc to close): no motion at all. Someone driving the
+//   app from the keyboard wants the field now, not a flourish; taps keep the spring.
 
 enum CommandButtonMotion {
     static let press = MotionTokens.Preset(k: 520 / 0.6, c: 34 / 0.6)
@@ -46,10 +48,15 @@ struct CommandButton: View {
     /// Accessibility identifiers for the folded button and the open field (UI tests).
     var buttonIdentifier: String? = nil
     var fieldIdentifier: String? = nil
+    /// Optional shared storage for "the last open/close came from the keyboard", so
+    /// a container can drop its own transitions in step (see `MotionKeyboard`).
+    var keyboardChange: Binding<Bool>? = nil
     let onSubmit: () -> Void
 
     @State private var press = CommandPressModel()
     @State private var keysLit = false
+    @State private var localKeyboardChange = false
+    @State private var focusTask: Task<Void, Never>?
     @FocusState private var fieldFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -61,6 +68,7 @@ struct CommandButton: View {
          idle: Idle = .label,
          buttonIdentifier: String? = nil,
          fieldIdentifier: String? = nil,
+         keyboardChange: Binding<Bool>? = nil,
          onSubmit: @escaping () -> Void) {
         _isOpen = isOpen
         _query = query
@@ -70,6 +78,7 @@ struct CommandButton: View {
         self.idle = idle
         self.buttonIdentifier = buttonIdentifier
         self.fieldIdentifier = fieldIdentifier
+        self.keyboardChange = keyboardChange
         self.onSubmit = onSubmit
     }
 
@@ -91,17 +100,38 @@ struct CommandButton: View {
         .contentShape(Capsule(style: .continuous))
         .scaleEffect(press.scale)
         .foregroundStyle(Color.labelPrimary)
+        .background {
+            // ⌘K lives on its own hidden button so the keyboard path can open without motion.
+            if !isOpen {
+                MotionKeyboard.shortcut(label, KeyEquivalent(shortcutKey), modifiers: shortcutModifiers) {
+                    open(fromKeyboard: true)
+                }
+            }
+        }
+        .onChange(of: isOpen) { _, nowOpen in
+            focusTask?.cancel()
+            focusTask = nil
+            if nowOpen { focusField() }
+        }
+        .onAppear { if isOpen { focusField() } }
+        .onDisappear { focusTask?.cancel(); focusTask = nil }
+    }
+
+    private var fromKeyboard: Bool {
+        get { keyboardChange?.wrappedValue ?? localKeyboardChange }
+        nonmutating set {
+            if let keyboardChange { keyboardChange.wrappedValue = newValue } else { localKeyboardChange = newValue }
+        }
     }
 
     // MARK: Parts
 
     private var button: some View {
-        Button(action: open) { idleContent }
+        Button { open(fromKeyboard: false) } label: { idleContent }
             .buttonStyle(CommandPressStyle { down in
                 press.press(down)
                 if down { keysLit = true } else if !isOpen { keysLit = false }
             })
-            .keyboardShortcut(KeyEquivalent(shortcutKey), modifiers: shortcutModifiers)
             .accessibilityLabel(label)
             .accessibilityHint("Opens a search field. Keyboard shortcut \(spokenShortcut).")
             .accessibilityIdentifier(buttonIdentifier ?? "commandButton.open")
@@ -151,29 +181,28 @@ struct CommandButton: View {
                 .accessibilityLabel(placeholder)
                 .accessibilityIdentifier(fieldIdentifier ?? "commandButton.field")
                 .frame(minWidth: 0, maxWidth: .infinity)
-            Button(action: close) { CommandKeyCap(label: "Close", lit: false) }
+            Button { close(fromKeyboard: false) } label: { CommandKeyCap(label: "Close", lit: false) }
                 .buttonStyle(.plain)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
-                .keyboardShortcut(.escape, modifiers: [])
                 .accessibilityLabel("Close search")
                 .accessibilityIdentifier("commandButton.close")
+                .background {
+                    // Esc closes without motion; a tap on Close keeps the spring.
+                    MotionKeyboard.shortcut("Close search", .escape, modifiers: []) { close(fromKeyboard: true) }
+                }
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.leading, 14)
         .padding(.trailing, 2)
-        .task {
-            // Like the original: focus as the field starts to appear.
-            try? await Task.sleep(for: .seconds(CommandButtonMotion.swapDelay))
-            fieldFocused = true
-        }
         .onChange(of: fieldFocused) { _, focused in
             // Leaving the field empty folds it back.
-            if !focused && isOpen && query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { close() }
+            if !focused && isOpen && query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { close(fromKeyboard: false) }
         }
     }
 
     private var swap: AnyTransition {
+        guard !fromKeyboard else { return .identity }
         guard !reduceMotion else { return .opacity.animation(.easeOut(duration: 0.12)) }
         return .asymmetric(
             insertion: .modifier(active: BlurFade(radius: CommandButtonMotion.swapBlur, opacity: 0),
@@ -186,22 +215,58 @@ struct CommandButton: View {
 
     // MARK: Actions
 
-    private func open() {
+    private func open(fromKeyboard keyboard: Bool) {
         guard !isOpen else { return }
-        keysLit = true
-        withAnimation(reduceMotion ? nil : CommandButtonMotion.open) { isOpen = true }
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.18))
-            keysLit = false
+        MotionKeyboard.change(keyboard, flag: Binding(get: { fromKeyboard }, set: { fromKeyboard = $0 })) {
+            guard !isOpen else { return }
+            if keyboard {
+                MotionKeyboard.withoutMotion { isOpen = true }
+            } else {
+                keysLit = true
+                withAnimation(reduceMotion ? nil : CommandButtonMotion.open) { isOpen = true }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(0.18))
+                    keysLit = false
+                }
+            }
         }
     }
 
-    private func close() {
+    private func close(fromKeyboard keyboard: Bool) {
         guard isOpen else { return }
-        fieldFocused = false
-        withAnimation(reduceMotion ? nil : CommandButtonMotion.open) {
-            isOpen = false
-            query = ""
+        focusTask?.cancel()
+        focusTask = nil
+        MotionKeyboard.change(keyboard, flag: Binding(get: { fromKeyboard }, set: { fromKeyboard = $0 })) {
+            guard isOpen else { return }
+            // Same update as the fold, so the focus-lost handler already sees it closed.
+            fieldFocused = false
+            let fold = {
+                isOpen = false
+                query = ""
+            }
+            if keyboard { MotionKeyboard.withoutMotion(fold) }
+            else { withAnimation(reduceMotion ? nil : CommandButtonMotion.open, fold) }
+        }
+    }
+
+    /// Focus as the field starts to appear (after the swap delay on a tap, at once
+    /// from the keyboard). Cancelled on close so a quick open-close can't refocus.
+    private func focusField() {
+        let delay = fromKeyboard || reduceMotion ? 0 : CommandButtonMotion.swapDelay
+        focusTask = Task { @MainActor in
+            do {
+                if delay > 0 {
+                    try await Task.sleep(for: .seconds(delay))
+                } else {
+                    // Let the field join the hierarchy before focusing it.
+                    await Task.yield()
+                }
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
+            guard isOpen else { return }
+            fieldFocused = true
         }
     }
 
@@ -224,6 +289,41 @@ struct CommandButton: View {
     private var spokenShortcut: String {
         let names: [Character: String] = ["⌘": "Command", "⇧": "Shift", "⌥": "Option", "⌃": "Control"]
         return shortcut.map { names[$0] ?? String($0).uppercased() }.joined(separator: " ")
+    }
+}
+
+// MARK: - Keyboard path
+
+/// Shared helpers for controls that open, close or switch from a keyboard shortcut
+/// with no motion while taps keep their animation.
+enum MotionKeyboard {
+    /// Runs `body` with every animation off: no implicit animations, no withAnimation.
+    static func withoutMotion(_ body: () -> Void) {
+        var t = Transaction(animation: nil)
+        t.disablesAnimations = true
+        withTransaction(t, body)
+    }
+
+    /// Records where a change came from, then applies it. Transitions are picked
+    /// from that flag; when it flips, the change waits one main-queue turn so the
+    /// view tree (and the transition on a view being removed) already carries the
+    /// new choice when the change lands.
+    @MainActor
+    static func change(_ fromKeyboard: Bool, flag: Binding<Bool>, _ apply: @escaping () -> Void) {
+        guard flag.wrappedValue != fromKeyboard else { apply(); return }
+        flag.wrappedValue = fromKeyboard
+        DispatchQueue.main.async { MainActor.assumeIsolated(apply) }
+    }
+
+    /// An invisible button that only carries a keyboard shortcut, so the visible
+    /// button's tap and the shortcut can take different paths.
+    static func shortcut(_ title: String, _ key: KeyEquivalent, modifiers: EventModifiers = .command,
+                         action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .keyboardShortcut(key, modifiers: modifiers)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
     }
 }
 
