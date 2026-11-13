@@ -17,7 +17,6 @@ class PrivacyDeclarationTests(unittest.TestCase):
     def test_current_data_flows_have_valid_separate_categories(self):
         types = {entry["NSPrivacyCollectedDataType"] for entry in self.manifest["NSPrivacyCollectedDataTypes"]}
         self.assertEqual(types, {
-            "NSPrivacyCollectedDataTypePreciseLocation",
             "NSPrivacyCollectedDataTypeHealth",
             "NSPrivacyCollectedDataTypeFitness",
             "NSPrivacyCollectedDataTypeOtherUserContent",

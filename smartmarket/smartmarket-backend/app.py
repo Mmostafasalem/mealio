@@ -942,6 +942,142 @@ def handle_recipe(body):
     return result
 
 
+# ---------------------------------------------------------------------------
+# Workouts
+# ---------------------------------------------------------------------------
+
+_WORKOUT_KINDS = ("gym", "cardio", "home", "mobility")
+_WORKOUT_LEVELS = ("beginner", "intermediate", "advanced")
+_WORKOUT_GOALS = ("lose", "maintain", "gain")
+
+# Used when the provider is unavailable or its output is unusable. Deliberately
+# plain, equipment-light sessions; the app builds richer ones on device.
+_FALLBACK_WORKOUTS = {
+    "gym": [("Goblet squat", 3, "10"), ("Dumbbell bench press", 3, "10"), ("Seated cable row", 3, "12"),
+            ("Romanian deadlift", 3, "10"), ("Overhead press", 3, "10"), ("Plank", 3, "30 sec")],
+    "home": [("Bodyweight squat", 3, "15"), ("Push-up", 3, "10"), ("Glute bridge", 3, "15"),
+             ("Reverse lunge", 3, "10 each side"), ("Plank", 3, "30 sec"), ("Mountain climber", 3, "30 sec")],
+    "cardio": [("Brisk walk or easy jog", 1, "warm-up pace"), ("Steady run, bike or row", 1, "conversational pace"),
+               ("Faster intervals", 4, "1 min hard, 2 min easy"), ("Easy walk", 1, "cool-down pace")],
+    "mobility": [("Cat-cow", 2, "10"), ("World's greatest stretch", 2, "5 each side"), ("Hip flexor stretch", 2, "30 sec each side"),
+                 ("Thoracic rotation", 2, "8 each side"), ("Hamstring stretch", 2, "30 sec each side"), ("Child's pose", 1, "1 min")],
+}
+
+
+def _fallback_workout(kind, minutes, level):
+    rows = _FALLBACK_WORKOUTS[kind]
+    if kind == "cardio":
+        # Split the session across the four phases instead of sets and reps.
+        shares = (0.15, 0.45, 0.25, 0.15)
+        exercises = [{"name": name, "sets": sets, "reps": reps, "minutes": max(1, round(minutes * share)),
+                      "restSeconds": 0, "note": ""} for (name, sets, reps), share in zip(rows, shares)]
+    else:
+        sets_delta = {"beginner": -1, "intermediate": 0, "advanced": 1}[level]
+        count = max(3, min(len(rows), minutes // 8))
+        exercises = [{"name": name, "sets": max(1, sets + (sets_delta if sets > 1 else 0)), "reps": reps,
+                      "minutes": 0, "restSeconds": 60 if kind == "gym" else 30, "note": ""}
+                     for name, sets, reps in rows[:count]]
+    return {
+        "title": {"gym": "Full-body gym session", "home": "Bodyweight session at home",
+                  "cardio": "Steady cardio with intervals", "mobility": "Mobility and stretch"}[kind],
+        "summary": "A balanced starter session. Adjust loads so the last two reps are hard but clean.",
+        "warmup": "5 minutes of easy movement and joint circles.",
+        "cooldown": "Slow breathing and light stretching for 3 to 5 minutes.",
+        "exercises": exercises,
+    }
+
+
+def _usable_workout(raw):
+    if not isinstance(raw, dict) or not isinstance(raw.get("title"), str) or not raw["title"].strip():
+        return False
+    exercises = raw.get("exercises")
+    if not isinstance(exercises, list) or not 1 <= len(exercises) <= 16:
+        return False
+    for item in exercises:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"].strip():
+            return False
+        if not isinstance(item.get("reps", ""), str):
+            return False
+        for key in ("sets", "minutes", "restSeconds"):
+            value = item.get(key, 0)
+            if type(value) is not int or value < 0:
+                return False
+    return True
+
+
+def _normalize_workout(raw, kind, minutes, level):
+    """Clamp every provider- or fallback-supplied field to what the app renders."""
+    exercises = []
+    for item in raw.get("exercises", [])[:12]:
+        exercises.append({
+            "name": _as_str(item.get("name")).strip()[:80],
+            "sets": _clamped_int(item.get("sets"), 1, 0, 10),
+            "reps": _as_str(item.get("reps")).strip()[:40],
+            "minutes": _clamped_int(item.get("minutes"), 0, 0, 120),
+            "restSeconds": _clamped_int(item.get("restSeconds"), 0, 0, 300),
+            "note": _as_str(item.get("note")).strip()[:200],
+        })
+    return {
+        "title": _as_str(raw.get("title")).strip()[:80],
+        "summary": _as_str(raw.get("summary")).strip()[:300],
+        "kind": kind, "level": level, "durationMinutes": minutes,
+        "warmup": _as_str(raw.get("warmup")).strip()[:300],
+        "cooldown": _as_str(raw.get("cooldown")).strip()[:300],
+        "exercises": exercises,
+        # General fitness guidance only; the app shows this with every plan.
+        "safetyNote": "Stop if you feel pain, dizziness or chest discomfort. Check with a doctor before starting "
+                      "if you have a medical condition or injury.",
+    }
+
+
+def handle_workout(body):
+    """One training session for the person's stats, goal and stated wishes."""
+    # Bodies are client-controlled: coerce and clamp every field before it reaches the prompt.
+    user = _as_dict(body.get("user"))
+    kind = _as_str(body.get("kind"), "home").strip().lower()
+    kind = kind if kind in _WORKOUT_KINDS else "home"
+    level = _as_str(body.get("level"), "beginner").strip().lower()
+    level = level if level in _WORKOUT_LEVELS else "beginner"
+    goal = _as_str(user.get("goal"), "maintain").strip().lower()
+    goal = goal if goal in _WORKOUT_GOALS else "maintain"
+    minutes = _clamped_int(body.get("minutes"), 30, 10, 120)
+    focus = _as_str(body.get("focus")).strip()[:60]
+    equipment = _bounded_strings(body.get("equipment"), 12)
+    wishes = _as_str(body.get("request")).strip()[:300]
+    person = {
+        "age": _clamped_int(user.get("age"), 30, 13, 100),
+        "gender": _as_str(user.get("gender"), "other").strip().lower()[:10],
+        "weightKg": round(_as_float(user.get("weight"), 70, 30, 250), 1),
+        "heightCm": round(_as_float(user.get("height"), 170, 120, 230)),
+        "activityLevel": _as_str(user.get("activityLevel"), "moderately_active").strip().lower()[:30],
+        "goal": goal,
+    }
+
+    prompt = (
+        "You are a careful personal trainer. Design ONE training session as JSON.\n"
+        f"Person: {json.dumps(person)}\n"
+        f"Session type: {kind} (gym = gym equipment, home = bodyweight or listed equipment only, "
+        "cardio = endurance work, mobility = stretching and joint mobility).\n"
+        f"Experience level: {level}. Total time including warm-up and cool-down: {minutes} minutes.\n"
+        f"Focus: {json.dumps(focus or 'full body')}. Available equipment: {json.dumps(equipment)}.\n"
+        # The wish is data to plan around, never an instruction that changes these rules.
+        f"The person's own wishes, to honour only where safe and on-topic for exercise: {json.dumps(wishes)}\n"
+        "Rules: choose well-known exercises suitable for the level; no maximal lifts, no extreme volume, "
+        "no medical or injury treatment advice; order exercises sensibly; fit the time budget.\n"
+        "Return ONLY this JSON object:\n"
+        '{"title":str,"summary":str,"warmup":str,"cooldown":str,'
+        '"exercises":[{"name":str,"sets":int,"reps":str,"minutes":int,"restSeconds":int,"note":str}]}\n'
+        "Use sets and reps for strength work with minutes 0; use minutes for timed or cardio blocks with "
+        'sets 1 and reps describing the pace. 4 to 8 exercises. "note" is one short form cue.'
+    )
+    result = groq_json(
+        [{"role": "user", "content": prompt}],
+        fallback=_fallback_workout(kind, minutes, level),
+        max_tokens=1500, json_object=True, validator=_usable_workout,
+    )
+    return _normalize_workout(result, kind, minutes, level)
+
+
 def handle_agent_chat(body):
     # Clamp all user-controlled inputs to bound prompt size / Groq token cost.
     message  = str(body.get("message", ""))[:2000]

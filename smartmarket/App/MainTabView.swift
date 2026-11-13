@@ -26,7 +26,8 @@ struct MainTabView: View {
                 HomeView().tag(0).toolbar(.hidden, for: .tabBar)
                 NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
                 StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
-                NavigationStack { ProfileView() }.tag(3).toolbar(.hidden, for: .tabBar)
+                TrainView().tag(3).toolbar(.hidden, for: .tabBar)
+                NavigationStack { ProfileView() }.tag(4).toolbar(.hidden, for: .tabBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Open, results float directly above the bar; a tap outside folds it back.
@@ -152,7 +153,7 @@ struct MainTabView: View {
         case .groceries: activeAction = .groceries
         case .meals: selection = 1
         case .shop: selection = 2
-        case .profile: selection = 3
+        case .profile: selection = 4
         case .chat: showGuideChat = true
         }
     }
@@ -185,6 +186,7 @@ private struct FloatingTabBar: View {
         ("house",               "house.fill",               "Home"),
         ("fork.knife.circle",   "fork.knife.circle.fill",   "Meals"),
         ("storefront",          "storefront.fill",          "Shop"),
+        ("figure.run",          "figure.run",               "Train"),
         ("person.crop.circle",  "person.crop.circle.fill",  "Profile"),
     ]
 

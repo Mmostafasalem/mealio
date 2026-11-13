@@ -64,8 +64,8 @@ struct GroceryListView: View {
         ]
     }
 
-    // A typed View closure avoids MapKit's competing ForEach result builder
-    // being inferred by older supported Swift compilers.
+    // A typed View closure keeps ForEach's result builder unambiguous on
+    // older supported Swift compilers.
     private func groceryRow(_ item: GroceryItem) -> some View {
         GroceryRow(item: item) { vm.toggleBought(item) }
             .swipeActions(edge: .trailing) {
@@ -85,17 +85,8 @@ struct GroceryListView: View {
                         copyText: copyText
                     )
                 }
-                ForEach(vm.sortedStores, id: \.self) { store in
-                    Section {
-                        ForEach(vm.groupedByStore[store] ?? [], content: groceryRow)
-                    } header: {
-                        StoreHeaderView(
-                            store: store,
-                            count: (vm.groupedByStore[store] ?? []).count,
-                            cost: vm.estimatedCost(for: store),
-                            hasUnknownPrices: (vm.groupedByStore[store] ?? []).contains { $0.priceKnown == false }
-                        )
-                    }
+                Section {
+                    ForEach(vm.items, content: groceryRow)
                 }
             }
             .listStyle(.insetGrouped)
@@ -105,16 +96,15 @@ struct GroceryListView: View {
 
     }
 
-    /// Unbought items as plain lines for the pasteboard: "• Milk 2 × 1 L — Rimi".
+    /// Unbought items as plain lines for the pasteboard: "• Milk × 2".
     private var copyText: String {
-        vm.sortedStores
-            .flatMap { vm.groupedByStore[$0] ?? [] }
+        vm.items
             .filter { !$0.isBought }
             .map { item in
                 let q = item.quantity.trimmingCharacters(in: .whitespaces)
                 // Cart rows store a bare count ("2"); show it as "× 2".
                 let amount = q.isEmpty ? "" : (Int(q) != nil ? " × \(q)" : " \(q)")
-                return "• \(item.foodName)\(amount) — \(item.storeName)"
+                return "• \(item.foodName)\(amount)"
             }
             .joined(separator: "\n")
     }
@@ -151,7 +141,7 @@ private struct GroceryRow: View {
 
 // MARK: - List summary
 
-/// "N of M bought" rolling count and the Copy list button, above the stores.
+/// "N of M bought" rolling count and the Copy list button, above the list.
 private struct GrocerySummaryRow: View {
     let bought: Int
     let total: Int
@@ -176,31 +166,6 @@ private struct GrocerySummaryRow: View {
                 .accessibilityHint(copyText.isEmpty ? "Everything is bought" : "Copies the items still to buy")
                 .accessibilityIdentifier("groceries.copy")
         }
-    }
-}
-
-// MARK: - Store header
-
-private struct StoreHeaderView: View {
-    let store: String
-    let count: Int
-    let cost: Double
-    let hasUnknownPrices: Bool
-
-    private var storeColor: Color { .labelPrimary }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(storeColor)
-                .frame(width: 8, height: 8)
-            Text(store)
-                .fontWeight(.semibold)
-            Spacer()
-            Text(hasUnknownPrices ? "\(count) items · prices incomplete" : "\(count) item\(count == 1 ? "" : "s") · ~€\(cost, specifier: "%.2f")")
-        }
-        .font(.caption)
-        .textCase(nil)
     }
 }
 

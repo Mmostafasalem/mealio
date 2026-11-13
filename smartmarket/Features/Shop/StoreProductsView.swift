@@ -29,10 +29,10 @@ struct StoreProductsView: View {
             cartBar
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
-        .navigationTitle(store.name)
+        .navigationTitle("Catalogue")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(false)
-        .searchable(text: $searchQuery, prompt: "Search \(store.name) products…")
+        .searchable(text: $searchQuery, prompt: "Search products…")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink { CartView() } label: { CartBadge(count: cart.itemCount) }
@@ -68,7 +68,7 @@ struct StoreProductsView: View {
 
     // MARK: - Price filter
 
-    /// Cheapest to dearest product in this store, widened to the 10-cent grid.
+    /// Cheapest to dearest product in the catalogue, widened to the 10-cent grid.
     private func computePriceBounds() -> ClosedRange<Double> {
         let prices = CatalogItem.all.map { cart.effectivePrice(for: $0, store: store) }.filter { $0.isFinite && $0 > 0 }
         guard let lo = prices.min(), let hi = prices.max() else { return 0...1 }
@@ -124,7 +124,7 @@ struct StoreProductsView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Price filter")
             .accessibilityValue(priceSummary)
-            .accessibilityHint(showPriceFilter ? "Hides the price range" : "Shows a price range for \(store.name) products")
+            .accessibilityHint(showPriceFilter ? "Hides the price range" : "Shows a price range for catalogue products")
             .accessibilityAddTraits(showPriceFilter ? .isSelected : [])
             .accessibilityIdentifier("shop.priceFilter")
 
@@ -379,7 +379,7 @@ struct ProductShopRow: View {
                 } header: {
                     Text(item.name)
                 } footer: {
-                    Text("Enter the real shelf price you see in \(store.name). This replaces the estimate for this store only. Older corrections can be re-entered here for this store.")
+                    Text("Enter the price you actually pay. It replaces the estimate everywhere in the app.")
                         .font(.caption)
                 }
             }
@@ -448,6 +448,6 @@ struct QuantityStepper: View {
 
 #Preview {
     NavigationStack {
-        StoreProductsView(store: ShopStore.all[0])
+        StoreProductsView(store: .catalog)
     }
 }

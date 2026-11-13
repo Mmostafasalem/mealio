@@ -8,11 +8,7 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
 
 ## Information the app uses
 
-- **Location (precise), while in use.** Used only to show nearby stores and
-  estimated deals. Distance filtering happens on your device; your location is
-  **not** sent to our backend. The Map tab asks Apple Maps for supermarkets
-  around the area shown, which Apple processes under its own privacy policy.
-  You can deny location access — the app still works using the city centre.
+- **Location.** Not used. Nourlo does not ask for location access.
 - **Profile & body stats** (name, weight, height, age, gender, goals, dietary
   preferences, favourite foods). Stored **on your device** (profile and computed
   BMR in the iOS Keychain; preferences in local app storage). Used to calculate calorie targets
@@ -40,7 +36,7 @@ The iOS food logger includes an offline reference catalog imported from USDA
 FoodData Central (SR Legacy April 2018, Foundation October 2026 download, and
 FNDDS 2021–2023). Searching these foods stays on your device.
 When you explicitly search packaged products or enter a barcode, the app connects
-directly to Open Food Facts and sends that search text or barcode, optional retailer tag, selected market
+directly to Open Food Facts and sends that search text or barcode, selected market
 and language and requested result page, along with the
 normal network information such as your IP address. Your name, body measurements,
 food log and AI account token are not included. This lookup works independently of
@@ -54,8 +50,7 @@ are saved locally. Food history is retained across days; daily totals count only
 today's entries. Removing an intake record does not replenish stock. Delete All Data
 clears stock, saved products, custom dishes and logs. Open Food Facts is a
 community database; compare branded products with their current package labels.
-Retailer tags are contributor reports, not current branch stock or prices. Product
-lookup sends no precise location. Nearby supermarkets are found through Apple Maps.
+Product lookup sends no location.
 
 ## Information sent to our servers
 
@@ -66,7 +61,10 @@ allergies you selected. With sharing on, an online meal plan is requested when
 you tap regenerate, and by the background agent only when you have no plan,
 once a day, when your agent grocery list grows, or when live deals first load.
 Editing the Shop cart never sends an online request; it only rebuilds an
-on-device plan. When sharing is enabled and you generate a meal plan, ask the
+on-device plan. Workouts are built on your device unless sharing is on; with
+sharing on, generating a workout sends your age, gender, weight, height, activity
+level, goal, the workout options you picked and the note you typed. When sharing
+is enabled and you generate a meal plan, ask the
 in-app assistant, or request a recipe, we
 send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
 foods, shopping list, owned food names, quantities, units and reference nutrition,
@@ -159,17 +157,17 @@ or submitted content under their own retention policies; clearing local data
 does not automatically erase provider records.
 
 ## Third parties
-- **Groq** — AI meal plans, chat, and recipes ([groq.com](https://groq.com)).
+- **Groq** — AI meal plans, chat, recipes and workouts ([groq.com](https://groq.com)).
 - **Neon** — private account and allowance database ([neon.com](https://neon.com/privacy-policy)).
 - **Open Food Facts** — product nutrition ([openfoodfacts.org](https://openfoodfacts.org)).
-- **Apple** — MapKit/Maps for store locations; optional CloudKit shopping sync.
+- **Apple** — optional CloudKit shopping sync.
 
 ## Children
 Nourlo is not directed at children under 13 and should not be used to set
 calorie goals for minors without medical guidance.
 
 ## Your choices
-- Revoke location or notification permissions anytime in iOS Settings.
+- Revoke notification permission anytime in iOS Settings.
 - Use "Delete All Data" in Profile to clear local data and request cloud deletion.
 - Turn shopping sync off in Profile to stop future sync without deleting cloud data.
 

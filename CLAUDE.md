@@ -1,7 +1,7 @@
 # Nourlo — Claude Code Context
 
 ## What This App Is
-Nourlo (folder/target still named `smartmarket`; user-facing name is **Nourlo**) is an iOS app (SwiftUI) for Vilnius, Lithuania. It watches nearby grocery deals, matches them against the user's cart/favourites, builds AI meal plans around those foods within the user's weekly budget, and tracks daily calorie/macro intake with real food logging.
+Nourlo (folder/target still named `smartmarket`; user-facing name is **Nourlo**) is an iOS app (SwiftUI). It builds AI meal plans around the user's cart/favourites within their weekly budget, tracks daily calorie/macro intake with real food logging, keeps a home stock, and builds workouts (Train tab). It shows **no retailer names and uses no location**: one product catalogue with one estimated price per item.
 
 **Backend:** a Python Flask/WSGI app — `smartmarket-backend/server.py` wraps the business logic in `app.py` (run via gunicorn; deploy on **Render**, see `DEPLOY.md`). It serves a **curated product catalog** (`deals_data.json`) enriched with **Open Food Facts** nutrition (`openfoodfacts.py`), and uses **Groq** for AI meal plans / chat / recipes (model via `GROQ_MODEL` env, default `openai/gpt-oss-120b`; object endpoints use Groq JSON mode + a 25s/1-retry client). AI is only reachable when `AI_ACCOUNTS_ENABLED=1`; the hosted backend runs catalog-only until activation. No live scraping.
 
@@ -17,14 +17,14 @@ smartmarket/
     │   ├── SmartMarketAgentApp.swift  ← @main, AppDelegate, Notification.Name extensions
     │   ├── AppState.swift             ← @Observable singleton — shared truth for profile, deals, plan
     │   ├── AgentLoop.swift            ← Background 30s tick: refresh deals → match → notify → regen plan
-    │   ├── MainTabView.swift          ← 4-tab root (Home / Meals / Shop / Profile)
-    │   └── OnboardingFlow.swift       ← NavigationStack + OnboardingStep; one question per screen (11 steps)
+    │   ├── MainTabView.swift          ← 5-tab root (Home / Meals / Shop / Train / Profile)
+    │   └── OnboardingFlow.swift       ← NavigationStack + OnboardingStep; one question per screen (10 steps)
     ├── Features/
     │   ├── Home/                      ← Calorie ring, macro bars, deals carousel, meal preview, log sheet
     │   ├── MealPlan/                  ← Today / Week segmented view, regenerate button, recommendations
     │   ├── GroceryList/               ← Grouped-by-store list with price totals and share
     │   ├── Profile/                   ← Body stats, dietary prefs, favourite foods, notification toggles
-    │   └── Onboarding/               ← Name → Gender → Age → Height → Weight → Activity → Goal (→ Pace) → Location → Diet → Notifications → FavoriteFoods
+    │   └── Onboarding/               ← Name → Gender → Age → Height → Weight → Activity → Goal (→ Pace) → Diet → Notifications → FavoriteFoods
     ├── Models/
     │   ├── BackendModels.swift        ← Deal, BMRRequest/Response, MealPlanRequest, WeeklyMealPlan, etc.
     │   ├── MealPlan.swift             ← MealEntry, MealPlan, GroceryItem, ShoppingRecommendation + bridge
@@ -35,7 +35,6 @@ smartmarket/
     │   └── StoreRecipe.swift          ← StoreRecipe, StoreRecipeTemplate + catalog (14 recipes)
     ├── Services/
     │   ├── APIService.swift           ← actor; GET /deals, POST /bmr /meal-plan /gap-fillers /shopping-advice
-    │   ├── LocationService.swift      ← @Observable CLLocationManager wrapper
     │   ├── NotificationService.swift  ← UNUserNotificationCenter, deal push with Buy/Skip actions
     │   └── BMRCalculator.swift        ← Pure Mifflin-St Jeor BMR/TDEE/macro math (no networking)
     ├── Components/
@@ -68,6 +67,7 @@ smartmarket/
 | POST | `/api/meal-plan` | 7-day meal plan from `{user,bmrData,groceryList,goal,lang}` |
 | POST | `/api/gap-fillers` | Filler foods for calorie gaps |
 | POST | `/api/shopping-advice` | Ranked shopping recommendations |
+| POST | `/api/workout` | One training session from `{kind,level,minutes,focus,request,user}` (AI, metered; validated + clamped, static fallback) |
 
 **Backend field names use camelCase in BMR request but the iOS `BMRRequest` sends `activityLevel` (camelCase). The backend also uses `activityLevel` as the key — be consistent.**
 
@@ -148,5 +148,7 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 - SF Symbols only — no custom image assets
 - All monetary values are EUR (`€`), formatted as `String(format: "%.2f", value)`
 - All weights kg, heights cm, distances metres (5000 = 5 km). Lbs / ft are display-only preferences (`Constants.Storage.weightUnit` / `heightUnit`); stored values stay metric
+- **Train:** `Features/Train/` (builder, workout detail, exercise library, history). `Models/Exercise.swift` holds the catalogue and workout types; `Services/WorkoutService.swift` has `WorkoutBuilder` (on-device fallback) and `WorkoutStore` (UserDefaults). `APIService.generateWorkout` calls `/api/workout`; any failure falls back to `WorkoutBuilder`. `Components/ExerciseFigure.swift` draws the animated how-to stick figure (`ExerciseMotion` poses; every catalogue exercise must map to one)
+- **No store names in UI.** Cart rows keep a `store` field only for storage/sync shape; everything belongs to `ShopStore.catalog`, and old retailer carts migrate on load
 - Numeric input uses `RulerPicker`, not `Slider` (the two-thumb price `RangeSlider` is the exception)
 - Onboarding screens don't scroll: use `OnboardingScaffold`, which pins the action and caps Dynamic Type at accessibility1

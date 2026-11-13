@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
 AI_PATHS = frozenset({'/api/meal-plan','/api/agent-chat','/api/recipe',
-                      '/api/gap-fillers','/api/shopping-advice'})
+                      '/api/gap-fillers','/api/shopping-advice','/api/workout'})
 
 # Credits kept when the provider answered but its output failed validation. The
 # provider call was paid for, so a full refund would let one account drain the

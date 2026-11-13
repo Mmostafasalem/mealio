@@ -269,6 +269,7 @@ def test_delete_and_recreate_keeps_same_day_spending(service):
     ('/api/recipe','handle_recipe',{'mealName':'Unique invalid JSON recipe'}),
     ('/api/gap-fillers','handle_gap_fillers',{}),
     ('/api/shopping-advice','handle_shopping_advice',{}),
+    ('/api/workout','handle_workout',{'kind':'gym','minutes':30}),
 ])
 def test_unusable_json_keeps_only_minimal_charge_on_actual_endpoint(http_app, service, monkeypatch, path, handler, body):
     monkeypatch.setenv("GROQ_API_KEY", "test-not-a-real-key")
@@ -292,6 +293,7 @@ def test_unusable_json_keeps_only_minimal_charge_on_actual_endpoint(http_app, se
     ('/api/recipe','handle_recipe',{'mealName':'Valid unique online recipe'},1),
     ('/api/gap-fillers','handle_gap_fillers',{},1),
     ('/api/shopping-advice','handle_shopping_advice',{},1),
+    ('/api/workout','handle_workout',{'kind':'gym','minutes':30},1),
 ])
 def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, path, handler, body, cost):
     import json
@@ -301,6 +303,7 @@ def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, pat
     samples = {
         'handle_meal_plan': business._fallback_meal_plan(2000),
         'handle_recipe': {'prepTime':10,'cookTime':20,'servings':2,'ingredients':[{'name':'rice','amount':'100g'}],'steps':['Cook rice.'],'tip':'Serve warm.'},
+        'handle_workout': {'title':'Gym session','summary':'s','warmup':'w','cooldown':'c','exercises':[{'name':'Squat','sets':3,'reps':'8','minutes':0,'restSeconds':60,'note':''}]},
         'handle_gap_fillers': [{'name':'Rice','calories':100,'protein':2,'carbs':20,'fat':1,'reason':'Energy'}],
         'handle_shopping_advice':[{'produktas':'Rice','priezastis':'Affordable'}],
     }

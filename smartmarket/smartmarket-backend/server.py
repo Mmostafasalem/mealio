@@ -33,6 +33,7 @@ from app import (
     handle_meal_plan,
     handle_products,
     handle_recipe,
+    handle_workout,
     handle_shopping_advice,
 )
 
@@ -173,6 +174,11 @@ def agent_chat():
 @app.post("/api/recipe")
 def recipe():
     return jsonify(handle_recipe(_body()))
+
+
+@app.post("/api/workout")
+def workout():
+    return jsonify(handle_workout(_body()))
 
 
 # ---------------------------------------------------------------------------

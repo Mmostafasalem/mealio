@@ -93,8 +93,7 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
-        advance("onboarding.goal.continue", to: "onboarding.location.skip", in: app)
-        advance("onboarding.location.skip", to: "onboarding.diet.continue", in: app)
+        advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
         advance("onboarding.diet.continue", to: "onboarding.notifications.skip", in: app)
         advance("onboarding.notifications.skip", to: "onboarding.favorites.finish", in: app)
         for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {
@@ -109,7 +108,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testAppStoreScreenshotCandidates() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "profile"] {
+        for name in ["home", "meals", "shop", "train", "profile"] {
             tap("tab." + name, in: app)
             capture("store-candidate-" + name)
         }
@@ -229,7 +228,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndAllTabs() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "profile"] {
+        for name in ["home", "meals", "shop", "train", "profile"] {
             tap("tab." + name, in: app)
             capture("system-" + name)
         }
@@ -269,7 +268,7 @@ final class ReleaseSmokeTests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
         tap("tab.home", in: app)
         XCTAssertGreaterThan(app.frame.width, app.frame.height)
-        for name in ["home", "meals", "shop", "profile"] {
+        for name in ["home", "meals", "shop", "train", "profile"] {
             tap("tab." + name, in: app)
             capture("landscape-" + name)
         }
@@ -373,23 +372,6 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
     }
 
-    func testRetailerProductsSearchIsExplicitAndHasNoBranchStockClaim() {
-        let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
-        app.launch()
-        tap("tab.shop", in: app)
-        tap("shop.retailerProducts", in: app)
-        let search = app.buttons["retailer.search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        XCTAssertFalse(search.isEnabled)
-        let retailer = app.textFields["Retailer tag, e.g. rimi"]
-        retailer.tap()
-        retailer.typeText("rimi")
-        XCTAssertTrue(search.isEnabled)
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "does not confirm stock")).firstMatch.exists)
-        capture("Retailer search disclosure")
-    }
-
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
@@ -444,7 +426,7 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("tab.shop", in: app)
-        tap("shop.store.rimi", in: app)
+        tap("shop.catalog", in: app)
         let add = app.buttons["Add to cart"].firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(add.frame.width, 44 - 0.001)
@@ -453,7 +435,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
         edge.press(forDuration: 0.05, thenDragTo: end)
         XCTAssertTrue(app.navigationBars["Shop"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["shop.store.rimi"].exists)
+        XCTAssertTrue(app.buttons["shop.catalog"].exists)
         capture("native-back-shop")
     }
 
@@ -473,7 +455,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndTabsAtLargestText() {
         let app = XCUIApplication()
         onboard(app, largeText: true)
-        for name in ["home", "meals", "shop", "profile"] {
+        for name in ["home", "meals", "shop", "train", "profile"] {
             tap("tab." + name, in: app)
             capture("largest-text-" + name)
         }

@@ -79,11 +79,8 @@ final class HomeViewModel {
         fatGoal     = Double(t.fatG)
     }
 
-    /// Deals filtered to stores within 8 km. Falls back to all deals when location is unavailable.
-    var nearbyDeals: [MarketDeal] {
-        guard let _ = LocationService.shared.userLocation else { return deals }
-        return deals.filter { LocationService.shared.isNearby($0.store, radius: 8_000) }
-    }
+    /// Catalogue estimates shown on Home. (Named for the location filter it used to apply.)
+    var nearbyDeals: [MarketDeal] { deals }
 
     init() {
         if let weekly = AppState.shared.weeklyMealPlan { mealPlan = MealPlan.from(weekly: weekly) }

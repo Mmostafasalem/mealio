@@ -133,6 +133,22 @@ final class APIService {
         return try decoder.decode(Recipe.self, from: data)
     }
 
+    // MARK: - Workout (AI)
+
+    /// A session written by the online service for this person and request.
+    /// Throws when AI sharing is off, the account can't be used or the reply
+    /// isn't a verified AI result; the caller then builds one on device.
+    func generateWorkout(_ request: WorkoutRequest) async throws -> Workout {
+        guard UserDefaults.standard.bool(forKey: sharingConsentKey) else { throw APIError.aiConsentRequired }
+        let req = try post(Constants.API.Endpoint.workout, body: request, timeout: 75)
+        let (data, response) = try await ownerSession.data(for: req)
+        try validateResponse(response, requireAI: true)
+        guard let workout = try decoder.decode(WorkoutResponse.self, from: data).workout(source: "ai") else {
+            throw APIError.unverifiedAIResponse
+        }
+        return workout
+    }
+
     // MARK: - Legacy shims (used by HomeViewModel / GroceryListViewModel)
 
     // Vilnius store coordinates keyed by lowercased chain name. Used only as a

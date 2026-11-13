@@ -88,7 +88,7 @@ struct PlannedMealStockSheet: View {
                 groceries[index].isBought = false
             } else {
                 groceries.append(GroceryItem(id: id, foodId: ingredient.food.id, foodName: ingredient.food.name,
-                                              quantity: quantity, estimatedPrice: 0, storeId: "unassigned", storeName: "Choose a store",
+                                              quantity: quantity, estimatedPrice: 0, storeId: "unassigned", storeName: "",
                                               isBought: false, priceKnown: false))
             }
         }

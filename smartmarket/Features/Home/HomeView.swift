@@ -44,7 +44,6 @@ struct HomeView: View {
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
         .task { await vm.load() }
-        .onAppear { LocationService.shared.startUpdating() }
         .onChange(of: NetworkMonitor.shared.isOnline) { _, online in
             showBackOnline = online
             AccessibilityNotification.Announcement(online ? "Back online" : "Offline, using saved data").post()

@@ -60,13 +60,14 @@ updated app starts. No verified retailer promotion feed is connected.
 **Are grocery prices live?**
 No. Prices are estimates from a curated catalog, not verified promotions,
 live store inventory or guaranteed shelf prices. You can enter a real price in
-the shopping flow. Corrections apply only to the selected store. Older unscoped
-corrections are preserved but need re-entry for a chosen store before they count
-as your entered price. Check the retailer before purchasing.
+the catalogue; it then replaces the estimate everywhere in the app. Nourlo does
+not name or compare shops. Check prices where you buy.
 
-**Why don't I see nearby stores?**
-Make sure location access is enabled (Settings ▸ Nourlo ▸ Location) and you have a
-network connection. Without location, Nourlo uses Vilnius centre.
+**Are the workouts medical advice?**
+No. Workouts and exercise notes are general fitness information. Stop if you
+feel pain, dizziness or chest discomfort, and check with a doctor before
+starting if you have a medical condition or injury. Calorie figures for
+workouts are rough estimates.
 
 **My meal plan didn't update after I changed my cart.**
 You can tap **Regenerate** on the Meals tab. Online AI features require the

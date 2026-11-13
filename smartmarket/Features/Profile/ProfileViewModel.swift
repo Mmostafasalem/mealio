@@ -98,6 +98,7 @@ final class ProfileViewModel {
         LocalDataEraser.clear(defaults: .standard,
                               domain: Bundle.main.bundleIdentifier ?? "com.mostafa.mealio")
         FoodLogStore.shared.clearAll()
+        WorkoutStore.shared.reload()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
 

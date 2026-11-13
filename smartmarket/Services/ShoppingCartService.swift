@@ -17,23 +17,17 @@ struct CartItem: Codable, Identifiable, Hashable {
 
 // MARK: - Shopping store definition
 
+// The app no longer names retailers: there is one product catalogue with one
+// estimated price per item. `ShopStore` and the `store` field on cart rows stay
+// only so saved carts, price corrections and sync keep their shape; every row
+// now belongs to `ShopStore.catalog`.
 struct ShopStore: Identifiable {
     let id: String
     let name: String
-    let tagline: String
-    let colorHex: String
     let priceMultiplier: Double
 
-    var color: Color { Color(hex: colorHex) }
-
-    static let all: [ShopStore] = [
-        ShopStore(id: "rimi",   name: "Rimi",   tagline: "Fresh & quality picks",    colorHex: "#DC2626", priceMultiplier: 1.06),
-        // Legacy slogans are intentionally not rendered: these are catalog estimates, not retailer price rankings.
-        ShopStore(id: "maxima", name: "Maxima", tagline: "Everyday low prices",      colorHex: "#1D4ED8", priceMultiplier: 1.00),
-        ShopStore(id: "iki",    name: "Iki",    tagline: "Your neighbourhood store", colorHex: "#7C3AED", priceMultiplier: 1.03),
-        ShopStore(id: "lidl",   name: "Lidl",   tagline: "Best value in Lithuania",  colorHex: "#1E40AF", priceMultiplier: 0.88),
-        ShopStore(id: "norfa",  name: "Norfa",  tagline: "Local & affordable",       colorHex: "#15803D", priceMultiplier: 0.92),
-    ]
+    static let catalog = ShopStore(id: "catalog", name: "Catalogue", priceMultiplier: 1.0)
+    static let all: [ShopStore] = [catalog]
 }
 
 // MARK: - Price helpers for static catalog
@@ -41,8 +35,8 @@ struct ShopStore: Identifiable {
 extension CatalogItem {
 
     // Hand-curated budget estimates (€) per typical unit/package, not a live
-    // retailer feed or verified current shelf prices. Store multipliers are
-    // heuristics; shoppers can enter a correction for a specific store.
+    // retailer feed or verified current shelf prices. Shoppers can replace an
+    // estimate with the price they actually paid.
     static let itemBasePrices: [String: Double] = [
         // Meat & Poultry
         "chicken-breast": 5.49, "chicken-thighs": 4.29, "chicken-wings": 3.79,
@@ -348,8 +342,8 @@ final class ShoppingCartService {
                 foodName: ci.name,
                 quantity: String(ci.quantity),
                 estimatedPrice: ci.lineTotal,
-                storeId: ci.store.lowercased(),
-                storeName: ci.store,
+                storeId: ShopStore.catalog.id,
+                storeName: "",
                 isBought: boughtIds.contains(id)
             ))
         }
@@ -417,7 +411,44 @@ final class ShoppingCartService {
            let overrides = ResilientStorage.decode([String: Double].self, from: data, key: overridesKey) {
             priceOverrides = overrides
         }
+        migrateToSingleCatalogue()
         syncToGroceryList()   // ensure the Groceries tab reflects the cart on launch
+    }
+
+    /// Carts and price corrections saved while the app still listed retailers
+    /// carry a retailer name. Fold them into the single catalogue: lines for the
+    /// same product merge (quantities add up, the first line's price is kept),
+    /// and a correction made for any retailer becomes the product's price.
+    private func migrateToSingleCatalogue() {
+        let catalogue = ShopStore.catalog.name
+        var changed = false
+
+        var overrides = priceOverrides
+        for (key, price) in priceOverrides.sorted(by: { $0.key < $1.key }) {
+            guard let row = Self.parseCartRowId(key), row.store != catalogue else { continue }
+            let target = Self.cartRowId(catalogId: row.catalogId, store: catalogue)
+            if overrides[target] == nil { overrides[target] = price }
+            overrides[key] = nil
+            changed = true
+        }
+        if changed {
+            priceOverrides = overrides
+            savePriceOverrides()
+        }
+
+        guard cartItems.contains(where: { $0.store != catalogue }) else { return }
+        var merged: [CartItem] = []
+        for line in cartItems {
+            if let index = merged.firstIndex(where: { $0.catalogId == line.catalogId }) {
+                merged[index].quantity += line.quantity
+            } else {
+                merged.append(CartItem(id: line.id, catalogId: line.catalogId, name: line.name, store: catalogue,
+                                       price: correctedPrice(for: line.catalogId, store: catalogue) ?? line.price,
+                                       category: line.category, quantity: line.quantity))
+            }
+        }
+        cartItems = merged
+        if let data = try? JSONEncoder().encode(cartItems) { UserDefaults.standard.set(data, forKey: cartKey) }
     }
 
     func reloadFromStorage() {

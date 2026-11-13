@@ -22,7 +22,7 @@ struct GoalSelectionView: View {
                 DailyTargetCard(calories: vm.liveDailyGoal)
             }
         } footer: {
-            OnboardingNextButton(vm: vm, next: vm.weightGoal == .lose ? .pace : .location,
+            OnboardingNextButton(vm: vm, next: vm.weightGoal == .lose ? .pace : .diet,
                                  identifier: "onboarding.goal.continue")
         }
     }
@@ -71,7 +71,7 @@ struct PaceSelectionView: View {
             }
             .animation(.snappyValue, value: vm.isBelowSafeFloor)
         } footer: {
-            OnboardingNextButton(vm: vm, next: .location, identifier: "onboarding.pace.continue")
+            OnboardingNextButton(vm: vm, next: .diet, identifier: "onboarding.pace.continue")
         }
     }
 

@@ -74,6 +74,7 @@ enum Constants {
             static let shoppingAdvice   = "/api/shopping-advice"
             static let agentChat        = "/api/agent-chat"
             static let recipe           = "/api/recipe"
+            static let workout          = "/api/workout"
         }
     }
 

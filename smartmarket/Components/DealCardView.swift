@@ -21,7 +21,7 @@ struct DealCardView: View {
                         Circle()
                             .fill(storeColor)
                             .frame(width: 6, height: 6)
-                        Text(deal.store.chain.uppercased())
+                        Text("ESTIMATE")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(storeColor)
                             .kerning(0.8)
@@ -66,7 +66,7 @@ struct DealCardView: View {
             .premiumCard(radius: Radius.tile)
         }
         .buttonStyle(PressableButtonStyle())
-        .accessibilityLabel("\(deal.productName) at \(deal.store.chain), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
+        .accessibilityLabel("\(deal.productName), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
     }
 }
 

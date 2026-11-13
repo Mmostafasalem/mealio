@@ -12,12 +12,6 @@ struct StoreBrowserView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
-                    NavigationLink { RetailerProductsView(retailer: "") } label: {
-                        Label("Find reported retailer products", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(Spacing.lg).premiumCard()
-                    }
-                    .accessibilityIdentifier("shop.retailerProducts")
                     budgetCard
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
@@ -108,28 +102,27 @@ struct StoreBrowserView: View {
         .premiumCard()
     }
 
-    // MARK: - Store grid
+    // MARK: - Catalogue and stock
 
     private var storeGrid: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Grocery budget catalog")
-                .font(.headline)
-
-            Text("\(CatalogItem.all.count) catalog items · estimated prices, verify in-store")
-                .font(.footnote)
-                .foregroundStyle(Color.labelSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            LazyVStack(spacing: Spacing.sm) {
-                ForEach(ShopStore.all) { store in
-                    NavigationLink {
-                        StoreProductsView(store: store)
-                    } label: {
-                        StoreCard(store: store)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("shop.store." + store.id)
-                }
+        VStack(spacing: Spacing.sm) {
+            NavigationLink {
+                StoreProductsView(store: .catalog)
+            } label: {
+                ShopLinkCard(symbol: "basket.fill", title: "Product catalogue",
+                             detail: "\(CatalogItem.all.count) items · estimated prices")
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("shop.catalog")
+
+            NavigationLink {
+                StockView()
+            } label: {
+                ShopLinkCard(symbol: "cabinet.fill", title: "My stock",
+                             detail: "Food you have at home · add your own")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("shop.stock")
         }
     }
 
@@ -151,14 +144,11 @@ struct StoreBrowserView: View {
                         .fill(Color.labelPrimary.opacity(0.12))
                         .frame(width: 36, height: 36)
                         .overlay(
-                            Text(item.store.prefix(1))
-                                .font(.system(size: 14, weight: .bold))
+                            Image(systemName: (CatalogCategory(rawValue: item.category) ?? .snacks).symbol)
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(Color.labelPrimary)
                         )
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
-                        Text(item.store).font(.caption2).foregroundStyle(Color.labelSecondary)
-                    }
+                    Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
                     Spacer()
                     Text("×\(item.quantity)")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
@@ -232,24 +222,26 @@ struct StoreBrowserView: View {
     }
 }
 
-// MARK: - Store card
+// MARK: - Link card
 
-private struct StoreCard: View {
-    let store: ShopStore
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+private struct ShopLinkCard: View {
+    let symbol: String
+    let title: String
+    let detail: String
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            Text(store.name.prefix(1))
-                .font(.title3.weight(.bold))
+            Image(systemName: symbol)
+                .font(.title3)
                 .foregroundStyle(Color.almond)
                 .frame(width: 44, height: 44)
                 .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.chip))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(store.name).font(.headline)
-                Text("Browse catalog")
+                Text(title).font(.headline).foregroundStyle(Color.labelPrimary)
+                Text(detail)
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Spacing.sm)
             Image(systemName: "chevron.right")
@@ -298,14 +290,12 @@ struct CartView: View {
                 ContentUnavailableView(
                     "Your cart is empty",
                     systemImage: "cart",
-                    description: Text("Browse stores and add items to get started.")
+                    description: Text("Browse the catalogue and add items to get started.")
                 )
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(GroupedStore.group(cart.cartItems), id: \.store) { group in
-                    Section(group.store) {
-                        ForEach(group.items, content: CartItemRow.init)
-                    }
+                Section {
+                    ForEach(cart.cartItems, content: CartItemRow.init)
                 }
 
                 Section {
@@ -362,28 +352,12 @@ private struct CartItemRow: View {
             Spacer()
             QuantityStepper(quantity: item.quantity,
                             onAdd:    { cart.add(CatalogItem(id: item.catalogId, name: item.name, category: CatalogCategory(rawValue: item.category) ?? .snacks),
-                                                 store: ShopStore.all.first { $0.name == item.store } ?? ShopStore.all[0]) },
+                                                 store: .catalog) },
                             onRemove: { cart.remove(item.catalogId, store: item.store) })
             Text(String(format: "€%.2f", item.lineTotal))
                 .font(.subheadline).fontWeight(.semibold).monospacedDigit()
                 .frame(width: 52, alignment: .trailing)
         }
-    }
-}
-
-private struct GroupedStore {
-    let store: String
-    let items: [CartItem]
-
-    static func group(_ items: [CartItem]) -> [GroupedStore] {
-        let stores = items.map(\.store).removingDuplicates()
-        return stores.map { s in GroupedStore(store: s, items: items.filter { $0.store == s }) }
-    }
-}
-
-private extension Array where Element: Equatable {
-    func removingDuplicates() -> [Element] {
-        reduce([]) { $0.contains($1) ? $0 : $0 + [$1] }
     }
 }
 

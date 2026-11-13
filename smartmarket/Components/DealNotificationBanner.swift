@@ -23,7 +23,7 @@ struct DealNotificationBanner: View {
                         .font(.headline)
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(2)
-                    Text("\(deal.store.name) · \(deal.quantity)")
+                    Text(deal.quantity)
                         .font(.footnote)
                         .foregroundStyle(Color.labelSecondary)
                         .lineLimit(2)

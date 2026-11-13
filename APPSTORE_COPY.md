@@ -27,8 +27,13 @@ credits reset daily; overall service capacity can still limit availability.
 
 Organise your shop
 Build a cart and grocery list, set a budget and enter prices you find in-store.
-Explore store locations around Vilnius. Catalog prices are estimates; they are
-not live shelf prices, verified promotions or guaranteed store availability.
+Catalog prices are estimates; they are not live shelf prices, verified
+promotions or guaranteed availability.
+
+Train
+Build a workout for the gym, home, cardio or mobility, sized to your time and
+level, with animated how-to figures. Optional online AI writes sessions around
+your stats and request. General fitness information, not medical advice.
 
 Choose how your data is handled
 Local tracking and shopping need no Nourlo account. Online AI requires Sign in
@@ -68,7 +73,7 @@ nourlo.app.support@gmail.com.
 2. Meals with the local/online state correctly labelled.
 3. Shop with estimated prices and a representative budget.
 4. Grocery list with bought/unbought items.
-5. Map showing Vilnius stores without an availability/promotion claim.
+5. Train with a generated workout and its exercise demos.
 6. Profile privacy controls and optional shopping sync.
 
 Automated simulator screenshots are QA evidence. Select/re-capture final marketing

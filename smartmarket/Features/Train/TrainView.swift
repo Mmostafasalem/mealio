@@ -1,0 +1,292 @@
+import SwiftUI
+import Observation
+
+// MARK: - Train tab
+//
+// Build a workout around your stats and what you ask for, keep the ones you
+// like, tick them off, and browse the exercise library. Online AI writes the
+// session when it's on and available; otherwise it's built on the phone.
+
+@MainActor
+@Observable
+final class TrainViewModel {
+    var kind: ExerciseKind = .home
+    var level: ExerciseLevel = .beginner
+    var focus: ExerciseFocus = .fullBody
+    var minutes: Double = 30
+    var wishes = ""
+
+    private(set) var isGenerating = false
+    /// Why the last session was built on the phone instead of by AI.
+    private(set) var localReason: String?
+    var generated: Workout?
+
+    func generate() async {
+        guard !isGenerating else { return }
+        isGenerating = true
+        defer { isGenerating = false }
+        let profile = AppState.shared.userProfile
+        let request = WorkoutRequest(kind: kind, level: level, minutes: Int(minutes), focus: focus,
+                                     wishes: wishes, profile: profile)
+        do {
+            generated = try await APIService.shared.generateWorkout(request)
+            localReason = nil
+        } catch {
+            let hadWishes = !request.request.isEmpty
+            if case APIError.aiConsentRequired = error {
+                localReason = "Built on your phone. Turn on online AI in Profile to have sessions written around your request."
+            } else {
+                localReason = "Online AI wasn't available, so this was built on your phone."
+                    + (hadWishes ? " Your note wasn't used." : "")
+            }
+            generated = WorkoutBuilder.build(kind: kind, level: level, minutes: Int(minutes),
+                                             focus: focus, goal: profile.weightGoal)
+        }
+    }
+}
+
+struct TrainView: View {
+
+    @State private var vm = TrainViewModel()
+    @State private var store = WorkoutStore.shared
+    @FocusState private var wishesFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: Spacing.xl) {
+                    weekCard
+                    builderCard
+                    if !store.saved.isEmpty { savedSection }
+                    NavigationLink { ExerciseLibraryView() } label: {
+                        TrainLinkRow(symbol: "list.bullet.rectangle.fill", title: "Exercise library",
+                                     detail: "\(Exercise.catalog.count) exercises with how-to notes")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("train.library")
+                    if !store.completed.isEmpty {
+                        NavigationLink { WorkoutHistoryView() } label: {
+                            TrainLinkRow(symbol: "clock.fill", title: "History",
+                                         detail: "\(store.completed.count) completed session\(store.completed.count == 1 ? "" : "s")")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.top, Spacing.sm)
+                .padding(.bottom, Spacing.xxl)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .background { GrainyGradient().ignoresSafeArea() }
+            .navigationTitle("Train")
+            .navigationBarTitleDisplayMode(.large)
+            .navigationDestination(item: $vm.generated) { workout in
+                WorkoutDetailView(workout: workout, localReason: vm.localReason)
+            }
+        }
+    }
+
+    // MARK: This week
+
+    private var weekCard: some View {
+        let week = store.thisWeek
+        return HStack(spacing: Spacing.lg) {
+            weekStat("\(week.count)", week.count == 1 ? "session" : "sessions")
+            Divider().frame(height: 36)
+            weekStat("\(week.reduce(0) { $0 + $1.minutes })", "minutes")
+            Divider().frame(height: 36)
+            weekStat("~\(week.reduce(0) { $0 + $1.calories })", "kcal")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Spacing.lg)
+        .premiumCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Last 7 days: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories")
+    }
+
+    private func weekStat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(Color.labelPrimary)
+                .contentTransition(.numericText())
+            Text(label).font(.caption).foregroundStyle(Color.labelSecondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Builder
+
+    private var builderCard: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            Text("Build a workout").font(.sectionTitle)
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: Spacing.sm), GridItem(.flexible())], spacing: Spacing.sm) {
+                ForEach(ExerciseKind.allCases) { kind in
+                    KindTile(kind: kind, isSelected: vm.kind == kind) { vm.kind = kind }
+                }
+            }
+
+            VStack(spacing: Spacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(Int(vm.minutes))")
+                        .font(.system(.largeTitle, design: .rounded).weight(.semibold))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                    Text("min").font(.headline).foregroundStyle(Color.labelSecondary)
+                }
+                .animation(.snappyValue, value: vm.minutes)
+                .accessibilityHidden(true)
+                RulerPicker(value: $vm.minutes, range: 10...90, step: 5, majorEvery: 2, midEvery: 1, spacing: 22,
+                            accessibilityName: "Duration", spokenValue: { "\(Int($0)) minutes" })
+                    .frame(height: 96)
+            }
+
+            SpringSegmentedControl(selection: $vm.level, options: ExerciseLevel.allCases, label: \.title,
+                                   accessibilityName: "Experience level")
+
+            if vm.kind == .gym || vm.kind == .home {
+                FlowLayout(spacing: Spacing.sm) {
+                    ForEach(ExerciseFocus.allCases) { focus in
+                        ChoiceChip(label: focus.title, isSelected: vm.focus == focus) { vm.focus = focus }
+                    }
+                }
+                .transition(.opacity)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Anything specific?")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(Color.labelSecondary)
+                TextField("e.g. only dumbbells, easy on the knees", text: $vm.wishes, axis: .vertical)
+                    .lineLimit(1...3)
+                    .focused($wishesFocused)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.md)
+                    .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                        .strokeBorder(wishesFocused ? Color.labelPrimary : Color.hairline, lineWidth: wishesFocused ? 1.5 : 1))
+                    .accessibilityIdentifier("train.wishes")
+                Text("Used when online AI writes the session.")
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
+            }
+
+            PrimaryButton(title: vm.isGenerating ? "Building…" : "Generate workout",
+                          systemImage: "sparkles", isLoading: vm.isGenerating) {
+                wishesFocused = false
+                Task { await vm.generate() }
+            }
+            .accessibilityIdentifier("train.generate")
+        }
+        .padding(Spacing.lg)
+        .premiumCard()
+        .animation(.snappyValue, value: vm.kind)
+    }
+
+    // MARK: Saved
+
+    private var savedSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("Saved workouts").font(.sectionTitle)
+            ForEach(store.saved) { workout in
+                NavigationLink { WorkoutDetailView(workout: workout, localReason: nil) } label: {
+                    TrainLinkRow(symbol: workout.kind.symbol, title: workout.title,
+                                 detail: "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · \(workout.level.title)")
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+// MARK: - Pieces
+
+private struct KindTile: View {
+    let kind: ExerciseKind
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Image(systemName: kind.symbol)
+                    .font(.title3)
+                    .foregroundStyle(Color.labelPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kind.title).font(.headline).foregroundStyle(Color.labelPrimary)
+                    Text(kind.detail)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
+            .padding(Spacing.md)
+            .background(isSelected ? Color.brandLight : Color.surface,
+                        in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+                .strokeBorder(isSelected ? Color.progress : Color.hairline, lineWidth: isSelected ? 1.5 : 1))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        }
+        .buttonStyle(ScalePressStyle())
+        .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("train.kind." + kind.rawValue)
+    }
+}
+
+struct ChoiceChip: View {
+    let label: String
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(isSelected ? Color.dullPink : Color.surfaceSecondary, in: Capsule())
+                .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .animation(.snappyValue, value: isSelected)
+        .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+struct TrainLinkRow: View {
+    let symbol: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Image(systemName: symbol)
+                .font(.title3)
+                .foregroundStyle(Color.almond)
+                .frame(width: 44, height: 44)
+                .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.chip))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(title).font(.headline).foregroundStyle(Color.labelPrimary)
+                    .multilineTextAlignment(.leading)
+                Text(detail).font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: Spacing.sm)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.labelSecondary)
+        }
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard(radius: Radius.tile)
+        .contentShape(Rectangle())
+    }
+}
+
+#Preview { TrainView() }
