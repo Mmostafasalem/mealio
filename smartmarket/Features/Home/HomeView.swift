@@ -55,6 +55,12 @@ struct HomeView: View {
                     }
                 }
             }
+            // Content scrolling up no longer shows through the clock and battery.
+            .overlay(alignment: .top) {
+                Color.clear.frame(height: 0)
+                    .background(Color.surfaceGrouped.opacity(0.94), ignoresSafeAreaEdges: .top)
+                    .allowsHitTesting(false)
+            }
             .navigationBarHidden(true)
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView().navigationBarHidden(false)

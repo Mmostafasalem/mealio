@@ -81,17 +81,17 @@ struct CalorieSummaryCard: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
                 : AnyLayout(HStackLayout(spacing: Spacing.sm))
             rowLayout {
-                HStack(spacing: Spacing.sm) {
-                    // One fixed column so the three labels line up whatever the glyph's width.
+                HStack(spacing: HomeGrid.gap) {
+                    // The shared icon column, so labels line up with the cards below.
                     Image(systemName: symbol)
                         .font(.footnote.weight(.semibold))
-                        .frame(width: 22, alignment: .center)
+                        .frame(width: HomeGrid.icon, alignment: .center)
                         .accessibilityHidden(true)
                     Text(label).font(.subheadline.weight(.semibold))
                     // Keeps its 44pt tap target but sits right next to the label,
                     // and doesn't stretch the row.
                     InfoTooltip(text: tooltip)
-                        .padding(.leading, -14)
+                        .padding(.leading, -18)
                         .frame(height: 24)
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }

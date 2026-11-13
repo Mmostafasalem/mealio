@@ -10,16 +10,13 @@ struct TodaysLogCard: View {
             HStack(spacing: Spacing.md) {
                 // Title on one line, the remaining calories under it.
                 VStack(alignment: .leading, spacing: 2) {
-                    Label("Today's Log", systemImage: "list.bullet.clipboard.fill")
-                        .font(.headline)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .accessibilityAddTraits(.isHeader)
+                    HomeCardTitle(title: "Today's Log", symbol: "list.bullet.clipboard.fill")
                     Text("\(vm.remaining) kcal left")
                         .font(.footnote.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(Color.labelSecondary)
                         .contentTransition(.numericText())
+                        .padding(.leading, HomeGrid.textInset)
                 }
                 Spacer(minLength: Spacing.sm)
                 GooMenu(items: Self.quickAddItems, accessibilityLabel: "Add food to a meal") { item in
@@ -37,7 +34,7 @@ struct TodaysLogCard: View {
                     onDelete: { vm.removeLog($0) }
                 )
                 if idx < MealSlot.allCases.count - 1 {
-                    Divider().padding(.leading, 40)
+                    Divider().padding(.leading, HomeGrid.textInset)
                 }
             }
         }
@@ -66,18 +63,18 @@ struct MealSlotRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.sm) {
+            HStack(spacing: HomeGrid.gap) {
                 Image(systemName: slot.sfSymbol)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(slot.accent)
-                    .frame(width: 30, height: 30)
+                    .frame(width: HomeGrid.icon, height: HomeGrid.icon)
                     .background(slot.accent.opacity(0.12), in: Circle())
 
                 Text(slot.title).font(.subheadline).fontWeight(.semibold)
                 Spacer()
                 if kcal > 0 {
                     Text("\(kcal) kcal")
-                        .font(.caption).fontWeight(.semibold)
+                        .font(.footnote).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                         .contentTransition(.numericText())
                 }
@@ -87,7 +84,9 @@ struct MealSlotRow: View {
                         .foregroundStyle(slot.accent)
                 }
                 .buttonStyle(.plain)
-                .minTapTarget()
+                // 44pt target, with the glyph on the card's right edge.
+                .frame(width: 44, height: 44, alignment: .trailing)
+                .contentShape(Rectangle())
                 .accessibilityLabel("Add to \(slot.title)")
             }
 
@@ -109,10 +108,11 @@ struct MealSlotRow: View {
                             .foregroundStyle(Color.brandDanger.opacity(0.7))
                     }
                     .buttonStyle(.plain)
-                .minTapTarget()
+                    .frame(width: 44, height: 44, alignment: .trailing)
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Remove \(entry.name)")
                 }
-                .padding(.leading, 40)
+                .padding(.leading, HomeGrid.textInset)
                 .accessibilityElement(children: .combine)
             }
         }
