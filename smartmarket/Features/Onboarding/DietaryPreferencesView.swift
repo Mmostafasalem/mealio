@@ -18,7 +18,7 @@ struct DietaryPreferencesView: View {
             }
         } footer: {
             // No minimum required — dietary preferences are optional.
-            OnboardingNextButton(vm: vm, next: .notifications, identifier: "onboarding.diet.continue")
+            OnboardingNextButton(vm: vm, next: .favorites, identifier: "onboarding.diet.continue")
         }
     }
 

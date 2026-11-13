@@ -102,8 +102,7 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
-        advance("onboarding.diet.continue", to: "onboarding.notifications.skip", in: app)
-        advance("onboarding.notifications.skip", to: "onboarding.favorites.finish", in: app)
+        advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
         for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {
             tap("favorite.item." + id, in: app)
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])

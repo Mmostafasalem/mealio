@@ -21,7 +21,6 @@ struct ProfileView: View {
                 statsSection
                 editSection
                 appearanceSection
-                notificationSection
                 Section {
                     Toggle("Floating bowl guide", isOn: $bowlGuideVisible)
                         .toggleStyle(.spring)
@@ -151,15 +150,6 @@ struct ProfileView: View {
             }
             .padding(.vertical, Spacing.xs)
         }
-    }
-
-    private var notificationSection: some View {
-        Section("Notifications") {
-            Label("Retail alerts are off", systemImage: "bell.slash")
-            Text("Prices in the catalog are estimates, so Nourlo does not send discount, stock or expiry alerts. Meal and food-log reminders are not available yet.")
-                .font(.footnote).foregroundStyle(Color.labelSecondary)
-        }
-        .tint(.brandPrimary)
     }
 
     private var dangerSection: some View {
