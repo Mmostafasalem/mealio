@@ -19,8 +19,16 @@ struct FavoriteFoodsView: View {
         }
     }
 
-    private func favoriteRow(_ item: CatalogItem) -> some View {
-        ItemRow(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+    private func chip(_ item: CatalogItem) -> some View {
+        FoodChip(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+    }
+
+    /// One category's foods as wrapping chips, like the diet screen.
+    private func chips(_ items: [CatalogItem]) -> some View {
+        FlowLayout(spacing: 10) {
+            ForEach(items, content: chip)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Search
@@ -69,34 +77,33 @@ struct FavoriteFoodsView: View {
 
     private var itemList: some View {
         // The catalogue is the one thing here that has to scroll.
-        List {
-            if vm.filteredItems.isEmpty {
-                Text("No items match your search.")
-                    .foregroundStyle(Color.labelSecondary)
-                    .listRowBackground(Color.clear)
-            } else if vm.selectedCategory == nil && vm.foodSearchQuery.isEmpty {
-                // Grouped by category
-                ForEach(CatalogCategory.allCases) { cat in
-                    let items = CatalogItem.all.filter { $0.category == cat }
-                    if !items.isEmpty {
-                        Section {
-                            ForEach(items, content: favoriteRow)
-                        } header: {
-                            CategorySectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: Spacing.xl) {
+                if vm.filteredItems.isEmpty {
+                    Text("No items match your search.")
+                        .foregroundStyle(Color.labelSecondary)
+                } else if vm.selectedCategory == nil && vm.foodSearchQuery.isEmpty {
+                    // Grouped by category
+                    ForEach(CatalogCategory.allCases) { cat in
+                        let items = CatalogItem.all.filter { $0.category == cat }
+                        if !items.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.md) {
+                                CategorySectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
+                                chips(items)
+                            }
                         }
                     }
-                }
-            } else {
-                // Flat list when searching or category filtered
-                Section {
-                    ForEach(vm.filteredItems, content: favoriteRow)
+                } else {
+                    // One group when searching or filtered to a category
+                    chips(vm.filteredItems)
                 }
             }
+            .padding(.horizontal, Spacing.xl)
+            .padding(.bottom, Spacing.xl)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .contentMargins(.top, 0, for: .scrollContent)
+        .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.immediately)
+        .accessibilityIdentifier("favorites.list")
     }
 
     // MARK: - Finish
@@ -172,44 +179,36 @@ private struct CategorySectionHeader: View {
     }
 }
 
-// MARK: - Item row
+// MARK: - Food chip
 
-private struct ItemRow: View {
+/// A food as a pill you tap to pick, matching the diet screen's chips.
+private struct FoodChip: View {
     let item: CatalogItem
     let isSelected: Bool
     let onTap: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 14) {
-                // Category color dot
-                Circle()
-                    .fill(Color.labelPrimary.opacity(0.18))
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Image(systemName: item.category.symbol)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.labelPrimary)
-                    )
-
+            HStack(spacing: 6) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.bold))
+                        .transition(.scale.combined(with: .opacity))
+                }
                 Text(item.name)
-                    .font(.body)
-                    .foregroundStyle(Color.labelPrimary)
-
-                Spacer()
-
-                // Checkmark
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
-                    .contentTransition(.symbolEffect(.replace))
-                    .animation(reduceMotion ? .none : .snappyValue, value: isSelected)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
             }
-            .contentShape(Rectangle())
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(isSelected ? Color.dullPink : Color.surfaceSecondary, in: Capsule())
+            .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
+            .overlay(Capsule().strokeBorder(isSelected ? Color.clear : Color(.separator), lineWidth: 0.5))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .animation(.spring(duration: 0.2, bounce: 0.3), value: isSelected)
         .accessibilityIdentifier("favorite.item.\(item.id)")
         .accessibilityLabel(item.name)
         .accessibilityAddTraits(isSelected ? .isSelected : [])

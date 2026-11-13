@@ -32,7 +32,11 @@ final class ReleaseSmokeTests: XCTestCase {
             if isVisibleForTap() { break }
             // Fixed CTAs can cover the app's default swipe origin at large
             // text sizes. Scroll the actual list rather than the footer.
-            if app.collectionViews.firstMatch.exists {
+            if app.scrollViews["favorites.list"].exists {
+                // The favourites chips scroll vertically; the first scroll view
+                // on that screen is the sideways category strip.
+                app.scrollViews["favorites.list"].swipeUp(velocity: .slow)
+            } else if app.collectionViews.firstMatch.exists {
                 let list = app.collectionViews.firstMatch
                 let reverse = control.exists && control.frame.midY < list.frame.minY
                 let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.4 : 0.7))
