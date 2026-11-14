@@ -115,7 +115,7 @@ struct BellButton: View {
         Button {
             isOn.toggle()
         } label: {
-            HStack(spacing: 10) {
+            HStack(spacing: Spacing.md) {
                 bell
                     .frame(width: 22, height: 22)
                 ZStack(alignment: .leading) {
@@ -132,16 +132,17 @@ struct BellButton: View {
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(count)))
                         .animation(Self.easeOut, value: count)
-                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .frame(minWidth: 28, minHeight: 28)
+                        .padding(.horizontal, 4)
                         .background((isOn ? Color.onAccent.opacity(0.14) : Color.surfaceSecondary), in: Capsule())
                         .foregroundStyle(isOn ? Color.onAccent.opacity(0.85) : Color.labelSecondary)
                         .accessibilityHidden(true)
                 }
             }
             .foregroundStyle(isOn ? Color.onAccent : Color.labelPrimary)
-            .padding(.leading, 16)
-            .padding(.trailing, count == nil ? 16 : 8)
-            .frame(minHeight: 44)
+            .padding(.leading, 18)
+            .padding(.trailing, count == nil ? 18 : 10)
+            .frame(minHeight: 48)
             .background(isOn ? Color.dullPink : Color.surface, in: Capsule())
             .overlay(Capsule().strokeBorder(isOn ? Color.clear : Color.hairline, lineWidth: 1))
             .contentShape(Capsule())

@@ -49,19 +49,32 @@ struct NotificationStack: View {
     var body: some View {
         let isOpen = expanded && notices.count > 1
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
+            HStack(spacing: Spacing.md) {
                 Text(title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(Color.labelSecondary)
-                Spacer()
+                    .font(.headline)
+                    .foregroundStyle(Color.labelPrimary)
+                if notices.count > 1 {
+                    Text("\(notices.count)")
+                        .font(.caption.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.onAccent)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(Color.dullPink, in: Capsule())
+                        .contentTransition(.numericText())
+                        .accessibilityLabel("\(notices.count) items")
+                }
+                Spacer(minLength: Spacing.sm)
                 if isOpen {
                     Button("Show less") { withAnimation(Self.layout) { expanded = false } }
                     Button("Clear all") { withAnimation(Self.layout) { expanded = false; onClearAll() } }
+                } else if notices.count > 1 {
+                    Button("Show all") { withAnimation(Self.layout) { expanded = true } }
                 }
             }
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(Color.labelPrimary)
-            .frame(minHeight: 28)
+            .foregroundStyle(Color.labelSecondary)
+            .frame(minHeight: 32)
+            .padding(.horizontal, Spacing.xs)
 
             ZStack(alignment: .top) {
                 ForEach(Array(notices.enumerated()), id: \.element.id) { depth, notice in
@@ -69,6 +82,7 @@ struct NotificationStack: View {
                 }
             }
             .frame(height: stackHeight(isOpen), alignment: .top)
+            .padding(.bottom, Spacing.xs)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : Self.layout, value: notices)
         .animation(reduceMotion ? .easeOut(duration: 0.2) : Self.layout, value: expanded)
@@ -146,24 +160,26 @@ private struct NoticeCard: View {
     let notice: StackNotice
 
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
+        HStack(alignment: .center, spacing: Spacing.md) {
             Image(systemName: notice.symbol)
-                .font(.subheadline.weight(.semibold))
+                .font(.body.weight(.semibold))
                 .foregroundStyle(Color.labelPrimary)
-                .frame(width: 36, height: 36)
-                .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 40, height: 40)
+                .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
                     Text(notice.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.labelPrimary)
                         .lineLimit(1)
                     Spacer(minLength: Spacing.sm)
                     Text(notice.detail)
-                        .font(.caption)
+                        .font(.footnote)
                         .monospacedDigit()
                         .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
                 Text(notice.body)
                     .font(.footnote)
@@ -172,12 +188,13 @@ private struct NoticeCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
         .elevation(Elevation.card)
-        .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
     }
 }
 
