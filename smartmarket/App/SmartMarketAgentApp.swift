@@ -57,8 +57,13 @@ struct SmartMarketAgentApp: App {
             .id(appState.uiIdentity)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
+                // The daily loop: apply savers on open, line up tonight's nudge on leaving.
+                if phase == .active { DailyLoopStore.shared.refresh() }
+                if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.state) }
             }
             .task(id: appState.isOnboarded) {
+                ReminderStore.shared.streakState = { DailyLoopStore.shared.state }
+                DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }
                 await PrivateSyncService.shared.start()
                 await NotificationService.shared.checkPermission()
                 appState.agentLoop.start(appState: appState)
@@ -85,6 +90,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
+        if info["streakNudge"] != nil {
+            await MainActor.run { NotificationCenter.default.post(name: .openHome, object: nil) }
+            return
+        }
         guard let foodIdStr  = info["food_id"]       as? String,
               let foodId     = Int(foodIdStr),
               let name       = info["product_name"]   as? String,

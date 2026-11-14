@@ -119,10 +119,15 @@ final class ReminderStore {
     private(set) var permissionDenied = false
     /// Reminders the person swiped away in the app today.
     private(set) var dismissedToday: Set<String> = []
+    /// The evening streak nudge (only while the bell is on).
+    private(set) var streakNudgeOn = true
+    /// Today's loop, for the streak nudge. Set by the app at launch.
+    @ObservationIgnored var streakState: (() -> LoopState)?
 
     @ObservationIgnored private let scheduler: any ReminderScheduling
     @ObservationIgnored private let defaults: UserDefaults
-    private let key = "reminders_v1", enabledKey = "remindersEnabled_v1", dismissedKey = "remindersDismissed_v1"
+    private let key = "reminders_v1", enabledKey = "remindersEnabled_v1", dismissedKey = "remindersDismissed_v1",
+                streakKey = "streakNudge_v1"
 
     init(scheduler: any ReminderScheduling, defaults: UserDefaults = .standard) {
         self.scheduler = scheduler
@@ -132,6 +137,7 @@ final class ReminderStore {
 
     func reload() {
         isEnabled = defaults.bool(forKey: enabledKey)
+        streakNudgeOn = defaults.object(forKey: streakKey) as? Bool ?? true
         let saved = ResilientStorage.loadArray(Reminder.self, key: key, defaults: defaults)
         // Keep the built-in order and pick up any kind added in a later version.
         reminders = Reminder.defaults.map { fallback in saved.first { $0.kind == fallback.kind } ?? fallback }
@@ -167,6 +173,22 @@ final class ReminderStore {
         Task { await reschedule() }
     }
 
+    func setStreakNudge(_ on: Bool, now: Date = Date(), calendar: Calendar = .current) async {
+        streakNudgeOn = on
+        defaults.set(on, forKey: streakKey)
+        scheduleStreakNudges(streakState?() ?? LoopState(), now: now, calendar: calendar)
+    }
+
+    /// Replaces pending streak nudges. Nothing is added unless the bell and
+    /// the streak nudge are both on and a streak is at risk.
+    func scheduleStreakNudges(_ loop: LoopState, now: Date = Date(), calendar: Calendar = .current) {
+        scheduler.remove(StreakNudge.candidateIDs(now: now, calendar: calendar))
+        guard isEnabled, streakNudgeOn else { return }
+        for item in StreakNudge.plan(now: now, todayKept: loop.todayKept, streak: loop.streak, calendar: calendar) {
+            scheduler.add(StreakNudge.request(item, calendar: calendar))
+        }
+    }
+
     func refreshPermission() async {
         permissionDenied = await scheduler.isDenied()
         if permissionDenied && isEnabled {
@@ -180,6 +202,7 @@ final class ReminderStore {
     /// Replaces every pending reminder with the current set.
     func reschedule() async {
         scheduler.remove(await scheduler.pendingReminderIdentifiers())
+        scheduleStreakNudges(streakState?() ?? LoopState())
         guard isEnabled else { return }
         for reminder in reminders where reminder.isOn {
             for request in Self.requests(for: reminder) { scheduler.add(request) }

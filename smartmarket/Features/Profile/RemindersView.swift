@@ -43,6 +43,30 @@ struct RemindersView: View {
             Section("Training and logging") {
                 ForEach(store.reminders.filter { $0.mealSlot == nil }) { ReminderRow(reminder: $0, store: store) }
             }
+            Section {
+                HStack(spacing: Spacing.md) {
+                    Image(systemName: "bolt.heart")
+                        .foregroundStyle(Color.labelPrimary)
+                        .frame(width: 26)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Streak nudge")
+                        Text("One evening note if today doesn't count yet")
+                            .font(.footnote)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                    Spacer(minLength: Spacing.sm)
+                    Toggle(isOn: Binding(get: { store.streakNudgeOn },
+                                         set: { on in Task { await store.setStreakNudge(on) } })) { EmptyView() }
+                        .toggleStyle(.spring)
+                        .fixedSize()
+                        .accessibilityLabel("Streak nudge")
+                        .accessibilityIdentifier("reminders.toggle.streak")
+                }
+                .disabled(!store.isEnabled)
+            } header: {
+                Text("Streak")
+            }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)

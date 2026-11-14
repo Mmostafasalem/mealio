@@ -9,6 +9,9 @@ extension Notification.Name {
     static let openProfile          = Notification.Name("openProfile")
     /// Ask the tab bar to show Train (from a workout reminder).
     static let openTrain            = Notification.Name("openTrain")
+    /// Ask the tab bar to show Home / Shop (streak nudge, quest rows).
+    static let openHome             = Notification.Name("openHome")
+    static let openShop             = Notification.Name("openShop")
     /// The bowl in Home's header was tapped: open or close its guide.
     static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")

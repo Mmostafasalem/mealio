@@ -52,6 +52,8 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
+        .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
+        .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
         .sheet(isPresented: $showGuideChat) { AgentChatSheet(vm: quickLog) }
         .sheet(item: $activeAction) { action in
             switch action {
