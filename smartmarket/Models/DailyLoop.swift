@@ -267,3 +267,72 @@ extension DailyLoop {
         return h
     }
 }
+
+// MARK: - Savers and milestones
+
+extension DailyLoop {
+    static let milestones = [3, 7, 30, 100, 365]
+    static let maxSavers = 2
+
+    private static func loopStart(_ i: LoopInputs) -> DayKey? {
+        i.ledger.compactMap { if case let .loopStarted(d) = $0 { return d } else { return nil } }.min()
+    }
+
+    /// Saver events to append so the ledger is up to date through yesterday.
+    /// Earned every 7 consecutive kept days since the loop started (max 2
+    /// held); used automatically, oldest first, on missed days that would
+    /// otherwise end a streak. Returns [] once applied.
+    static func saverEvents(_ i: LoopInputs) -> [LoopEvent] {
+        guard let start = loopStart(i) else { return [] }
+        let kept = keptDays(i)
+        var ledger = Set(i.ledger.compactMap(SaverMark.init))
+        var out: [LoopEvent] = []
+        var run = 0, held = 0
+        var previousSaved = false
+        var d = start
+        let today = i.today
+        while d < today {
+            if ledger.contains(.used(d)) {
+                held -= 1; previousSaved = true
+            } else if kept.contains(d) {
+                run += 1; previousSaved = false
+                if run % 7 == 0 {
+                    if ledger.contains(.earned(d)) { held += 1 }
+                    else if held < maxSavers { out.append(.saverEarned(d)); ledger.insert(.earned(d)); held += 1 }
+                }
+            } else if (run > 0 || previousSaved) && held > 0 {
+                out.append(.saverUsed(d)); ledger.insert(.used(d)); held -= 1; previousSaved = true
+            } else {
+                run = 0; previousSaved = false
+            }
+            d = d.adding(days: 1, calendar: i.calendar)
+        }
+        return out
+    }
+
+    static func saversHeld(_ i: LoopInputs) -> Int {
+        let earned = i.ledger.filter { if case .saverEarned = $0 { return true } else { return false } }.count
+        let used = i.ledger.filter { if case .saverUsed = $0 { return true } else { return false } }.count
+        return max(0, earned - used)
+    }
+
+    /// A milestone to celebrate today, once.
+    static func milestoneEvent(_ i: LoopInputs) -> LoopEvent? {
+        guard isKept(i.today, i) else { return nil }
+        let n = streak(i)
+        guard milestones.contains(n) else { return nil }
+        let event = LoopEvent.milestone(i.today, n)
+        return i.ledger.contains(event) ? nil : event
+    }
+
+    private enum SaverMark: Hashable {
+        case earned(DayKey), used(DayKey)
+        init?(_ e: LoopEvent) {
+            switch e {
+            case let .saverEarned(d): self = .earned(d)
+            case let .saverUsed(d): self = .used(d)
+            default: return nil
+            }
+        }
+    }
+}
