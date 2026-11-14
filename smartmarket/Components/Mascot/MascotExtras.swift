@@ -73,7 +73,7 @@ enum MascotExtras {
             c.translateBy(x: x, y: y - CGFloat(u) * 34)
             c.rotate(by: .radians(a))
             c.scaleBy(x: k, y: k)
-            c.fill(heart, with: .linearGradient(Gradient(colors: [Color(hex: "#FF8DA0"), P.body]),
+            c.fill(heart, with: .linearGradient(Gradient(colors: [Color(hex: "#FF8DA0"), Color(hex: "#E8698A")]),
                                                 startPoint: CGPoint(x: 0, y: -26), endPoint: CGPoint(x: 0, y: 24)))
         }
     }

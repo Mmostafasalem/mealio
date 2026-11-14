@@ -29,7 +29,7 @@ more app events is a later step.
   character.
 
 ## Design
-- **Palette** (`MascotPalette`): body/arms pink glaze (light #F7A5B8, base
+- **Palette** — revised 2026-11-14 by the owner after seeing it on the phone: keep the original blush palette (body #F0C5BE family, rim #E58894, cheek #EE8D98); only the extras and heart eyes use brand pinks/reds. Original proposal, superseded: (`MascotPalette`): body/arms pink glaze (light #F7A5B8, base
   #E8698A, shade #D4587A, deep #BD4A6B); rim a lighter pink; inner wall deep
   rose; cheeks a lighter warm pink so blush still reads on a pink body. Feet,
   eyes and mouth stay navy. Oats, banana and strawberry unchanged.

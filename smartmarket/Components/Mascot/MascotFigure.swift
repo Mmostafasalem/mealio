@@ -30,18 +30,18 @@ struct MascotFigure: View {
     }
 }
 
-// MARK: - Palette (brand-pink glaze; fruit and feet from the original PNG)
+// MARK: - Palette (sampled from the original PNG)
 
 enum MascotPalette {
-    static let bodyLight = Color(hex: "#F7A5B8")
-    static let body = Color(hex: "#E8698A")
-    static let bodyShade = Color(hex: "#D4587A")
-    static let bodyDeep = Color(hex: "#BD4A6B")
-    static let rimLight = Color(hex: "#F8B3C3")
-    static let rim = Color(hex: "#F09AAE")
-    static let rimDeep = Color(hex: "#D9768F")
-    static let wallDark = Color(hex: "#9C3350")
-    static let wall = Color(hex: "#B9415E")
+    static let bodyLight = Color(hex: "#FAD8D2")
+    static let body = Color(hex: "#F0C5BE")
+    static let bodyShade = Color(hex: "#E2B0A9")
+    static let bodyDeep = Color(hex: "#D69E98")
+    static let rimLight = Color(hex: "#F09AA5")
+    static let rim = Color(hex: "#E58894")
+    static let rimDeep = Color(hex: "#CC6F7B")
+    static let wallDark = Color(hex: "#B04A4B")
+    static let wall = Color(hex: "#C8646A")
     static let oat = Color(hex: "#F4D0B0")
     static let oatLight = Color(hex: "#FBE2C8")
     static let oatShade = Color(hex: "#DDAA80")
@@ -56,7 +56,7 @@ enum MascotPalette {
     static let berrySeed = Color(hex: "#FBC9C0")
     static let navy = Color(hex: "#2E4060")
     static let navyLight = Color(hex: "#4A5F8C")
-    static let cheek = Color(hex: "#FFB3C1")
+    static let cheek = Color(hex: "#EE8D98")
     static let blueberryLight = Color(hex: "#8C9CE8")
     static let blueberry = Color(hex: "#4A5AB5")
     static let blueberryDeep = Color(hex: "#2E3780")
