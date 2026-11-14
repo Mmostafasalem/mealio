@@ -367,10 +367,24 @@ final class MascotRig {
         static let landed = Expression(grin: 1, squint: 1, blush: 0.7)
     }
 
+    /// A passing face (a tap's flash, a landing, being held) keeps the mood's
+    /// extras and heart eyes, so confetti or hearts don't blink out mid-mood.
     private func expression() -> Expression {
-        if let flash { return flash }
-        if falling, !reduceMotion { return .whee }
-        if held { return reduceMotion || dragSpeed < 900 ? .surprised : .whee }
+        let base = moodExpression()
+        var e: Expression
+        if let flash { e = flash }
+        else if falling, !reduceMotion { e = .whee }
+        else if held { e = reduceMotion || dragSpeed < 900 ? .surprised : .whee }
+        else { return base }
+        if base.hearts > 0 {
+            e.hearts = base.hearts; e.squint = 0
+        }
+        e.confetti = base.confetti; e.zzz = base.zzz; e.thought = base.thought
+        e.sweat = base.sweat; e.floatHearts = base.floatHearts
+        return e
+    }
+
+    private func moodExpression() -> Expression {
         switch mood {
         case .idle: return .neutral
         case .thinking: return .thinking

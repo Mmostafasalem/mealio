@@ -81,6 +81,28 @@ final class MascotMoodTests: XCTestCase {
         XCTAssertLessThan(rig.pose.confetti, 0.05)
     }
 
+    /// A hop's landing flashes a face; it must not wipe the mood's extras.
+    func testExtrasSurviveHopLanding() {
+        for (mood, value) in [(MascotMood.celebrate, \MascotPose.confetti), (.love, \MascotPose.hearts), (.love, \MascotPose.floatHearts)] {
+            let rig = MascotRig()
+            rig.reduceMotion = false
+            rig.setActive(true)
+            rig.set(mood: .idle)
+            rig.set(mood: mood) // entry hop
+            rig.stop()
+            var risen = false
+            for frame in 0..<180 {
+                rig.simulate(seconds: 1.0 / 60)
+                let v = rig.pose[keyPath: value]
+                if v > 0.9 { risen = true }
+                if risen { XCTAssertGreaterThan(v, 0.8, "\(mood) \(value) dropped at frame \(frame)") }
+                if risen, v <= 0.8 { break }
+            }
+            XCTAssertTrue(risen, "\(mood) \(value) never appeared")
+            rig.setActive(false)
+        }
+    }
+
     /// Calm moods must let the clock rest after their entry life (battery, UI automation).
     func testCalmMoodsRestAfterEntry() {
         for mood in [MascotMood.sleepy, .love, .worried] {
