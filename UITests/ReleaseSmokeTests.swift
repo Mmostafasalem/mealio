@@ -76,9 +76,53 @@ final class ReleaseSmokeTests: XCTestCase {
     }
 
     /// Profile opens from the avatar at the top of Home.
-    private func openProfile(in app: XCUIApplication) {
-        tap("tab.home", in: app)
-        tap("home.profile", in: app)
+    /// Opens Profile from Home's avatar and confirms it opened. Right after
+    /// onboarding or a tab switch the tap can land mid-transition and be lost,
+    /// so the avatar is tapped again (up to three times) until Profile shows.
+    private func openProfile(in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        tap("tab.home", in: app, file: file, line: line)
+        let profile = app.navigationBars["Profile"]
+        for _ in 0..<3 {
+            tap("home.profile", in: app, file: file, line: line)
+            if profile.waitForExistence(timeout: 3) { return }
+            // Already off Home: the push is still running, so don't tap again.
+            if !app.buttons["home.profile"].exists, profile.waitForExistence(timeout: 5) { return }
+        }
+        XCTFail("Profile didn't open", file: file, line: line)
+    }
+
+    /// Waits until an element is gone (a sheet finished dismissing).
+    private func waitUntilGone(_ element: XCUIElement, timeout: TimeInterval = 5,
+                               file: StaticString = #filePath, line: UInt = #line) {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: timeout), .completed,
+                       "\(element) is still on screen", file: file, line: line)
+    }
+
+    /// Opens the quick-actions menu and picks one bubble. A tap on "+" can be
+    /// swallowed while a sheet is still animating away, so this checks the menu
+    /// really opened (re-tapping "+" if not) and waits for the bubble to take a tap.
+    private func chooseQuickAction(_ action: String, in app: XCUIApplication,
+                                   file: StaticString = #filePath, line: UInt = #line) {
+        let plus = app.buttons["navigation.quickActions"].firstMatch
+        let bubble = app.buttons["quickActions." + action].firstMatch
+        XCTAssertTrue(plus.waitForExistence(timeout: 5), file: file, line: line)
+        for _ in 0..<3 {
+            // The "+" button says whether the menu is open; the bubbles alone can't tell.
+            if (plus.value as? String) != "Quick actions shown" {
+                tap("navigation.quickActions", in: app, file: file, line: line)
+            }
+            // The bubbles spring out over about half a second; poll until one can take a tap.
+            let deadline = Date().addingTimeInterval(3)
+            while Date() < deadline {
+                if bubble.exists && bubble.isHittable {
+                    bubble.tap()
+                    return
+                }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            }
+        }
+        XCTFail("Quick action \(action) never appeared", file: file, line: line)
     }
 
     private func capture(_ name: String) {
@@ -311,15 +355,15 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
-        tap("navigation.quickActions", in: app)
-        tap("quickActions.cart", in: app)
+        chooseQuickAction("cart", in: app)
         XCTAssertTrue(app.buttons["quickCart.done"].waitForExistence(timeout: 5))
         capture("quick-actions-cart")
         app.navigationBars["My Cart"].swipeDown()
-        if app.buttons["quickCart.done"].exists { tap("quickCart.done", in: app) }
+        if app.buttons["quickCart.done"].exists && app.buttons["quickCart.done"].isHittable { tap("quickCart.done", in: app) }
+        // The next tap only counts once the sheet has fully gone.
+        waitUntilGone(app.buttons["quickCart.done"])
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
-        tap("navigation.quickActions", in: app)
-        tap("quickActions.groceries", in: app)
+        chooseQuickAction("groceries", in: app)
         XCTAssertTrue(app.buttons["groceries.done"].waitForExistence(timeout: 5))
         tap("groceries.done", in: app)
         XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 5))
@@ -329,8 +373,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
-        tap("navigation.quickActions", in: app)
-        tap("quickActions.logFood", in: app)
+        chooseQuickAction("logFood", in: app)
         let foodSearch = app.textFields["logFood.search"]
         XCTAssertTrue(foodSearch.waitForExistence(timeout: 5))
         foodSearch.tap(); foodSearch.typeText("bananas raw")
@@ -349,8 +392,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
-        tap("navigation.quickActions", in: app)
-        tap("quickActions.logFood", in: app)
+        chooseQuickAction("logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         app.segmentedControls["customFood.mode"].buttons["Restaurant menu"].tap()
         for (id, value) in [("name", "QA Menu Plate"), ("restaurant", "QA Restaurant"), ("energy", "650"), ("protein", "35"), ("carbs", "80"), ("fat", "21")] {
@@ -399,8 +441,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
-        tap("navigation.quickActions", in: app)
-        tap("quickActions.logFood", in: app)
+        chooseQuickAction("logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         let name = app.textFields["customFood.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
