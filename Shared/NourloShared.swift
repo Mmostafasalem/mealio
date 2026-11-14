@@ -35,6 +35,9 @@ nonisolated struct NourloSnapshot: Codable, Equatable, Sendable {
     var fatGoalG: Int
     var meals: [Meal]
     var streakDays: Int
+    /// Tomorrow's planned meals, so the meals widget can turn over at midnight
+    /// without the app. Optional: snapshots saved before it existed still decode.
+    var nextDayMeals: [Meal]? = nil
 
     var caloriesLeft: Int { max(calorieGoal - caloriesEaten, 0) }
     var progress: Double { calorieGoal > 0 ? min(Double(caloriesEaten) / Double(calorieGoal), 1) : 0 }
@@ -73,16 +76,36 @@ nonisolated enum NourloSnapshotStore {
         var fresh = NourloSnapshot.empty(on: now, goal: saved.calorieGoal)
         fresh.proteinGoalG = saved.proteinGoalG; fresh.carbsGoalG = saved.carbsGoalG; fresh.fatGoalG = saved.fatGoalG
         fresh.streakDays = saved.streakDays
+        // Saved yesterday: its "tomorrow" plan is today's.
+        if let next = Calendar.current.date(byAdding: .day, value: 1, to: saved.date),
+           Calendar.current.isDate(next, inSameDayAs: now) {
+            fresh.meals = saved.nextDayMeals ?? []
+        }
         return fresh
     }
 
     /// Saves the snapshot; returns whether it changed (so callers only reload widgets when needed).
+    /// Only what a widget shows counts as a change: the snapshot's day, not its time
+    /// of day, so re-syncing the same numbers later the same day costs no reload.
     @discardableResult
-    static func save(_ snapshot: NourloSnapshot, to defaults: UserDefaults? = NourloAppGroup.defaults) -> Bool {
-        guard let defaults, let data = try? JSONEncoder().encode(snapshot) else { return false }
-        if defaults.data(forKey: key) == data { return false }
+    static func save(_ snapshot: NourloSnapshot, to defaults: UserDefaults? = NourloAppGroup.defaults,
+                     calendar: Calendar = .current) -> Bool {
+        // Compare values, not bytes: JSON key order isn't guaranteed to be stable.
+        guard let defaults else { return false }
+        var stored = snapshot
+        stored.date = calendar.startOfDay(for: snapshot.date)
+        if let saved = load(from: defaults), sameContent(saved, stored, calendar: calendar) { return false }
+        guard let data = try? JSONEncoder().encode(stored) else { return false }
         defaults.set(data, forKey: key)
         return true
+    }
+
+    /// Whether two snapshots show the same thing: same day, same numbers and meals.
+    static func sameContent(_ a: NourloSnapshot, _ b: NourloSnapshot, calendar: Calendar = .current) -> Bool {
+        guard calendar.isDate(a.date, inSameDayAs: b.date) else { return false }
+        var a = a
+        a.date = b.date
+        return a == b
     }
 }
 

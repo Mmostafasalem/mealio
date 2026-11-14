@@ -68,6 +68,7 @@ struct SmartMarketAgentApp: App {
             .task(id: appState.isOnboarded) {
                 // Reads Train's exercise drawings on a background queue so they're ready when Train opens.
                 ExerciseDrawings.preload()
+                SpotlightIndexer.shared.indexIfNeeded()
                 ReminderStore.shared.streakState = { DailyLoopStore.shared.state }
                 DailyLoopStore.shared.startObservingCart()
                 DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }
@@ -90,6 +91,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UNUserNotificationCenter.current().delegate = self
+        // Apple features. Each is safe to call more than once and degrades
+        // gracefully when a capability (Health, App Group) isn't available.
+        NourloTips.configure()                  // before any view with a tip appears
+        WidgetSync.shared.start()               // keeps widgets and Siri answers current
+        WorkoutSession.shared.restore()         // resumes a workout, or logs one finished from the lock screen
+        HealthService.shared.start()            // syncs with Apple Health while it's turned on
+        NourloIntents.start()                   // the foods Siri knows by name
         return true
     }
 

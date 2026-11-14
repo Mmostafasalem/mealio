@@ -17,6 +17,12 @@ import SwiftUI
 // the container a zIndex above its later siblings.
 //
 // Reduce Motion: bubbles don't travel; they fade in and out at their places.
+//
+// Liquid Glass (iOS 26+, `glass: true`, Reduce Transparency off): the goo canvas
+// is replaced by glass bubbles in one GlassEffectContainer, so they blend with
+// each other as they leave. The + itself is not glass: it sits inside the glass
+// tab bar, and glass on glass looks flat, so it gets a quiet tinted circle.
+// Frames, hit areas and identifiers are the same either way.
 
 struct GooMenuItem: Identifiable, Equatable {
     let id: String
@@ -39,14 +45,26 @@ struct GooMenu: View {
     /// UI-test identifiers: the main button, and a prefix for each bubble (`prefix + item.id`).
     var buttonIdentifier: String? = nil
     var itemIdentifierPrefix: String? = nil
+    /// Use Liquid Glass on iOS 26 and later (falls back to the goo look).
+    var glass: Bool = false
+    /// Called when the bubbles are opened from the + button.
+    var onOpen: (() -> Void)? = nil
     let onSelect: (GooMenuItem) -> Void
 
     @State private var engine = GooMenuEngine()
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private var usesGlass: Bool {
+        guard glass, !reduceTransparency else { return false }
+        if #available(iOS 26.0, *) { return true }
+        return false
+    }
 
     private static let canvasSide: Double = 2 * (GooMenuEngine.radius + GooMenuEngine.bubbleSize + 24)
 
     var body: some View {
         let s = engine.snap
+        let glassy = usesGlass
         ZStack {
             if s.open {
                 // Outside tap closes. Large and clear; only taps, so scrolling still works.
@@ -57,29 +75,21 @@ struct GooMenu: View {
                     .accessibilityHidden(true)
             }
 
-            Canvas { ctx, size in draw(s, in: &ctx, size: size) }
-                .frame(width: Self.canvasSide, height: Self.canvasSide)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-
-            ForEach(Array(items.prefix(GooMenuEngine.maxItems).enumerated()), id: \.element.id) { i, item in
-                bubble(item, index: i, s)
+            if !glassy {
+                Canvas { ctx, size in draw(s, in: &ctx, size: size) }
+                    .frame(width: Self.canvasSide, height: Self.canvasSide)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
 
-            Button { engine.setOpen(!s.open) } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.labelPrimary)
-                    .rotationEffect(.degrees(s.rotation))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
+            GooGlassContainer(enabled: glassy) {
+                ZStack {
+                    ForEach(Array(items.prefix(GooMenuEngine.maxItems).enumerated()), id: \.element.id) { i, item in
+                        bubble(item, index: i, s, glassy: glassy)
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(accessibilityLabel)
-            .accessibilityValue(s.open ? openValue : "")
-            .accessibilityHint(s.open ? closeHint : openHint)
-            .accessibilityIdentifier(buttonIdentifier ?? "")
-            .accessibilityAction(.escape) { engine.setOpen(false) }
+            mainButton(s, glassy: glassy)
         }
         .frame(width: 44, height: 44)
         .sensoryFeedback(.selection, trigger: s.open)
@@ -89,7 +99,35 @@ struct GooMenu: View {
         .onDisappear { engine.reset() }
     }
 
-    private func bubble(_ item: GooMenuItem, index i: Int, _ s: GooMenuEngine.Snapshot) -> some View {
+    private func mainButton(_ s: GooMenuEngine.Snapshot, glassy: Bool) -> some View {
+        Button {
+            if !s.open { onOpen?() }
+            engine.setOpen(!s.open)
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.labelPrimary)
+                .rotationEffect(.degrees(s.rotation))
+                .frame(width: 44, height: 44)
+                .background {
+                    // The goo canvas draws the + circle; with glass it's a plain tint.
+                    if glassy {
+                        Circle().fill(Color.labelPrimary.opacity(0.08))
+                            .frame(width: GooMenuEngine.mainSize, height: GooMenuEngine.mainSize)
+                            .scaleEffect(s.mainScale)
+                    }
+                }
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(s.open ? openValue : "")
+        .accessibilityHint(s.open ? closeHint : openHint)
+        .accessibilityIdentifier(buttonIdentifier ?? "")
+        .accessibilityAction(.escape) { engine.setOpen(false) }
+    }
+
+    private func bubble(_ item: GooMenuItem, index i: Int, _ s: GooMenuEngine.Snapshot, glassy: Bool) -> some View {
         let b = s.bubbles.indices.contains(i) ? s.bubbles[i] : .init()
         let home = engine.home(i)
         let len = max(hypot(home.x, home.y), 1)
@@ -102,6 +140,7 @@ struct GooMenu: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Color.labelPrimary)
                     .frame(width: GooMenuEngine.bubbleSize, height: GooMenuEngine.bubbleSize)
+                    .gooGlass(glassy, diameter: GooMenuEngine.bubbleSize)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -164,6 +203,38 @@ struct GooMenu: View {
                     d.fill(circle(E.bubbleSize / 2 + 2), with: .color(.black))
                 }
             }
+        }
+    }
+}
+
+// MARK: - Liquid Glass
+
+/// One GlassEffectContainer around the bubbles on iOS 26+, so their glass
+/// blends while they are close; a plain pass-through otherwise.
+private struct GooGlassContainer<Content: View>: View {
+    let enabled: Bool
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        if enabled, #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 24) { content() }
+        } else {
+            content()
+        }
+    }
+}
+
+private extension View {
+    /// A glass circle behind a goo control (iOS 26+). Off: unchanged.
+    @ViewBuilder func gooGlass(_ enabled: Bool, diameter: Double) -> some View {
+        if enabled, #available(iOS 26.0, *) {
+            self.background {
+                Color.clear
+                    .frame(width: diameter, height: diameter)
+                    .glassEffect(.regular.interactive(), in: Circle())
+            }
+        } else {
+            self
         }
     }
 }

@@ -264,13 +264,28 @@ final class WorkoutStore {
 
     /// Logs the session once per day: marking the same session again the same day does
     /// nothing, even if it was generated again. Returns whether a session was added.
+    /// `tracked` is the real start and finish of a session run with Start workout; only
+    /// tracked sessions go to Apple Health. Tracking a session already marked as done
+    /// today adds its times to that entry instead of logging it twice.
     @discardableResult
-    func complete(_ workout: Workout, weightKg: Double, now: Date = Date()) -> Bool {
-        guard !isCompletedToday(workout, now: now) else { return false }
+    func complete(_ workout: Workout, weightKg: Double, now: Date = Date(), tracked: DateInterval? = nil) -> Bool {
+        guard !isCompletedToday(workout, now: now) else {
+            if let tracked, let index = completed.firstIndex(where: { session in
+                Calendar.current.isDate(session.date, inSameDayAs: now)
+                    && (session.workoutID == workout.id || session.contentKey == workout.contentKey)
+                    && session.trackedStart == nil
+            }) {
+                completed[index].trackedStart = tracked.start
+                completed[index].trackedEnd = tracked.end
+                persist()
+            }
+            return false
+        }
         completed.insert(CompletedWorkout(workoutID: workout.id, contentKey: workout.contentKey,
                                           title: workout.title, kind: workout.kind,
                                           minutes: workout.durationMinutes,
-                                          calories: workout.estimatedCalories(weightKg: weightKg), date: now), at: 0)
+                                          calories: workout.estimatedCalories(weightKg: weightKg), date: now,
+                                          trackedStart: tracked?.start, trackedEnd: tracked?.end), at: 0)
         completed = Array(completed.prefix(200))
         persist()
         return true

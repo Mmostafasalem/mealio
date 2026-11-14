@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Source-backed food logging. Quick-add uses the explicitly displayed 100 g/ml basis;
 /// the row opens the source and portion editor.
@@ -23,6 +24,20 @@ struct LogFoodSheet: View {
     @State private var isSearching = false
     @State private var lookupTask: Task<Void, Never>?
     @State private var toastDismissTask: Task<Void, Never>?
+    @State private var showScanner = false
+    @State private var scanned: ScannedBarcode?
+    @State private var scanState: ScanState = .idle
+    @State private var scanTask: Task<Void, Never>?
+    @State private var scanOpenTask: Task<Void, Never>?
+    private let scanTip = ScanBarcodeTip()
+
+    /// Where a barcode lookup stands; shown at the top of the list.
+    private enum ScanState: Equatable {
+        case idle
+        case looking(String)
+        case noMatch(String)
+        case failed(String, String)
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var results: [NutritionFood] { catalog.searchLocal(query) }
@@ -47,6 +62,12 @@ struct LogFoodSheet: View {
 
                 List {
                     if let error = catalog.loadError { Text(error).foregroundStyle(Color.brandDanger) }
+                    if scanState != .idle { scanSection }
+                    if BarcodeScannerView.shouldOffer && scanState == .idle {
+                        TipView(scanTip, arrowEdge: .top)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                            .listRowBackground(Color.clear)
+                    }
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         if !catalog.customFoods.isEmpty {
                             Section("Your dishes and restaurant entries") {
@@ -125,8 +146,10 @@ struct LogFoodSheet: View {
                 .navigationDestination(item: $detailFood) { food in
                     ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock",
                                       slotSelection: onSelect == nil ? $slot : nil) { grams in
-                        if let onSelect { onSelect(food, grams) }
-                        else { vm.logFood(food, slot: slot, amount: grams) }
+                        // A scanned or searched product is saved only once it's actually used
+                        // (`HomeViewModel.logFood` saves it when logging).
+                        if let onSelect { catalog.remember(food); onSelect(food, grams) }
+                        else { vm.logFood(food, slot: slot, amount: grams); LogFoodTip().invalidate(reason: .actionPerformed) }
                         dismiss()
                     }
                 }
@@ -146,6 +169,11 @@ struct LogFoodSheet: View {
             }) {
                 CustomNutritionEntryView(catalog: catalog, market: market) { pendingCustom = $0 }
             }
+            .sheet(isPresented: $showScanner, onDismiss: {
+                if let code = scanned { scanned = nil; lookUp(code) }
+            }) {
+                BarcodeScannerSheet { scanned = $0 }
+            }
             .overlay(alignment: .bottom) { toast }
             .onChange(of: query) {
                 lookupTask?.cancel()
@@ -160,13 +188,17 @@ struct LogFoodSheet: View {
                 products = []; productNotice = nil; isSearching = false
                 productPage = 0; hasMoreProducts = false
             }
-            .onDisappear { lookupTask?.cancel() }
+            .onDisappear { lookupTask?.cancel(); scanTask?.cancel(); scanOpenTask?.cancel() }
             .onAppear {
                 // Brings "From today's plan" to today if the day has changed.
                 vm.activate()
                 catalog.reloadSaved()
                 slot = vm.logSheetSlot ?? .suggested()
+                // Opened from a "Scan" widget, control or shortcut: start with the camera.
+                takeScanRequest()
             }
+            // A scan request while the logger is already open.
+            .onChange(of: AppRouter.shared.scanRequestID) { _, _ in takeScanRequest() }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -205,6 +237,19 @@ struct LogFoodSheet: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelSecondary)
                 }
                 .accessibilityLabel("Clear search")
+            }
+            if BarcodeScannerView.shouldOffer {
+                Button { openScanner() } label: {
+                    Image(systemName: "barcode.viewfinder")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.brandPrimary)
+                        .minTapTarget()
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scan barcode")
+                .accessibilityHint("Reads a package barcode with the camera")
+                .accessibilityIdentifier("logFood.scan")
             }
         }
         .padding(.horizontal, 12)
@@ -279,11 +324,13 @@ struct LogFoodSheet: View {
 
     private func quickAdd(_ food: NutritionFood) {
         if let onSelect {
+            catalog.remember(food)
             onSelect(food, food.defaultAmount)
             dismiss()
             return
         }
         vm.logFood(food, slot: slot, amount: food.defaultAmount)
+        LogFoodTip().invalidate(reason: .actionPerformed)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         showToast("Added \(Self.amountText(food.defaultAmount, basis: food.basis)) · \(food.name)")
     }
@@ -307,6 +354,87 @@ struct LogFoodSheet: View {
             try? await Task.sleep(for: .seconds(1.4))
             guard !Task.isCancelled else { return }
             withAnimation(.snappyValue) { addedToast = nil }
+        }
+    }
+
+    // MARK: - Barcode
+
+    @ViewBuilder private var scanSection: some View {
+        Section("Barcode") {
+            switch scanState {
+            case .idle:
+                EmptyView()
+            case .looking(let code):
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Looking up \(code)…").font(.subheadline)
+                }
+                .accessibilityElement(children: .combine)
+            case .noMatch(let code):
+                Text("No match for \(code). Enter it yourself.")
+                    .font(.subheadline)
+                    .accessibilityIdentifier("logFood.scanNoMatch")
+                scanFollowUps
+            case .failed(_, let message):
+                Text(message).font(.subheadline)
+                scanFollowUps
+            }
+        }
+    }
+
+    @ViewBuilder private var scanFollowUps: some View {
+        Button("Enter it yourself") { scanState = .idle; showCustomCreator = true }
+            .accessibilityIdentifier("logFood.scanManual")
+        if BarcodeScannerView.shouldOffer {
+            Button("Scan again") { openScanner() }
+        }
+    }
+
+    private func openScanner() {
+        scanTip.invalidate(reason: .actionPerformed)
+        scanTask?.cancel()
+        scanState = .idle
+        showScanner = true
+    }
+
+    /// Opens the scanner for a fresh scan request from a widget, control or
+    /// shortcut. Only the food logger takes it ("Add to stock" leaves it to
+    /// expire). The camera opens once this sheet has finished presenting, so the
+    /// nested sheet isn't dropped.
+    private func takeScanRequest() {
+        guard onSelect == nil, AppRouter.shared.consumeScanRequest(), BarcodeScannerView.shouldOffer else { return }
+        guard !showScanner else { return }
+        // A sheet already up over the logger would block the scanner's sheet.
+        showCustomCreator = false
+        scanOpenTask?.cancel()
+        scanOpenTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled, !showScanner else { return }
+            openScanner()
+        }
+    }
+
+    private func lookUp(_ code: ScannedBarcode) {
+        scanTask?.cancel()
+        let shown = GTIN.normalize(code.payload, symbology: code.symbology) ?? code.payload
+        scanState = .looking(shown)
+        scanTask = Task { @MainActor in
+            let outcome = await BarcodeLookupService.shared.lookup(code.payload, symbology: code.symbology)
+            guard !Task.isCancelled else { return }
+            switch outcome {
+            case .found(let food):
+                scanState = .idle
+                // The same serving editor as a tapped search result; the product is
+                // saved only if it is logged.
+                detailFood = food
+            case .notFound(let found):
+                scanState = .noMatch(found)
+                UIAccessibility.post(notification: .announcement, argument: "No match for this barcode. Enter it yourself.")
+            case .invalidCode(let raw):
+                scanState = .failed(raw, "That isn't a product barcode. Try again, or enter it yourself.")
+            case .failed(let failedCode, let message):
+                scanState = .failed(failedCode, message)
+            }
         }
     }
 

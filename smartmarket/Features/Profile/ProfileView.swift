@@ -4,6 +4,7 @@ struct ProfileView: View {
 
     @State private var vm = ProfileViewModel()
     @State private var sync = PrivateSyncService.shared
+    @State private var health = HealthService.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("dealAlertsEnabled") private var dealAlertsEnabled = true
@@ -12,6 +13,7 @@ struct ProfileView: View {
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
     @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
     @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
+    @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -31,6 +33,7 @@ struct ProfileView: View {
                     Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
                 }
                 AIAccountSection()
+                healthSection
                 syncSection
                 privacySection
                 dangerSection
@@ -44,7 +47,7 @@ struct ProfileView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in; if that fails you can still erase this iPhone. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
+                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in; if that fails you can still erase this iPhone. If offline, iCloud deletion will finish when you reconnect to the same Apple Account. Apple Health syncing is turned off; data already in Apple Health stays there and can be deleted in the Health app.")
             }
             .alert("Online AI account not deleted", isPresented: Binding(get: { vm.serverDeletionFailure != nil }, set: { if !$0 { vm.serverDeletionFailure = nil } })) {
                 Button("Erase This iPhone Only", role: .destructive) {
@@ -60,6 +63,7 @@ struct ProfileView: View {
         .onAppear {
             vm.load()
         }
+        .task { await health.refreshReads() }
     }
 
     private var headerSection: some View {
@@ -175,13 +179,45 @@ struct ProfileView: View {
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: Spacing.xs, leading: 0, bottom: Spacing.xs, trailing: 0))
         } footer: {
-            Text("Deletes your online AI account, clears local data and requests deletion of your Nourlo iCloud data, then restarts setup.")
+            Text("Deletes your online AI account, clears local data and requests deletion of your Nourlo iCloud data, then restarts setup. Data already saved to Apple Health stays there; manage it in the Health app.")
         }
     }
 
     /// What the "Delete Data" confirmation runs; the hold button calls the same.
     private func deleteAllData() {
         Task { await vm.resetOnboarding() }
+    }
+
+    private var healthSection: some View {
+        Section {
+            NavigationLink {
+                HealthSettingsView(vm: vm)
+            } label: {
+                HStack {
+                    Label("Apple Health", systemImage: "heart.text.square")
+                    Spacer(minLength: Spacing.sm)
+                    Text(health.shortStatus)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityValue(health.shortStatus)
+            .accessibilityIdentifier("profile.appleHealth")
+            if health.isEnabled, let kg = health.weightSuggestion(profileKg: vm.profile.weight) {
+                NavigationLink {
+                    HealthSettingsView(vm: vm)
+                } label: {
+                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))", systemImage: "scalemass")
+                        .font(.subheadline)
+                }
+                .accessibilityHint("Review it before it replaces your profile weight")
+            }
+        } header: {
+            Text("Apple Health")
+        } footer: {
+            Text("Optional. Saves food and tracked workouts to Apple Health and reads weight, steps and active energy. Health data stays on this iPhone and isn't sent anywhere.")
+        }
     }
 
     private var syncSection: some View {

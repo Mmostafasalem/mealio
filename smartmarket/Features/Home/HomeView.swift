@@ -88,6 +88,8 @@ struct HomeView: View {
                             .buttonStyle(ScalePressStyle())
                             CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
                             DailyQuestCard(state: loop.state, onOpen: openQuest)
+                            // Only while Apple Health is on; refreshes itself when shown.
+                            ActivityCard()
                             // Above the cards below it: its goo menu pours out over them.
                             TodaysLogCard(vm: vm).zIndex(1)
                             HomeDealsSection(vm: vm)

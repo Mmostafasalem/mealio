@@ -143,12 +143,20 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons[destination].exists, "Navigation did not reach \(destination)")
     }
 
+    /// Every launch goes through here so TipKit tips never cover controls under test.
+    private func launchForTesting(_ app: XCUIApplication) {
+        if !app.launchArguments.contains("-NourloUITesting") {
+            app.launchArguments += ["-NourloUITesting", "YES"]
+        }
+        app.launch()
+    }
+
     private func onboard(_ app: XCUIApplication, largeText: Bool = false) {
         app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
         if largeText {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
-        app.launch()
+        launchForTesting(app)
         advance("onboarding.start", to: "onboarding.name.continue", in: app)
         advance("onboarding.name.continue", to: "onboarding.gender.continue", in: app)
         advance("onboarding.gender.continue", to: "onboarding.age.continue", in: app)
@@ -187,7 +195,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES",
                                "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
-        app.launch()
+        launchForTesting(app)
         openProfile(in: app)
         capture("live-guest-profile-navigation")
         let guest = app.buttons["profile.guestSignIn"]
@@ -237,7 +245,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testMascotGuideExpressionsAndLoggingShortcut() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-ownerAISharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         XCTAssertTrue(app.buttons["mascot.guide"].waitForExistence(timeout: 10))
         capture("floating-bowl-home")
         // As in the large-text test below: a tap in the first moments after a
@@ -254,7 +262,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testFloatingBowlGuideTourAndTabNavigation() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
-        app.launch()
+        launchForTesting(app)
         tap("mascot.guide", in: app)
         tap("guide.tour", in: app)
         XCTAssertTrue(app.staticTexts["Start with one meal"].waitForExistence(timeout: 5))
@@ -274,7 +282,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testFloatingBowlGuideLargeText() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
-        app.launch()
+        launchForTesting(app)
         // At the largest text size a cold simulator can still be finishing its
         // first layout when the bowl appears; a tap then is lost. Retry once.
         tap("mascot.guide", in: app)
@@ -297,7 +305,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testMetricInfoHasAccessibleTouchTarget() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         let info = app.buttons["More info"].firstMatch
         XCTAssertTrue(info.waitForExistence(timeout: 15))
         // Layout conversion may represent 44pt as 43.99999999999994.
@@ -310,7 +318,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testCustomNavigationHidesSystemTabBar() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.tabBars.firstMatch.exists, "Only Nourlo's custom tab bar should be exposed")
         // Shop provides an unobstructed header independent of transient Home banners.
@@ -337,7 +345,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOptionalAppleAccountDoesNotBlockLocalTabs() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         openProfile(in: app)
         let signIn = app.buttons["profile.appleSignIn"]
         for _ in 0..<8 {
@@ -354,7 +362,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testQuickActionsMenuOpensCartAndChecklist() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         chooseQuickAction("cart", in: app)
         XCTAssertTrue(app.buttons["quickCart.done"].waitForExistence(timeout: 5))
         capture("quick-actions-cart")
@@ -372,7 +380,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testQuickLoggerCustomServingDismissesAfterAdding() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         chooseQuickAction("logFood", in: app)
         let foodSearch = app.textFields["logFood.search"]
         XCTAssertTrue(foodSearch.waitForExistence(timeout: 5))
@@ -391,7 +399,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testRestaurantMenuDishCanBeSavedAndLoggedPerServing() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         chooseQuickAction("logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         app.segmentedControls["customFood.mode"].buttons["Restaurant menu"].tap()
@@ -420,7 +428,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
-        app.launch()
+        launchForTesting(app)
         tap("home.stock", in: app)
         tap("stock.add", in: app)
         let search = app.textFields["logFood.search"]
@@ -440,7 +448,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testRecipeBuilderUsesSourceIngredientsAndCookedYield() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         chooseQuickAction("logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         let name = app.textFields["customFood.name"]
@@ -465,7 +473,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testStoreUsesNativeSwipeBackAndLargeQuantityTargets() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
-        app.launch()
+        launchForTesting(app)
         tap("tab.shop", in: app)
         tap("shop.catalog", in: app)
         let add = app.buttons["Add to cart"].firstMatch

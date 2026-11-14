@@ -8,6 +8,7 @@ struct WorkoutDetailView: View {
     let localReason: String?
     @State private var guideCache = GuideCache()
     @State private var store = WorkoutStore.shared
+    @State private var session = WorkoutSession.shared
     @State private var markedDone = false
     @State private var guide: ExerciseGuide?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -71,9 +72,15 @@ struct WorkoutDetailView: View {
                                     .font(.subheadline.weight(.medium))
                                     .monospacedDigit()
                                     .foregroundStyle(Color.labelPrimary)
-                                Text("How to do it")
-                                    .font(.footnote)
-                                    .foregroundStyle(Color.labelSecondary)
+                                if currentStep == index {
+                                    Label("Doing now", systemImage: "figure.strengthtraining.traditional")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(Color.labelPrimary)
+                                } else {
+                                    Text("How to do it")
+                                        .font(.footnote)
+                                        .foregroundStyle(Color.labelSecondary)
+                                }
                             }
                             Spacer(minLength: Spacing.sm)
                             Image(systemName: "chevron.right")
@@ -127,18 +134,112 @@ struct WorkoutDetailView: View {
         }
         .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: isDone ? "Logged for today" : "Mark as done",
-                          systemImage: isDone ? "checkmark" : "checkmark.circle") {
-                store.complete(workout, weightKg: weight)      // once per workout per day
-                withAnimation(reduceMotion ? .reducedFade : .snappyValue) { markedDone = true }
+            Group {
+                if let state = runningState {
+                    sessionStrip(state)
+                } else {
+                    startActions
+                }
             }
-            .disabled(isDone)
             .sensoryFeedback(.success, trigger: markedDone)
-            .accessibilityIdentifier("workout.done")
+            .sensoryFeedback(.success, trigger: session.finishCount)
             .padding(.horizontal, Spacing.xl)
             .padding(.vertical, Spacing.sm)
             .background(.ultraThinMaterial)
         }
+    }
+
+    // MARK: - Session
+
+    /// This workout's session while it's running here.
+    private var runningState: WorkoutSessionState? {
+        session.isRunning(workout) ? session.state : nil
+    }
+
+    /// The step being done now, for the "Doing now" mark in the list.
+    private var currentStep: Int? { runningState?.index }
+
+    /// Before starting: start the guided session, or just log it as done.
+    @ViewBuilder private var startActions: some View {
+        if isDone {
+            PrimaryButton(title: "Logged for today", systemImage: "checkmark") {}
+                .disabled(true)
+                .accessibilityIdentifier("workout.done")
+        } else {
+            VStack(spacing: Spacing.xs) {
+                PrimaryButton(title: "Start workout", systemImage: "play.fill") {
+                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.start(workout) }
+                }
+                .accessibilityHint("Steps through the exercises one at a time")
+                .accessibilityIdentifier("workout.start")
+                Button("Mark as done") {
+                    store.complete(workout, weightKg: weight)      // once per workout per day
+                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { markedDone = true }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.labelPrimary)
+                .frame(minHeight: 44)
+                .accessibilityIdentifier("workout.done")
+            }
+        }
+    }
+
+    /// While running: where you are, the time so far, Next and Finish.
+    private func sessionStrip(_ state: WorkoutSessionState) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(NourloWidgetFormat.stepPosition(index: state.index, total: state.steps.count))
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.labelSecondary)
+                Spacer(minLength: Spacing.sm)
+                Text(timerInterval: state.startDate...Date.distantFuture, countsDown: false)
+                    .font(.footnote.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.labelPrimary)
+                    .accessibilityLabel("Elapsed time")
+                Button {
+                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.cancel() }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.labelTertiary)
+                        .frame(minWidth: 44, minHeight: 32)
+                }
+                .accessibilityLabel("Stop without logging")
+                .accessibilityIdentifier("workout.session.stop")
+            }
+            if let step = state.current {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(step.name)
+                        .font(.headline)
+                        .foregroundStyle(Color.labelPrimary)
+                    if !step.detail.isEmpty {
+                        Text(step.detail)
+                            .font(.subheadline)
+                            .monospacedDigit()
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("workout.session.current")
+            }
+            HStack(spacing: Spacing.sm) {
+                if state.canAdvance {
+                    SecondaryButton(title: "Next", systemImage: "forward.fill") {
+                        withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.next() }
+                    }
+                    .accessibilityHint("Moves on to the next exercise")
+                    .accessibilityIdentifier("workout.session.next")
+                }
+                PrimaryButton(title: "Finish", systemImage: "checkmark") {
+                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.finish() }
+                }
+                .accessibilityHint("Logs this workout as done")
+                .accessibilityIdentifier("workout.session.finish")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Workout in progress")
     }
 
     /// One guide per step, matched to the catalogue the first time they're needed

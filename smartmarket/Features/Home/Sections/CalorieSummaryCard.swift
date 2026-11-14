@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// The dashboard hero: calorie ring + today's total + macro breakdown.
 struct CalorieSummaryCard: View {
@@ -8,6 +9,7 @@ struct CalorieSummaryCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showCalorieDetail = false
+    private let logFoodTip = LogFoodTip()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,6 +66,11 @@ struct CalorieSummaryCard: View {
             .padding(.horizontal, Spacing.lg)
             .padding(.top, Spacing.md)
             .padding(.bottom, Spacing.lg)
+
+            // Inline, so it never covers the macros; gone once food is logged.
+            TipView(logFoodTip, arrowEdge: .bottom)
+                .padding(.horizontal, Spacing.lg)
+                .padding(.bottom, Spacing.sm)
 
             PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
                 .accessibilityIdentifier("home.logFood")

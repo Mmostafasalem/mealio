@@ -629,4 +629,8 @@ struct CompletedWorkout: Codable, Hashable, Identifiable {
     let minutes: Int
     let calories: Int
     var date = Date()
+    /// When the session was really started and finished with Start workout.
+    /// `nil` for "Mark as done" and older entries: those aren't written to Apple Health.
+    var trackedStart: Date? = nil
+    var trackedEnd: Date? = nil
 }

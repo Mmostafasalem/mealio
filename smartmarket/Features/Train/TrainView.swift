@@ -83,6 +83,14 @@ struct TrainView: View {
                 WorkoutDetailView(workout: workout, localReason: vm.localReason)
             }
         }
+        // "Start a cardio workout" from Siri or Shortcuts preselects that kind.
+        .onAppear { applyRequestedKind() }
+        .onChange(of: AppRouter.shared.workoutKind) { _, _ in applyRequestedKind() }
+    }
+
+    /// Applies a workout kind Siri or Shortcuts asked for (once).
+    private func applyRequestedKind() {
+        if let kind = AppRouter.shared.consumeWorkoutKind() { vm.kind = kind }
     }
 
     // MARK: Exercise browser

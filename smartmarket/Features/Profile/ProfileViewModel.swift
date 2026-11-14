@@ -94,11 +94,14 @@ final class ProfileViewModel {
     func save() -> Bool {
         profile = Self.prepared(profile)
         guard current != lastSaved else { return false }
+        let weightChanged = lastSaved.map { $0.profile.weight != profile.weight } ?? true
         isSaving = true
         defer { isSaving = false }
         profile.save()
         UserProfile.markTargetsCurrent()
         selectedPreferences.save()
+        // Apple Health only suggests a weight measured after this edit.
+        if weightChanged { HealthService.shared.noteProfileWeightEdited() }
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
         // Propagate like onboarding does, so Home, the planner and the agent
         // use the new body stats, goal and keto macro split immediately.
@@ -116,6 +119,15 @@ final class ProfileViewModel {
         var profile = profile
         BMRCalculator.populate(profile: &profile)
         return profile
+    }
+
+    /// Takes Apple Health's weight after the person confirmed it, through the
+    /// normal save path (targets recomputed, `.personalDataDidChange` posted).
+    @discardableResult
+    func applyHealthWeight(_ kilograms: Double) -> Bool {
+        guard kilograms.isFinite, WeightRuler.defaultRange.contains(kilograms) else { return false }
+        profile.weight = kilograms
+        return save()
     }
 
     func togglePreference(_ pref: DietaryPreference) {
@@ -159,6 +171,9 @@ final class ProfileViewModel {
             return
         }
         AIAccountService.shared.clearLocalSession()
+        // Stops Apple Health syncing and forgets what was written; data
+        // already in the Health app stays there for the person to manage.
+        HealthService.shared.resetForDataDeletion()
         AppState.shared.dataGeneration = UUID()
         AppState.shared.uiIdentity = UUID()
         AppState.shared.agentLoop.invalidateUserData()

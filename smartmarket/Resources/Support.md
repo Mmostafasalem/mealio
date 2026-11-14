@@ -104,6 +104,17 @@ Optional shopping sync covers cart, grocery list, budget and price corrections.
 It does not sync body measurements, food logs, dietary restrictions or nutrition
 plans. Use **Sync Now** or reopen the app to check for changes.
 
+**Apple Health isn't working.**
+Turn it on in Profile → **Apple Health** and allow the items iOS asks about.
+If the status says to allow access, open the Health app → Sharing → Apps →
+Nourlo and switch on what you want to share. If it says Apple Health isn't
+available in this build or on this device, everything else in Nourlo still
+works. Foods and workouts from the last seven days are saved; if steps or
+active energy stay at zero, allow them for Nourlo in the Health app. Turning
+Apple Health off, or Delete All Data, stops syncing but keeps what is already
+in Apple Health; delete it in the Health app if you want. Health data is never
+sent to Nourlo's servers or the AI.
+
 **Can I rely on suggestions for allergies?**
 No. Preferences guide suggestions but cannot guarantee allergen safety. Check
 every ingredient, product label and preparation method yourself.

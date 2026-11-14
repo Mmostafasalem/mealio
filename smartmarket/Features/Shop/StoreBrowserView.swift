@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 struct StoreBrowserView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -8,12 +9,15 @@ struct StoreBrowserView: View {
     @State private var budgetInput = ""
     @State private var budgetError: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private let budgetTip = WeeklyBudgetTip()
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
                     budgetCard
+                    // Inline under the card, so it never covers the Edit button.
+                    TipView(budgetTip, arrowEdge: .top)
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
                 }
@@ -36,6 +40,9 @@ struct StoreBrowserView: View {
             }
         }
         .sheet(isPresented: $showBudgetEditor) { budgetSheet }
+        .task(id: cart.weeklyBudget) {
+            WeeklyBudgetTip.hasCustomBudget = cart.weeklyBudget != 60  // ShoppingCartService's default budget
+        }
     }
 
     // MARK: - Budget card
@@ -226,6 +233,7 @@ struct StoreBrowserView: View {
                         switch EuroInput.validate(budgetInput, in: ShoppingCartService.budgetRange) {
                         case .success(let value):
                             cart.weeklyBudget = value
+                            budgetTip.invalidate(reason: .actionPerformed)
                             showBudgetEditor = false
                         case .failure(let problem):
                             budgetError = EuroInput.message(for: problem, example: "60")
