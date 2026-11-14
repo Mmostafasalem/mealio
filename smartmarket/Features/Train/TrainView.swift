@@ -50,6 +50,8 @@ struct TrainView: View {
     @State private var vm = TrainViewModel()
     @State private var store = WorkoutStore.shared
     @FocusState private var wishesFocused: Bool
+    @State private var showLibrary = false
+    @State private var guide: ExerciseGuide?
 
     var body: some View {
         NavigationStack {
@@ -58,12 +60,7 @@ struct TrainView: View {
                     weekCard
                     builderCard
                     if !store.saved.isEmpty { savedSection }
-                    NavigationLink { ExerciseLibraryView() } label: {
-                        TrainLinkRow(symbol: "list.bullet.rectangle.fill", title: "Exercise library",
-                                     detail: "\(Exercise.catalog.count) exercises with how-to notes")
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("train.library")
+                    exerciseBrowser
                     if !store.completed.isEmpty {
                         NavigationLink { WorkoutHistoryView() } label: {
                             TrainLinkRow(symbol: "clock.fill", title: "History",
@@ -80,10 +77,59 @@ struct TrainView: View {
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Train")
             .navigationBarTitleDisplayMode(.large)
+            .navigationDestination(isPresented: $showLibrary) { ExerciseLibraryView() }
+            .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
             .navigationDestination(item: $vm.generated) { workout in
                 WorkoutDetailView(workout: workout, localReason: vm.localReason)
             }
         }
+    }
+
+    // MARK: Exercise browser
+
+    /// The exercise library as a card you drill into in place:
+    /// type → exercises → one exercise.
+    private var exerciseBrowser: some View {
+        var pages: [String: StackPanelPage] = [:]
+        pages["root"] = StackPanelPage(title: "Exercises", sections: [
+            StackPanelSection(rows: ExerciseKind.allCases.map { kind in
+                StackPanelRow(id: kind.rawValue, label: kind.title, symbol: kind.symbol,
+                              detail: "\(Exercise.catalog.filter { $0.kind == kind }.count)", to: "kind." + kind.rawValue)
+            }),
+            StackPanelSection(rows: [
+                StackPanelRow(id: "search", label: "Search all exercises", symbol: "magnifyingglass",
+                              action: { showLibrary = true }),
+            ]),
+        ])
+        for kind in ExerciseKind.allCases {
+            let exercises = Exercise.catalog.filter { $0.kind == kind }
+            // Strength work is grouped by body area; cardio and mobility are one list.
+            let groups: [(String?, [Exercise])] = exercises.contains { $0.focus != nil }
+                ? ExerciseFocus.allCases.compactMap { focus in
+                    let matching = exercises.filter { $0.focus == focus }
+                    return matching.isEmpty ? nil : (focus.title, matching)
+                }
+                : [(nil, exercises)]
+            pages["kind." + kind.rawValue] = StackPanelPage(title: kind.title, sections: groups.map { title, items in
+                StackPanelSection(title: title, rows: items.map { exercise in
+                    StackPanelRow(id: exercise.id, label: exercise.name, detail: exercise.level.title, to: "exercise." + exercise.id)
+                })
+            })
+            for exercise in exercises {
+                pages["exercise." + exercise.id] = StackPanelPage(title: exercise.name, sections: [
+                    StackPanelSection(rows: [
+                        StackPanelRow(id: exercise.id + ".works", label: "Works", detail: exercise.muscles),
+                        StackPanelRow(id: exercise.id + ".kit", label: "Equipment", detail: exercise.equipment),
+                        StackPanelRow(id: exercise.id + ".typical", label: "Typical", detail: exercise.prescription),
+                    ]),
+                    StackPanelSection(rows: [
+                        StackPanelRow(id: exercise.id + ".howto", label: "Show how to do it", symbol: "play.circle.fill",
+                                      action: { guide = ExerciseGuide(exercise: exercise) }),
+                    ]),
+                ])
+            }
+        }
+        return StackPanel(pages: pages, root: "root")
     }
 
     // MARK: This week

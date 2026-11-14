@@ -356,6 +356,7 @@ struct ProductShopRow: View {
 
             QuantityStepper(
                 quantity: qty,
+                name: item.name,
                 onAdd:    { cart.add(item, store: store) },
                 onRemove: { cart.remove(item.id, store: store.name) }
             )
@@ -408,38 +409,14 @@ struct ProductShopRow: View {
 
 struct QuantityStepper: View {
     let quantity: Int
+    /// Item name, spoken by VoiceOver.
+    var name: String = "item"
     let onAdd: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
-        if quantity == 0 {
-            Button(action: onAdd) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Color.brandPrimary)
-                    .minTapTarget()
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Add to cart")
-            .sensoryFeedback(.impact, trigger: quantity)
-        } else {
-            // Spring roll on change; stepping down from 1 removes the line (the
-            // view then swaps back to "Add to cart").
-            SpringStepper(
-                value: Binding(
-                    get: { quantity },
-                    set: { new in
-                        if new > quantity { onAdd() } else if new < quantity { onRemove() }
-                    }
-                ),
-                in: 0...Self.maxQuantity,
-                label: "Quantity",
-                decrementLabel: "Decrease quantity",
-                incrementLabel: "Increase quantity",
-                font: .system(.callout, design: .rounded).weight(.bold)
-            )
-        }
+        // "Add +" that opens in place into "− n +".
+        CartButton(quantity: quantity, max: Self.maxQuantity, name: name, onAdd: onAdd, onRemove: onRemove)
     }
 
     /// Past this the plus kicks back instead of adding.

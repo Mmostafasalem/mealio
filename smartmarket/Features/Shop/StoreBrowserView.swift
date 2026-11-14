@@ -350,7 +350,7 @@ private struct CartItemRow: View {
                 Text(String(format: cart.isEstimated(item.catalogId, store: item.store) ? "est. €%.2f" : "your price €%.2f", item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
-            QuantityStepper(quantity: item.quantity,
+            QuantityStepper(quantity: item.quantity, name: item.name,
                             onAdd:    { cart.add(CatalogItem(id: item.catalogId, name: item.name, category: CatalogCategory(rawValue: item.category) ?? .snacks),
                                                  store: .catalog) },
                             onRemove: { cart.remove(item.catalogId, store: item.store) })
