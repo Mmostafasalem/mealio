@@ -33,6 +33,8 @@ struct LoopState: Equatable {
     var saversHeld = 0
     var todayKept = false
     var perfectToday = false
+    /// Nourlo's mood from the loop alone (Home adds celebrate/thinking on top).
+    var mood: MascotMood = .happy
 }
 
 /// Keeps Nourlo's progress ledger (on this device only — health-derived data
@@ -103,7 +105,8 @@ final class DailyLoopStore {
         let wasKept = state.todayKept
         state = LoopState(streak: DailyLoop.streak(i), longest: DailyLoop.longestStreak(i), quests: quests,
                           week: DailyLoop.week(i), saversHeld: DailyLoop.saversHeld(i),
-                          todayKept: DailyLoop.isKept(today, i), perfectToday: i.ledger.contains(.perfectDay(today)))
+                          todayKept: DailyLoop.isKept(today, i), perfectToday: i.ledger.contains(.perfectDay(today)),
+                          mood: DailyLoop.mood(i, justCompleted: false, generating: false))
         if state.todayKept != wasKept { onTodayKeptChange?(state) }
     }
 
@@ -121,6 +124,15 @@ final class DailyLoopStore {
     }
 
     func consumeMilestone() { pendingMilestone = nil }
+
+    /// Cart edits can happen on any tab; listen once for the app's lifetime.
+    @ObservationIgnored private var cartObserver: NSObjectProtocol?
+    func startObservingCart() {
+        guard cartObserver == nil else { return }
+        cartObserver = NotificationCenter.default.addObserver(forName: .cartDidChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cartChanged() }
+        }
+    }
 
     private func persist() {
         if let data = try? JSONEncoder().encode(ledger) { defaults.set(data, forKey: Self.key) }

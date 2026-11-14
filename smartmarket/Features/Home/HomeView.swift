@@ -6,6 +6,8 @@ struct HomeView: View {
     @State private var showProfile = false
     @State private var showReminders = false
     @State private var reminders = ReminderStore.shared
+    @State private var loop = DailyLoopStore.shared
+    @State private var showStock = false
 
     @State private var vm = HomeViewModel()
     /// Shown for a moment after the connection comes back.
@@ -34,6 +36,15 @@ struct HomeView: View {
                 },
                 onClearAll: { reminders.dismissAllDue() })
             .accessibilityIdentifier("home.dueReminders")
+        }
+    }
+
+    private func openQuest(_ destination: QuestDestination) {
+        switch destination {
+        case .logFood: vm.openLog()
+        case .train: NotificationCenter.default.post(name: .openTrain, object: nil)
+        case .shop: NotificationCenter.default.post(name: .openShop, object: nil)
+        case .stock: showStock = true
         }
     }
 
@@ -74,6 +85,7 @@ struct HomeView: View {
                             }
                             .buttonStyle(ScalePressStyle())
                             CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
+                            DailyQuestCard(state: loop.state, onOpen: openQuest)
                             // Above the cards below it: its goo menu pours out over them.
                             TodaysLogCard(vm: vm).zIndex(1)
                             HomeDealsSection(vm: vm)
@@ -95,11 +107,21 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView().navigationBarHidden(false)
             }
+            .navigationDestination(isPresented: $showStock) { StockView() }
             .onReceive(NotificationCenter.default.publisher(for: .openProfile)) { _ in showProfile = true }
         }
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
         .task { await vm.load() }
+        .onAppear { loop.refresh() }
+        .onChange(of: FoodLogStore.shared.allEntries.count) { _, _ in loop.refresh() }
+        .onChange(of: WorkoutStore.shared.completed.count) { _, _ in loop.refresh() }
+        .onChange(of: AppState.shared.userProfile.dailyCalorieGoal) { _, _ in loop.refresh() }
+        .task(id: loop.pendingMilestone) {
+            guard loop.pendingMilestone != nil else { return }
+            try? await Task.sleep(for: .seconds(3.5))
+            if !Task.isCancelled { loop.consumeMilestone() }
+        }
         .onChange(of: NetworkMonitor.shared.isOnline) { _, online in
             showBackOnline = online
             AccessibilityNotification.Announcement(online ? "Back online" : "Offline, using saved data").post()
@@ -116,6 +138,7 @@ struct HomeView: View {
     /// The deal the person tapped wins over connection status.
     private var notice: HomeNotice? {
         if let deal = vm.activeDealBanner { return .deal(deal) }
+        if let days = loop.pendingMilestone { return .milestone(days) }
         if !NetworkMonitor.shared.isOnline { return .offline }
         if showBackOnline { return .backOnline }
         return nil
@@ -128,6 +151,8 @@ struct HomeView: View {
                 .accessibilityLabel("Offline, using saved data")
         case .backOnline:
             statusPill("Back online", systemImage: "wifi")
+        case .milestone(let days):
+            statusPill("\(days)-day streak! Nourlo is proud of you.", systemImage: "sparkles")
         case .deal(let deal):
             DealNotificationBanner(
                 deal: deal,
@@ -156,12 +181,14 @@ enum HomeNotice: Identifiable, Equatable {
     case offline
     case backOnline
     case deal(MarketDeal)
+    case milestone(Int)
 
     var id: String {
         switch self {
         case .offline: return "offline"
         case .backOnline: return "backOnline"
         case .deal(let deal): return "deal-\(deal.id)"
+        case .milestone(let days): return "milestone-\(days)"
         }
     }
 

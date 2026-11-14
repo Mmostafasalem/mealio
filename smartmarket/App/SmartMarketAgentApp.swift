@@ -63,6 +63,7 @@ struct SmartMarketAgentApp: App {
             }
             .task(id: appState.isOnboarded) {
                 ReminderStore.shared.streakState = { DailyLoopStore.shared.state }
+                DailyLoopStore.shared.startObservingCart()
                 DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }
                 await PrivateSyncService.shared.start()
                 await NotificationService.shared.checkPermission()

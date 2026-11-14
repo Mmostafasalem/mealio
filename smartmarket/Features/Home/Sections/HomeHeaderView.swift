@@ -115,11 +115,22 @@ struct HomeCardTitle: View {
 struct HeaderBowl: View {
     @State private var pose = 0
     @State private var celebrating = false
+    @State private var loop = DailyLoopStore.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Writing a meal plan wins, then a fresh win, then how the streak is doing.
     private var mood: MascotMood {
+        if AppState.shared.isGeneratingMealPlan { return .thinking }
         if celebrating { return .celebrate }
-        return AppState.shared.isGeneratingMealPlan ? .thinking : .happy
+        return loop.state.mood
+    }
+
+    private func celebrate() {
+        celebrating = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            celebrating = false
+        }
     }
 
     var body: some View {
@@ -128,14 +139,28 @@ struct HeaderBowl: View {
         }, trigger: pose)
             // The character's own padding makes a 68 pt button; keep the row at 44.
             .frame(width: 56, height: 44)
-            .onChange(of: FoodLogStore.shared.entries.count) { old, new in
-                guard new > old else { return }
-                celebrating = true
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(1.8))
-                    celebrating = false
+            .overlay(alignment: .bottomTrailing) {
+                if loop.state.streak > 0 {
+                    Text("\(loop.state.streak)")
+                        .font(.system(size: 11, weight: .heavy, design: .rounded).monospacedDigit())
+                        .foregroundStyle(Color.onAccent)
+                        .padding(.horizontal, 5)
+                        .frame(minWidth: 18, minHeight: 18)
+                        .background(Color.progress, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Color.surfaceGrouped, lineWidth: 2))
+                        .contentTransition(.numericText())
+                        .offset(x: 2, y: 2)
+                        .accessibilityLabel("\(loop.state.streak)-day streak")
+                        .accessibilityIdentifier("home.streakBadge")
+                        .allowsHitTesting(false)
                 }
             }
+            .onChange(of: FoodLogStore.shared.entries.count) { old, new in
+                guard new > old else { return }
+                celebrate()
+            }
+            .onChange(of: loop.lastCompletion) { _, _ in celebrate() }
+            .onChange(of: loop.pendingMilestone) { _, days in if days != nil { celebrate() } }
             .task {
                 // A fresh pose now and then; it rests in between.
                 guard !reduceMotion else { return }
