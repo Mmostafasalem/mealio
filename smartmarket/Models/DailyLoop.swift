@@ -167,3 +167,103 @@ enum DailyLoop {
         return .happy
     }
 }
+
+// MARK: - Quests
+
+enum QuestDestination: Equatable { case logFood, train, shop, stock }
+
+struct Quest: Identifiable, Equatable {
+    let id: QuestID
+    let title: String
+    let symbol: String
+    let current: Double
+    let goal: Double
+    let unit: String
+    let isDone: Bool
+    let destination: QuestDestination
+
+    var fraction: Double { goal > 0 ? min(current / goal, 1) : (isDone ? 1 : 0) }
+}
+
+extension DailyLoop {
+    static let easyQuests: [QuestID] = [.logAny, .breakfast, .anyWorkout]
+
+    /// Quests that make sense for this user on this day.
+    static func available(day: DayKey, _ i: LoopInputs) -> [QuestID] {
+        let workoutDay = [0, 2, 4, 5].contains(((day.number(in: i.calendar) % 7) + 7) % 7)
+        return QuestID.allCases.filter { id in
+            switch id {
+            case .protein: return i.proteinGoal > 0 && i.calorieGoal > 0
+            case .onTarget: return i.calorieGoal > 0
+            case .budget: return i.cartHasItems
+            case .fromStock: return i.hasStock
+            case .workout, .anyWorkout: return workoutDay
+            case .logAny, .breakfast, .threeMeals, .newFood: return true
+            }
+        }
+    }
+
+    /// Today's three quests: slot 0 always an easy one. Stable for the day.
+    static func quests(for day: DayKey, _ i: LoopInputs) -> [Quest] {
+        let seed = day.number(in: i.calendar)
+        let ids = available(day: day, i).sorted { stableHash(seed, $0) < stableHash(seed, $1) }
+        let easy = ids.filter { easyQuests.contains($0) }
+        var picked = Array(easy.prefix(1))
+        picked += ids.filter { !easyQuests.contains($0) }.prefix(2)
+        if picked.count < 3 { picked += easy.dropFirst().prefix(3 - picked.count) }
+        return picked.map { evaluate($0, day: day, i) }
+    }
+
+    static func isPerfect(day: DayKey, _ i: LoopInputs) -> Bool {
+        let qs = quests(for: day, i)
+        return qs.count == 3 && qs.allSatisfy(\.isDone)
+    }
+
+    static func evaluate(_ id: QuestID, day: DayKey, _ i: LoopInputs) -> Quest {
+        let entries = i.foodEntries.filter { DayKey($0.loggedAt, calendar: i.calendar) == day }
+        let workouts = i.workouts.filter { DayKey($0.date, calendar: i.calendar) == day }
+        func make(_ title: String, _ symbol: String, _ current: Double, _ goal: Double, unit: String = "",
+                  done: Bool? = nil, _ dest: QuestDestination) -> Quest {
+            Quest(id: id, title: title, symbol: symbol, current: current, goal: goal, unit: unit,
+                  isDone: done ?? (current >= goal), destination: dest)
+        }
+        switch id {
+        case .logAny:
+            return make("Log something you ate", "fork.knife", min(Double(entries.count), 1), 1, .logFood)
+        case .breakfast:
+            return make("Log breakfast", "sunrise.fill", entries.contains { $0.slot == .breakfast } ? 1 : 0, 1, .logFood)
+        case .threeMeals:
+            return make("Log 3 meals", "list.bullet.circle.fill", Double(Set(entries.map(\.slot)).count), 3, unit: "meals", .logFood)
+        case .protein:
+            let goal = (Double(i.proteinGoal) * 0.8).rounded()
+            return make("Hit your protein", "bolt.fill", entries.reduce(0) { $0 + $1.proteinG }.rounded(), goal, unit: "g", .logFood)
+        case .onTarget:
+            let total = Double(entries.reduce(0) { $0 + $1.calories })
+            let goal = Double(i.calorieGoal)
+            let late = day < i.today || i.calendar.component(.hour, from: i.now) >= 17
+            let near = goal > 0 && abs(total - goal) <= goal * 0.1
+            return make("Land near your calories", "scope", total, goal, unit: "kcal",
+                        done: near && Set(entries.map(\.slot)).count >= 2 && late, .logFood)
+        case .workout:
+            return make("Move for 20 minutes", "figure.walk", Double(workouts.reduce(0) { $0 + $1.minutes }), 20, unit: "min", .train)
+        case .anyWorkout:
+            return make("Do any workout", "figure.run", workouts.isEmpty ? 0 : 1, 1, .train)
+        case .fromStock:
+            return make("Cook from your stock", "cabinet", entries.contains { i.stockEntryIDs.contains($0.id) } ? 1 : 0, 1, .stock)
+        case .newFood:
+            let start = day.date(in: i.calendar)
+            let seen = Set(i.foodEntries.filter { $0.loggedAt < start }.compactMap(\.foodId))
+            let fresh = entries.contains { $0.foodId.map { !seen.contains($0) } ?? false }
+            return make("Try something new", "sparkles", fresh ? 1 : 0, 1, .logFood)
+        case .budget:
+            return make("Shop within budget", "cart.fill", i.ledger.contains(.budgetCheckIn(day)) ? 1 : 0, 1, .shop)
+        }
+    }
+
+    /// FNV-1a; `Hasher` is randomly seeded per launch, so it can't pick quests.
+    static func stableHash(_ seed: Int, _ id: QuestID) -> UInt64 {
+        var h: UInt64 = 0xcbf29ce484222325
+        for b in "\(seed)-\(id.rawValue)".utf8 { h = (h ^ UInt64(b)) &* 0x100000001b3 }
+        return h
+    }
+}
