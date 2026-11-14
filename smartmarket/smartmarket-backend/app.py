@@ -680,9 +680,13 @@ def handle_bmr(body):
         }
     }
 
-def _usable_meal_plan(raw):
+def _usable_meal_plan(raw, target_kcal=None):
+    """A complete week. With a target, each day must land within 25 % of it and
+    meals must not all carry one copied number (a model once echoed the prompt's
+    example kcal into every meal, giving 2000 kcal days whatever the target)."""
     if not isinstance(raw, dict): return False
     days = {DAY_KEY_MAP.get(k) or DAY_KEY_MAP.get(str(k).lower()): v for k,v in raw.items()}
+    all_kcal = []
     for day in CANONICAL_DAYS:
         meals = days.get(day)
         if not isinstance(meals, dict): return False
@@ -694,6 +698,11 @@ def _usable_meal_plan(raw):
             if not isinstance(name, str) or not name.strip(): return False
             normalized = _normalize_meal(meal)
             if not normalized or normalized["kcal"] <= 0: return False
+            all_kcal.append(normalized["kcal"])
+        if target_kcal and target_kcal > 0:
+            day_total = sum(all_kcal[-4:])
+            if not 0.75 * target_kcal <= day_total <= 1.25 * target_kcal: return False
+    if target_kcal and len(set(all_kcal)) == 1: return False
     return True
 
 
@@ -786,7 +795,7 @@ def handle_meal_plan(body):
 Use exactly these day keys: pirmadienis, antradienis, treciadienis, ketvirtadienis, pentadienis, sestadienis, sekmadienis.
 Each day has exactly four meals: pusryciai, pietūs, vakariene, uzkandziai.
 Each meal MUST use this schema:
-{"pavadinimas":"dish name","ingredientai":["every ingredient and quantity"],"kcal":500,"portions":[{"foodID":"exact provided food.id","amount":100}]}
+{"pavadinimas":"dish name","ingredientai":["every ingredient and quantity"],"kcal":<your estimate for this meal>,"portions":[{"foodID":"exact provided food.id","amount":100}]}
 Add one top-level agentMessage sentence. Return ONLY JSON.
 FIRST plan from the provided owned stock. Repeating meals is allowed when stock is limited; variety is secondary to using real available food.
 For every meal made from stock, portions is REQUIRED. Include every ingredient, even oil, using its exact food.id and a positive amount in its food.basis (g, ml or serving). Nutrition is per 100 g/ml or per serving. Do not add unlisted ingredients or relabel raw food as cooked.
@@ -798,6 +807,8 @@ Respect all dietary exclusions and allergies. Do not claim certification or alle
         f"Goal: {goal}\n"
         f"Dish names and ingredient text language: {dict(en='English', lt='Lithuanian', ar='Arabic').get(_as_str(body.get('lang'), 'en'), 'English')}. Keep the required JSON field keys unchanged.\n"
         f"Daily target: {target_kcal} kcal | Protein {protein_g}g | Carbs {carbs_g}g | Fat {fat_g}g\n"
+        f"Meal targets: Breakfast ~{round(target_kcal * 0.25)} kcal, Lunch ~{round(target_kcal * 0.35)} kcal, "
+        f"Dinner ~{round(target_kcal * 0.30)} kcal, Snack ~{round(target_kcal * 0.10)} kcal. Estimate each meal's own kcal.\n"
         f"Favourite food names: {fav_names}\n"
         f"Owned stock with quantities and reference nutrition: {json.dumps(stock)}\n"
         f"Shopping intentions (not owned): {json.dumps(shopping)}\n"
@@ -813,7 +824,7 @@ Respect all dietary exclusions and allergies. Do not claim certification or alle
          {"role": "user",   "content": user_prompt}],
         _fallback_meal_plan(target_kcal),
         max_tokens=4000,        # a full 7-day plan is large — avoid truncation
-        json_object=True, validator=_usable_meal_plan, # usable complete plan required
+        json_object=True, validator=lambda raw: _usable_meal_plan(raw, target_kcal),  # complete and on target
     )
     result = _normalize_meal_plan(result, target_kcal)
     if not result.get("agentMessage"):

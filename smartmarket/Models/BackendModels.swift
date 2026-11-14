@@ -248,6 +248,24 @@ struct WeeklyMealPlan: Codable, Equatable {
     }
 }
 
+extension WeeklyMealPlan {
+    /// Every day within 25 % of the target, and not one copied number for every
+    /// meal (an online plan once gave every meal the prompt's example 500 kcal).
+    func isOnTarget(_ target: Int) -> Bool {
+        guard target > 0 else { return true }
+        let days = allDays.map(\.plan)
+        guard days.count == 7 else { return false }
+        var mealKcal: [Int] = []
+        for day in days {
+            let meals = [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].compactMap { $0?.kcal }
+            mealKcal += meals
+            let total = meals.reduce(0, +)
+            if Double(total) < 0.75 * Double(target) || Double(total) > 1.25 * Double(target) { return false }
+        }
+        return Set(mealKcal).count > 1
+    }
+}
+
 struct DayPlan: Codable, Equatable {
     let pusryciai: MealItem?   // breakfast
     let pietus: MealItem?      // lunch

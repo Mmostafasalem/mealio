@@ -358,3 +358,42 @@ def test_workout_validator_rejects_unusable_output():
     assert not app._usable_workout({"title": "x", "exercises": [{"name": "Squat", "sets": "3"}]})
     assert not app._usable_workout({"title": "x", "exercises": [{"name": "Squat", "sets": -1}]})
     assert app._usable_workout({"title": "x", "exercises": [{"name": "Squat", "sets": 3, "reps": "8"}]})
+
+
+# ---------------------------------------------------------------------------
+# Meal plan calorie targets (regression: every meal copied the prompt's "kcal":500)
+# ---------------------------------------------------------------------------
+
+def _week(kcals):
+    meals = {"pusryciai": kcals[0], "pietūs": kcals[1], "vakariene": kcals[2], "uzkandziai": kcals[3]}
+    return {day: {k: {"pavadinimas": f"{k} dish", "ingredientai": ["x"], "kcal": v} for k, v in meals.items()}
+            for day in app.CANONICAL_DAYS}
+
+
+def test_meal_plan_prompt_has_no_example_kcal_and_names_meal_targets(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(app, "groq_json", lambda messages, fallback=None, **kw: captured.update(m=messages) or fallback)
+    app.handle_meal_plan({"user": {}, "bmrData": {"maintainCalories": 2550}, "goal": "maintain"})
+    system, user = captured["m"][0]["content"], captured["m"][-1]["content"]
+    assert '"kcal":500' not in system
+    assert "Breakfast ~638 kcal" in user and "Dinner ~765 kcal" in user
+
+
+def test_plan_that_copies_one_kcal_value_is_rejected():
+    assert not app._usable_meal_plan(_week([500, 500, 500, 500]), 2550)
+
+
+def test_plan_far_from_target_is_rejected():
+    assert not app._usable_meal_plan(_week([300, 500, 450, 120]), 2550)
+
+
+def test_plan_near_target_is_accepted():
+    assert app._usable_meal_plan(_week([640, 880, 760, 260]), 2550)
+
+
+def test_meal_plan_validator_knows_the_target(monkeypatch):
+    captured = {}
+    monkeypatch.setattr(app, "groq_json", lambda messages, fallback=None, **kw: captured.update(kw) or fallback)
+    app.handle_meal_plan({"user": {}, "bmrData": {"maintainCalories": 2550}, "goal": "maintain"})
+    assert not captured["validator"](_week([500, 500, 500, 500]))
+    assert captured["validator"](_week([640, 880, 760, 260]))

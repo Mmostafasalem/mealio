@@ -92,6 +92,14 @@ final class APIService {
             try validateResponse(response, requireAI: true)
             var plan = try decoder.decode(WeeklyMealPlan.self, from: data)
             plan = MealPlanGrounding.resolve(plan, foods: request.stock?.map(\.food) ?? [])
+            let target = request.bmrData.calories(forGoal: request.goal)
+            guard plan.isOnTarget(target) else {
+                // Off-target AI output: plan on the device for the real target instead.
+                appLog("[API] online meal plan ignored: days far from \(target) kcal")
+                var local = FallbackData.mealPlan(targetKcal: target, pantry: [])
+                local.generationSource = "local"
+                return local
+            }
             plan.generationSource = "online"
             return plan
         } catch {

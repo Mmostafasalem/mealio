@@ -120,28 +120,24 @@ final class MealPlanViewModel {
 
     // MARK: - Week plan
 
+    /// The next seven days, starting today: each weekday's plan on its next date.
+    static func buildWeek(from weekly: WeeklyMealPlan, now: Date = Date(), calendar: Calendar = .current) -> [MealPlan] {
+        // Index = weekday - 1 (Sunday first, as Calendar numbers them).
+        let dayPlans: [DayPlan?] = [weekly.sekmadienis, weekly.pirmadienis, weekly.antradienis, weekly.treciadienis,
+                                    weekly.ketvirtadienis, weekly.pentadienis, weekly.sestadienis]
+        let todayIndex = calendar.component(.weekday, from: now) - 1
+        return dayPlans.enumerated().compactMap { idx, day -> MealPlan? in
+            guard let day else { return nil }
+            let offset = (idx - todayIndex + 7) % 7
+            return MealPlan.from(day: day, date: calendar.date(byAdding: .day, value: offset, to: now) ?? now,
+                                 notes: weekly.agentMessage ?? "")
+        }
+        .sorted { $0.date < $1.date }
+    }
+
     func loadWeekPlans() async {
 
-        func buildWeekPlans(from weekly: WeeklyMealPlan) -> [MealPlan] {
-            let dayPlans: [DayPlan?] = [
-                weekly.sekmadienis,
-                weekly.pirmadienis,
-                weekly.antradienis,
-                weekly.treciadienis,
-                weekly.ketvirtadienis,
-                weekly.pentadienis,
-                weekly.sestadienis
-            ]
-            let _ = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
-            return dayPlans.enumerated().compactMap { idx, day in
-                guard let day else { return nil }
-                let weekday = Calendar.current.component(.weekday, from: Date()) - 1
-                let offset = (idx - weekday + 7) % 7
-                return MealPlan.from(day: day,
-                                     date: Calendar.current.date(byAdding: .day, value: offset, to: Date()) ?? Date(),
-                                     notes: weekly.agentMessage ?? "")
-            }
-        }
+        func buildWeekPlans(from weekly: WeeklyMealPlan) -> [MealPlan] { Self.buildWeek(from: weekly) }
 
         // Try persisted WeeklyMealPlan
         if let data = UserDefaults.standard.data(forKey: Constants.Storage.currentMealPlan),
