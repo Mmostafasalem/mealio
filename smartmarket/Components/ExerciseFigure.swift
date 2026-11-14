@@ -76,6 +76,10 @@ enum ExerciseMotion: String, CaseIterable {
     case superman, deadBug, rowing, twist, lungeReach, childsPose, legPress
     case backSquat, gobletSquat, dumbbellBench, jumpRope, woodchop, barbellRow
     case stairs
+    // Movements that exist only as captured clips (see `ExerciseClips`).
+    case lateralRaise, reverseFly, singleLegDeadlift, sideLunge, jumpingJack, crunch
+    case highKnees, march, frontKick, skip, windmill, kneeLift, armRaise, squatReach
+    case hipCircle, boxing, sideShuffle, jumpSquat
 
     enum Prop { case none, barbell, dumbbells, oneDumbbell, goblet, bench, benchDumbbells, highBar, pulldown, step, wheels, seat, cableSeat, rope, cableHandle, pedals }
 
@@ -86,7 +90,7 @@ enum ExerciseMotion: String, CaseIterable {
         case .press, .hinge, .backSquat, .barbellRow: return .barbell
         case .jumpRope:              return .rope
         case .woodchop:              return .cableHandle
-        case .lunge:                 return .dumbbells
+        case .lunge, .lateralRaise, .reverseFly: return .dumbbells
         case .bentRow:               return .oneDumbbell
         case .gobletSquat:           return .goblet
         case .pulldown:              return .pulldown
@@ -213,6 +217,14 @@ enum ExerciseMotion: String, CaseIterable {
             return (Gait.walk.pose(phase: 0.0), Gait.walk.pose(phase: 0.5))
         case .stairs:
             return (Gait.stairs.pose(phase: 0.25), Gait.stairs.pose(phase: 0.75))
+        case .lateralRaise, .reverseFly, .armRaise, .jumpingJack, .boxing:
+            // Captured movements: these two positions only stand in if the clips are missing.
+            return (stand, stand.arms(elbow: pt(0.56, 0.3), hand: pt(0.62, 0.3)))
+        case .singleLegDeadlift, .sideLunge, .crunch, .highKnees, .march, .frontKick, .skip, .windmill,
+             .kneeLift, .squatReach, .hipCircle, .sideShuffle, .jumpSquat:
+            var up = stand
+            up.kneeF = pt(0.6, 0.62); up.footF = pt(0.58, 0.78)
+            return (stand, up)
         case .cycle:
             var a = FigurePose(head: pt(0.66, 0.24), shoulder: pt(0.58, 0.34), hip: pt(0.4, 0.5))
                 .arms(elbow: pt(0.68, 0.42), hand: pt(0.76, 0.46))
@@ -346,6 +358,12 @@ enum ExerciseMotion: String, CaseIterable {
         "cat-cow": .catCow, "worlds-greatest-stretch": .lungeReach, "hip-flexor-stretch": .lungeReach,
         "hamstring-stretch": .fold, "thoracic-rotation": .twist, "shoulder-circles": .armCircle,
         "childs-pose": .childsPose, "ankle-rocks": .lungeReach,
+        "lateral-raise": .lateralRaise, "reverse-fly": .reverseFly, "single-leg-deadlift": .singleLegDeadlift,
+        "side-lunge": .sideLunge, "jumping-jack": .jumpingJack, "leg-extension-crunch": .crunch,
+        "high-knees": .highKnees, "marching": .march, "front-kick": .frontKick, "skipping": .skip,
+        "windmill-toe-touch": .windmill, "standing-knee-lift": .kneeLift, "overhead-arm-raise": .armRaise,
+        "squat-and-reach": .squatReach, "leg-circles": .hipCircle, "shadow-boxing": .boxing,
+        "side-shuffle": .sideShuffle, "jump-squat": .jumpSquat,
     ]
 
     static func forExercise(id: String) -> ExerciseMotion? { byExerciseID[id] }
@@ -389,7 +407,8 @@ extension ExerciseMotion {
     /// Movements that swing continuously from side to side (no start and finish to pause on).
     var isContinuous: Bool {
         switch self {
-        case .run, .walk, .cycle, .climber, .stairs: return true
+        case .run, .walk, .cycle, .climber, .stairs,
+             .jumpingJack, .highKnees, .march, .frontKick, .skip, .boxing, .sideShuffle: return true
         default: return false
         }
     }

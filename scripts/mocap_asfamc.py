@@ -253,3 +253,19 @@ def figure_joints_vicon(path):
     j[:, 1] = j[:, 0] * 0.45 + j[:, 2] * 0.55                           # mid-spine between pelvis and thorax
     np.save(cache, j)
     return j, rate
+
+
+def figure_joints_any_bvh(p):
+    """The app's 20 joints from whichever BVH naming the file uses (100STYLE or ACCAD/CMU-style)."""
+    if 'Chest2' in p:
+        return figure_joints_bvh(p)
+    def end(name, fallback):
+        return p.get(name + '_end', p[fallback])
+    head = (p['Head'] + end('Head', 'Head')) / 2
+    mid = p['Spine1'] if 'Spine1' in p else p['Spine']
+    cols = [p['Hips'], mid, p['Neck'], head]
+    for s in ('Left', 'Right'):
+        cols += [p[s + 'Arm'], p[s + 'ForeArm'], p[s + 'Hand'], p[s + 'UpLeg'], p[s + 'Leg'], p[s + 'Foot'], p[s + 'ToeBase']]
+    for s in ('Left', 'Right'):
+        cols += [end(s + 'Hand', s + 'Hand')]
+    return np.stack(cols, axis=1)

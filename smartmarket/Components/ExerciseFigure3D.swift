@@ -35,6 +35,21 @@ extension ExerciseMotion {
         case .run:          return [.quads, .hamstrings, .calves]
         case .walk:         return [.quads, .calves, .glutes]
         case .stairs:       return [.quads, .glutes, .calves]
+        case .lateralRaise, .armRaise: return [.shoulders]
+        case .reverseFly:   return [.shoulders, .traps]
+        case .singleLegDeadlift: return [.hamstrings, .glutes]
+        case .sideLunge, .sideShuffle: return [.quads, .glutes]
+        case .jumpingJack:  return [.calves, .shoulders, .quads]
+        case .crunch:       return [.abs]
+        case .highKnees:    return [.quads, .abs, .calves]
+        case .march, .skip: return [.quads, .calves]
+        case .frontKick:    return [.quads, .abs]
+        case .windmill:     return [.obliques, .hamstrings]
+        case .kneeLift:     return [.abs, .obliques]
+        case .squatReach:   return [.quads, .glutes, .shoulders]
+        case .hipCircle:    return [.glutes]
+        case .boxing:       return [.shoulders, .abs]
+        case .jumpSquat:    return [.quads, .glutes, .calves]
         case .cycle:        return [.quads, .calves]
         case .jump, .jumpRope: return [.calves, .quads]
         case .burpee:       return [.quads, .chest, .shoulders, .abs]
@@ -1087,6 +1102,12 @@ extension FigureScene {
     /// one had, so feet neither sink into the floor nor float.
     func apply(clip: MotionClip, at time: Double) {
         capturedTime = time
+        if prop == .rope, let hops = clip.aux.first, hops >= 1 {
+            // The rope goes round once per hop: under the feet at the top, overhead at the bottom.
+            let phase = (time / clip.duration * Double(hops)).truncatingRemainder(dividingBy: 1)
+            lastProgress = Float(0.5 + 0.5 * cos(2 * .pi * phase))
+            rising = phase > 0.5
+        }
         apply(captured: clip.joints(at: time), clip: clip)
     }
 
@@ -1157,6 +1178,12 @@ extension FigureScene {
                 reach(i, to: top + shoulderAxis * (sign * 0.062) - chestUp * 0.09 + chestForward * 0.21,
                       pole: -chestUp + shoulderAxis * (sign * 0.35))
             }
+        case .dumbbells where clip.name == "lunge":
+            // Dumbbells hang at the sides through a lunge, whatever the captured arms did.
+            for (i, sign) in [Float(1), -1].enumerated() {
+                reach(i, to: shoulder[i] + shoulderAxis * (sign * 0.07) - up * (upperArm + forearm - 0.02) + chestForward * 0.02,
+                      pole: -chestForward)
+            }
         default:
             break
         }
@@ -1187,9 +1214,15 @@ extension FigureScene {
         }
 
         // Height: the lower ankle goes where the captured one was, scaled to this body.
+        // Lying down, the lowest part of the body rests on the floor instead.
         let captured = min(j[J.lAnkle.rawValue].y, j[J.rAnkle.rawValue].y)
         let wanted = (captured - clip.ankleRest) * scale + 0.04 + lift
-        let raise = SIMD3<Float>(0, wanted - min(foot[0].y, foot[1].y), 0)
+        var raise = SIMD3<Float>(0, wanted - min(foot[0].y, foot[1].y), 0)
+        if clip.lying {
+            let lowest = [bottom.y - 0.12, mid.y - 0.12, top.y - 0.11, headAt.y - 0.1,
+                          foot[0].y - 0.04 - lift, foot[1].y - 0.04 - lift, hand[0].y - 0.03, hand[1].y - 0.03].min() ?? 0
+            raise = SIMD3(0, -lowest, 0)
+        }
         bottom += raise; mid += raise; top += raise; headAt += raise
         for i in 0..<2 {
             shoulder[i] += raise; elbow[i] += raise; hand[i] += raise

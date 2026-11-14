@@ -94,10 +94,9 @@ struct ExerciseGuideSheet: View {
                             .font(.caption2)
                             .foregroundStyle(Color.labelSecondary)
                             .multilineTextAlignment(.leading)
-                        if motion.clip != nil {
-                            // Captured movement comes from CMU's motion capture database, credited as it asks.
-                            Link("Movement: CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), funded by NSF EIA-0196217",
-                                 destination: URL(string: "http://mocap.cs.cmu.edu")!)
+                        if let clip = motion.clip {
+                            // Captured movement is credited to whoever recorded it, as its licence asks.
+                            Link(clip.credit.text, destination: clip.credit.link)
                                 .font(.caption2)
                                 .foregroundStyle(Color.labelSecondary)
                                 .multilineTextAlignment(.leading)

@@ -11,6 +11,31 @@ import simd
 // app's own body, bone by bone.
 
 struct MotionClip {
+    /// The capture sources, in the order the builder numbers them.
+    enum Credit: Int {
+        case cmu, arkitVicon, hundredStyle, accad, cyclists
+
+        var text: String {
+            switch self {
+            case .cmu: return "Movement: CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), funded by NSF EIA-0196217"
+            case .arkitVicon: return "Movement: Reimer, Kapsecker, Fukushima & Jonas, ARKit vs Vicon exercise dataset · CC BY 4.0"
+            case .hundredStyle: return "Movement: 100STYLE dataset by Mason, Starke & Komura · CC BY 4.0"
+            case .accad: return "Movement: ACCAD Motion Lab, The Ohio State University · CC BY 3.0"
+            case .cyclists: return "Movement: cyclists motion capture dataset · CC BY 4.0"
+            }
+        }
+
+        var link: URL {
+            switch self {
+            case .cmu: return URL(string: "http://mocap.cs.cmu.edu")!
+            case .arkitVicon: return URL(string: "https://doi.org/10.5281/zenodo.6527283")!
+            case .hundredStyle: return URL(string: "https://www.ianxmason.com/100style/")!
+            case .accad: return URL(string: "https://accad.osu.edu/research/motion-lab/mocap-system-and-data")!
+            case .cyclists: return URL(string: "https://doi.org/10.5281/zenodo.10668611")!
+            }
+        }
+    }
+
     /// Joint order in every frame.
     enum Joint: Int {
         case pelvis, mid, top, head
@@ -27,7 +52,11 @@ struct MotionClip {
     let ankleRest: Float
     /// Where the "finish" still is taken, as a fraction of the clip.
     let key: Float
-    /// Extra numbers for some clips. Stairs: one step's run and rise, and where the top of a step
+    /// The body lies or crawls: the lowest joint rests on the floor, not a foot.
+    let lying: Bool
+    /// Whose capture this is (they are credited under the demo).
+    let credit: Credit
+    /// Extra numbers for some clips. Jump rope: how many hops the loop holds. Stairs: one step's run and rise, and where the top of a step
     /// sat under the planted foot at the first frame (x, y), all in the captured person's metres.
     let aux: [Float]
     let frameCount: Int
@@ -57,7 +86,7 @@ struct MotionClip {
 
     private static func load() -> [String: MotionClip] {
         guard let url = Bundle.main.url(forResource: "ExerciseClips", withExtension: "bin"),
-              let file = try? Data(contentsOf: url), file.count > 8, file.prefix(4) == Data("NCP2".utf8) else { return [:] }
+              let file = try? Data(contentsOf: url), file.count > 8, file.prefix(4) == Data("NCP3".utf8) else { return [:] }
         var cursor = 4
         func take<T>(_ type: T.Type) -> T? {
             let size = MemoryLayout<T>.size
@@ -71,7 +100,8 @@ struct MotionClip {
             guard let nameLength = take(UInt8.self), cursor + Int(nameLength) <= file.count else { break }
             let name = String(decoding: file.subdata(in: cursor..<cursor + Int(nameLength)), as: UTF8.self)
             cursor += Int(nameLength)
-            guard let fps = take(Float.self), let leg = take(Float.self), let ankle = take(Float.self),
+            guard let flags = take(UInt8.self), let source = take(UInt8.self),
+                  let fps = take(Float.self), let leg = take(Float.self), let ankle = take(Float.self),
                   let key = take(Float.self),
                   let a0 = take(Float.self), let a1 = take(Float.self), let a2 = take(Float.self), let a3 = take(Float.self),
                   let frames = take(UInt32.self), let joints = take(UInt32.self) else { break }
@@ -81,7 +111,8 @@ struct MotionClip {
                 (0..<values).map { raw.loadUnaligned(fromByteOffset: $0 * 2, as: Int16.self) }
             }
             cursor += values * 2
-            clips[name] = MotionClip(name: name, framesPerSecond: fps, leg: leg, ankleRest: ankle, key: key, aux: [a0, a1, a2, a3],
+            clips[name] = MotionClip(name: name, framesPerSecond: fps, leg: leg, ankleRest: ankle, key: key,
+                                     lying: flags & 1 != 0, credit: Credit(rawValue: Int(source)) ?? .cmu, aux: [a0, a1, a2, a3],
                                      frameCount: Int(frames), jointCount: Int(joints), data: data)
         }
         return clips
