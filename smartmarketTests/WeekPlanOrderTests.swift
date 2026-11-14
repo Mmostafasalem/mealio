@@ -43,3 +43,14 @@ final class MealPlanTargetCheckTests: XCTestCase {
         XCTAssertTrue(week([640, 880, 760, 260]).isOnTarget(2550))
     }
 }
+
+final class SavedPlanCheckTests: XCTestCase {
+    func testSavedOffTargetPlanNeedsReplacing() {
+        func meal(_ v: Int) -> MealItem { MealItem(pavadinimas: "Meal", ingredientai: [], kcal: v) }
+        let d = DayPlan(pusryciai: meal(500), pietus: meal(500), vakariene: meal(500), uzkandziai: meal(500), visoKcal: 2000)
+        let plan = WeeklyMealPlan(agentMessage: nil, pirmadienis: d, antradienis: d, treciadienis: d, ketvirtadienis: d,
+                                  pentadienis: d, sestadienis: d, sekmadienis: d)
+        XCTAssertTrue(AgentLoop.savedPlanNeedsReplacing(plan, target: 2550))
+        XCTAssertFalse(AgentLoop.savedPlanNeedsReplacing(nil, target: 2550))
+    }
+}

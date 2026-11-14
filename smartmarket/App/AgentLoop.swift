@@ -96,6 +96,14 @@ final class AgentLoop {
         // 2. Regenerate meal plan if needed. Bundled offline deals never count
         // as "deals just arrived".
         let currentCount = appState.groceryList.count
+        // A saved plan that misses the calorie target is replaced on the device
+        // (no network, so no metered AI call on every 30 s tick).
+        let target = appState.bmrData?.calories(forGoal: appState.userProfile.weightGoal.rawValue) ?? 0
+        if Self.savedPlanNeedsReplacing(appState.weeklyMealPlan, target: target) {
+            var plan = FallbackData.mealPlan(targetKcal: target, pantry: [])
+            plan.generationSource = "local"
+            appState.saveMealPlan(plan)
+        }
         let needsPlan = appState.weeklyMealPlan == nil
         let listGrew  = currentCount > appState.lastGroceryCount
         let needsDailyRefresh = isDueForDailyRefresh()
@@ -105,6 +113,12 @@ final class AgentLoop {
             appState.lastGroceryCount = currentCount
             await regenerateMealPlan(appState: appState)
         }
+    }
+
+    /// A saved plan whose days miss the calorie target (see `WeeklyMealPlan.isOnTarget`).
+    nonisolated static func savedPlanNeedsReplacing(_ plan: WeeklyMealPlan?, target: Int) -> Bool {
+        guard let plan, target > 0 else { return false }
+        return !plan.isOnTarget(target)
     }
 
     /// Read-only check; the date is stamped only after a plan is saved.
