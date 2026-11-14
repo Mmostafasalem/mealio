@@ -14,9 +14,9 @@ final class ReleaseSmokeTests: XCTestCase {
             guard control.exists && control.isHittable else { return false }
             // The custom tab bar already reserves its bottom inset. Applying a
             // second artificial bottom margin rejects valid SE tap targets.
-            // The Home avatar is a header control right under the status bar,
+            // The Home avatar and bowl are header controls right under the status bar,
             // so the bottom-reach margin does not apply to it either.
-            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions" || id == "home.profile") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
+            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions" || id == "home.profile" || id == "mascot.guide") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
             if id.hasPrefix("favorite.item."), app.scrollViews["favorites.list"].exists {
                 safeFrame = safeFrame.intersection(app.scrollViews["favorites.list"].frame.insetBy(dx: 0, dy: 4))
             } else if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
@@ -196,7 +196,10 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["mascot.guide"].waitForExistence(timeout: 10))
         capture("floating-bowl-home")
+        // As in the large-text test below: a tap in the first moments after a
+        // cold launch can be lost while Home finishes its first layout. Retry once.
         tap("mascot.guide", in: app)
+        if !app.buttons["guide.path.logFood"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
         XCTAssertTrue(app.buttons["guide.path.logFood"].waitForExistence(timeout: 5))
         capture("floating-bowl-pathways")
         tap("guide.path.logFood", in: app)
@@ -222,33 +225,6 @@ final class ReleaseSmokeTests: XCTestCase {
         openProfile(in: app)
         XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
         capture("profile-from-avatar")
-    }
-
-    func testBowlReturnsToItsDockAndCanBePutAway() {
-        let app = XCUIApplication()
-        // A saved resting spot high on the screen (from an older version) is ignored.
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-bowlGuideVisible_v2", "YES", "-bowlGuideIntroduced_v2", "YES", "-bowlGuideRestY_v3", "0.2"]
-        app.launch()
-        let bowl = app.buttons["mascot.guide"].firstMatch
-        XCTAssertTrue(bowl.waitForExistence(timeout: 30))
-        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
-        let restY = bowl.frame.midY
-        XCTAssertGreaterThan(restY, app.frame.height * 0.7, "The bowl rests near the bottom, clear of the content")
-        // Carried up the screen and released, it comes back down to its dock.
-        let centre = bowl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        centre.press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.25)),
-                     withVelocity: .slow, thenHoldForDuration: 0.3)
-        RunLoop.current.run(until: Date().addingTimeInterval(3))
-        XCTAssertEqual(bowl.frame.midY, restY, accuracy: 24)
-        // Dropped on the x at the bottom centre, it is put away.
-        let target = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .withOffset(CGVector(dx: 0, dy: bowl.frame.midY - app.frame.midY + 10))
-        bowl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-            .press(forDuration: 0.2, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.4)
-        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
-        XCTAssertFalse(app.buttons["mascot.guide"].exists)
-        capture("bowl-put-away")
     }
 
     func testFloatingBowlGuideLargeText() {

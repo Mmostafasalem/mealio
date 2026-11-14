@@ -45,10 +45,10 @@ Meal-plan totals remain estimates; they cannot be one-tap logged as sourced nutr
 
 
 **How do I use the bowl guide?**
-Tap the floating bowl above navigation on any main screen. It offers shortcuts
+Tap the bowl at the top of Home, next to the bell. It offers shortcuts
 for logging food, your grocery checklist and meals, plus a short, skippable tour.
-The guide itself works locally and never sends an AI request. Hold the bowl to
-move it to either side, replay the tour or hide it. Restore it in Profile under
+The guide itself works locally and never sends an AI request. You can hide the
+bowl, or bring it back, in Profile under
 Your companion. Adding food briefly triggers its celebration. AI chat is a
 separate action and follows your account and sharing settings.
 

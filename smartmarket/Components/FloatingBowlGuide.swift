@@ -5,33 +5,20 @@ enum BowlPathway: String, Identifiable {
     var id: String { rawValue }
 }
 
-/// A local companion, independent of accounts and model availability.
-/// The panel occupies only its own hit area; navigation remains reachable.
-/// The bowl can be picked up and thrown anywhere above the tab bar; it lands and
-/// walks to the nearest spot on the left or right edge (see `BowlGuideMover`).
+/// The bowl's guide panel: local next steps and a short tour, independent of
+/// accounts and model availability. The bowl itself sits in Home's header
+/// (`HeaderBowl`); tapping it asks this layer to open. The panel occupies only
+/// its own hit area, so the screen behind stays usable.
 struct FloatingBowlGuide: View {
     @Binding var selectedTab: Int
     var availableHeight: CGFloat = 640
-    /// True while a sheet or notice is up; the bowl glances toward it as it appears.
-    var attention: Bool = false
     let choose: (BowlPathway) -> Void
     @AppStorage("bowlGuideIntroduced_v2") private var introduced = false
-    @AppStorage("bowlGuideLeading_v2") private var leading = false
-    /// Resting height along the side: 0 top … 1 bottom (just above the tab bar).
-    @AppStorage("bowlGuideRestY_v3") private var restFraction: Double = 1
     @AppStorage("bowlGuideVisible_v2") private var visible = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var expanded = false
     @State private var tourStep: Int?
-    @State private var celebrating = false
-    @State private var celebration: UUID?
-    @State private var mover = BowlGuideMover(rig: MascotRig())
-    @State private var carrying = false
-    @State private var regionSize: CGSize = .zero
-    @State private var lastCarryEnd = Date.distantPast
-    @GestureState private var carryGesture = false
-    @State private var pickups = 0
     @AccessibilityFocusState private var titleFocused: Bool
     /// The tour's titles live on sliding pages, one per step.
     @AccessibilityFocusState private var tourTitleFocus: Int?
@@ -58,221 +45,30 @@ struct FloatingBowlGuide: View {
     }
 
     var body: some View {
-        if visible {
-            GeometryReader { geometry in
-                ZStack(alignment: .topLeading) {
-                    // At accessibility text sizes the guide opens as a sheet instead
-                    // (see `.sheet` below): the small floating panel can't hold it.
-                    if expanded && !typeSize.isAccessibilitySize {
-                        VStack(alignment: leading ? .leading : .trailing, spacing: Spacing.sm) {
-                            panel
-                            Color.clear.frame(width: Self.slot, height: Self.slot).accessibilityHidden(true)
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: leading ? .bottomLeading : .bottomTrailing)
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.bottom, Spacing.sm)
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: leading ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
-                    }
-                    // While the bowl is being carried, a target appears: drop it there to put it away.
-                    if carrying {
-                        dismissTarget(near: isOverDismiss(in: geometry.size))
-                            .position(dismissPoint(in: geometry.size))
-                            .transition(reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
-                    }
-                    mascot
-                        .scaleEffect(carrying && isOverDismiss(in: geometry.size) ? 0.72 : 1)
-                        .animation(reduceMotion ? nil : .snappyValue, value: isOverDismiss(in: geometry.size))
-                        .offset(x: mover.position.x - Self.slot / 2, y: mover.position.y - Self.slot / 2)
-                        .opacity(mover.isPlaced ? 1 : 0)
-                }
-                .animation(reduceMotion ? .easeOut(duration: 0.15) : .snappyValue, value: carrying)
-                .sensoryFeedback(.impact(weight: .medium), trigger: isOverDismiss(in: geometry.size))
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-                .coordinateSpace(name: Self.space)
-                .onAppear { regionSize = geometry.size; configure(geometry.size) }
-                .onChange(of: geometry.size) { _, size in regionSize = size; configure(size) }
-            }
-            .sheet(isPresented: Binding(
-                get: { expanded && typeSize.isAccessibilitySize },
-                set: { if !$0 && expanded { close() } }
-            )) {
-                largeTextPanel
-            }
-            .animation(reduceMotion ? nil : .snappyValue, value: expanded)
-            .onChange(of: FoodLogStore.shared.entries.count) { old, new in
-                if new > old { celebration = UUID() }
-            }
-            .onChange(of: expanded) { _, open in
-                // Open: dock at the bottom of its side under the panel, looking up at it.
-                mover.settle(leading: leading, fraction: 1, remember: false)
-                mover.rig.look(at: open ? CGPoint(x: leading ? 0.5 : -0.5, y: -1) : nil)
-            }
-            .onChange(of: attention) { _, on in if on { glanceAtNotice() } }
-            .task(id: celebration) {
-                guard celebration != nil else { return }
-                celebrating = true
-                do { try await Task.sleep(for: .seconds(1.6)) }
-                catch { celebrating = false; return }
-                celebrating = false
-            }
-            .sensoryFeedback(.impact(weight: .light), trigger: pickups)
-            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: mover.landings)
-            .onDisappear {
-                celebrating = false
-                mover.stop()
+        ZStack(alignment: .topTrailing) {
+            // At accessibility text sizes the guide opens as a sheet instead
+            // (see `.sheet` below): the small panel can't hold it.
+            if visible && expanded && !typeSize.isAccessibilitySize {
+                panel
+                    .padding(.horizontal, Spacing.lg)
+                    // Drops down from under the header row, where the bowl sits.
+                    .padding(.top, 76)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: .topTrailing).combined(with: .opacity))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .sheet(isPresented: Binding(
+            get: { visible && expanded && typeSize.isAccessibilitySize },
+            set: { if !$0 && expanded { close() } }
+        )) {
+            largeTextPanel
+        }
+        .animation(reduceMotion ? nil : .snappyValue, value: expanded)
+        .onReceive(NotificationCenter.default.publisher(for: .toggleBowlGuide)) { _ in toggle() }
+        .onChange(of: visible) { _, shown in if !shown { close() } }
     }
 
-    // MARK: Drag to put away
-
-    /// Where the "put away" target sits: bottom centre, clear of both corners.
-    private func dismissPoint(in size: CGSize) -> CGPoint {
-        CGPoint(x: size.width / 2, y: size.height - 52)
-    }
-
-    private func isOverDismiss(in size: CGSize) -> Bool {
-        guard carrying else { return false }
-        let target = dismissPoint(in: size)
-        return hypot(mover.position.x - target.x, mover.position.y - target.y) < 64
-    }
-
-    private func dismissTarget(near: Bool) -> some View {
-        Image(systemName: "xmark")
-            .font(.headline.weight(.bold))
-            .foregroundStyle(near ? Color.onAccent : Color.labelPrimary)
-            .frame(width: 56, height: 56)
-            .background(near ? AnyShapeStyle(Color.dullPink) : AnyShapeStyle(.regularMaterial), in: Circle())
-            .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1))
-            .scaleEffect(near ? 1.25 : 1)
-            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-            .animation(reduceMotion ? nil : .snappyValue, value: near)
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
-    }
-
-    /// The bowl's button slot: 52 pt character plus the 12 pt touch padding on each side.
-    private static let slot: CGFloat = 76
-    private static let space = "bowlGuideRegion"
     private static let panelTop = "bowlGuidePanelTop"
-
-    private var mood: MascotMood {
-        expanded ? .help : (celebrating ? .celebrate : (AppState.shared.isGeneratingMealPlan ? .thinking : .idle))
-    }
-
-    private var mascot: some View {
-        MascotGuideView(mood: mood, size: 52, onTap: tapMascot, rig: mover.rig)
-            // Just the character, no disc: a soft shadow that follows its
-            // silhouette keeps it legible over any content.
-            .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
-            .frame(width: Self.slot, height: Self.slot)
-            .overlay(alignment: leading ? .leading : .trailing) {
-                if !introduced && !expanded && !typeSize.isAccessibilitySize && !mover.isMoving {
-                    invitation
-                        .fixedSize()
-                        .alignmentGuide(leading ? .leading : .trailing) { d in
-                            leading ? d[.leading] - (Self.slot + Spacing.sm) : d[.trailing] + Self.slot + Spacing.sm
-                        }
-                }
-            }
-            .accessibilityHint(expanded ? "Closes your local guide." : "Opens helpful next steps and a short tour. No AI request is sent.")
-            .accessibilityAction(named: expanded ? "Close guide" : "Open guide") { toggle() }
-            .accessibilityAction(named: "Take a quick tour", startTour)
-            .accessibilityAction(named: "Move to other side", moveToOtherSide)
-            .accessibilityAction(named: "Hide") { hide() }
-            .contextMenu {
-                Button("Take a quick tour", systemImage: "sparkles", action: startTour)
-                Button(leading ? "Move to right" : "Move to left", systemImage: "arrow.left.arrow.right", action: moveToOtherSide)
-                Button("Hide guide", systemImage: "eye.slash") { hide() }
-            }
-            .simultaneousGesture(carry)
-            .onChange(of: carryGesture) { _, active in
-                if !active { endCarry(velocity: .zero) }
-            }
-    }
-
-    /// Press and move to pick the bowl up (no long press); a plain tap still opens the guide.
-    private var carry: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .named(Self.space))
-            .onChanged { value in
-                if !carrying {
-                    carrying = true
-                    if expanded { close() }
-                    mover.grab(at: value.startLocation)
-                    pickups += 1
-                }
-                mover.drag(to: value.location, velocity: value.velocity)
-            }
-            .updating($carryGesture) { _, active, _ in active = true }
-            .onEnded { value in
-                endCarry(velocity: value.velocity)
-            }
-    }
-
-    private func configure(_ size: CGSize) {
-        mover.onRest = { side, fraction in
-            leading = side
-            restFraction = fraction
-        }
-        mover.configure(region: CGRect(origin: .zero, size: size), radius: Self.slot / 2,
-                        inset: CGSize(width: Spacing.lg, height: Spacing.sm),
-                        leading: leading, fraction: 1)
-    }
-
-    /// Release (or a cancelled gesture, which never reaches `onEnded`).
-    private func endCarry(velocity: CGSize) {
-        guard carrying else { return }
-        // Dropped on the ×: put the guide away. Profile brings it back.
-        let putAway = isOverDismiss(in: regionSize)
-        carrying = false
-        lastCarryEnd = Date()
-        if putAway {
-            mover.release(velocity: .zero, reduceMotion: true)
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .snappyValue) { hide() }
-            return
-        }
-        mover.release(velocity: velocity, reduceMotion: reduceMotion)
-    }
-
-    private func tapMascot() {
-        // The button's own tap fires on the touch-up that ends a carry; ignore it.
-        guard !carrying, Date().timeIntervalSince(lastCarryEnd) > 0.35 else { return }
-        mover.rig.react(.tap)
-        toggle()
-    }
-
-    private func moveToOtherSide() {
-        leading.toggle()
-        mover.settle(leading: leading, fraction: 1, remember: !expanded)
-    }
-
-    private func hide() {
-        close()
-        visible = false
-    }
-
-    /// A sheet or notice just appeared: look toward it, then back.
-    private func glanceAtNotice() {
-        mover.rig.look(at: CGPoint(x: leading ? 0.7 : -0.7, y: -0.7))
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.4))
-            if !expanded && !carrying { mover.rig.look(at: nil) }
-        }
-    }
-
-    private var invitation: some View {
-        Button(action: toggle) {
-            Text("Need a little direction?")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Color.labelPrimary)
-                .padding(.horizontal, Spacing.lg)
-                .frame(minHeight: 44)
-                .background(Color.surfaceElevated, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.hairline.opacity(0.5), lineWidth: 0.7))
-        }
-        .buttonStyle(ScalePressStyle())
-        .accessibilityIdentifier("guide.invitation")
-    }
 
     private var panel: some View {
         VStack(alignment: .leading, spacing: 0) {

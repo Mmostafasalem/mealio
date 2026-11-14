@@ -22,13 +22,13 @@ struct ProfileView: View {
                 editSection
                 appearanceSection
                 Section {
-                    Toggle("Floating bowl guide", isOn: $bowlGuideVisible)
+                    Toggle("Bowl guide", isOn: $bowlGuideVisible)
                         .toggleStyle(.spring)
                         .accessibilityIdentifier("profile.bowlGuide")
                 } header: {
                     Text("Your companion")
                 } footer: {
-                    Text("Local tips and a quick tour, available on every main screen. Hold the bowl to move it or replay the tour.")
+                    Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
                 }
                 AIAccountSection()
                 syncSection

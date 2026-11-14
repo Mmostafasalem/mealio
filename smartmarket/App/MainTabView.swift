@@ -8,7 +8,6 @@ struct MainTabView: View {
     @State private var showGuideChat = false
     @State private var keyboardVisible = false
     @State private var navigationHeight: CGFloat = 80
-    @AppStorage("bowlGuideVisible_v2") private var guideVisible = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
@@ -25,11 +24,6 @@ struct MainTabView: View {
                 TrainView().tag(3).toolbar(.hidden, for: .tabBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Reserve the small companion's footprint so it never covers the
-            // last row or a screen's bottom action.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if guideVisible && !keyboardVisible { Color.clear.frame(height: 84) }
-            }
             // A sibling reserves real layout space on every tab, including iPad.
             FloatingTabBar(selection: $selection, choose: chooseQuickAction, openChat: {
                 guard activeAction == nil else { return }
@@ -42,14 +36,12 @@ struct MainTabView: View {
                 })
         }
         .onPreferenceChange(NavigationHeightKey.self) { navigationHeight = $0 }
-        // Keep the companion outside TabView's UIKit hierarchy.
-        .overlay(alignment: .bottom) {
+        // The bowl's guide panel, above every tab (the bowl itself is in Home's header).
+        .overlay(alignment: .top) {
             if !keyboardVisible {
                 GeometryReader { geometry in
                     FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - navigationHeight,
-                                      attention: activeAction != nil || showGuideChat, choose: followGuide)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, navigationHeight)
+                                      choose: followGuide)
                 }
                 .zIndex(10)
             }
