@@ -70,6 +70,25 @@ struct MascotPose: Equatable {
     var grin: Double = 0
     var blush: Double = 0.3
     var brows: Double = 0
+    /// Right eye closes into a ∩ (cheeky).
+    var wink: Double = 0
+    /// Lopsided smile with a dimple.
+    var smirk: Double = 0
+    /// Eyes become hearts.
+    var hearts: Double = 0
+    /// Eyes fully closed (⌣ arcs).
+    var asleep: Double = 0
+    /// Inner-up worried brows.
+    var worry: Double = 0
+
+    // Extras around the figure (opacity 0…1)
+    var confetti: Double = 0
+    var zzz: Double = 0
+    var thought: Double = 0
+    var sweat: Double = 0
+    var floatHearts: Double = 0
+    /// Rig seconds; drives drifting extras. Frozen while idle loops are off.
+    var time: Double = 0
 
     // Limbs
     var armL = Arm()
@@ -170,9 +189,10 @@ final class MascotRig {
             switch newMood {
             case .celebrate: hop()
             case .help: wave()
-            case .thinking, .happy:
+            case .love: hop()
+            case .thinking, .happy, .cheeky:
                 springs[S.sq.rawValue].v += -1.2
-            case .idle, .sleepy: break
+            case .idle, .sleepy, .worried: break
             }
         }
         scheduleMoodBeat(entering: true)
@@ -330,13 +350,18 @@ final class MascotRig {
     struct Expression {
         var smile = 0.0, ooh = 0.0, wavy = 0.0, grin = 0.0
         var squint = 0.0, wide = 0.0, sleepy = 0.0, brows = 0.0, blush = 0.3
+        var wink = 0.0, smirk = 0.0, hearts = 0.0, asleep = 0.0, worry = 0.0
+        var confetti = 0.0, zzz = 0.0, thought = 0.0, sweat = 0.0, floatHearts = 0.0
 
         static let neutral = Expression(smile: 1)
         static let happy = Expression(smile: 1, squint: 1, blush: 0.75)
-        static let thinking = Expression(wavy: 1, blush: 0.2)
-        static let celebrate = Expression(grin: 1, squint: 1, blush: 0.8)
+        static let thinking = Expression(wavy: 1, blush: 0.2, thought: 1)
+        static let celebrate = Expression(grin: 1, squint: 1, blush: 0.8, confetti: 1)
         static let help = Expression(smile: 1, wide: 1, brows: 1, blush: 0.35)
-        static let sleepy = Expression(ooh: 1, sleepy: 1, blush: 0.3)
+        static let sleepy = Expression(ooh: 0.5, blush: 0.3, asleep: 1, zzz: 1)
+        static let cheeky = Expression(blush: 0.7, wink: 1, smirk: 1)
+        static let worried = Expression(wavy: 1, wide: 1, blush: 0.3, worry: 1, sweat: 1)
+        static let love = Expression(smile: 1, blush: 0.9, hearts: 1, floatHearts: 1)
         static let surprised = Expression(ooh: 1, wide: 1, brows: 0.8, blush: 0.5)
         static let whee = Expression(grin: 1, wide: 0.6, brows: 0.6, blush: 0.6)
         static let landed = Expression(grin: 1, squint: 1, blush: 0.7)
@@ -353,6 +378,9 @@ final class MascotRig {
         case .help: return .help
         case .happy: return .happy
         case .sleepy: return .sleepy
+        case .cheeky: return .cheeky
+        case .worried: return .worried
+        case .love: return .love
         }
     }
 
@@ -365,6 +393,8 @@ final class MascotRig {
         case r0, r1, r2, r3, r4, r5
         case lookX, lookY
         case smile, ooh, wavy, grin, squint, wide, sleepy, brows, blush
+        case wink, smirk, hearts, asleep, worry
+        case confetti, zzz, thought, sweat, floatHearts
         case armLRaise, armLLift, armLReach, armRRaise, armRLift, armRReach
         case footLLift, footLRot, footRLift, footRRot
 
@@ -388,8 +418,9 @@ final class MascotRig {
             case .r0, .r1, .r2, .r3, .r4, .r5: return .init(k: 240, c: 8)
             case .lookX, .lookY: return .init(k: 260, c: 26)
             // Quick, critically damped: a long cross-fade reads as a grey half-face.
-            case .smile, .ooh, .wavy, .grin, .squint, .wide, .sleepy, .brows: return .init(k: 900, c: 60)
-            case .blush: return MotionTokens.fade
+            case .smile, .ooh, .wavy, .grin, .squint, .wide, .sleepy, .brows,
+                 .wink, .smirk, .hearts, .asleep, .worry: return .init(k: 900, c: 60)
+            case .blush, .confetti, .zzz, .thought, .sweat, .floatHearts: return MotionTokens.fade
             case .armLRaise, .armLLift, .armLReach, .armRRaise, .armRLift, .armRReach: return .init(k: 300, c: 19)
             case .footLLift, .footLRot, .footRLift, .footRRot: return .init(k: 380, c: 22)
             }
@@ -407,7 +438,9 @@ final class MascotRig {
         /// Face springs still cross-fade under Reduce Motion; everything else snaps.
         var isExpression: Bool {
             switch self {
-            case .smile, .ooh, .wavy, .grin, .squint, .wide, .sleepy, .brows, .blush: return true
+            case .smile, .ooh, .wavy, .grin, .squint, .wide, .sleepy, .brows, .blush,
+                 .wink, .smirk, .hearts, .asleep, .worry,
+                 .confetti, .zzz, .thought, .sweat, .floatHearts: return true
             default: return false
             }
         }
@@ -511,11 +544,17 @@ final class MascotRig {
         target(.smile, e.smile); target(.ooh, e.ooh); target(.wavy, e.wavy); target(.grin, e.grin)
         target(.squint, e.squint); target(.wide, e.wide); target(.sleepy, e.sleepy)
         target(.brows, e.brows); target(.blush, e.blush)
+        target(.wink, e.wink); target(.smirk, e.smirk); target(.hearts, e.hearts)
+        target(.asleep, e.asleep); target(.worry, e.worry)
+        target(.confetti, e.confetti); target(.zzz, e.zzz); target(.thought, e.thought)
+        target(.sweat, e.sweat); target(.floatHearts, e.floatHearts)
 
         // Eyes
         var look = CGPoint.zero
         if mood == .thinking { look = CGPoint(x: 0.6, y: -0.8) }
         if mood == .sleepy { look = CGPoint(x: 0, y: 0.3) }
+        // Pointing: the eyes follow the raised arm.
+        if mood == .help { look = CGPoint(x: 0.7, y: 0) }
         if loops, t < glanceUntil { look = glanceTarget }
         if let explicitLook { look = explicitLook }
         if held, motion, explicitLook == nil {
@@ -535,6 +574,11 @@ final class MascotRig {
             case .help: tilt += -0.03
             default: break
             }
+        }
+        switch mood {
+        case .cheeky: tilt += -0.06
+        case .worried: tilt += 0.04
+        default: break
         }
         if walkSpeed > 0 { tilt += sin(walkPhase) * 0.04 }
         var stretch = CGVector.zero
@@ -582,6 +626,12 @@ final class MascotRig {
             l = .init(raise: 0.35); r = .init(raise: 0.35)
         case .sleepy:
             l = .init(raise: -0.3); r = .init(raise: -0.3)
+        case .cheeky:
+            l = .init(raise: 0.2); r = .init(raise: 1.3, lift: -4)
+        case .worried:
+            l = .init(raise: 1.0, reach: 40); r = .init(raise: 1.0, reach: 40)
+        case .love:
+            l = .init(raise: 0.9); r = .init(raise: 0.9)
         }
         if motion, time < waveUntil {
             r = .init(raise: 1.5 + sin((waveUntil - time) * 2 * .pi * 2.2) * 0.4, lift: -6, reach: -8)
@@ -677,6 +727,8 @@ final class MascotRig {
 
     /// Moods whose loop is the message (working, celebrating) stay lively throughout.
     private var lively: Bool { t < lifeUntil || mood == .thinking || mood == .celebrate }
+    /// Whether idle life is still running (tests check calm moods let the clock rest).
+    var isLively: Bool { lively }
 
     private var loopsOn: Bool { active && !reduceMotion && (lively || t < beatUntil || breathPhase > 0) }
 
@@ -766,6 +818,10 @@ final class MascotRig {
         p.smile = x(.smile); p.ooh = x(.ooh); p.wavy = x(.wavy); p.grin = x(.grin)
         p.squint = x(.squint); p.wide = x(.wide); p.sleepy = x(.sleepy)
         p.brows = x(.brows); p.blush = x(.blush)
+        p.wink = x(.wink); p.smirk = x(.smirk); p.hearts = x(.hearts); p.asleep = x(.asleep); p.worry = x(.worry)
+        p.confetti = x(.confetti); p.zzz = x(.zzz); p.thought = x(.thought); p.sweat = x(.sweat)
+        p.floatHearts = x(.floatHearts)
+        p.time = loops ? t : pose.time
 
         p.armL = .init(raise: x(.armLRaise), lift: x(.armLLift), reach: x(.armLReach))
         p.armR = .init(raise: x(.armRRaise), lift: x(.armRLift), reach: x(.armRReach))
