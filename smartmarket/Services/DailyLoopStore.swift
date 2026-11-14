@@ -55,13 +55,15 @@ final class DailyLoopStore {
 
     static let key = "progressLedger"
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let calendar: Calendar
+    @ObservationIgnored private let currentCalendar: () -> Calendar
     @ObservationIgnored private let source: @MainActor () -> LoopSource
+    private var calendar: Calendar { currentCalendar() }
 
-    init(defaults: UserDefaults = .standard, calendar: Calendar = .current,
+    /// `calendar` is read on every refresh, so a time-zone change is picked up.
+    init(defaults: UserDefaults = .standard, calendar: @escaping () -> Calendar = { .autoupdatingCurrent },
          source: @escaping @MainActor () -> LoopSource = LoopSource.live) {
         self.defaults = defaults
-        self.calendar = calendar
+        self.currentCalendar = calendar
         self.source = source
         ledger = ResilientStorage.loadArray(LoopEvent.self, key: Self.key, defaults: defaults)
     }
@@ -76,7 +78,7 @@ final class DailyLoopStore {
     func refresh(now: Date = Date()) {
         // Another store (or "delete my data") may have changed the stored ledger.
         ledger = ResilientStorage.loadArray(LoopEvent.self, key: Self.key, defaults: defaults)
-        var i = inputs(now: now)
+        var i = inputs(now: now).prepared()
         let today = i.today
         var added: [LoopEvent] = []
         func add(_ e: LoopEvent) { added.append(e); i.ledger.append(e) }
@@ -84,7 +86,12 @@ final class DailyLoopStore {
         if !i.ledger.contains(where: { if case .loopStarted = $0 { return true }; return false }) {
             add(.loopStarted(today))
         }
+        DailyLoop.keptDayEvents(i).forEach(add)
         DailyLoop.saverEvents(i).forEach(add)
+        if DailyLoop.chosenQuests(day: today, i) == nil {
+            add(.questsChosen(today, DailyLoop.pickQuests(for: today, i)))
+        }
+        i = i.prepared() // savers and records change which days count
         let quests = DailyLoop.quests(for: today, i)
         for q in quests where q.isDone && !i.ledger.contains(.questDone(today, q.id)) {
             add(.questDone(today, q.id))
@@ -105,7 +112,7 @@ final class DailyLoopStore {
         let wasKept = state.todayKept
         state = LoopState(streak: DailyLoop.streak(i), longest: DailyLoop.longestStreak(i), quests: quests,
                           week: DailyLoop.week(i), saversHeld: DailyLoop.saversHeld(i),
-                          todayKept: DailyLoop.isKept(today, i), perfectToday: i.ledger.contains(.perfectDay(today)),
+                          todayKept: DailyLoop.isKept(today, i), perfectToday: quests.count == 3 && quests.allSatisfy(\.isDone),
                           mood: DailyLoop.mood(i, justCompleted: false, generating: false))
         if state.todayKept != wasKept { onTodayKeptChange?(state) }
     }
@@ -121,6 +128,16 @@ final class DailyLoopStore {
             persist()
         }
         refresh(now: now)
+    }
+
+    convenience init(defaults: UserDefaults, calendar: Calendar, source: @escaping @MainActor () -> LoopSource) {
+        self.init(defaults: defaults, calendar: { calendar }, source: source)
+    }
+
+    /// Fresh state for scheduling tonight's nudge.
+    func stateForNudge(now: Date = Date()) -> LoopState {
+        refresh(now: now)
+        return state
     }
 
     func consumeMilestone() { pendingMilestone = nil }

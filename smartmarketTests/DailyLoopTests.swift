@@ -71,12 +71,49 @@ final class DailyLoopTests: XCTestCase {
     }
 
     func testMoodLoveOnPerfectDay() {
-        let i = F.inputs(food: [F.food(0)], ledger: [.perfectDay(F.day(0))])
+        // Everything any quest could ask for is done today.
+        let food = [F.food(-2, foodId: "old"), F.food(slot: .breakfast, foodId: "new1", id: "s1"),
+                    F.food(slot: .lunch), F.food(slot: .dinner)]
+        let i = F.inputs(food: food, stockIDs: ["s1"], workouts: [F.workout(minutes: 30)], calorieGoal: 0, proteinGoal: 0,
+                         cartHasItems: true, hasStock: true, ledger: [.budgetCheckIn(F.day())])
         XCTAssertEqual(DailyLoop.mood(i, justCompleted: false, generating: false), .love)
     }
 
     func testTodayKeptIsHappyEvenLate() {
         let i = F.inputs(food: [F.food(0, hour: 9)], now: F.date(0, hour: 21))
         XCTAssertEqual(DailyLoop.mood(i, justCompleted: false, generating: false), .happy)
+    }
+
+    // Review fixes
+    func testPerfectDayRecordDoesNotKeepLoveAfterDeletion() {
+        let i = F.inputs(ledger: [.perfectDay(F.day(0))])
+        XCTAssertNotEqual(DailyLoop.mood(i, justCompleted: false, generating: false), .love)
+    }
+
+    func testWeekRowStartsMondayEvenForSundayFirstLocales() {
+        var cal = F.calendar
+        cal.firstWeekday = 1
+        var i = F.inputs(food: [F.food(-2)], now: F.date(0))
+        i.calendar = cal
+        // Wednesday is still the third dot.
+        XCTAssertEqual(DailyLoop.week(i)[2], .today(kept: false))
+        XCTAssertEqual(DailyLoop.week(i)[0], .kept)
+    }
+
+    func testRecordedKeptDaysSurviveLostHistory() {
+        // The workout behind day -2 fell out of the capped history; the ledger remembers the day.
+        let i = F.inputs(food: [F.food(-1)], ledger: [.dayKept(F.day(-2))])
+        XCTAssertEqual(DailyLoop.streak(i), 2)
+    }
+
+    func testRefreshWithAYearOfHistoryIsFast() {
+        var food: [FoodLogEntry] = []
+        for d in 0..<365 { for h in [8, 12, 15, 19, 21] { food.append(F.food(-d, hour: h, foodId: "f\(d % 40)")) } }
+        let i = F.inputs(food: food, workouts: (0..<200).map { F.workout(-$0) }, ledger: [.loopStarted(F.day(-300))]).prepared()
+        let start = Date()
+        _ = DailyLoop.saverEvents(i); _ = DailyLoop.streak(i); _ = DailyLoop.longestStreak(i); _ = DailyLoop.week(i)
+        _ = DailyLoop.quests(for: i.today, i); _ = DailyLoop.mood(i, justCompleted: false, generating: false)
+        _ = DailyLoop.milestoneEvent(i)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.015)
     }
 }

@@ -92,7 +92,9 @@ final class FoodLogStore {
     private let key = "foodLogEntries"
     private let recentsKey = "recentFoodIDs"
 
-    private var history: [FoodLogEntry] = []
+    private var history: [FoodLogEntry] = [] { didSet { revision &+= 1 } }
+    /// Bumps on every change to the log; a cheap thing for views to watch.
+    private(set) var revision = 0
     private let defaults: UserDefaults
     private let stock: StockStore
     var allEntries: [FoodLogEntry] { (history + stock.logs).sorted { $0.loggedAt < $1.loggedAt } }

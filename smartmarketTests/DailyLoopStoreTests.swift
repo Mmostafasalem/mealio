@@ -91,4 +91,55 @@ final class DailyLoopStoreTests: XCTestCase {
         store.refresh(now: F.date(0, hour: 14))
         XCTAssertNil(store.pendingMilestone)
     }
+
+    // Review fixes
+    func testTodaysQuestsStayPutWhenTheCartEmpties() {
+        source.cartHasItems = true; source.cartWithinBudget = true; source.hasStock = true
+        let store = makeStore()
+        store.refresh(now: F.date())
+        let morning = store.state.quests.map(\.id)
+        source.cartHasItems = false; source.hasStock = false; source.calorieGoal = 0
+        store.refresh(now: F.date(0, hour: 15))
+        XCTAssertEqual(store.state.quests.map(\.id), morning)
+    }
+
+    func testPerfectTodayFollowsCurrentEntries() {
+        let store = makeStore()
+        defaults.set(try! JSONEncoder().encode([LoopEvent.loopStarted(F.day()), .perfectDay(F.day())]), forKey: DailyLoopStore.key)
+        store.refresh(now: F.date())
+        XCTAssertFalse(store.state.perfectToday)
+    }
+
+    func testStateForNudgeRefreshesFirst() {
+        source.foodEntries = [F.food(-1)]
+        let store = makeStore()
+        store.refresh(now: F.date())
+        XCTAssertFalse(store.state.todayKept)
+        source.workouts = [F.workout()]
+        XCTAssertTrue(store.stateForNudge(now: F.date(0, hour: 19)).todayKept)
+    }
+
+    func testPastKeptDaysAreRecorded() {
+        source.workouts = [F.workout(-2), F.workout(-1)]
+        let store = makeStore()
+        store.refresh(now: F.date(-3)) // loop starts before the workouts
+        store.refresh(now: F.date())
+        source.workouts = [F.workout(-1)] // day -2 falls out of the capped history
+        store.refresh(now: F.date(0, hour: 13))
+        XCTAssertEqual(store.state.streak, 2)
+    }
+
+    func testCalendarIsReadOnEveryRefresh() {
+        var zone = TimeZone(identifier: "Europe/Vilnius")!
+        let store = DailyLoopStore(defaults: defaults, calendar: {
+            var c = Calendar(identifier: .gregorian); c.timeZone = zone; c.firstWeekday = 2; return c
+        }, source: { [unowned self] in self.source })
+        // 23:30 in Vilnius on day -1 is 16:30 the same day in New York.
+        source.foodEntries = [F.food(0, hour: 3)] // 03:00 Vilnius today = 20:00 yesterday in New York
+        store.refresh(now: F.date(0, hour: 12))
+        XCTAssertTrue(store.state.todayKept)
+        zone = TimeZone(identifier: "America/New_York")!
+        store.refresh(now: F.date(0, hour: 12)) // 05:00 today in New York
+        XCTAssertFalse(store.state.todayKept)
+    }
 }

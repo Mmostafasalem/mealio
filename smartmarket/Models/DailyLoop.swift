@@ -54,6 +54,10 @@ enum LoopEvent: Codable, Equatable {
     case saverEarned(DayKey)
     case saverUsed(DayKey)
     case milestone(DayKey, Int)
+    /// A past day that counted, remembered in case its source history is trimmed.
+    case dayKept(DayKey)
+    /// The three quests picked for a day, so they stay put all day.
+    case questsChosen(DayKey, [QuestID])
 }
 
 struct LoopInputs {
@@ -70,6 +74,34 @@ struct LoopInputs {
     var calendar: Calendar
 
     var today: DayKey { DayKey(now, calendar: calendar) }
+
+    // Per-refresh caches (see `prepared()`); nil means compute on demand.
+    var cachedKept: Set<DayKey>?
+    var cachedSaved: Set<DayKey>?
+    var entriesByDay: [DayKey: [FoodLogEntry]]?
+    var workoutsByDay: [DayKey: [CompletedWorkout]]?
+    /// The first day each food id was logged.
+    var firstSeen: [String: DayKey]?
+
+    /// Buckets every entry by day once, so a refresh doesn't redo it per call.
+    /// Call again after changing `ledger`.
+    func prepared() -> LoopInputs {
+        var i = self
+        i.cachedKept = nil; i.cachedSaved = nil
+        var byDay: [DayKey: [FoodLogEntry]] = [:]
+        var first: [String: DayKey] = [:]
+        for e in foodEntries {
+            let d = DayKey(e.loggedAt, calendar: calendar)
+            byDay[d, default: []].append(e)
+            if let id = e.foodId, first[id].map({ d < $0 }) ?? true { first[id] = d }
+        }
+        var wByDay: [DayKey: [CompletedWorkout]] = [:]
+        for w in workouts { wByDay[DayKey(w.date, calendar: calendar), default: []].append(w) }
+        i.entriesByDay = byDay; i.workoutsByDay = wByDay; i.firstSeen = first
+        i.cachedKept = DailyLoop.keptDays(i)
+        i.cachedSaved = DailyLoop.savedDays(i)
+        return i
+    }
 }
 
 /// One dot in the Mon–Sun row. Past days that didn't count are just `.open`.
@@ -82,13 +114,20 @@ enum DailyLoop {
     // MARK: Days
 
     static func keptDays(_ i: LoopInputs) -> Set<DayKey> {
-        var days = Set(i.foodEntries.map { DayKey($0.loggedAt, calendar: i.calendar) })
-        days.formUnion(i.workouts.map { DayKey($0.date, calendar: i.calendar) })
-        for case let .budgetCheckIn(d) in i.ledger { days.insert(d) }
+        if let cached = i.cachedKept { return cached }
+        var days = Set(i.entriesByDay.map { Array($0.keys) } ?? i.foodEntries.map { DayKey($0.loggedAt, calendar: i.calendar) })
+        days.formUnion(i.workoutsByDay.map { Array($0.keys) } ?? i.workouts.map { DayKey($0.date, calendar: i.calendar) })
+        for e in i.ledger {
+            switch e {
+            case let .budgetCheckIn(d), let .dayKept(d): days.insert(d)
+            default: break
+            }
+        }
         return days
     }
 
     static func savedDays(_ i: LoopInputs) -> Set<DayKey> {
+        if let cached = i.cachedSaved { return cached }
         var days = Set<DayKey>()
         for case let .saverUsed(d) in i.ledger { days.insert(d) }
         return days
@@ -135,8 +174,9 @@ enum DailyLoop {
 
     static func week(_ i: LoopInputs) -> [WeekDot] {
         let kept = keptDays(i), saved = savedDays(i)
-        let weekday = i.calendar.component(.weekday, from: i.now)
-        let offset = (weekday - i.calendar.firstWeekday + 7) % 7
+        // Always Monday–Sunday (the card's letters), whatever the locale's first day.
+        let weekday = i.calendar.component(.weekday, from: i.now) // 1 = Sunday
+        let offset = (weekday + 5) % 7
         let start = i.today.adding(days: -offset, calendar: i.calendar)
         return (0..<7).map { n in
             let d = start.adding(days: n, calendar: i.calendar)
@@ -154,7 +194,7 @@ enum DailyLoop {
         if generating { return .thinking }
         if justCompleted { return .celebrate }
         let today = i.today
-        if i.ledger.contains(.perfectDay(today)) { return .love }
+        if isPerfect(day: today, i) { return .love }
         let kept = keptDays(i), saved = savedDays(i)
         if kept.contains(today) { return .happy }
         let hour = i.calendar.component(.hour, from: i.now)
@@ -205,13 +245,24 @@ extension DailyLoop {
 
     /// Today's three quests: slot 0 always an easy one. Stable for the day.
     static func quests(for day: DayKey, _ i: LoopInputs) -> [Quest] {
+        if let ids = chosenQuests(day: day, i) { return ids.map { evaluate($0, day: day, i) } }
+        return pickQuests(for: day, i).map { evaluate($0, day: day, i) }
+    }
+
+    /// The quests already picked for this day, if the ledger has them.
+    static func chosenQuests(day: DayKey, _ i: LoopInputs) -> [QuestID]? {
+        for case let .questsChosen(d, ids) in i.ledger where d == day { return ids }
+        return nil
+    }
+
+    static func pickQuests(for day: DayKey, _ i: LoopInputs) -> [QuestID] {
         let seed = day.number(in: i.calendar)
         let ids = available(day: day, i).sorted { stableHash(seed, $0) < stableHash(seed, $1) }
         let easy = ids.filter { easyQuests.contains($0) }
         var picked = Array(easy.prefix(1))
         picked += ids.filter { !easyQuests.contains($0) }.prefix(2)
         if picked.count < 3 { picked += easy.dropFirst().prefix(3 - picked.count) }
-        return picked.map { evaluate($0, day: day, i) }
+        return picked
     }
 
     static func isPerfect(day: DayKey, _ i: LoopInputs) -> Bool {
@@ -220,8 +271,8 @@ extension DailyLoop {
     }
 
     static func evaluate(_ id: QuestID, day: DayKey, _ i: LoopInputs) -> Quest {
-        let entries = i.foodEntries.filter { DayKey($0.loggedAt, calendar: i.calendar) == day }
-        let workouts = i.workouts.filter { DayKey($0.date, calendar: i.calendar) == day }
+        let entries = i.entriesByDay.map { $0[day] ?? [] } ?? i.foodEntries.filter { DayKey($0.loggedAt, calendar: i.calendar) == day }
+        let workouts = i.workoutsByDay.map { $0[day] ?? [] } ?? i.workouts.filter { DayKey($0.date, calendar: i.calendar) == day }
         func make(_ title: String, _ symbol: String, _ current: Double, _ goal: Double, unit: String = "",
                   done: Bool? = nil, _ dest: QuestDestination) -> Quest {
             Quest(id: id, title: title, symbol: symbol, current: current, goal: goal, unit: unit,
@@ -251,9 +302,14 @@ extension DailyLoop {
         case .fromStock:
             return make("Cook from your stock", "cabinet", entries.contains { i.stockEntryIDs.contains($0.id) } ? 1 : 0, 1, .stock)
         case .newFood:
-            let start = day.date(in: i.calendar)
-            let seen = Set(i.foodEntries.filter { $0.loggedAt < start }.compactMap(\.foodId))
-            let fresh = entries.contains { $0.foodId.map { !seen.contains($0) } ?? false }
+            let fresh: Bool
+            if let first = i.firstSeen {
+                fresh = entries.contains { e in e.foodId.map { first[$0] == day } ?? false }
+            } else {
+                let start = day.date(in: i.calendar)
+                let seen = Set(i.foodEntries.filter { $0.loggedAt < start }.compactMap(\.foodId))
+                fresh = entries.contains { $0.foodId.map { !seen.contains($0) } ?? false }
+            }
             return make("Try something new", "sparkles", fresh ? 1 : 0, 1, .logFood)
         case .budget:
             return make("Shop within budget", "cart.fill", i.ledger.contains(.budgetCheckIn(day)) ? 1 : 0, 1, .shop)
@@ -308,6 +364,14 @@ extension DailyLoop {
             d = d.adding(days: 1, calendar: i.calendar)
         }
         return out
+    }
+
+    /// Past days (since the loop started) that counted but aren't recorded yet.
+    static func keptDayEvents(_ i: LoopInputs) -> [LoopEvent] {
+        guard let start = loopStart(i) else { return [] }
+        var recorded = Set<DayKey>()
+        for case let .dayKept(d) in i.ledger { recorded.insert(d) }
+        return keptDays(i).filter { $0 >= start && $0 < i.today && !recorded.contains($0) }.sorted().map { .dayKept($0) }
     }
 
     static func saversHeld(_ i: LoopInputs) -> Int {

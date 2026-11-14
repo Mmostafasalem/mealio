@@ -59,7 +59,7 @@ struct SmartMarketAgentApp: App {
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
                 // The daily loop: apply savers on open, line up tonight's nudge on leaving.
                 if phase == .active { DailyLoopStore.shared.refresh() }
-                if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.state) }
+                if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.stateForNudge()) }
             }
             .task(id: appState.isOnboarded) {
                 ReminderStore.shared.streakState = { DailyLoopStore.shared.state }

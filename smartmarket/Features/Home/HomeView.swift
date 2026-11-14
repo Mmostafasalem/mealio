@@ -114,7 +114,10 @@ struct HomeView: View {
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
         .task { await vm.load() }
         .onAppear { loop.refresh() }
-        .onChange(of: FoodLogStore.shared.allEntries.count) { _, _ in loop.refresh() }
+        .onChange(of: FoodLogStore.shared.revision) { _, _ in loop.refresh() }
+        .onChange(of: StockStore.shared.logs.count) { _, _ in loop.refresh() }
+        // The newest session's id changes even once the history is capped at 200.
+        .onChange(of: WorkoutStore.shared.completed.first?.id) { _, _ in loop.refresh() }
         .onChange(of: WorkoutStore.shared.completed.count) { _, _ in loop.refresh() }
         .onChange(of: AppState.shared.userProfile.dailyCalorieGoal) { _, _ in loop.refresh() }
         .task(id: loop.pendingMilestone) {
