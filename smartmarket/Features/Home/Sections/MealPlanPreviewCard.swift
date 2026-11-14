@@ -8,16 +8,16 @@ struct MealPlanPreviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
-                Label("Today's Meals", systemImage: "fork.knife.circle.fill")
-                    .font(.sectionTitle)
+                HomeCardTitle(title: "Today's Meals", symbol: "fork.knife.circle.fill")
                 Spacer()
                 NavigationLink { MealPlanView() } label: {
                     Text("Full Plan")
-                        .font(.caption).fontWeight(.semibold)
+                        .font(.footnote).fontWeight(.semibold)
                         .foregroundStyle(Color.brandPrimary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
             }
-            .accessibilityAddTraits(.isHeader)
 
             if vm.isLoading {
                 ForEach(0..<4, id: \.self) { _ in
@@ -35,7 +35,7 @@ struct MealPlanPreviewCard: View {
                         accent: Self.mealAccent(idx)
                     )
                     if idx < plan.allMeals.count - 1 {
-                        Divider().padding(.leading, 36)
+                        Divider().padding(.leading, HomeGrid.textInset)
                     }
                 }
             } else {
@@ -65,20 +65,20 @@ struct MealPreviewRow: View {
     let accent: Color
 
     var body: some View {
-        HStack(spacing: Spacing.md) {
+        HStack(spacing: HomeGrid.gap) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(accent)
-                .frame(width: 28, height: 28)
+                .frame(width: HomeGrid.icon, height: HomeGrid.icon)
                 .background(accent.opacity(0.12), in: Circle())
 
-            Text(title).font(.subheadline).fontWeight(.medium).lineLimit(1)
+            Text(title).font(.subheadline).fontWeight(.semibold).lineLimit(1)
             Spacer()
             Text("\(calories) kcal")
-                .font(.caption).fontWeight(.semibold)
+                .font(.footnote).fontWeight(.semibold)
                 .foregroundStyle(Color.labelSecondary).monospacedDigit()
         }
-        .padding(.vertical, 2)
+        .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title), \(calories) kilocalories")
     }

@@ -5,6 +5,7 @@ import SwiftUI
 struct LogFoodSheet: View {
 
     @Bindable var vm: HomeViewModel
+    var onSelect: ((NutritionFood, Double) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var slot: MealSlot = .suggested()
@@ -21,15 +22,21 @@ struct LogFoodSheet: View {
     @State private var productNotice: String?
     @State private var isSearching = false
     @State private var lookupTask: Task<Void, Never>?
-
-    @FocusState private var searchFocused: Bool
+    @State private var toastDismissTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var results: [NutritionFood] { catalog.searchLocal(query) }
+
+    /// The first offline match whose name starts with what was typed, offered as ghost text.
+    private var suggestion: String? {
+        guard query.count >= 2, !query.hasSuffix("  ") else { return nil }
+        return results.first { GhostSuggestionField.remainder(of: $0.name, after: query) != nil }?.name
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                slotPicker
+                if onSelect == nil { slotPicker }
                 searchField
                 Picker("Product market", selection: $market) {
                     ForEach(NutritionCatalogService.Market.allCases) { Text($0.title).tag($0) }
@@ -60,7 +67,7 @@ struct LogFoodSheet: View {
                             Text("Choose the description that matches what you weighed: raw, cooked, drained or prepared.")
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                         }
-                        if !vm.plannedEntries(for: slot).isEmpty {
+                        if onSelect == nil && !vm.plannedEntries(for: slot).isEmpty {
                             Section("From today's plan") {
                                 ForEach(vm.plannedEntries(for: slot)) { entry in
                                     Text(entry.foodName).font(.subheadline)
@@ -116,13 +123,15 @@ struct LogFoodSheet: View {
                 }
                 .listStyle(.insetGrouped)
                 .navigationDestination(item: $detailFood) { food in
-                    ServingDetailView(food: food, slot: slot) { grams in
-                        vm.logFood(food, slot: slot, amount: grams)
+                    ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock",
+                                      slotSelection: onSelect == nil ? $slot : nil) { grams in
+                        if let onSelect { onSelect(food, grams) }
+                        else { vm.logFood(food, slot: slot, amount: grams) }
                         dismiss()
                     }
                 }
             }
-            .navigationTitle("Add Food")
+            .navigationTitle(onSelect == nil ? "Add Food" : "Add to Stock")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -177,12 +186,18 @@ struct LogFoodSheet: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
-            TextField("Search foods", text: $query)
-                .accessibilityIdentifier("logFood.search")
-                .focused($searchFocused)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .onSubmit { searchProducts() }
+            // Letters land with a bounce; a matching food name is offered as ghost text.
+            GhostSuggestionField(
+                placeholder: "Search foods",
+                text: $query,
+                suggestion: suggestion,
+                accessibilityIdentifier: "logFood.search",
+                returnKey: .search,
+                acceptIdentifier: "logFood.acceptSuggestion"
+            ) {
+                searchProducts()
+                return true
+            }
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelSecondary)
@@ -254,23 +269,32 @@ struct LogFoodSheet: View {
                 .padding(.horizontal, 16).padding(.vertical, 10)
                 .background(Color.rhino, in: Capsule())
                 .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         }
     }
 
     // MARK: - Actions
 
     private func quickAdd(_ food: NutritionFood) {
+        if let onSelect {
+            onSelect(food, food.defaultAmount)
+            dismiss()
+            return
+        }
         vm.logFood(food, slot: slot, amount: food.defaultAmount)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         showToast("Added \(Int(food.defaultAmount)) \(food.basis.rawValue) · \(food.name)")
     }
 
     private func showToast(_ message: String) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { addedToast = message }
-        Task {
+        // Cancel the previous dismiss so a second add isn't cleared early.
+        toastDismissTask?.cancel()
+        withAnimation(.snappyValue) { addedToast = message }
+        UIAccessibility.post(notification: .announcement, argument: message)
+        toastDismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.4))
-            withAnimation { addedToast = nil }
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappyValue) { addedToast = nil }
         }
     }
 
@@ -304,22 +328,46 @@ struct LogFoodSheet: View {
 
 // MARK: - Serving detail (fine-tune grams before logging)
 
-private struct ServingDetailView: View {
+struct ServingDetailView: View {
     let food: NutritionFood
-    let slot: MealSlot
+    let actionTitle: String?
+    /// When set, the meal can be changed here (spring dropdown) and is written back.
+    let slotSelection: Binding<MealSlot>?
     let onAdd: (Double) -> Void
 
     @State private var grams: Double
+    @State private var slot: MealSlot
     @State private var didAdd = false
 
-    init(food: NutritionFood, slot: MealSlot, onAdd: @escaping (Double) -> Void) {
+    init(food: NutritionFood, slot: MealSlot, actionTitle: String? = nil,
+         slotSelection: Binding<MealSlot>? = nil, onAdd: @escaping (Double) -> Void) {
         self.food = food
-        self.slot = slot
         self.onAdd = onAdd
+        self.actionTitle = actionTitle
+        self.slotSelection = slotSelection
         _grams = State(initialValue: food.defaultAmount)
+        _slot = State(initialValue: slotSelection?.wrappedValue ?? slot)
     }
 
     private var factor: Double { grams / food.referenceAmount }
+
+    // Portion stepper: whole steps of 0.25 serving or 1 g / ml, same as before.
+    private var amountStep: Double { food.basis == .serving ? 0.25 : 1 }
+    private var amountStepRange: ClosedRange<Int> {
+        Int((food.minimumAmount / amountStep).rounded())...Int((food.maximumAmount / amountStep).rounded())
+    }
+    private var amountSteps: Binding<Int> {
+        Binding(
+            get: { Int((grams / amountStep).rounded()) },
+            set: { grams = Double($0) * amountStep }
+        )
+    }
+    private var amountLabel: String {
+        food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres")
+    }
+    private func formatAmount(_ amount: Double) -> String {
+        "\(amount.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)"
+    }
     private var kcal: Int { Int((food.kcal * factor).rounded()) }
 
     var body: some View {
@@ -346,19 +394,34 @@ private struct ServingDetailView: View {
                     macroChip("Fat", food.fat * factor, .fatAccent)
                 }
 
+                if slotSelection != nil { mealPicker }
+
                 // Serving stepper
                 VStack(spacing: 12) {
-                    HStack {
-                        Text("Serving").font(.headline)
-                        Spacer()
-                        Text("\(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.headline).monospacedDigit()
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Serving").font(.headline)
+                            Text(amountLabel)
+                                .font(.caption).foregroundStyle(Color.labelSecondary)
+                        }
+                        Spacer(minLength: 8)
+                        SpringStepper(
+                            value: amountSteps,
+                            in: amountStepRange,
+                            format: { formatAmount(Double($0) * amountStep) },
+                            label: amountLabel,
+                            decrementLabel: "Less",
+                            incrementLabel: "More",
+                            font: .system(.headline, design: .rounded).weight(.bold)
+                        )
+                        .accessibilityIdentifier("logFood.amount")
                     }
-                    Stepper(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1) {
-                        Text(food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres"))
-                    }
-                    .accessibilityIdentifier("logFood.amount")
-                    Slider(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1)
-                        .tint(slot.accent)
+                    RulerPicker(value: $grams, range: food.minimumAmount...food.maximumAmount, step: amountStep,
+                                majorEvery: food.basis == .serving ? 4 : 10,
+                                midEvery: food.basis == .serving ? 2 : 5,
+                                spacing: food.basis == .serving ? 16 : 8,
+                                accessibilityName: "Amount", spokenValue: { _ in amountLabel })
+                        .frame(height: 96)
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
                             Button("\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
@@ -395,23 +458,46 @@ private struct ServingDetailView: View {
             .padding(16)
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
+        .onChange(of: slot) { _, s in slotSelection?.wrappedValue = s }
         .navigationTitle(food.name)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
-            Button {
-                guard !didAdd else { return }
+            LoadingSuccessButton(
+                title: actionTitle ?? "Add to \(slot.title)",
+                doneTitle: "Added",
+                systemImage: "plus"
+            ) {
+                guard !didAdd else { return false }
                 didAdd = true
+                return true
+            } onFinished: {
+                // Close after the success moment.
                 onAdd(grams)
-            } label: {
-                Label("Add to \(slot.title)", systemImage: "plus")
-                    .font(.headline).foregroundStyle(Color.almond)
-                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.pill))
             }
             .disabled(didAdd)
             .accessibilityIdentifier("logFood.addServing")
             .padding(.horizontal, 16).padding(.bottom, 8)
         }
+    }
+
+    /// Which meal this serving goes to. Replaces a plain picker with the spring dropdown;
+    /// it sits above the cards below so its menu can drop over them.
+    private var mealPicker: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Meal").font(.headline)
+                Text("Choose where this serving is logged")
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
+            }
+            Spacer(minLength: 8)
+            SpringDropdown(title: "Meal", selection: $slot, options: MealSlot.allCases,
+                           label: \.title, systemImage: \.sfSymbol,
+                           accessibilityIdentifier: "logFood.mealSlot")
+                .frame(maxWidth: 200)
+        }
+        .padding(16)
+        .premiumCard()
+        .zIndex(1)
     }
 
     private func macroChip(_ label: String, _ grams: Double, _ color: Color) -> some View {

@@ -27,16 +27,21 @@ struct CalorieSummaryCard: View {
                     .accessibilityLabel("Calories: \(vm.consumed) of \(vm.goal) kilocalories")
                     .accessibilityHint("Tap for calorie breakdown")
 
-                VStack(alignment: .leading, spacing: Spacing.sm) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(vm.consumed > vm.goal ? "Above daily goal" : "Remaining today")
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(Color.labelSecondary)
-                    Text("\(abs(vm.goal - vm.consumed))")
-                        .font(.largeTitle.weight(.bold).monospacedDigit())
-                        .contentTransition(.numericText())
-                    Text("kcal")
-                        .font(.captionText)
-                        .foregroundStyle(Color.labelSecondary)
+                    // Number and unit share a baseline instead of stacking.
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(abs(vm.goal - vm.consumed))")
+                            .font(.system(.largeTitle, design: .rounded).weight(.bold).monospacedDigit())
+                            .contentTransition(.numericText())
+                        Text("kcal")
+                            .font(.headline)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 }
                 Spacer(minLength: 0)
             }
@@ -45,7 +50,7 @@ struct CalorieSummaryCard: View {
 
             Divider().padding(.horizontal, Spacing.lg)
 
-            VStack(spacing: Spacing.xs) {
+            VStack(spacing: Spacing.md) {
                 macroRow(label: "Protein", symbol: "bolt.fill",
                          current: vm.proteinCurrent, goal: vm.proteinGoal,
                          tooltip: "Protein builds and repairs muscle. Your target is \(Int(vm.proteinGoal))g/day based on your weight and goal.")
@@ -57,13 +62,16 @@ struct CalorieSummaryCard: View {
                          tooltip: "Healthy fats support hormones and brain function. Include olive oil, nuts, and fatty fish.")
             }
             .padding(.horizontal, Spacing.lg)
+            .padding(.top, Spacing.md)
             .padding(.bottom, Spacing.lg)
 
             PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
                 .accessibilityIdentifier("home.logFood")
                 .padding([.horizontal, .bottom], Spacing.lg)
         }
-        .premiumCard()
+        // The three macro "i" buttons share one travelling tooltip bubble.
+        .morphTooltipHost()
+        .premiumCard(surface: .hero)
     }
 
     private func macroRow(label: String, symbol: String,
@@ -73,15 +81,22 @@ struct CalorieSummaryCard: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
                 : AnyLayout(HStackLayout(spacing: Spacing.sm))
             rowLayout {
-                HStack(spacing: Spacing.sm) {
-                    Image(systemName: symbol).frame(width: 18)
+                HStack(spacing: HomeGrid.gap) {
+                    // The shared icon column, so labels line up with the cards below.
+                    Image(systemName: symbol)
+                        .font(.footnote.weight(.semibold))
+                        .frame(width: HomeGrid.icon, alignment: .center)
                         .accessibilityHidden(true)
                     Text(label).font(.subheadline.weight(.semibold))
+                    // Keeps its 44pt tap target but sits right next to the label,
+                    // and doesn't stretch the row.
                     InfoTooltip(text: tooltip)
+                        .padding(.leading, -18)
+                        .frame(height: 24)
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
                 Text("\(Int(current)) / \(Int(goal)) g")
-                    .font(.footnote.monospacedDigit())
+                    .font(.subheadline.monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
                     .accessibilityLabel("\(label): \(Int(current)) of \(Int(goal)) grams")
             }

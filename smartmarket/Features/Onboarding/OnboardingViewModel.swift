@@ -33,29 +33,24 @@ final class OnboardingViewModel {
     private(set) var filteredItems: [CatalogItem] = CatalogItem.all
     @ObservationIgnored private var filterTask: Task<Void, Never>?
 
-    // MARK: - Backend BMR (fetched after user fills in stats)
-    var bmrResponse: BMRResponse?
-    var isCalculatingBMR = false
-    var bmrError: String?
-
-    // MARK: - Live computed values (fall back to local calc if backend not called yet)
+    // MARK: - Live computed values (local Mifflin-St Jeor; no network)
     var liveBMR: Int {
-        bmrResponse?.bmr ?? Int(BMRCalculator.bmr(
+        Int(BMRCalculator.bmr(
             weight: weight, height: height, age: age, gender: gender
         ).rounded())
     }
 
     var liveTDEE: Int {
-        bmrResponse?.tdee ?? Int(BMRCalculator.tdee(
+        Int(BMRCalculator.tdee(
             bmr: Double(liveBMR), activityLevel: activityLevel
         ).rounded())
     }
 
     var liveDailyGoal: Int {
         switch weightGoal {
-        case .lose:     return bmrResponse?.loseCalories     ?? BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .lose,     pace: lossPace, gender: gender)
-        case .maintain: return bmrResponse?.maintainCalories ?? liveTDEE
-        case .gain:     return bmrResponse?.gainCalories     ?? BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .gain,     pace: lossPace, gender: gender)
+        case .lose:     return BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .lose,     pace: lossPace, gender: gender)
+        case .maintain: return liveTDEE
+        case .gain:     return BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .gain,     pace: lossPace, gender: gender)
         }
     }
 
@@ -104,40 +99,6 @@ final class OnboardingViewModel {
 
     func advance(to step: OnboardingStep) { path.append(step) }
 
-    // MARK: - Fetch BMR from backend
-    @MainActor
-    func fetchBMR() async {
-        isCalculatingBMR = true
-        bmrError = nil
-        defer { isCalculatingBMR = false }
-
-        let activityRaw: String = {
-            switch activityLevel {
-            case .sedentary:        return "sedentary"
-            case .lightlyActive:    return "lightly_active"
-            case .moderatelyActive: return "moderately_active"
-            case .veryActive:       return "very_active"
-            case .superActive:      return "very_active"
-            }
-        }()
-
-        let request = BMRRequest(
-            weight:        weight,
-            height:        height,
-            age:           age,
-            gender:        gender == .male ? "male" : "female",
-            activityLevel: activityRaw
-        )
-
-        do {
-            let response = try await APIService.shared.calculateBMR(request)
-            bmrResponse = response
-            AppState.shared.saveBMR(response)
-        } catch {
-            bmrError = error.localizedDescription
-        }
-    }
-
     // MARK: - Finish onboarding
     @MainActor
     func finish() {
@@ -156,15 +117,8 @@ final class OnboardingViewModel {
         profile.lossPace      = lossPace
         BMRCalculator.populate(profile: &profile)
         profile.save()
-        let macros = BMRCalculator.macroTargets(calories: profile.dailyCalorieGoal,
-                                               isKeto: selectedPreferences.contains(.keto))
-        AppState.shared.saveBMR(BMRResponse(
-            bmr: Int(profile.bmr), tdee: Int(profile.tdee),
-            loseCalories: BMRCalculator.dailyGoal(tdee: profile.tdee, goal: .lose, pace: lossPace, gender: gender),
-            maintainCalories: BMRCalculator.dailyGoal(tdee: profile.tdee, goal: .maintain, pace: lossPace, gender: gender),
-            gainCalories: BMRCalculator.dailyGoal(tdee: profile.tdee, goal: .gain, pace: lossPace, gender: gender),
-            macros: BMRResponse.MacroTargets(protein: macros.proteinG, carbs: macros.carbsG, fat: macros.fatG)
-        ))
+        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
+                                                       isKeto: selectedPreferences.contains(.keto)))
 
         selectedPreferences.save()
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)

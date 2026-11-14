@@ -1,26 +1,27 @@
 import SwiftUI
 
 enum BowlPathway: String, Identifiable {
-    case logFood, groceries, meals, shop, map, profile, chat
+    case logFood, groceries, meals, shop, profile, chat
     var id: String { rawValue }
 }
 
-/// A local companion, independent of accounts and model availability.
-/// The panel occupies only its own hit area; navigation remains reachable.
+/// The bowl's guide panel: local next steps and a short tour, independent of
+/// accounts and model availability. The bowl itself sits in Home's header
+/// (`HeaderBowl`); tapping it asks this layer to open. The panel occupies only
+/// its own hit area, so the screen behind stays usable.
 struct FloatingBowlGuide: View {
     @Binding var selectedTab: Int
     var availableHeight: CGFloat = 640
     let choose: (BowlPathway) -> Void
     @AppStorage("bowlGuideIntroduced_v2") private var introduced = false
-    @AppStorage("bowlGuideLeading_v2") private var leading = false
     @AppStorage("bowlGuideVisible_v2") private var visible = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var expanded = false
     @State private var tourStep: Int?
-    @State private var celebrating = false
-    @State private var celebration: UUID?
     @AccessibilityFocusState private var titleFocused: Bool
+    /// The tour's titles live on sliding pages, one per step.
+    @AccessibilityFocusState private var tourTitleFocus: Int?
 
     private let tour: [(title: String, detail: String, tab: Int, action: BowlPathway, cta: String)] = [
         ("Start with one meal", "Log something you ate. Choose its portion and meal, then your daily totals update here.", 0, .logFood, "Log my first food"),
@@ -30,7 +31,7 @@ struct FloatingBowlGuide: View {
 
     private var title: String {
         if let step = tourStep { return tour[step].title }
-        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Find your way there", "Make Nourlo yours"][selectedTab]
+        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Move a little today"][selectedTab]
     }
 
     private var detail: String {
@@ -39,68 +40,35 @@ struct FloatingBowlGuide: View {
             "Start small. Log a meal, make a grocery list, or let me show you around.",
             "Review your suggestions and portions. Your grocery checklist is a good place to start planning.",
             "Add what you need, then open your checklist when you shop. Prices here are estimates.",
-            "Use the map to explore stores. Check the retailer for opening hours, stock and shelf prices.",
-            "Your goals, privacy choices and optional AI controls live here. You can hide me here, too."
+            "Pick a type and a length, then build a workout. Save the ones you like and tick them off when done."
         ][selectedTab]
     }
 
     var body: some View {
-        if visible {
-            VStack(alignment: leading ? .leading : .trailing, spacing: Spacing.sm) {
-                if expanded {
-                    panel
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: leading ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
-                }
-                HStack(spacing: Spacing.sm) {
-                    if !introduced && !expanded && !typeSize.isAccessibilitySize && !leading {
-                        invitation
-                    }
-                    MascotGuideView(mood: expanded ? .help : (celebrating ? .celebrate : (AppState.shared.isGeneratingMealPlan ? .thinking : .idle)), size: 52, onTap: toggle)
-                        .background(Color.surfaceElevated, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.hairline.opacity(0.5), lineWidth: 0.7))
-                        .elevation(Elevation.high)
-                        .accessibilityHint(expanded ? "Closes your local guide." : "Opens helpful next steps and a short tour. No AI request is sent.")
-                        .accessibilityAction(named: "Take a quick tour", startTour)
-                        .contextMenu {
-                            Button("Take a quick tour", systemImage: "sparkles", action: startTour)
-                            Button(leading ? "Move to right" : "Move to left", systemImage: "arrow.left.arrow.right") { leading.toggle() }
-                            Button("Hide guide", systemImage: "eye.slash") { close(); visible = false }
-                        }
-                    if !introduced && !expanded && !typeSize.isAccessibilitySize && leading { invitation }
-                }
+        ZStack(alignment: .topTrailing) {
+            // At accessibility text sizes the guide opens as a sheet instead
+            // (see `.sheet` below): the small panel can't hold it.
+            if visible && expanded && !typeSize.isAccessibilitySize {
+                panel
+                    .padding(.horizontal, Spacing.lg)
+                    // Drops down from under the header row, where the bowl sits.
+                    .padding(.top, 76)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: .topTrailing).combined(with: .opacity))
             }
-            .frame(maxWidth: .infinity, alignment: leading ? .leading : .trailing)
-            .padding(.horizontal, Spacing.lg)
-            .padding(.bottom, Spacing.sm)
-            .animation(reduceMotion ? nil : .snappyValue, value: expanded)
-            .animation(reduceMotion ? nil : .snappyValue, value: leading)
-            .onChange(of: FoodLogStore.shared.entries.count) { old, new in
-                if new > old { celebration = UUID() }
-            }
-            .task(id: celebration) {
-                guard celebration != nil else { return }
-                celebrating = true
-                do { try await Task.sleep(for: .seconds(1.6)) }
-                catch { celebrating = false; return }
-                celebrating = false
-            }
-            .onDisappear { celebrating = false }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .sheet(isPresented: Binding(
+            get: { visible && expanded && typeSize.isAccessibilitySize },
+            set: { if !$0 && expanded { close() } }
+        )) {
+            largeTextPanel
+        }
+        .animation(reduceMotion ? nil : .snappyValue, value: expanded)
+        .onReceive(NotificationCenter.default.publisher(for: .toggleBowlGuide)) { _ in toggle() }
+        .onChange(of: visible) { _, shown in if !shown { close() } }
     }
 
-    private var invitation: some View {
-        Button(action: toggle) {
-            Text("Need a little direction?")
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Color.labelPrimary)
-                .padding(.horizontal, Spacing.lg)
-                .frame(minHeight: 44)
-                .background(Color.surfaceElevated, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.hairline.opacity(0.5), lineWidth: 0.7))
-        }
-        .buttonStyle(ScalePressStyle())
-        .accessibilityIdentifier("guide.invitation")
-    }
+    private static let panelTop = "bowlGuidePanelTop"
 
     private var panel: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -119,9 +87,25 @@ struct FloatingBowlGuide: View {
                 .accessibilityIdentifier("guide.close")
             }
 
-            ScrollView { panelContent }
+            // Always open (and change step) at the top, so the first pathway is
+            // in view even when large text makes the panel scroll.
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Color.clear.frame(height: 0).id(Self.panelTop)
+                    panelContent
+                }
                 .scrollBounceBehavior(.basedOnSize)
+                // Large text keeps growing the content while the panel lays out;
+                // anchor to the top so it never opens scrolled down.
+                .defaultScrollAnchor(.top)
                 .frame(maxHeight: max(60, min(typeSize.isAccessibilitySize ? 330 : (tourStep == nil ? 380 : 270), availableHeight - 144)))
+                .task(id: tourStep) {
+                    proxy.scrollTo(Self.panelTop, anchor: .top)
+                    // Again once the opening transition and text layout have settled.
+                    try? await Task.sleep(for: .milliseconds(350))
+                    proxy.scrollTo(Self.panelTop, anchor: .top)
+                }
+            }
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.bottom, Spacing.sm)
@@ -133,43 +117,72 @@ struct FloatingBowlGuide: View {
         .elevation(Elevation.high)
     }
 
+    /// The guide at accessibility text sizes: a full sheet with native scrolling,
+    /// same content, actions and identifiers as the floating panel.
+    private var largeTextPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Label(tourStep == nil ? "YOUR BOWL GUIDE" : "A QUICK LOOK AROUND", systemImage: "sparkles")
+                    .font(.caption2.weight(.semibold)).tracking(1)
+                    .foregroundStyle(Color.labelSecondary)
+                Spacer(minLength: Spacing.sm)
+                Button(action: close) {
+                    Image(systemName: "xmark").font(.footnote.weight(.semibold))
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close guide")
+                .accessibilityIdentifier("guide.close")
+            }
+            ScrollView { panelContent.padding(.top, Spacing.sm) }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.md)
+        .foregroundStyle(Color.labelPrimary)
+        .tint(Color.brandPrimary)
+        .background(Color.surfaceElevated.ignoresSafeArea())
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
     private var panelContent: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             if let step = tourStep {
-                HStack(spacing: Spacing.xs) {
-                    ForEach(0..<3) { index in
-                        Capsule().fill(index <= step ? Color.brandPrimary : Color.surfaceSecondary)
-                            .frame(height: 3)
-                    }
-                    Text("\(step + 1) / 3").font(.caption.monospacedDigit()).padding(.leading, Spacing.xs)
+                HStack(spacing: Spacing.sm) {
+                    PaginationDots(count: tour.count, selection: step,
+                                   pageLabel: { "Step \($0 + 1) of \(tour.count): \(tour[$0].title)" },
+                                   onSelect: goToStep)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Tour step \(step + 1) of \(tour.count)")
+                        .accessibilityIdentifier("guide.dots")
+                    Spacer(minLength: 0)
+                    Text("\(step + 1) / \(tour.count)").font(.caption.monospacedDigit())
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityHidden(true)
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Tour step \(step + 1) of 3")
-            }
-            Text(title).font(.title2.weight(.semibold))
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($titleFocused)
-                .accessibilityIdentifier("guide.title")
-            Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let step = tourStep {
-                PrimaryButton(title: tour[step].cta) { route(tour[step].action) }
-                    .accessibilityIdentifier("guide.tryStep")
+                PaginationStrip(count: tour.count, selection: step) { i in
+                    tourPage(i)
+                }
                 HStack {
                     Button("Skip tour", action: close).frame(minHeight: 44)
                         .accessibilityIdentifier("guide.skip")
                     Spacer()
-                    Button(step == 2 ? "Finish" : "Next") {
-                        if step == 2 { close() }
-                        else { tourStep = step + 1; selectedTab = tour[step + 1].tab; titleFocused = true }
+                    Button(step == tour.count - 1 ? "Finish" : "Next") {
+                        if step == tour.count - 1 { close() }
+                        else { goToStep(step + 1) }
                     }
                     .fontWeight(.semibold).frame(minHeight: 44)
                     .accessibilityIdentifier("guide.next")
                 }
                 .font(.subheadline)
             } else {
+                Text(title).font(.title2.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityFocused($titleFocused)
+                    .accessibilityIdentifier("guide.title")
+                Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
                 pathway("Grocery checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
                 pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)
@@ -182,11 +195,32 @@ struct FloatingBowlGuide: View {
                         .accessibilityIdentifier("guide.chat")
                 }
                 .font(.footnote).frame(minHeight: 44)
-                Text("These shortcuts work without AI.")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
         .padding(.bottom, Spacing.sm)
+    }
+
+    /// One tour step on the sliding strip: title, detail and its try-it button.
+    private func tourPage(_ i: Int) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text(tour[i].title).font(.title2.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($tourTitleFocus, equals: i)
+                .accessibilityIdentifier("guide.title")
+            Text(tour[i].detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            PrimaryButton(title: tour[i].cta) { route(tour[i].action) }
+                .accessibilityIdentifier("guide.tryStep")
+        }
+    }
+
+    /// Jump to a tour step (Next, or a tapped dot).
+    private func goToStep(_ i: Int) {
+        guard tour.indices.contains(i) else { return }
+        tourStep = i
+        selectedTab = tour[i].tab
+        tourTitleFocus = i
     }
 
     private func pathway(_ title: String, subtitle: String, symbol: String, action: BowlPathway) -> some View {
@@ -217,11 +251,11 @@ struct FloatingBowlGuide: View {
     }
 
     private func startTour() {
-        introduced = true; expanded = true; tourStep = 0; selectedTab = 0; titleFocused = true
+        introduced = true; expanded = true; tourStep = 0; selectedTab = tour[0].tab; tourTitleFocus = 0
     }
 
     private func close() {
-        introduced = true; expanded = false; tourStep = nil; titleFocused = false
+        introduced = true; expanded = false; tourStep = nil; titleFocused = false; tourTitleFocus = nil
     }
 
     private func route(_ action: BowlPathway) {

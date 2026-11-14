@@ -16,7 +16,10 @@ is distinct from the user's system backup configuration.
 
 Only `lang`, `weeklyBudget`, `priceOverrides_v1`, shopping cart rows and grocery
 rows are allowed. No profile, BMR, dietary restriction, food-intake or nutrition
-plan payload may enter the cloud document. `SyncDataPolicy` enforces this on
+plan payload may enter the cloud document. Grocery rows with a `planned_` id
+(missing ingredients added from a meal plan) are nutrition-plan derived: the
+snapshot excludes them, and an inbound apply keeps local `planned_` rows and
+drops any inbound ones. `SyncDataPolicy` enforces this on
 incoming and outgoing documents; regression tests verify excluded fields.
 
 ## Storage and retry
@@ -43,6 +46,10 @@ runtime cart/profile/log state and pending/delivered local notifications. Active
 agent/manual meal-plan responses are invalidated. Cloud reset erases shopping
 content while retaining an empty generation marker to reject old device state.
 Health data on other devices is local and must be deleted on each device.
+If the server AI account can't be deleted (offline or no valid session), the
+user may confirm a local-only erase; the alert states that the server account
+remains and how to delete it later. A remote sync apply refreshes stores in
+place and never resets the UI or in-flight requests; only Delete All Data does.
 
 ## Providers
 

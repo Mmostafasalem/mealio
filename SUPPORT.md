@@ -2,12 +2,10 @@
 
 Need help with Nourlo? We're happy to assist.
 
-For technical issues in this pre-release build, use the
-[Nourlo issue tracker](https://github.com/Mmostafasalem/mealio/issues).
-The tracker is public: do not post body measurements, food logs, account tokens,
-API keys or other private information. For private help, contact the person who
-provided your build. A dedicated verified contact and hosted support URL still
-need to be supplied before App Store submission; no public mailbox is claimed.
+Email **[nourlo.app.support@gmail.com](mailto:nourlo.app.support@gmail.com)** for
+help, bug reports, privacy questions or data requests. Tell us your iPhone model,
+iOS version and what happened. Please don't send passwords, account tokens or
+more health detail than the question needs. We aim to reply within a few days.
 
 ## FAQ
 
@@ -47,10 +45,10 @@ Meal-plan totals remain estimates; they cannot be one-tap logged as sourced nutr
 
 
 **How do I use the bowl guide?**
-Tap the floating bowl above navigation on any main screen. It offers shortcuts
+Tap the bowl at the top of Home, next to the bell. It offers shortcuts
 for logging food, your grocery checklist and meals, plus a short, skippable tour.
-The guide itself works locally and never sends an AI request. Hold the bowl to
-move it to either side, replay the tour or hide it. Restore it in Profile under
+The guide itself works locally and never sends an AI request. You can hide the
+bowl, or bring it back, in Profile under
 Your companion. Adding food briefly triggers its celebration. AI chat is a
 separate action and follows your account and sharing settings.
 
@@ -62,13 +60,14 @@ updated app starts. No verified retailer promotion feed is connected.
 **Are grocery prices live?**
 No. Prices are estimates from a curated catalog, not verified promotions,
 live store inventory or guaranteed shelf prices. You can enter a real price in
-the shopping flow. Corrections apply only to the selected store. Older unscoped
-corrections are preserved but need re-entry for a chosen store before they count
-as your entered price. Check the retailer before purchasing.
+the catalogue; it then replaces the estimate everywhere in the app. Nourlo does
+not name or compare shops. Check prices where you buy.
 
-**Why don't I see nearby stores?**
-Make sure location access is enabled (Settings ▸ Nourlo ▸ Location) and you have a
-network connection. Without location, Nourlo uses Vilnius centre.
+**Are the workouts medical advice?**
+No. Workouts and exercise notes are general fitness information. Stop if you
+feel pain, dizziness or chest discomfort, and check with a doctor before
+starting if you have a medical condition or injury. Calorie figures for
+workouts are rough estimates.
 
 **My meal plan didn't update after I changed my cart.**
 You can tap **Regenerate** on the Meals tab. Online AI features require the

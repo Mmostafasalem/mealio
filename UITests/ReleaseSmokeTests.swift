@@ -2,7 +2,11 @@ import XCTest
 
 @MainActor
 final class ReleaseSmokeTests: XCTestCase {
-    override func setUpWithError() throws { continueAfterFailure = false }
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        // An interrupted landscape run leaves the simulator rotated; start upright.
+        XCUIDevice.shared.orientation = .portrait
+    }
 
     private func tap(_ id: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         let control = app.buttons[id].firstMatch
@@ -10,8 +14,12 @@ final class ReleaseSmokeTests: XCTestCase {
             guard control.exists && control.isHittable else { return false }
             // The custom tab bar already reserves its bottom inset. Applying a
             // second artificial bottom margin rejects valid SE tap targets.
-            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
-            if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
+            // The Home avatar and bowl are header controls right under the status bar,
+            // so the bottom-reach margin does not apply to it either.
+            var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions" || id == "home.profile" || id == "mascot.guide") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
+            if id.hasPrefix("favorite.item."), app.scrollViews["favorites.list"].exists {
+                safeFrame = safeFrame.intersection(app.scrollViews["favorites.list"].frame.insetBy(dx: 0, dy: 4))
+            } else if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
                 safeFrame = safeFrame.intersection(app.collectionViews.firstMatch.frame.insetBy(dx: 0, dy: 12))
             }
             return safeFrame.contains(CGPoint(x: control.frame.midX, y: control.frame.midY))
@@ -26,7 +34,16 @@ final class ReleaseSmokeTests: XCTestCase {
             if isVisibleForTap() { break }
             // Fixed CTAs can cover the app's default swipe origin at large
             // text sizes. Scroll the actual list rather than the footer.
-            if app.collectionViews.firstMatch.exists {
+            if app.scrollViews["favorites.list"].exists {
+                // The favourites chips scroll vertically; the first scroll view
+                // on that screen is the sideways category strip. A short, slow
+                // drag (either way) keeps a chip from flying past the viewport.
+                let list = app.scrollViews["favorites.list"]
+                let reverse = control.exists && control.frame.midY < list.frame.minY
+                let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.35 : 0.65))
+                let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.65 : 0.35))
+                start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
+            } else if app.collectionViews.firstMatch.exists {
                 let list = app.collectionViews.firstMatch
                 let reverse = control.exists && control.frame.midY < list.frame.minY
                 let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.4 : 0.7))
@@ -58,6 +75,12 @@ final class ReleaseSmokeTests: XCTestCase {
         control.tap()
     }
 
+    /// Profile opens from the avatar at the top of Home.
+    private func openProfile(in app: XCUIApplication) {
+        tap("tab.home", in: app)
+        tap("home.profile", in: app)
+    }
+
     private func capture(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
@@ -82,12 +105,15 @@ final class ReleaseSmokeTests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         app.launch()
-        advance("onboarding.start", to: "onboarding.body.continue", in: app)
-        advance("onboarding.body.continue", to: "onboarding.location.skip", in: app)
-        advance("onboarding.location.skip", to: "onboarding.goal.continue", in: app)
+        advance("onboarding.start", to: "onboarding.name.continue", in: app)
+        advance("onboarding.name.continue", to: "onboarding.gender.continue", in: app)
+        advance("onboarding.gender.continue", to: "onboarding.age.continue", in: app)
+        advance("onboarding.age.continue", to: "onboarding.height.continue", in: app)
+        advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
+        advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
+        advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
-        advance("onboarding.diet.continue", to: "onboarding.notifications.skip", in: app)
-        advance("onboarding.notifications.skip", to: "onboarding.favorites.finish", in: app)
+        advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
         for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {
             tap("favorite.item." + id, in: app)
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
@@ -100,10 +126,68 @@ final class ReleaseSmokeTests: XCTestCase {
     func testAppStoreScreenshotCandidates() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("store-candidate-" + name)
         }
+    }
+
+    /// Explicitly selected live integration test; uses only the default synthetic
+    /// local profile in a dedicated disposable simulator. Onboarding has its
+    /// own UI journeys; this test starts at the account settings.
+    func testLiveGuestSignInChatAndAccountDeletion() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["NOURLO_LIVE_GUEST_UI"] == "1",
+                          "Set TEST_RUNNER_NOURLO_LIVE_GUEST_UI=1 on an isolated simulator.")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Nourlo Guest AI Verification",
+                          "This test may delete only its dedicated disposable simulator's app data.")
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES",
+                               "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+        app.launch()
+        openProfile(in: app)
+        capture("live-guest-profile-navigation")
+        let guest = app.buttons["profile.guestSignIn"]
+        for _ in 0..<8 {
+            if guest.exists && guest.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(guest.waitForExistence(timeout: 90))
+        tap("profile.guestSignIn", in: app)
+        XCTAssertTrue(app.staticTexts["Guest access on this device"].waitForExistence(timeout: 120))
+        capture("live-guest-account-allowance")
+        let consent = app.switches["profile.aiConsent"]
+        for _ in 0..<8 {
+            if consent.exists && consent.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(consent.isHittable)
+        if consent.value as? String == "0" { consent.tap() }
+        tap("tab.home", in: app)
+        tap("mascot.guide", in: app)
+        tap("guide.chat", in: app)
+        // The composer grows to several lines, so it may be a text view.
+        let field = app.descendants(matching: .any)["Ask about meals or groceries…"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        field.tap()
+        field.typeText("Synthetic connection test: briefly confirm you can help plan a meal.")
+        tap("chat.send", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["chat.assistantReply"].firstMatch.waitForExistence(timeout: 120),
+                      "The live authenticated AI must return a response.")
+        XCTAssertFalse(app.otherElements["chat.notice"].exists)
+        capture("live-guest-online-chat")
+        app.buttons["Done"].tap()
+        openProfile(in: app)
+        let delete = app.buttons["Delete All Data"]
+        for _ in 0..<10 {
+            if delete.exists && delete.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(delete.isHittable)
+        delete.tap()
+        app.alerts.buttons["Delete Data"].tap()
+        XCTAssertTrue(app.buttons["onboarding.start"].waitForExistence(timeout: 120),
+                      "Test account deletion must complete before onboarding restarts.")
+        capture("live-guest-account-deleted")
     }
 
     func testMascotGuideExpressionsAndLoggingShortcut() {
@@ -112,7 +196,10 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["mascot.guide"].waitForExistence(timeout: 10))
         capture("floating-bowl-home")
+        // As in the large-text test below: a tap in the first moments after a
+        // cold launch can be lost while Home finishes its first layout. Retry once.
         tap("mascot.guide", in: app)
+        if !app.buttons["guide.path.logFood"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
         XCTAssertTrue(app.buttons["guide.path.logFood"].waitForExistence(timeout: 5))
         capture("floating-bowl-pathways")
         tap("guide.path.logFood", in: app)
@@ -135,22 +222,19 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
         tap("guide.next", in: app)
         XCTAssertFalse(app.buttons["guide.next"].exists)
-        tap("tab.map", in: app)
-        tap("mascot.guide", in: app)
-        XCTAssertTrue(app.staticTexts["Find your way there"].waitForExistence(timeout: 5))
-        tap("guide.close", in: app)
-        tap("tab.profile", in: app)
-        tap("mascot.guide", in: app)
-        XCTAssertTrue(app.staticTexts["Make Nourlo yours"].waitForExistence(timeout: 5))
-        capture("floating-bowl-profile")
-        tap("guide.close", in: app)
+        openProfile(in: app)
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
+        capture("profile-from-avatar")
     }
 
     func testFloatingBowlGuideLargeText() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         app.launch()
+        // At the largest text size a cold simulator can still be finishing its
+        // first layout when the bowl appears; a tap then is lost. Retry once.
         tap("mascot.guide", in: app)
+        if !app.buttons["guide.close"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
         XCTAssertTrue(app.buttons["guide.close"].waitForExistence(timeout: 5))
         capture("floating-bowl-large-text")
         tap("guide.path.logFood", in: app)
@@ -160,7 +244,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndAllTabs() {
         let app = XCUIApplication()
         onboard(app)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("system-" + name)
         }
@@ -200,7 +284,7 @@ final class ReleaseSmokeTests: XCTestCase {
         defer { XCUIDevice.shared.orientation = .portrait }
         tap("tab.home", in: app)
         XCTAssertGreaterThan(app.frame.width, app.frame.height)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("landscape-" + name)
         }
@@ -210,7 +294,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
-        tap("tab.profile", in: app)
+        openProfile(in: app)
         let signIn = app.buttons["profile.appleSignIn"]
         for _ in 0..<8 {
             if signIn.exists && signIn.isHittable { break }
@@ -223,14 +307,11 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertEqual(app.tabBars.count, 0)
     }
 
-    func testQuickActionsSearchAndCartSheet() {
+    func testQuickActionsMenuOpensCartAndChecklist() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let search = app.textFields["quickActions.search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 5))
-        search.tap(); search.typeText("cart")
         tap("quickActions.cart", in: app)
         XCTAssertTrue(app.buttons["quickCart.done"].waitForExistence(timeout: 5))
         capture("quick-actions-cart")
@@ -238,10 +319,6 @@ final class ReleaseSmokeTests: XCTestCase {
         if app.buttons["quickCart.done"].exists { tap("quickCart.done", in: app) }
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
         tap("navigation.quickActions", in: app)
-        let again = app.textFields["quickActions.search"]
-        XCTAssertTrue(again.waitForExistence(timeout: 5))
-        again.tap(); again.typeText("checklist")
-        capture("quick-actions-search")
         tap("quickActions.groceries", in: app)
         XCTAssertTrue(app.buttons["groceries.done"].waitForExistence(timeout: 5))
         tap("groceries.done", in: app)
@@ -253,9 +330,6 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let menuSearch = app.textFields["quickActions.search"]
-        XCTAssertTrue(menuSearch.waitForExistence(timeout: 5))
-        menuSearch.tap(); menuSearch.typeText("log food")
         tap("quickActions.logFood", in: app)
         let foodSearch = app.textFields["logFood.search"]
         XCTAssertTrue(foodSearch.waitForExistence(timeout: 5))
@@ -266,8 +340,9 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["USDA SR Legacy · April 2018"].waitForExistence(timeout: 5))
         capture("nutrition-source-detail")
         tap("logFood.addServing", in: app)
-        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["logFood.addServing"].exists)
+        // The Add button plays a short "Added" success moment before the sheet closes.
+        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["navigation.quickActions"].exists)
     }
 
     func testRestaurantMenuDishCanBeSavedAndLoggedPerServing() {
@@ -275,16 +350,19 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let actionSearch = app.textFields["quickActions.search"]
-        XCTAssertTrue(actionSearch.waitForExistence(timeout: 5))
-        actionSearch.tap(); actionSearch.typeText("log food")
         tap("quickActions.logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         app.segmentedControls["customFood.mode"].buttons["Restaurant menu"].tap()
         for (id, value) in [("name", "QA Menu Plate"), ("restaurant", "QA Restaurant"), ("energy", "650"), ("protein", "35"), ("carbs", "80"), ("fat", "21")] {
             let field = app.textFields["customFood." + id]
             XCTAssertTrue(field.waitForExistence(timeout: 5))
-            field.tap(); field.typeText(value)
+            // A tap during the previous field's keyboard dismissal can miss; retry until focused.
+            let focused = NSPredicate(format: "hasKeyboardFocus == true")
+            for _ in 0..<3 {
+                field.tap()
+                if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)], timeout: 2) == .completed { break }
+            }
+            field.typeText(value)
             let done = app.buttons["customFood.keyboardDone"]
             XCTAssertTrue(done.waitForExistence(timeout: 5))
             done.tap()
@@ -297,14 +375,31 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
     }
 
+    func testStockSearchAddConsumeAndHistory() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
+        app.launch()
+        tap("home.stock", in: app)
+        tap("stock.add", in: app)
+        let search = app.textFields["logFood.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap()
+        search.typeText("Bananas, raw")
+        tap("logFood.food.usda:173944", in: app)
+        tap("logFood.addServing", in: app)
+        let item = app.buttons["stock.item.usda:173944"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5))
+        item.tap()
+        tap("stock.consume", in: app)
+        XCTAssertTrue(app.staticTexts["Your stock starts here"].waitForExistence(timeout: 5))
+        capture("Stock consumed")
+    }
+
     func testRecipeBuilderUsesSourceIngredientsAndCookedYield() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("navigation.quickActions", in: app)
-        let actionSearch = app.textFields["quickActions.search"]
-        XCTAssertTrue(actionSearch.waitForExistence(timeout: 5))
-        actionSearch.tap(); actionSearch.typeText("log food")
         tap("quickActions.logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
         let name = app.textFields["customFood.name"]
@@ -331,7 +426,7 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         app.launch()
         tap("tab.shop", in: app)
-        tap("shop.store.rimi", in: app)
+        tap("shop.catalog", in: app)
         let add = app.buttons["Add to cart"].firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(add.frame.width, 44 - 0.001)
@@ -340,14 +435,14 @@ final class ReleaseSmokeTests: XCTestCase {
         let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
         edge.press(forDuration: 0.05, thenDragTo: end)
         XCTAssertTrue(app.navigationBars["Shop"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["shop.store.rimi"].exists)
+        XCTAssertTrue(app.buttons["shop.catalog"].exists)
         capture("native-back-shop")
     }
 
     func testPrivacyAndSupportAreReachable() {
         let app = XCUIApplication()
         onboard(app)
-        tap("tab.profile", in: app)
+        openProfile(in: app)
         tap("profile.privacy", in: app)
         XCTAssertTrue(app.staticTexts["Nourlo — Privacy Policy"].waitForExistence(timeout: 5))
         capture("privacy-policy")
@@ -360,7 +455,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testOnboardingAndTabsAtLargestText() {
         let app = XCUIApplication()
         onboard(app, largeText: true)
-        for name in ["home", "meals", "shop", "map", "profile"] {
+        for name in ["home", "meals", "shop", "train"] {
             tap("tab." + name, in: app)
             capture("largest-text-" + name)
         }

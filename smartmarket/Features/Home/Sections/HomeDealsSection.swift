@@ -7,10 +7,7 @@ struct HomeDealsSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: "basket.fill").foregroundStyle(Color.brandPrimary)
-                    Text("Grocery estimates").font(.sectionTitle)
-                }
+                HomeCardTitle(title: "Grocery estimates", symbol: "basket.fill")
                 Spacer()
                 if vm.isRefreshing {
                     ProgressView().controlSize(.small)

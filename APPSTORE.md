@@ -6,15 +6,15 @@ signed-device and TestFlight checks remain required.
 
 ## Already done (in code)
 - Bundle ID `com.mostafa.mealio`, display name **Nourlo**, iOS 17 deployment target.
-- App icon present (1024×1024, no alpha) — **placeholder art; replace before launch**.
-- `PrivacyInfo.xcprivacy` declares precise location, separate Health and Fitness
+- App icon (1024×1024, opaque): flat bowl mascot on Rhino navy, final as of 2026-11-13. Source: `docs/brand/app-icon.swift`.
+- `PrivacyInfo.xcprivacy` declares separate Health and Fitness
   categories, and Other User Content for optional chat/private shopping sync.
   Online health/fitness and user content are conservatively marked linked;
   free-form chat can identify its author and private sync uses an Apple Account.
   No tracking domains; UserDefaults reason `CA92.1` remains declared. User ID and Product Interaction
   are linked for optional Apple AI accounts and usage limits; not tracking.
 - `ITSAppUsesNonExemptEncryption = false` (no export-compliance prompt).
-- Location usage string set (`NSLocationWhenInUseUsageDescription`).
+- No location access is requested (the map and nearby-store features were removed).
 - Optional private shopping sync implemented; health/profile/intake/meal-plan
   data excluded under App Review 5.1.3(ii). See `ICLOUD_SETUP.md` for activation
   and live acceptance checks. CloudKit production readiness is not yet verified.
@@ -22,14 +22,13 @@ signed-device and TestFlight checks remain required.
 ## You must do
 1. **Apple Developer Program** membership; register the App ID `com.mostafa.mealio`.
 2. **Signing**: set your team + automatic signing in Xcode (Release config).
-3. **Real app icon** (replace the placeholder in `Assets.xcassets/AppIcon`).
+3. **App icon**: done (flat bowl mascot on navy).
 4. **Screenshots** for the iPhone and iPad sizes required in App Store Connect.
    This target supports both device families; iPhone-only QA is insufficient.
 5. **Privacy Policy URL** — host `PRIVACY.md` (e.g. GitHub Pages / your site) and
    put the URL in App Store Connect.
 6. **Support URL** — host `SUPPORT.md` and add the URL.
 7. **App Privacy "nutrition label"** in App Store Connect — declare:
-   - Location (Precise): App Functionality; **not** linked to identity; not used for tracking.
    - Health and Fitness: App Functionality; linked for optional online context;
      not tracking. Data kept solely on-device is not transmitted by that fact alone.
    - Other User Content: optional chat and private shopping content; linked;

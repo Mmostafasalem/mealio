@@ -59,6 +59,7 @@
 				"smartmarket-backend/requirements.lock",
 				"smartmarket-backend/server.py",
 				"smartmarket-backend/test_app.py",
+				"smartmarket-backend/test_data/provider_week_lithuanian.json",
 			);
 			target = ADF8148B2FCA0F6400433335 /* smartmarket */;
 		};
@@ -255,7 +256,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nourlo uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -294,7 +294,6 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nourlo uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

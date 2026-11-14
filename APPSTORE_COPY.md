@@ -27,8 +27,13 @@ credits reset daily; overall service capacity can still limit availability.
 
 Organise your shop
 Build a cart and grocery list, set a budget and enter prices you find in-store.
-Explore store locations around Vilnius. Catalog prices are estimates; they are
-not live shelf prices, verified promotions or guaranteed store availability.
+Catalog prices are estimates; they are not live shelf prices, verified
+promotions or guaranteed availability.
+
+Train
+Build a workout for the gym, home, cardio or mobility, sized to your time and
+level, with animated how-to figures. Optional online AI writes sessions around
+your stats and request. General fitness information, not medical advice.
 
 Choose how your data is handled
 Local tracking and shopping need no Nourlo account. Online AI requires Sign in
@@ -60,17 +65,18 @@ are clearly estimates and are not live retailer offers.
 
 Before submission: activate and verify backend authentication and CloudKit
 Production, confirm both features work on the submitted build, and supply working
-privacy/support URLs and a verified support contact in App Store Connect.
+privacy/support URLs in App Store Connect. Support contact:
+nourlo.app.support@gmail.com.
 
 ## Screenshots to prepare from the verified build
 1. Home with a realistic synthetic profile and logged foods.
 2. Meals with the local/online state correctly labelled.
 3. Shop with estimated prices and a representative budget.
 4. Grocery list with bought/unbought items.
-5. Map showing Vilnius stores without an availability/promotion claim.
+5. Train with a generated workout and its exercise demos.
 6. Profile privacy controls and optional shopping sync.
 
 Automated simulator screenshots are QA evidence. Select/re-capture final marketing
 screens after account-side services and the sample content have been verified.
-The current pink monogram icon remains unchanged and needs an explicit final
-branding decision; do not describe it as final approved artwork.
+The app icon is final: a flat, smiling bowl of oats with banana and strawberry in
+Dull Pink on Rhino navy (2026-11-13).

@@ -7,16 +7,30 @@ struct SmartMarketAgentApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var appState = AppState.shared
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
+
+    /// nil follows the iPhone setting.
+    private var preferredScheme: ColorScheme? {
+        switch appearanceOverride {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
+    /// One curve for every root swap; a short fade under Reduce Motion.
+    private var rootTransition: Animation? {
+        UIAccessibility.isReduceMotionEnabled ? .reducedFade : .smoothCard
+    }
 
     var body: some Scene {
         WindowGroup {
             Group {
                 if !appState.hasSeenWelcome {
                     WelcomeView {
-                        withAnimation(.easeInOut(duration: 0.4)) {
-                            appState.hasSeenWelcome = true
-                            UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
-                        }
+                        // The Group's implicit animation drives this transition.
+                        appState.hasSeenWelcome = true
+                        UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
                     }
                 } else if appState.isOnboarded {
                     MainTabView()
@@ -24,8 +38,9 @@ struct SmartMarketAgentApp: App {
                     OnboardingFlow()
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: appState.isOnboarded)
-            .animation(.easeInOut(duration: 0.35), value: appState.hasSeenWelcome)
+            .animation(rootTransition, value: appState.isOnboarded)
+            .animation(rootTransition, value: appState.hasSeenWelcome)
+            .preferredColorScheme(preferredScheme)
             .foregroundStyle(Color.labelPrimary)
             .environment(appState)
             .tint(Color.brandPrimary)
@@ -39,7 +54,7 @@ struct SmartMarketAgentApp: App {
                     .padding().frame(maxWidth: .infinity).background(.regularMaterial)
                 }
             }
-            .id(appState.dataGeneration)
+            .id(appState.uiIdentity)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
             }
@@ -58,6 +73,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        MotionSettings.prepare()
         // Native navigation titles follow the same adaptive palette as content.
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]

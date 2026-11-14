@@ -90,4 +90,18 @@ enum BMRCalculator {
         profile.tdee             = t.rounded()
         profile.dailyCalorieGoal = g
     }
+
+    /// The calorie/macro targets the agent and meal planner read from
+    /// `AppState.bmrData`. Call after `populate(profile:)`.
+    static func response(for profile: UserProfile, isKeto: Bool) -> BMRResponse {
+        let macros = macroTargets(calories: profile.dailyCalorieGoal, isKeto: isKeto)
+        func goal(_ g: WeightGoal) -> Int {
+            dailyGoal(tdee: profile.tdee, goal: g, pace: profile.lossPace, gender: profile.gender)
+        }
+        return BMRResponse(
+            bmr: Int(profile.bmr), tdee: Int(profile.tdee),
+            loseCalories: goal(.lose), maintainCalories: goal(.maintain), gainCalories: goal(.gain),
+            macros: BMRResponse.MacroTargets(protein: macros.proteinG, carbs: macros.carbsG, fat: macros.fatG)
+        )
+    }
 }

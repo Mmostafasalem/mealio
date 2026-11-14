@@ -3,14 +3,12 @@ import SwiftUI
 struct MainTabView: View {
 
     @State private var selection = 0
-    @State private var showQuickActions = false
-    @State private var pendingAction: MealioQuickAction?
     @State private var activeAction: MealioQuickAction?
     @State private var quickLog = HomeViewModel()
     @State private var showGuideChat = false
     @State private var keyboardVisible = false
     @State private var navigationHeight: CGFloat = 80
-    @AppStorage("bowlGuideVisible_v2") private var guideVisible = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         // Hide the system tab bar so our floating one takes over
@@ -23,49 +21,38 @@ struct MainTabView: View {
                 HomeView().tag(0).toolbar(.hidden, for: .tabBar)
                 NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
                 StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
-                StoreMapView().tag(3).toolbar(.hidden, for: .tabBar)
-                NavigationStack { ProfileView() }.tag(4).toolbar(.hidden, for: .tabBar)
+                TrainView().tag(3).toolbar(.hidden, for: .tabBar)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Reserve the small companion's footprint so it never covers the
-            // last row, map controls or a screen's bottom action.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if guideVisible && !keyboardVisible { Color.clear.frame(height: 84) }
-            }
             // A sibling reserves real layout space on every tab, including iPad.
-            FloatingTabBar(selection: $selection) { if activeAction == nil { showQuickActions = true } }
+            FloatingTabBar(selection: $selection, choose: chooseQuickAction, openChat: {
+                guard activeAction == nil else { return }
+                showGuideChat = true
+            })
+                // Its goo menu pours out over the content above the bar.
+                .zIndex(2)
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: NavigationHeightKey.self, value: geometry.size.height)
                 })
         }
         .onPreferenceChange(NavigationHeightKey.self) { navigationHeight = $0 }
-        // Keep the companion outside TabView's UIKit hierarchy. In particular,
-        // MapKit's gesture surface must not intercept the floating button.
-        .overlay(alignment: .bottom) {
+        // The bowl's guide panel, above every tab (the bowl itself is in Home's header).
+        .overlay(alignment: .top) {
             if !keyboardVisible {
                 GeometryReader { geometry in
-                    FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - navigationHeight, choose: followGuide)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(.bottom, navigationHeight)
+                    FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - navigationHeight,
+                                      choose: followGuide)
                 }
                 .zIndex(10)
             }
         }
         .background(Color.surfaceGrouped)
+        // Tab screens keep their layout under the keyboard.
         .ignoresSafeArea(.keyboard)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
+        .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
         .sheet(isPresented: $showGuideChat) { AgentChatSheet(vm: quickLog) }
-        .sheet(isPresented: $showQuickActions, onDismiss: {
-            activeAction = pendingAction
-            pendingAction = nil
-        }) {
-            QuickActionsSheet { action in
-                if let tab = action.tab { selection = tab }
-                else { pendingAction = action }
-                showQuickActions = false
-            }
-        }
         .sheet(item: $activeAction) { action in
             switch action {
             case .logFood: LogFoodSheet(vm: quickLog)
@@ -90,15 +77,31 @@ struct MainTabView: View {
         }
     }
 
+    private func chooseQuickAction(_ action: MealioQuickAction) {
+        if action == .profile {
+            openProfile()
+        } else if let tab = action.tab {
+            selection = tab
+        } else {
+            activeAction = action
+        }
+    }
+
+    /// Profile lives behind the avatar on Home, not in the tab bar.
+    private func openProfile() {
+        selection = 0
+        // Let Home become the visible tab before it pushes Profile.
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .openProfile, object: nil) }
+    }
+
     private func followGuide(_ pathway: BowlPathway) {
-        guard activeAction == nil, !showQuickActions else { return }
+        guard activeAction == nil else { return }
         switch pathway {
         case .logFood: activeAction = .logFood
         case .groceries: activeAction = .groceries
         case .meals: selection = 1
         case .shop: selection = 2
-        case .map: selection = 3
-        case .profile: selection = 4
+        case .profile: openProfile()
         case .chat: showGuideChat = true
         }
     }
@@ -114,17 +117,24 @@ private struct NavigationHeightKey: PreferenceKey {
 private struct FloatingTabBar: View {
 
     @Binding var selection: Int
-    let onSearch: () -> Void
-    @Namespace private var pill
+    let choose: (MealioQuickAction) -> Void
+    let openChat: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var typeSize
 
     private let items: [(icon: String, filled: String, label: String)] = [
         ("house",               "house.fill",               "Home"),
         ("fork.knife.circle",   "fork.knife.circle.fill",   "Meals"),
         ("storefront",          "storefront.fill",          "Shop"),
-        ("map",                 "map.fill",                 "Map"),
-        ("person.crop.circle",  "person.crop.circle.fill",  "Profile"),
+        ("figure.run",          "figure.run",               "Train"),
+    ]
+
+    /// The + at the end of the bar pours these out. Ids are `MealioQuickAction`
+    /// raw values, except "chat".
+    private static let quickItems: [GooMenuItem] = [
+        GooMenuItem(id: MealioQuickAction.logFood.rawValue, title: "Log food", systemImage: "fork.knife"),
+        GooMenuItem(id: MealioQuickAction.cart.rawValue, title: "Cart", systemImage: "cart"),
+        GooMenuItem(id: MealioQuickAction.groceries.rawValue, title: "Checklist", systemImage: "checklist"),
+        GooMenuItem(id: "chat", title: "Ask Nourlo", systemImage: "bubble.left.and.text.bubble.right"),
     ]
 
     var body: some View {
@@ -135,29 +145,33 @@ private struct FloatingTabBar: View {
                     filled:    item.filled,
                     label:     item.label,
                     isActive:  selection == idx,
-                    namespace: pill,
-                    shortcut: KeyEquivalent(Character(String(idx + 1)))
+                    index:     idx
                 ) {
                     withAnimation(reduceMotion ? .none : .snappyValue) {
                         selection = idx
                     }
                 }
+                .frame(minWidth: 0, maxWidth: .infinity)
             }
-            Button(action: onSearch) {
-                VStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.body.weight(.medium)).dynamicTypeSize(...DynamicTypeSize.xxxLarge).frame(height: 30)
-                    if !typeSize.isAccessibilitySize { Text("Search").font(.caption2) }
+            // Bubbles fan out above the bar, clear of the tabs.
+            GooMenu(items: Self.quickItems, accessibilityLabel: "Quick actions",
+                    startAngle: 204, endAngle: 264,
+                    openValue: "Quick actions shown", openHint: "Shows quick actions",
+                    closeHint: "Closes the quick actions", itemHint: { "Opens \($0)" },
+                    buttonIdentifier: "navigation.quickActions", itemIdentifierPrefix: "quickActions.") { item in
+                if item.id == "chat" { openChat() }
+                else if let action = MealioQuickAction(rawValue: item.id) { choose(action) }
+            }
+            .padding(.horizontal, Spacing.sm)
+        }
+        // One shared pill behind the tabs: its edges are springs that chase the
+        // selected tab's icon frame, so it stretches toward the new tab.
+        .backgroundPreferenceValue(StretchTabPillAnchors.self) { anchors in
+            GeometryReader { geometry in
+                StretchTabPill(target: anchors[selection].map { geometry[$0] }, id: selection, isHidden: false) {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.brandLight)
                 }
-                .foregroundStyle(Color.labelSecondary)
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut("k", modifiers: .command)
-            .accessibilityLabel("Quick Actions")
-            .accessibilityHint("Find a screen or action. Keyboard shortcut Command K.")
-            .accessibilityIdentifier("navigation.quickActions")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
@@ -173,8 +187,8 @@ private struct TabItem: View {
     let filled: String
     let label: String
     let isActive: Bool
-    let namespace: Namespace.ID
-    let shortcut: KeyEquivalent
+    /// Tab index; reports the icon frame for the shared stretch pill.
+    let index: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var typeSize
     let action: () -> Void
@@ -182,33 +196,28 @@ private struct TabItem: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
-                ZStack {
-                    if isActive {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.brandLight)
-                            .frame(width: 46, height: 30)
-                            .matchedGeometryEffect(id: "tabPill", in: namespace)
-                    }
-                    Image(systemName: isActive ? filled : icon)
-                        .font(.body.weight(isActive ? .semibold : .regular))
-                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                        .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
-                        .animation(reduceMotion ? .none : .snappyValue, value: isActive)
-                }
-                .frame(width: 46, height: 30)
+                Image(systemName: isActive ? filled : icon)
+                    .font(.body.weight(isActive ? .semibold : .regular))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
+                    .animation(reduceMotion ? .none : .snappyValue, value: isActive)
+                    .frame(width: 46, height: 30)
+                    .stretchTabPillAnchor(index)
 
                 if !typeSize.isAccessibilitySize {
                     Text(label)
                         .font(.caption2.weight(isActive ? .semibold : .regular))
                         .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
+                        .lineLimit(1)
                 }
             }
+            // Keep its natural size while the open command field squeezes the slot to zero.
+            .fixedSize()
             .frame(maxWidth: .infinity)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .keyboardShortcut(shortcut, modifiers: .command)
         .accessibilityLabel(label)
         .accessibilityIdentifier("tab.\(label.lowercased())")
         .accessibilityAddTraits(isActive ? .isSelected : [])

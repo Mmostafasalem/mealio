@@ -58,7 +58,7 @@ def _http_json(url: str):
 def _num(value):
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

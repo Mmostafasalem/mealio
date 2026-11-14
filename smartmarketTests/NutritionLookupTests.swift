@@ -8,7 +8,19 @@ private final class NutritionTestProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
-        Self.requests.append(request)
+        var captured = request
+        if captured.httpBody == nil, let stream = captured.httpBodyStream {
+            stream.open()
+            defer { stream.close() }
+            var body = Data(), buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                body.append(contentsOf: buffer.prefix(count))
+            }
+            captured.httpBody = body
+        }
+        Self.requests.append(captured)
         let response = HTTPURLResponse(url: request.url!, statusCode: Self.status, httpVersion: nil, headerFields: nil)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Self.body)
@@ -40,7 +52,7 @@ final class NutritionLookupTests: XCTestCase {
          "nutriments": ["energy-kcal_100g": 80, "proteins_100g": 4.25, "carbohydrates_100g": 5.5, "fat_100g": 2.5]]
     }
     func testExplicitSearchSendsOnlyQueryAndCachesRepeatedLookup() async throws {
-        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["products": [product]])
+        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["hits": [product]])
         let catalog = NutritionCatalogService(defaults: defaults, session: session)
         let first = try await catalog.searchProducts("Example yogurt")
         XCTAssertEqual(first.count, 1)
@@ -48,9 +60,13 @@ final class NutritionLookupTests: XCTestCase {
         XCTAssertEqual(repeated, first)
         XCTAssertEqual(NutritionTestProtocol.requests.count, 1)
         let req = try XCTUnwrap(NutritionTestProtocol.requests.first)
-        XCTAssertEqual(req.url?.host, "world.openfoodfacts.org")
-        XCTAssertEqual(req.url?.path, "/cgi/search.pl")
-        XCTAssertNil(req.httpBody)
+        XCTAssertEqual(req.url?.host, "search.openfoodfacts.org")
+        XCTAssertEqual(req.url?.path, "/search")
+        XCTAssertEqual(req.httpMethod, "POST")
+        let payload = try XCTUnwrap(try JSONSerialization.jsonObject(with: req.httpBody ?? Data()) as? [String: Any])
+        XCTAssertEqual(payload["q"] as? String, "example yogurt")
+        XCTAssertNil(payload["profile"])
+        XCTAssertNil(payload["stock"])
         XCTAssertNil(req.value(forHTTPHeaderField: "Authorization"))
         XCTAssertNil(req.value(forHTTPHeaderField: "X-API-Key"))
         XCTAssertTrue(req.value(forHTTPHeaderField: "User-Agent")?.contains("Nourlo") == true)
@@ -94,25 +110,26 @@ final class NutritionLookupTests: XCTestCase {
         var raw = product
         raw["product_name_ar"] = "زبادي"
         raw["product_name_lt"] = "Jogurtas"
-        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["products": [raw], "count": 81])
+        raw["countries_tags"] = ["en:egypt", "en:lithuania"]
+        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["hits": [raw], "count": 81])
         var clock = Date()
         let catalog = NutritionCatalogService(defaults: defaults, session: session, now: { clock })
         let egypt = try await catalog.fetchProducts("yogurt", market: .egypt)
         XCTAssertEqual(egypt.foods.first?.name, "زبادي")
         XCTAssertTrue(egypt.hasMore)
-        func parameters() throws -> [String: String] {
-            let url = try XCTUnwrap(NutritionTestProtocol.requests.last?.url)
-            return Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value ?? "") })
+        func parameters() throws -> [String: Any] {
+            let data = try XCTUnwrap(NutritionTestProtocol.requests.last?.httpBody)
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         }
-        XCTAssertEqual(try parameters()["tag_0"], "en:egypt")
-        XCTAssertEqual(try parameters()["lc"], "ar")
+        XCTAssertEqual(try parameters()["q"] as? String, "yogurt countries_tags:\"en:egypt\"")
+        XCTAssertTrue((try parameters()["langs"] as? [String] ?? []).contains("ar"))
         clock.addTimeInterval(7)
         let lithuania = try await catalog.fetchProducts("yogurt", market: .lithuania)
         XCTAssertEqual(lithuania.foods.first?.name, "Jogurtas")
-        XCTAssertEqual(try parameters()["tag_0"], "en:lithuania")
+        XCTAssertEqual(try parameters()["q"] as? String, "yogurt countries_tags:\"en:lithuania\"")
         clock.addTimeInterval(7)
         _ = try await catalog.fetchProducts("yogurt", market: .egypt, page: 2)
-        XCTAssertEqual(try parameters()["page"], "2")
+        XCTAssertEqual(try parameters()["page"] as? Int, 2)
         XCTAssertEqual(NutritionTestProtocol.requests.count, 3)
         _ = try await catalog.fetchProducts("yogurt", market: .egypt)
         XCTAssertEqual(NutritionTestProtocol.requests.count, 3)
@@ -125,6 +142,31 @@ final class NutritionLookupTests: XCTestCase {
         XCTAssertFalse(result.hasMore)
         let url = try XCTUnwrap(NutritionTestProtocol.requests.last?.url)
         XCTAssertFalse(URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.contains { $0.name == "tag_0" })
+    }
+
+    func testRetailerSearchUsesStructuredFilterAndRejectsUnreportedProducts() async throws {
+        var reported = product
+        reported["stores_tags"] = ["rimi"]
+        NutritionTestProtocol.body = try JSONSerialization.data(withJSONObject: ["products": [reported, product], "count": 81])
+        var clock = Date()
+        let catalog = NutritionCatalogService(defaults: defaults, session: session, now: { clock })
+        let result = try await catalog.fetchProducts("", market: .lithuania, retailer: "Rimi")
+        XCTAssertEqual(result.foods.count, 1)
+        XCTAssertEqual(result.foods.first?.reportedRetailers, ["rimi"])
+        XCTAssertTrue(result.hasMore)
+        let request = try XCTUnwrap(NutritionTestProtocol.requests.last)
+        let url = try XCTUnwrap(request.url)
+        let params = Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(url.path, "/api/v2/search")
+        XCTAssertEqual(params["stores_tags"], "rimi")
+        XCTAssertEqual(params["countries_tags"], "en:lithuania")
+        XCTAssertNil(params["search_terms"])
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+        clock.addTimeInterval(7)
+        _ = try await catalog.fetchProducts("", market: .lithuania, retailer: "lidl")
+        XCTAssertEqual(NutritionTestProtocol.requests.count, 2, "Retailer caches must remain separate")
+        _ = try await catalog.fetchProducts("", market: .lithuania, retailer: "rimi")
+        XCTAssertEqual(NutritionTestProtocol.requests.count, 2)
     }
 
 }

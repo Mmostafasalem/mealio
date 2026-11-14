@@ -6,11 +6,14 @@ import Combine
 final class AppState {
 
     static let shared = AppState()
+    /// Invalidates in-flight requests made for erased data (Delete All Data only).
     var dataGeneration = UUID()
+    /// Root view identity. Changed only by Delete All Data so a sync apply never
+    /// rebuilds the UI (open sheets and in-flight chat replies stay intact).
+    var uiIdentity = UUID()
 
+    /// Refreshes stores in place after a remote sync apply.
     func reloadStoredData() {
-        dataGeneration = UUID()
-        agentLoop.invalidateUserData()
         userProfile = UserProfile.load()
         bmrData = Self.loadBMR()
         weeklyMealPlan = Self.loadWeeklyMealPlan()
@@ -119,12 +122,11 @@ final class AppState {
 
     private static func loadWeeklyMealPlan() -> WeeklyMealPlan? {
         guard let data = UserDefaults.standard.data(forKey: Constants.Storage.currentMealPlan) else { return nil }
-        return try? JSONDecoder().decode(WeeklyMealPlan.self, from: data)
+        return ResilientStorage.decode(WeeklyMealPlan.self, from: data, key: Constants.Storage.currentMealPlan)
     }
 
     private static func loadGroceryDeals() -> [Deal] {
-        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.groceryDeals) else { return [] }
-        return (try? JSONDecoder().decode([Deal].self, from: data)) ?? []
+        ResilientStorage.loadArray(Deal.self, key: Constants.Storage.groceryDeals)
     }
 }
 

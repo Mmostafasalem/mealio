@@ -17,17 +17,18 @@ class PrivacyDeclarationTests(unittest.TestCase):
     def test_current_data_flows_have_valid_separate_categories(self):
         types = {entry["NSPrivacyCollectedDataType"] for entry in self.manifest["NSPrivacyCollectedDataTypes"]}
         self.assertEqual(types, {
-            "NSPrivacyCollectedDataTypePreciseLocation",
             "NSPrivacyCollectedDataTypeHealth",
             "NSPrivacyCollectedDataTypeFitness",
             "NSPrivacyCollectedDataTypeOtherUserContent",
             "NSPrivacyCollectedDataTypeUserID",
             "NSPrivacyCollectedDataTypeProductInteraction",
+            "NSPrivacyCollectedDataTypeDeviceID",
+            "NSPrivacyCollectedDataTypeSearchHistory",
         })
 
     def test_optional_online_content_does_not_claim_anonymity(self):
         entries = {entry["NSPrivacyCollectedDataType"]: entry for entry in self.manifest["NSPrivacyCollectedDataTypes"]}
-        for name in ("Health", "Fitness", "OtherUserContent", "UserID", "ProductInteraction"):
+        for name in ("Health", "Fitness", "OtherUserContent", "UserID", "ProductInteraction", "DeviceID"):
             with self.subTest(category=name):
                 self.assertTrue(entries.get("NSPrivacyCollectedDataType" + name, {}).get("NSPrivacyCollectedDataTypeLinked"))
         self.assertFalse(self.manifest["NSPrivacyTracking"])

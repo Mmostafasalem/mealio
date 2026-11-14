@@ -1,9 +1,9 @@
 # Nourlo — Claude Code Context
 
 ## What This App Is
-Nourlo (folder/target still named `smartmarket`; user-facing name is **Nourlo**) is an iOS app (SwiftUI) for Vilnius, Lithuania. It watches nearby grocery deals, matches them against the user's cart/favourites, builds AI meal plans around those foods within the user's weekly budget, and tracks daily calorie/macro intake with real food logging.
+Nourlo (folder/target still named `smartmarket`; user-facing name is **Nourlo**) is an iOS app (SwiftUI). It builds AI meal plans around the user's cart/favourites within their weekly budget, tracks daily calorie/macro intake with real food logging, keeps a home stock, and builds workouts (Train tab). It shows **no retailer names and uses no location**: one product catalogue with one estimated price per item.
 
-**Backend:** a Python Flask/WSGI app — `smartmarket-backend/server.py` wraps the business logic in `app.py` (run via gunicorn; deploy on **Render**, see `DEPLOY.md`). It serves a **curated product catalog** (`deals_data.json`) enriched with **Open Food Facts** nutrition (`openfoodfacts.py`), and uses **Groq** for AI meal plans / chat / recipes (model via `GROQ_MODEL` env, default `llama-3.3-70b-versatile`; object endpoints use Groq JSON mode + a 25s/1-retry client). No live scraping.
+**Backend:** a Python Flask/WSGI app — `smartmarket-backend/server.py` wraps the business logic in `app.py` (run via gunicorn; deploy on **Render**, see `DEPLOY.md`). It serves a **curated product catalog** (`deals_data.json`) enriched with **Open Food Facts** nutrition (`openfoodfacts.py`), and uses **Groq** for AI meal plans / chat / recipes (model via `GROQ_MODEL` env, default `openai/gpt-oss-120b`; object endpoints use Groq JSON mode + a 25s/1-retry client). AI is only reachable when `AI_ACCOUNTS_ENABLED=1`; the hosted backend runs catalog-only until activation. No live scraping.
 
 **Offline-first:** when the backend is unreachable the iOS app falls back to on-device data — bundled deals, local Mifflin-St Jeor BMR, and a **realistic meal plan composed from the user's Shop cart within budget** (`Services/FallbackData.swift`).
 
@@ -17,15 +17,14 @@ smartmarket/
     │   ├── SmartMarketAgentApp.swift  ← @main, AppDelegate, Notification.Name extensions
     │   ├── AppState.swift             ← @Observable singleton — shared truth for profile, deals, plan
     │   ├── AgentLoop.swift            ← Background 30s tick: refresh deals → match → notify → regen plan
-    │   ├── MainTabView.swift          ← 5-tab root (Home / MealPlan / Groceries / Map / Profile)
-    │   └── OnboardingFlow.swift       ← NavigationStack wrapping the 5 onboarding screens
+    │   ├── MainTabView.swift          ← 4-tab root (Home / Meals / Shop / Train); Profile opens from the avatar on Home
+    │   └── OnboardingFlow.swift       ← NavigationStack + OnboardingStep; one question per screen (9 steps)
     ├── Features/
     │   ├── Home/                      ← Calorie ring, macro bars, deals carousel, meal preview, log sheet
     │   ├── MealPlan/                  ← Today / Week segmented view, regenerate button, recommendations
     │   ├── GroceryList/               ← Grouped-by-store list with price totals and share
-    │   ├── Map/                       ← MapKit map with store pins, StoreDetailSheet (deals + recipes)
     │   ├── Profile/                   ← Body stats, dietary prefs, favourite foods, notification toggles
-    │   └── Onboarding/               ← BMRInput → Location → Goal → Diet → Notifications → FavoriteFoods
+    │   └── Onboarding/               ← Name → Gender → Age → Height → Weight → Activity → Goal (→ Pace) → Diet → FavoriteFoods
     ├── Models/
     │   ├── BackendModels.swift        ← Deal, BMRRequest/Response, MealPlanRequest, WeeklyMealPlan, etc.
     │   ├── MealPlan.swift             ← MealEntry, MealPlan, GroceryItem, ShoppingRecommendation + bridge
@@ -36,7 +35,6 @@ smartmarket/
     │   └── StoreRecipe.swift          ← StoreRecipe, StoreRecipeTemplate + catalog (14 recipes)
     ├── Services/
     │   ├── APIService.swift           ← actor; GET /deals, POST /bmr /meal-plan /gap-fillers /shopping-advice
-    │   ├── LocationService.swift      ← @Observable CLLocationManager wrapper
     │   ├── NotificationService.swift  ← UNUserNotificationCenter, deal push with Buy/Skip actions
     │   └── BMRCalculator.swift        ← Pure Mifflin-St Jeor BMR/TDEE/macro math (no networking)
     ├── Components/
@@ -46,7 +44,8 @@ smartmarket/
     │   ├── DealNotificationBanner.swift ← In-app banner with 8s auto-dismiss
     │   ├── Shimmer.swift              ← Skeleton loader modifier
     │   ├── FlowLayout.swift           ← Wrapping chip layout (custom Layout)
-    │   └── OnboardingProgressBar.swift ← 5-step capsule progress indicator
+    │   ├── OnboardingScaffold.swift   ← Shared onboarding frame: back, progress "3 / 11", title, pinned action; option rows
+    │   └── RulerPicker.swift          ← Drag-to-pick tick ruler (replaces sliders) + kg/lb and cm/ft unit helpers
     └── Utilities/
         ├── Constants.swift            ← API URLs, UserDefaults keys, calorie floors, onboarding limits
         └── Color+Brand.swift          ← brandPrimary, brandDark, brandAmber, brandDanger + hex init
@@ -64,10 +63,11 @@ smartmarket/
 |--------|------|---------|
 | GET | `/api/health` | Liveness check |
 | GET | `/api/deals` | All deals (optional `?lat=&lon=&radius=` filter) |
-| POST | `/api/bmr` | BMR/TDEE calc from `{weight,height,age,gender,activityLevel}` |
+| POST | `/api/bmr` | BMR/TDEE calc from `{weight,height,age,gender,activityLevel}` (web only; iOS computes BMR on-device via `BMRCalculator`) |
 | POST | `/api/meal-plan` | 7-day meal plan from `{user,bmrData,groceryList,goal,lang}` |
 | POST | `/api/gap-fillers` | Filler foods for calorie gaps |
 | POST | `/api/shopping-advice` | Ranked shopping recommendations |
+| POST | `/api/workout` | One training session from `{kind,level,minutes,focus,request,user}` (AI, metered; validated + clamped, static fallback) |
 
 **Backend field names use camelCase in BMR request but the iOS `BMRRequest` sends `activityLevel` (camelCase). The backend also uses `activityLevel` as the key — be consistent.**
 
@@ -136,7 +136,8 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 - **Bundle ID:** `com.mostafa.mealio` · **Display name:** Nourlo · **Swift:** 5.0
 - **iOS Deployment Target:** 17.0
 - **No SPM/CocoaPods dependencies** (pure Apple frameworks)
-- Backend dev: `cd smartmarket/smartmarket-backend && GROQ_API_KEY=... python app.py` (stdlib dev server) or `gunicorn server:app` (prod). See `DEPLOY.md`.
+- Backend dev: `cd smartmarket/smartmarket-backend && python app.py` (Flask dev server; `GROQ_API_KEY` only needed with `AI_ACCOUNTS_ENABLED=1`) or `gunicorn server:app` (prod). The Docker image defaults to `MEALIO_ENV=production` (fail-closed); pass `-e MEALIO_ENV=development` locally. See `DEPLOY.md`.
+- Backend tests: `python -m pytest -q` in the backend folder (needs `pip install -r requirements.lock pytest`).
 - Point the app at a backend by setting `API_BASE_URL` (and `API_KEY`) in `smartmarket/Info.plist`.
 
 ## Conventions
@@ -146,4 +147,11 @@ Color.brandDanger     // #E24B4A  red — over-limit, errors
 - Onboarding uses a single shared `OnboardingViewModel` passed via `@Bindable` to each screen (not environment)
 - SF Symbols only — no custom image assets
 - All monetary values are EUR (`€`), formatted as `String(format: "%.2f", value)`
-- All weights kg, heights cm, distances metres (5000 = 5 km)
+- All weights kg, heights cm, distances metres (5000 = 5 km). Lbs / ft are display-only preferences (`Constants.Storage.weightUnit` / `heightUnit`); stored values stay metric
+- **Train:** `Features/Train/` (builder, workout detail, exercise library, history). `Models/Exercise.swift` holds the catalogue and workout types; `Services/WorkoutService.swift` has `WorkoutBuilder` (on-device fallback) and `WorkoutStore` (UserDefaults). `APIService.generateWorkout` calls `/api/workout`; any failure falls back to `WorkoutBuilder`. `Components/ExerciseFigure.swift` draws the animated how-to stick figure (`ExerciseMotion` poses; every catalogue exercise must map to one)
+- **Reminders:** `Services/ReminderStore.swift` (local repeating `UNCalendarNotificationTrigger`s, ids prefixed `reminder_`, off until the bell is turned on; `due()` feeds the Home stack). UI in `Features/Profile/RemindersView.swift`, reached from the bell in Home's header and from Profile
+- **Chat** is a half-height popup (`AgentChatSheet`) led by the animated bowl; **exercise demos** are 3D (`Components/ExerciseFigure3D.swift`, SceneKit) with the flat `ExerciseFigureCanvas` only as a fallback; the tab bar ends in a `GooMenu` of quick actions (no search field)
+- **Ported motion components** live in `Components/Motion/` with the original constants noted in each header: `CartButton` (catalogue and cart quantity, via `QuantityStepper`), `StackPanel` (Train's in-place exercise browser), `BellButton`, `NotificationStack`, `ThinkingText`, `GooMenu`
+- **No store names in UI.** Cart rows keep a `store` field only for storage/sync shape; everything belongs to `ShopStore.catalog`, and old retailer carts migrate on load
+- Numeric input uses `RulerPicker`, not `Slider` (the two-thumb price `RangeSlider` is the exception)
+- Onboarding screens don't scroll: use `OnboardingScaffold`, which pins the action and caps Dynamic Type at accessibility1

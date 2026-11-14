@@ -32,6 +32,7 @@ final class HomeViewModel {
     }
 
     private let log = FoodLogStore.shared
+    static let maxChatHistory = 20
 
     private var favoriteFoodIDs: Set<String> = {
         Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
@@ -78,11 +79,8 @@ final class HomeViewModel {
         fatGoal     = Double(t.fatG)
     }
 
-    /// Deals filtered to stores within 8 km. Falls back to all deals when location is unavailable.
-    var nearbyDeals: [MarketDeal] {
-        guard let _ = LocationService.shared.userLocation else { return deals }
-        return deals.filter { LocationService.shared.isNearby($0.store, radius: 8_000) }
-    }
+    /// Catalogue estimates shown on Home. (Named for the location filter it used to apply.)
+    var nearbyDeals: [MarketDeal] { deals }
 
     init() {
         if let weekly = AppState.shared.weeklyMealPlan { mealPlan = MealPlan.from(weekly: weekly) }
@@ -91,6 +89,18 @@ final class HomeViewModel {
             forName: .groceryListDidChange, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.groceryList = GroceryStorage.load() }
+        }
+
+        // Profile edits and sync apply change goals/macros in place.
+        NotificationCenter.default.addObserver(
+            forName: .personalDataDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.profile = .load()
+                self.favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+                self.refreshMacroTargets()
+            }
         }
 
         NotificationCenter.default.addObserver(
@@ -109,7 +119,7 @@ final class HomeViewModel {
     func load() async {
         guard !isLoading && !isRefreshing else { return }
         log.reload()                       // daily reset handled by the store
-        if profile.name.isEmpty { profile = .load() }
+        profile = .load()
         groceryList = GroceryStorage.load()
         favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
         refreshMacroTargets()
@@ -237,19 +247,15 @@ final class HomeViewModel {
         defer { isChatLoading = false }
 
         let appState = AppState.shared
-        let goalStr = appState.userProfile.weightGoal.rawValue
-        let target = appState.bmrData?.maintainCalories ?? 2000
         let favNames = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
 
-        let history = chatMessages.dropLast().map {
+        // Only the most recent turns are needed for context; cap what is sent.
+        let history = chatMessages.dropLast().suffix(Self.maxChatHistory).map {
             AgentChatHistoryItem(role: $0.role, content: $0.content)
         }
-        let context = AgentUserContext(
-            goal: goalStr,
-            targetCalories: target,
-            caloriesConsumed: consumed,
-            favoriteFoods: favNames
-        )
+        log.reload()
+        let context = AgentUserContext.make(profile: .load(), entries: log.entries, stock: StockStore.shared.items,
+                                             preferences: .load(), favoriteFoods: favNames, lang: appState.lang)
         let request = AgentChatRequest(message: text, history: Array(history), userContext: context)
 
         do {

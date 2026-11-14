@@ -12,7 +12,8 @@ final class AIConnectionState {
         if OwnerAITestConfiguration.current != nil {
             return ownerReady ? "AI on your Mac" : "Mac AI disconnected"
         }
-        return AIAccountService.shared.isAvailable ? "Online AI ready" : "Local guide"
+        let account = AIAccountService.shared
+        return account.isSignedIn ? "AI account connected" : (account.isAvailable ? "Sign in for AI" : "Local guide")
     }
 
     func checkOwnerConnection() async {

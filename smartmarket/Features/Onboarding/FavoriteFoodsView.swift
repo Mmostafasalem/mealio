@@ -6,31 +6,52 @@ struct FavoriteFoodsView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            itemList
-            finishBar
+        OnboardingScaffold(vm: vm, step: .favorites, title: "Build your fridge",
+                           subtitle: "Pick at least \(Constants.Onboarding.minimumFavorites) things you buy regularly. Meal plans start from these.",
+                           contentPadding: 0) {
+            VStack(spacing: 0) {
+                searchField
+                categoryStrip
+                itemList
+            }
+        } footer: {
+            finishButton
         }
-        .background(Color.surfaceGrouped.ignoresSafeArea())
-        .navigationBarHidden(true)
     }
 
-    // MARK: - Progress + title
-
-    private func favoriteRow(_ item: CatalogItem) -> some View {
-        ItemRow(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+    private func chip(_ item: CatalogItem) -> some View {
+        FoodChip(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
     }
 
-    private var progressHeader: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            OnboardingProgressBar(currentStep: 5).padding(.top, 8)
-            Text("Build your fridge")
-                .font(.title2).fontWeight(.bold)
-            Text("Pick everything you buy regularly. We'll use these to tailor your meal plans and grocery suggestions.")
-                .font(.subheadline).foregroundStyle(Color.labelSecondary).fixedSize(horizontal: false, vertical: true)
+    /// One category's foods as wrapping chips, like the diet screen.
+    private func chips(_ items: [CatalogItem]) -> some View {
+        FlowLayout(spacing: 10) {
+            ForEach(items, content: chip)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 14)
-        .background(Color.surfaceGrouped)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Search
+
+    private var searchField: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
+            TextField("Search \(CatalogItem.all.count) products", text: $vm.foodSearchQuery)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.search)
+            if !vm.foodSearchQuery.isEmpty {
+                Button { vm.foodSearchQuery = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelTertiary)
+                }
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .frame(minHeight: 48)
+        .background(Color.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+        .padding(.horizontal, Spacing.xl)
     }
 
     // MARK: - Category strip
@@ -47,94 +68,61 @@ struct FavoriteFoodsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.vertical, Spacing.md)
         }
-        .background(Color.surfaceGrouped)
-        .overlay(Divider(), alignment: .bottom)
     }
 
     // MARK: - Item list
 
     private var itemList: some View {
-        List {
-            // Keep explanatory content scrollable: at accessibility text sizes
-            // a fixed header can consume the entire product list's height.
-            progressHeader
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            categoryStrip
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            if vm.filteredItems.isEmpty {
-                Text("No items match your search.")
-                    .foregroundStyle(Color.labelSecondary)
-                    .listRowBackground(Color.clear)
-            } else if vm.selectedCategory == nil && vm.foodSearchQuery.isEmpty {
-                // Grouped by category
-                ForEach(CatalogCategory.allCases) { cat in
-                    let items = CatalogItem.all.filter { $0.category == cat }
-                    if !items.isEmpty {
-                        Section {
-                            ForEach(items, content: favoriteRow)
-                        } header: {
-                            CategorySectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
+        // The catalogue is the one thing here that has to scroll.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: Spacing.xl) {
+                if vm.filteredItems.isEmpty {
+                    Text("No items match your search.")
+                        .foregroundStyle(Color.labelSecondary)
+                } else if vm.selectedCategory == nil && vm.foodSearchQuery.isEmpty {
+                    // Grouped by category
+                    ForEach(CatalogCategory.allCases) { cat in
+                        let items = CatalogItem.all.filter { $0.category == cat }
+                        if !items.isEmpty {
+                            VStack(alignment: .leading, spacing: Spacing.md) {
+                                CategorySectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
+                                chips(items)
+                            }
                         }
                     }
-                }
-            } else {
-                // Flat list when searching or category filtered
-                Section {
-                    ForEach(vm.filteredItems) { item in
-                        ItemRow(
-                            item: item,
-                            isSelected: vm.favoriteFoodIDs.contains(item.id)
-                        ) { vm.toggleFavorite(item) }
-                    }
+                } else {
+                    // One group when searching or filtered to a category
+                    chips(vm.filteredItems)
                 }
             }
+            .padding(.horizontal, Spacing.xl)
+            .padding(.bottom, Spacing.xl)
         }
-        .listStyle(.insetGrouped)
-        .searchable(text: $vm.foodSearchQuery, prompt: "Search \(CatalogItem.all.count) products…")
+        .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.immediately)
+        .accessibilityIdentifier("favorites.list")
     }
 
-    // MARK: - Finish bar
+    // MARK: - Finish
 
-    private var finishBar: some View {
-        VStack(spacing: 6) {
-            if !vm.canFinish {
-                let remaining = Constants.Onboarding.minimumFavorites - vm.favoritesCount
-                Text("Pick \(remaining) more to continue")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-            }
-            Button {
-                vm.finish()
-                hasCompletedOnboarding = true
-            } label: {
-                HStack(spacing: 10) {
-                    Text(vm.canFinish ? "Done — \(vm.favoritesCount) items" : "Finish Setup")
-                        .font(.headline)
-                    Spacer()
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title3)
-                }
-                .padding(.horizontal, Spacing.xl)
-                .padding(.vertical, Spacing.lg)
-                .background(vm.canFinish ? Color.dullPink : Color(.systemFill),
-                            in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .foregroundStyle(vm.canFinish ? Color.onAccent : Color.labelSecondary)
-            }
-            .disabled(!vm.canFinish)
-            .accessibilityIdentifier("onboarding.favorites.finish")
-            .animation(.spring(duration: 0.3), value: vm.canFinish)
-            .padding(.horizontal, 20)
+    private var finishButton: some View {
+        Button {
+            vm.finish()
+            hasCompletedOnboarding = true
+        } label: {
+            Text(vm.canFinish
+                 ? "Done — \(vm.favoritesCount) items"
+                 : "Pick \(Constants.Onboarding.minimumFavorites - vm.favoritesCount) more to continue")
+                .contentTransition(.numericText())
+                .primaryButtonLabel(enabled: vm.canFinish)
         }
-        .padding(.vertical, 14)
-        .background(.ultraThinMaterial)
-        .overlay(Divider(), alignment: .top)
+        .buttonStyle(ScalePressStyle())
+        .disabled(!vm.canFinish)
+        .accessibilityIdentifier("onboarding.favorites.finish")
+        .animation(.snappyValue, value: vm.favoritesCount)
     }
 }
 
@@ -155,7 +143,8 @@ private struct CategoryChip: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(.spring(duration: 0.2), value: isSelected)
+        // Colour-only change, so it stays animated under Reduce Motion.
+        .animation(.snappyValue, value: isSelected)
     }
 }
 
@@ -190,42 +179,36 @@ private struct CategorySectionHeader: View {
     }
 }
 
-// MARK: - Item row
+// MARK: - Food chip
 
-private struct ItemRow: View {
+/// A food as a pill you tap to pick, matching the diet screen's chips.
+private struct FoodChip: View {
     let item: CatalogItem
     let isSelected: Bool
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 14) {
-                // Category color dot
-                Circle()
-                    .fill(Color.labelPrimary.opacity(0.18))
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Image(systemName: item.category.symbol)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.labelPrimary)
-                    )
-
+            HStack(spacing: 6) {
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.caption.weight(.bold))
+                        .transition(.scale.combined(with: .opacity))
+                }
                 Text(item.name)
-                    .font(.body)
-                    .foregroundStyle(Color.labelPrimary)
-
-                Spacer()
-
-                // Checkmark
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
-                    .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
             }
-            .contentShape(Rectangle())
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(isSelected ? Color.dullPink : Color.surfaceSecondary, in: Capsule())
+            .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
+            .overlay(Capsule().strokeBorder(isSelected ? Color.clear : Color(.separator), lineWidth: 0.5))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .animation(.spring(duration: 0.2, bounce: 0.3), value: isSelected)
         .accessibilityIdentifier("favorite.item.\(item.id)")
         .accessibilityLabel(item.name)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -254,15 +237,14 @@ struct ProductFavoriteCard: View {
                     .font(.subheadline)
                     .foregroundStyle(Color.labelPrimary)
                 Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
-                    .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
+                // Like Burst heart; the whole row stays the tap target.
+                LikeBurstHeart(isOn: isSelected)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

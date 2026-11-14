@@ -13,6 +13,9 @@ struct EditBodyStatsView: View {
     @State private var gender: Gender = .male
     @State private var activityLevel: ActivityLevel = .sedentary
     
+    @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
+    @AppStorage(Constants.Storage.heightUnit) private var heightUnit: HeightUnit = .cm
+
     @FocusState private var focusedField: Field?
     
     private enum Field {
@@ -52,8 +55,18 @@ struct EditBodyStatsView: View {
             }
 
             Section("Body") {
-                StatSlider(label: "Weight", value: $weight, range: 40...150, step: 0.5, unit: "kg", symbol: "scalemass.fill")
-                StatSlider(label: "Height", value: $height, range: 140...220, step: 1, unit: "cm", symbol: "ruler.fill")
+                StatRuler(label: "Weight", symbol: "scalemass.fill", valueText: WeightRuler.text(weight, weightUnit)) {
+                    UnitToggle(selection: $weightUnit, options: WeightUnit.allCases, label: \.label,
+                               accessibilityName: "Weight unit")
+                } ruler: {
+                    WeightRuler(kilograms: $weight, unit: weightUnit)
+                }
+                StatRuler(label: "Height", symbol: "ruler.fill", valueText: HeightRuler.text(height, heightUnit)) {
+                    UnitToggle(selection: $heightUnit, options: HeightUnit.allCases, label: \.label,
+                               accessibilityName: "Height unit")
+                } ruler: {
+                    HeightRuler(centimetres: $height, unit: heightUnit)
+                }
                 
                 Stepper(value: $age, in: 10...100) {
                     HStack {
@@ -141,25 +154,30 @@ struct EditBodyStatsView: View {
     }
 }
 
-// Keep this component isolated and clean
-private struct StatSlider: View {
+/// A labelled ruler row: name and live value on top, unit switch, then the ruler.
+private struct StatRuler<Toggle: View, Ruler: View>: View {
     let label: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let unit: String
     let symbol: String
+    let valueText: String
+    @ViewBuilder var toggle: () -> Toggle
+    @ViewBuilder var ruler: () -> Ruler
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: Spacing.sm) {
             HStack {
                 Image(systemName: symbol).foregroundStyle(Color.brandPrimary).frame(width: 22)
                 Text(label)
                 Spacer()
-                Text("\(value, specifier: step < 1 ? "%.1f" : "%.0f") \(unit)")
-                    .foregroundStyle(Color.brandPrimary).monospacedDigit()
+                toggle().scaleEffect(0.85, anchor: .trailing)
             }
-            Slider(value: $value, in: range, step: step).tint(Color.brandPrimary)
+            Text(valueText)
+                .font(.system(.title, design: .rounded).weight(.semibold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.snappyValue, value: valueText)
+                .accessibilityHidden(true)
+            ruler().frame(height: 96)
         }
+        .padding(.vertical, Spacing.xs)
     }
 }
