@@ -142,7 +142,7 @@ struct AgentChatSheet: View {
 
     private var mood: MascotMood {
         if vm.isChatLoading { return .thinking }
-        if vm.lastChatFailed { return .help }
+        if vm.lastChatFailed { return .worried }
         return vm.chatMessages.last?.role == "assistant" ? .celebrate : .idle
     }
 
