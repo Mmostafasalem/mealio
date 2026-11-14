@@ -28,6 +28,7 @@ struct FloatingBowlGuide: View {
     @State private var celebration: UUID?
     @State private var mover = BowlGuideMover(rig: MascotRig())
     @State private var carrying = false
+    @State private var regionSize: CGSize = .zero
     @State private var lastCarryEnd = Date.distantPast
     @GestureState private var carryGesture = false
     @State private var pickups = 0
@@ -72,14 +73,24 @@ struct FloatingBowlGuide: View {
                         .padding(.bottom, Spacing.sm)
                         .transition(reduceMotion ? .opacity : .scale(scale: 0.97, anchor: leading ? .bottomLeading : .bottomTrailing).combined(with: .opacity))
                     }
+                    // While the bowl is being carried, a target appears: drop it there to put it away.
+                    if carrying {
+                        dismissTarget(near: isOverDismiss(in: geometry.size))
+                            .position(dismissPoint(in: geometry.size))
+                            .transition(reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
+                    }
                     mascot
+                        .scaleEffect(carrying && isOverDismiss(in: geometry.size) ? 0.72 : 1)
+                        .animation(reduceMotion ? nil : .snappyValue, value: isOverDismiss(in: geometry.size))
                         .offset(x: mover.position.x - Self.slot / 2, y: mover.position.y - Self.slot / 2)
                         .opacity(mover.isPlaced ? 1 : 0)
                 }
+                .animation(reduceMotion ? .easeOut(duration: 0.15) : .snappyValue, value: carrying)
+                .sensoryFeedback(.impact(weight: .medium), trigger: isOverDismiss(in: geometry.size))
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
                 .coordinateSpace(name: Self.space)
-                .onAppear { configure(geometry.size) }
-                .onChange(of: geometry.size) { _, size in configure(size) }
+                .onAppear { regionSize = geometry.size; configure(geometry.size) }
+                .onChange(of: geometry.size) { _, size in regionSize = size; configure(size) }
             }
             .sheet(isPresented: Binding(
                 get: { expanded && typeSize.isAccessibilitySize },
@@ -93,7 +104,7 @@ struct FloatingBowlGuide: View {
             }
             .onChange(of: expanded) { _, open in
                 // Open: dock at the bottom of its side under the panel, looking up at it.
-                mover.settle(leading: leading, fraction: open ? 1 : restFraction, remember: false)
+                mover.settle(leading: leading, fraction: 1, remember: false)
                 mover.rig.look(at: open ? CGPoint(x: leading ? 0.5 : -0.5, y: -1) : nil)
             }
             .onChange(of: attention) { _, on in if on { glanceAtNotice() } }
@@ -111,6 +122,33 @@ struct FloatingBowlGuide: View {
                 mover.stop()
             }
         }
+    }
+
+    // MARK: Drag to put away
+
+    /// Where the "put away" target sits: bottom centre, clear of both corners.
+    private func dismissPoint(in size: CGSize) -> CGPoint {
+        CGPoint(x: size.width / 2, y: size.height - 52)
+    }
+
+    private func isOverDismiss(in size: CGSize) -> Bool {
+        guard carrying else { return false }
+        let target = dismissPoint(in: size)
+        return hypot(mover.position.x - target.x, mover.position.y - target.y) < 64
+    }
+
+    private func dismissTarget(near: Bool) -> some View {
+        Image(systemName: "xmark")
+            .font(.headline.weight(.bold))
+            .foregroundStyle(near ? Color.onAccent : Color.labelPrimary)
+            .frame(width: 56, height: 56)
+            .background(near ? AnyShapeStyle(Color.dullPink) : AnyShapeStyle(.regularMaterial), in: Circle())
+            .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1))
+            .scaleEffect(near ? 1.25 : 1)
+            .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+            .animation(reduceMotion ? nil : .snappyValue, value: near)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 
     /// The bowl's button slot: 52 pt character plus the 12 pt touch padding on each side.
@@ -178,14 +216,21 @@ struct FloatingBowlGuide: View {
         }
         mover.configure(region: CGRect(origin: .zero, size: size), radius: Self.slot / 2,
                         inset: CGSize(width: Spacing.lg, height: Spacing.sm),
-                        leading: leading, fraction: expanded ? 1 : restFraction)
+                        leading: leading, fraction: 1)
     }
 
     /// Release (or a cancelled gesture, which never reaches `onEnded`).
     private func endCarry(velocity: CGSize) {
         guard carrying else { return }
+        // Dropped on the ×: put the guide away. Profile brings it back.
+        let putAway = isOverDismiss(in: regionSize)
         carrying = false
         lastCarryEnd = Date()
+        if putAway {
+            mover.release(velocity: .zero, reduceMotion: true)
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .snappyValue) { hide() }
+            return
+        }
         mover.release(velocity: velocity, reduceMotion: reduceMotion)
     }
 
@@ -198,7 +243,7 @@ struct FloatingBowlGuide: View {
 
     private func moveToOtherSide() {
         leading.toggle()
-        mover.settle(leading: leading, fraction: expanded ? 1 : restFraction, remember: !expanded)
+        mover.settle(leading: leading, fraction: 1, remember: !expanded)
     }
 
     private func hide() {

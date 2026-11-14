@@ -87,9 +87,10 @@ final class BowlGuideMover {
     private func nearestRest(from p: CGPoint) -> (CGPoint, Bool, Double) {
         let l = lane
         let leading = p.x < l.midX
-        let y = motionClamp(p.y, l.minY, l.maxY)
-        let fraction = l.height > 0 ? (y - l.minY) / l.height : 1
-        return (CGPoint(x: leading ? l.minX : l.maxX, y: y), leading, fraction)
+        // Wherever it is dropped or thrown, the bowl comes to rest in a bottom
+        // corner, just above the tab bar: the strip the layout keeps free for
+        // it. Resting higher up would sit on top of the screen's content.
+        return (CGPoint(x: leading ? l.minX : l.maxX, y: l.maxY), leading, 1)
     }
 
     // MARK: Moves

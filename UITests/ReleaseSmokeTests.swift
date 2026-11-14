@@ -224,6 +224,33 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("profile-from-avatar")
     }
 
+    func testBowlReturnsToItsDockAndCanBePutAway() {
+        let app = XCUIApplication()
+        // A saved resting spot high on the screen (from an older version) is ignored.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-bowlGuideVisible_v2", "YES", "-bowlGuideIntroduced_v2", "YES", "-bowlGuideRestY_v3", "0.2"]
+        app.launch()
+        let bowl = app.buttons["mascot.guide"].firstMatch
+        XCTAssertTrue(bowl.waitForExistence(timeout: 30))
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        let restY = bowl.frame.midY
+        XCTAssertGreaterThan(restY, app.frame.height * 0.7, "The bowl rests near the bottom, clear of the content")
+        // Carried up the screen and released, it comes back down to its dock.
+        let centre = bowl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        centre.press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.25)),
+                     withVelocity: .slow, thenHoldForDuration: 0.3)
+        RunLoop.current.run(until: Date().addingTimeInterval(3))
+        XCTAssertEqual(bowl.frame.midY, restY, accuracy: 24)
+        // Dropped on the x at the bottom centre, it is put away.
+        let target = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: 0, dy: bowl.frame.midY - app.frame.midY + 10))
+        bowl.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.2, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 0.4)
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        XCTAssertFalse(app.buttons["mascot.guide"].exists)
+        capture("bowl-put-away")
+    }
+
     func testFloatingBowlGuideLargeText() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
