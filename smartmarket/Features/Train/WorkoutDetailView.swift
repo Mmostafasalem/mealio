@@ -160,6 +160,8 @@ struct WorkoutHistoryView: View {
                 .swipeActions { Button("Delete", role: .destructive) { store.removeCompleted(session) } }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("History")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarHidden(false)
@@ -226,6 +228,8 @@ struct ExerciseLibraryView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarHidden(false)

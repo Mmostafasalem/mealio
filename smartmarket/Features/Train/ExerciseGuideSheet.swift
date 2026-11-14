@@ -85,12 +85,9 @@ struct ExerciseGuideSheet: View {
                             keyFrame(motion, finish: true, number: 2, label: motion.isContinuous ? "Other side" : "Finish")
                         }
 
-                        HStack(spacing: Spacing.sm) {
-                            Circle().fill(Color.progress).frame(width: 10, height: 10)
-                            Text("Pink shows the part of the body that moves. Drag the figure to look around it.")
-                                .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        }
-                        .accessibilityElement(children: .combine)
+                        Label("Drag the figure to look around it.", systemImage: "hand.draw")
+                            .font(.footnote)
+                            .foregroundStyle(Color.labelSecondary)
                     }
 
                     if !guide.steps.isEmpty {

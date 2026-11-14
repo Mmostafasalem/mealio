@@ -21,16 +21,16 @@ final class FigureScene {
     private var bones: [SCNNode] = []
     private var propNodes: [String: SCNNode] = [:]
     private let head = SCNNode()
+    private var neck = SCNNode()
 
     // Half-widths of the body, in scene units (the figure is about 1.7 tall).
     private static let shoulderHalf: Float = 0.2
     private static let hipHalf: Float = 0.11
 
-    init(prop: ExerciseMotion.Prop, working: (arms: Bool, legs: Bool), dark: Bool) {
+    init(prop: ExerciseMotion.Prop, dark: Bool) {
         self.prop = prop
         let traits = UITraitCollection(userInterfaceStyle: dark ? .dark : .light)
         let body = UIColor(Color.labelPrimary).resolvedColor(with: traits)
-        let accent = UIColor(Color.progress).resolvedColor(with: traits)
         let kit = UIColor(Color.labelSecondary).resolvedColor(with: traits)
         let ground = UIColor(Color.labelTertiary).resolvedColor(with: traits).withAlphaComponent(0.14)
 
@@ -40,22 +40,26 @@ final class FigureScene {
             m.lightingModel = .lambert
             return m
         }
-        let bodyMaterial = material(body), armMaterial = material(working.arms ? accent : body)
-        let legMaterial = material(working.legs ? accent : body), kitMaterial = material(kit)
+        // One material for the whole body, so it reads as a single figure.
+        // Only the equipment has its own colour.
+        let bodyMaterial = material(body), kitMaterial = material(kit)
 
-        func bone(radius: CGFloat, _ m: SCNMaterial) -> SCNNode {
-            let geometry = SCNCylinder(radius: radius, height: 1)
-            geometry.radialSegmentCount = 16
-            geometry.materials = [m]
+        /// A limb segment that tapers from `start` radius to `end` radius, so
+        /// neighbouring segments meet at the same thickness with no step.
+        func bone(from start: CGFloat, to end: CGFloat) -> SCNNode {
+            let geometry = SCNCone(topRadius: end, bottomRadius: start, height: 1)
+            geometry.radialSegmentCount = 24
+            geometry.materials = [bodyMaterial]
             let node = SCNNode(geometry: geometry)
             scene.rootNode.addChildNode(node)
             bones.append(node)
             return node
         }
-        func joint(radius: CGFloat, _ m: SCNMaterial) -> SCNNode {
+        /// A ball that rounds off a joint; its radius matches the segments meeting there.
+        func joint(radius: CGFloat) -> SCNNode {
             let geometry = SCNSphere(radius: radius)
-            geometry.segmentCount = 16
-            geometry.materials = [m]
+            geometry.segmentCount = 24
+            geometry.materials = [bodyMaterial]
             let node = SCNNode(geometry: geometry)
             scene.rootNode.addChildNode(node)
             joints.append(node)
@@ -63,22 +67,25 @@ final class FigureScene {
         }
         // Order matters: `apply` fills these in the same order.
         // Bones: spine upper, spine lower, shoulders, hips, then per side: upper arm, forearm, thigh, shin.
-        _ = bone(radius: 0.115, bodyMaterial); _ = bone(radius: 0.115, bodyMaterial)
-        _ = bone(radius: 0.075, bodyMaterial); _ = bone(radius: 0.085, bodyMaterial)
+        _ = bone(from: 0.125, to: 0.115); _ = bone(from: 0.115, to: 0.12)
+        _ = bone(from: 0.085, to: 0.085); _ = bone(from: 0.1, to: 0.1)
         for _ in 0..<2 {
-            _ = bone(radius: 0.052, armMaterial); _ = bone(radius: 0.046, armMaterial)
-            _ = bone(radius: 0.068, legMaterial); _ = bone(radius: 0.056, legMaterial)
+            _ = bone(from: 0.085, to: 0.058); _ = bone(from: 0.058, to: 0.046)
+            _ = bone(from: 0.1, to: 0.07); _ = bone(from: 0.07, to: 0.052)
         }
         // Joints: spine top, mid, bottom, then per side: shoulder, elbow, hand, hip, knee, foot.
-        _ = joint(radius: 0.115, bodyMaterial); _ = joint(radius: 0.115, bodyMaterial); _ = joint(radius: 0.115, bodyMaterial)
+        _ = joint(radius: 0.125); _ = joint(radius: 0.115); _ = joint(radius: 0.12)
         for _ in 0..<2 {
-            _ = joint(radius: 0.075, armMaterial); _ = joint(radius: 0.052, armMaterial); _ = joint(radius: 0.06, armMaterial)
-            _ = joint(radius: 0.085, legMaterial); _ = joint(radius: 0.068, legMaterial); _ = joint(radius: 0.075, legMaterial)
+            _ = joint(radius: 0.085); _ = joint(radius: 0.058); _ = joint(radius: 0.056)
+            _ = joint(radius: 0.1); _ = joint(radius: 0.07); _ = joint(radius: 0.066)
         }
         let skull = SCNSphere(radius: 0.14)
+        skull.segmentCount = 32
         skull.materials = [bodyMaterial]
         head.geometry = skull
         scene.rootNode.addChildNode(head)
+        // A neck, so the head joins the shoulders instead of floating.
+        neck = bone(from: 0.07, to: 0.06)
 
         // Ground: a soft disc so the figure has something to stand on.
         let disc = SCNCylinder(radius: 1.1, height: 0.012)
@@ -94,12 +101,14 @@ final class FigureScene {
         let ambient = SCNNode()
         ambient.light = SCNLight()
         ambient.light?.type = .ambient
-        ambient.light?.intensity = 620
+        // Mostly ambient: enough shading to read as 3D, not enough to draw
+        // a line where two parts of the body meet.
+        ambient.light?.intensity = 820
         scene.rootNode.addChildNode(ambient)
         let key = SCNNode()
         key.light = SCNLight()
         key.light?.type = .directional
-        key.light?.intensity = 620
+        key.light?.intensity = 380
         key.eulerAngles = SCNVector3(-0.9, 0.7, 0)
         scene.rootNode.addChildNode(key)
 
@@ -210,6 +219,7 @@ final class FigureScene {
         }
         joints[0].simdPosition = top; joints[1].simdPosition = mid; joints[2].simdPosition = bottom
         head.simdPosition = world(pose.head, z: 0)
+        stretch(neck, from: top, to: world(pose.head, z: 0))
 
         poseProps(near: (near.hand, near.hip, near.foot), far: (far.hand, far.hip, far.foot), pose: pose)
     }
@@ -284,7 +294,7 @@ struct ExerciseFigure3DView: UIViewRepresentable {
     func updateUIView(_ view: SCNView, context: Context) {
         let dark = colorScheme == .dark
         if context.coordinator.figure == nil || context.coordinator.dark != dark || context.coordinator.motion != motion {
-            let figure = FigureScene(prop: motion.prop, working: motion.workingLimbs, dark: dark)
+            let figure = FigureScene(prop: motion.prop, dark: dark)
             context.coordinator.figure = figure
             context.coordinator.dark = dark
             context.coordinator.motion = motion
@@ -313,7 +323,7 @@ enum ExerciseSnapshot {
     static func image(_ motion: ExerciseMotion, finish: Bool, dark: Bool, side: CGFloat = 240) -> UIImage? {
         let key = "\(motion.rawValue)-\(finish)-\(dark)-\(Int(side))" as NSString
         if let hit = cache.object(forKey: key) { return hit }
-        let figure = FigureScene(prop: motion.prop, working: motion.workingLimbs, dark: dark)
+        let figure = FigureScene(prop: motion.prop, dark: dark)
         figure.apply(finish ? motion.poses.1 : motion.poses.0)
         let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
         renderer.scene = figure.scene
