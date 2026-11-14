@@ -106,7 +106,7 @@ struct Exercise: Identifiable, Hashable {
         .init(id: "push-up", name: "Push-up", kind: .home, focus: .upper, muscles: "Chest, triceps, core", equipment: "None", level: .beginner, prescription: "3 × 10", howTo: "Body in one line from head to heels. Lower your chest to the floor; use your knees if needed."),
         .init(id: "pike-push-up", name: "Pike push-up", kind: .home, focus: .upper, muscles: "Shoulders, triceps", equipment: "None", level: .intermediate, prescription: "3 × 8", howTo: "Hips high in an upside-down V. Lower the top of your head between your hands and press back."),
         .init(id: "chair-dip", name: "Chair dip", kind: .home, focus: .upper, muscles: "Triceps", equipment: "Sturdy chair", level: .beginner, prescription: "3 × 10", howTo: "Hands on the chair edge, lower until elbows are about 90 degrees and keep shoulders away from your ears."),
-        .init(id: "superman", name: "Superman hold", kind: .home, focus: .upper, muscles: "Lower back, glutes", equipment: "None", level: .beginner, prescription: "3 × 20 sec", howTo: "Lying face down, lift arms and legs a little and hold while looking at the floor."),
+        .init(id: "superman", name: "Superman hold", kind: .home, focus: .core, muscles: "Lower back, glutes", equipment: "None", level: .beginner, prescription: "3 × 20 sec", howTo: "Lying face down, lift arms and legs a little and hold while looking at the floor."),
         .init(id: "plank", name: "Plank", kind: .home, focus: .core, muscles: "Abs, shoulders", equipment: "None", level: .beginner, prescription: "3 × 30 sec", howTo: "Elbows under shoulders, squeeze glutes and keep hips level with your shoulders."),
         .init(id: "dead-bug", name: "Dead bug", kind: .home, focus: .core, muscles: "Deep abs", equipment: "None", level: .beginner, prescription: "3 × 8 each side", howTo: "Lower back pressed to the floor. Extend the opposite arm and leg slowly, then switch."),
         .init(id: "mountain-climber", name: "Mountain climber", kind: .home, focus: .core, muscles: "Abs, hip flexors", equipment: "None", level: .intermediate, prescription: "3 × 30 sec", howTo: "From a push-up position, drive knees to chest one at a time while keeping hips low."),
@@ -321,8 +321,8 @@ struct Exercise: Identifiable, Hashable {
         .init(id: "reverse-crunch", name: "Reverse crunch", kind: .home, focus: .core, muscles: "Abs", equipment: "Mat", level: .beginner, prescription: "3 × 12", howTo: "Lie on your back with knees bent and curl your hips off the floor, bringing your knees toward your chest. Lower slowly without swinging your legs."),
         .init(id: "knee-push-up", name: "Knee push-up", kind: .home, focus: .upper, muscles: "Chest, triceps, shoulders", equipment: "Mat", level: .beginner, prescription: "3 × 12", howTo: "From your knees, keep a straight line from head to knees and lower your chest between your hands. Press back up without letting your hips sag."),
         .init(id: "wide-push-up", name: "Wide push-up", kind: .home, focus: .upper, muscles: "Chest, shoulders", equipment: "None", level: .beginner, prescription: "3 × 10", howTo: "Set your hands well outside shoulder width and lower your chest toward the floor with a straight body. Stop if you feel it pinch in the front of your shoulders."),
-        .init(id: "decline-push-up", name: "Decline push-up", kind: .home, focus: .upper, muscles: "Upper chest, shoulders, triceps", equipment: "Bench or box", level: .intermediate, prescription: "3 × 10", howTo: "Rest your feet on a bench and your hands on the floor, then lower your chest with your body in one straight line. Keep your core tight so your lower back does not dip."),
-        .init(id: "feet-elevated-pike-push-up", name: "Feet-elevated pike push-up", kind: .home, focus: .upper, muscles: "Shoulders, triceps", equipment: "Box", level: .advanced, prescription: "3 × 6", howTo: "With your feet on a box and hips stacked high over your hands, bend your elbows to lower the top of your head toward the floor. Press back up and keep your elbows tucked, not flared."),
+        .init(id: "decline-push-up", name: "Decline push-up", kind: .home, focus: .upper, muscles: "Upper chest, shoulders, triceps", equipment: "Chair or bench", level: .intermediate, prescription: "3 × 10", howTo: "Rest your feet on a bench and your hands on the floor, then lower your chest with your body in one straight line. Keep your core tight so your lower back does not dip."),
+        .init(id: "feet-elevated-pike-push-up", name: "Feet-elevated pike push-up", kind: .home, focus: .upper, muscles: "Shoulders, triceps", equipment: "Box or chair", level: .advanced, prescription: "3 × 6", howTo: "With your feet on a box and hips stacked high over your hands, bend your elbows to lower the top of your head toward the floor. Press back up and keep your elbows tucked, not flared."),
         .init(id: "archer-push-up", name: "Archer push-up", kind: .home, focus: .upper, muscles: "Chest, triceps, shoulders", equipment: "None", level: .advanced, prescription: "3 × 6 each side", howTo: "With hands wide, lower toward one hand while the other arm straightens out to the side. Push back up and switch sides, keeping your hips level."),
         .init(id: "typewriter-push-up", name: "Typewriter push-up", kind: .home, focus: .upper, muscles: "Chest, shoulders, triceps", equipment: "None", level: .advanced, prescription: "3 × 6 each side", howTo: "Lower into a wide push-up, then shift your chest across to one hand and back to the other before pressing up. Stay low and keep your body straight as you slide."),
         .init(id: "explosive-push-up", name: "Explosive push-up", kind: .home, focus: .upper, muscles: "Chest, triceps, shoulders", equipment: "None", level: .advanced, prescription: "4 × 6", howTo: "Lower under control, then push up hard enough for your hands to leave the floor. Land with soft elbows and go straight into the next rep."),
@@ -353,8 +353,8 @@ struct Exercise: Identifiable, Hashable {
         .init(id: "forward-lunge", name: "Forward lunge", kind: .home, focus: .lower, muscles: "Quads, glutes", equipment: "None", level: .beginner, prescription: "3 × 10 each side", howTo: "Step forward and lower until both knees are bent to about 90 degrees, back knee just above the floor. Push through the front heel to return to standing."),
         .init(id: "curtsy-lunge", name: "Curtsy lunge", kind: .home, focus: .lower, muscles: "Glutes, quads", equipment: "None", level: .beginner, prescription: "3 × 10 each side", howTo: "Step one foot behind and across the other, then bend both knees to lower your hips. Keep your hips square to the front and push through the front heel to stand."),
         .init(id: "skater-squat", name: "Skater squat", kind: .home, focus: .lower, muscles: "Quads, glutes", equipment: "None", level: .advanced, prescription: "3 × 6 each side", howTo: "Stand on one leg, bend the other behind you, and squat until the back knee nearly touches the floor. Lean your chest forward slightly for balance and keep the front knee in line with your toes."),
-        .init(id: "single-leg-box-squat", name: "Single-leg box squat", kind: .home, focus: .lower, muscles: "Quads, glutes", equipment: "Box", level: .intermediate, prescription: "3 × 8 each side", howTo: "Stand in front of a box on one leg with the other held out in front, and sit back until you touch the box. Stand up without rocking, keeping the knee over your toes."),
-        .init(id: "step-down", name: "Step-down", kind: .home, focus: .lower, muscles: "Quads, glutes", equipment: "Box", level: .beginner, prescription: "3 × 10 each side", howTo: "Stand on a box on one leg and slowly lower the other heel to tap the floor beside it. Keep the standing knee tracking over your toes and press back up through that heel."),
+        .init(id: "single-leg-box-squat", name: "Single-leg box squat", kind: .home, focus: .lower, muscles: "Quads, glutes", equipment: "Box or chair", level: .intermediate, prescription: "3 × 8 each side", howTo: "Stand in front of a box on one leg with the other held out in front, and sit back until you touch the box. Stand up without rocking, keeping the knee over your toes."),
+        .init(id: "step-down", name: "Step-down", kind: .home, focus: .lower, muscles: "Quads, glutes", equipment: "Step or box", level: .beginner, prescription: "3 × 10 each side", howTo: "Stand on a box on one leg and slowly lower the other heel to tap the floor beside it. Keep the standing knee tracking over your toes and press back up through that heel."),
         .init(id: "calf-raise", name: "Calf raise", kind: .home, focus: .lower, muscles: "Calves", equipment: "None", level: .beginner, prescription: "3 × 15", howTo: "Stand tall with feet hip-width apart and rise as high as you can onto the balls of your feet. Pause at the top, then lower your heels slowly; hold a support lightly for balance."),
         .init(id: "single-leg-calf-raise", name: "Single-leg calf raise", kind: .home, focus: .lower, muscles: "Calves", equipment: "None", level: .beginner, prescription: "3 × 12 each side", howTo: "Stand on one foot holding a support for balance and rise as high as you can onto the ball of the foot. Lower slowly until the heel is just below or level with the toes."),
         .init(id: "glute-bridge-march", name: "Glute bridge march", kind: .home, focus: .lower, muscles: "Glutes, hamstrings, core", equipment: "Mat", level: .intermediate, prescription: "3 × 10 each side", howTo: "Lift your hips into a bridge, then raise one knee toward your chest and set it down before switching legs. Keep your hips level and squeezed up the whole time."),
@@ -411,6 +411,102 @@ struct Exercise: Identifiable, Hashable {
     ]
 }
 
+// MARK: - Lookups, kit and movement families
+
+extension Exercise {
+    /// The catalogue by lowercased name, for matching a workout step (written by AI or saved earlier) to its entry.
+    static let byLowercasedName: [String: Exercise] = Dictionary(catalog.map { ($0.name.lowercased(), $0) },
+                                                                 uniquingKeysWith: { first, _ in first })
+
+    /// The catalogue entry with this name, ignoring case and surrounding spaces.
+    static func named(_ name: String) -> Exercise? {
+        byLowercasedName[name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
+    }
+
+    /// Things found in any home. Anything else (a bar, dip bars, parallettes, a bench,
+    /// a box, a band, a ball, weights) counts as kit.
+    static let householdKit: Set<String> = [
+        "none", "mat", "wall", "a wall", "floor", "chair", "sturdy chair", "towel", "optional weight",
+        "doorway", "a doorway", "door frame", "sturdy support", "sturdy table", "step", "sturdy step", "stairs",
+    ]
+
+    /// True when the exercise can be done with household things only, so it suits a
+    /// "little or no kit" home session. `equipment` reads as alternatives joined by
+    /// " or ", each a comma-separated list of things needed together; "(… optional)"
+    /// notes are ignored. One alternative made only of household things is enough.
+    var needsNoKit: Bool {
+        var text = equipment.lowercased()
+        if let open = text.firstIndex(of: "("), text.contains("optional)") { text = String(text[..<open]) }
+        return text.components(separatedBy: " or ").contains { alternative in
+            let items = alternative.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            return !items.isEmpty && items.allSatisfy { Self.householdKit.contains($0) }
+        }
+    }
+
+    /// The movement this is a version of ("hinge", "row", "push-up" …), so a session
+    /// doesn't fill up with variants of one lift. Exercises that fit no family are their own.
+    var family: String {
+        let words = ExerciseText.words(name)
+        func has(_ phrase: String) -> Bool { ExerciseText.contains(words, phrase) }
+        let table: [(String, [String])] = [
+            ("calf raise", ["calf raise"]),
+            ("triceps", ["triceps", "tricep", "skull crusher", "skullcrusher", "pushdown", "overhead extension",
+                         "overhead dumbbell extension"]),
+            ("chest press", ["bench press", "chest press", "incline dumbbell press", "decline dumbbell press"]),
+            ("lunge", ["lunge", "split squat", "step up", "step down"]),
+            ("hinge", ["deadlift", "good morning", "pull through", "swing", "rack pull"]),
+            ("back extension", ["back extension", "hyperextension", "superman"]),
+            ("bridge", ["hip thrust", "bridge", "frog pump"]),
+            ("leg curl", ["leg curl", "hamstring curl", "nordic"]),
+            ("hip abduction", ["abduction", "clamshell", "fire hydrant", "lateral walk", "monster walk"]),
+            ("glute kickback", ["kickback", "donkey kick"]),
+            ("vertical push", ["overhead press", "shoulder press", "dumbbell press", "arnold press", "push press",
+                               "landmine press", "pike", "handstand", "wall walk"]),
+            ("push-up", ["push up", "pushup"]),
+            ("rear delt", ["reverse fly", "rear delt", "reverse pec deck", "face pull", "pull apart",
+                           "t raise", "y raise", "snow angel"]),
+            ("fly", ["fly", "pec deck"]),
+            ("vertical pull", ["pulldown", "pull up", "chin up"]),
+            ("hang", ["hang"]),
+            ("row", ["row"]),
+            ("dip", ["dip"]),
+            ("lateral raise", ["lateral raise"]),
+            ("front raise", ["front raise"]),
+            ("curl", ["curl"]),
+            ("squat", ["squat"]),
+            ("plank", ["plank"]),
+            ("crunch", ["crunch", "sit up"]),
+            ("rotation", ["twist", "woodchop", "side bend", "windmill"]),
+            ("anti-rotation", ["pallof"]),
+            ("leg raise", ["leg raise", "knee raise", "knee tuck", "v up", "flutter", "hollow", "dragon flag", "l sit"]),
+            ("dead bug", ["dead bug", "bird dog"]),
+        ]
+        for (family, phrases) in table where phrases.contains(where: has) { return family }
+        return words.joined(separator: " ")
+    }
+}
+
+/// Word-level text matching for exercise names, so "row" doesn't match "narrow".
+enum ExerciseText {
+    /// Lowercased words, split on anything that isn't a letter, digit or apostrophe
+    /// ("Push-up" → ["push", "up"]).
+    static func words(_ text: String) -> [String] {
+        text.lowercased()
+            .split(whereSeparator: { !($0.isLetter || $0.isNumber || $0 == "'") })
+            .map(String.init)
+    }
+
+    /// True when the words of `phrase` appear one after another in `words`.
+    static func contains(_ words: [String], _ phrase: String) -> Bool {
+        let needle = Self.words(phrase)
+        guard !needle.isEmpty, needle.count <= words.count else { return false }
+        for start in 0...(words.count - needle.count) where Array(words[start..<start + needle.count]) == needle {
+            return true
+        }
+        return false
+    }
+}
+
 // MARK: - Workouts
 
 struct WorkoutExercise: Codable, Hashable, Identifiable {
@@ -449,6 +545,15 @@ struct Workout: Codable, Hashable, Identifiable {
     var createdAt = Date()
 
     var isFromAI: Bool { source == "ai" }
+
+    /// What the session is, independent of its `id` (a new one each time a session is
+    /// built): kind, level, length, title and the exercises in order. Two separately
+    /// built but identical sessions share it, so marking either as done logs it once a day.
+    var contentKey: String {
+        ([kind.rawValue, level.rawValue, String(durationMinutes), title.lowercased()]
+            + exercises.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+            .joined(separator: "|")
+    }
 
     /// Rough energy use for someone of this weight (MET × kg × hours).
     func estimatedCalories(weightKg: Double) -> Int {
@@ -514,6 +619,11 @@ struct WorkoutResponse: Codable {
 /// A session the person marked as done.
 struct CompletedWorkout: Codable, Hashable, Identifiable {
     var id = UUID()
+    /// The workout this logs. `nil` in older entries.
+    var workoutID: UUID? = nil
+    /// The logged session's `Workout.contentKey`, so marking the same session twice in a day
+    /// adds nothing, even when it was built twice. `nil` in older entries.
+    var contentKey: String? = nil
     let title: String
     let kind: ExerciseKind
     let minutes: Int

@@ -121,6 +121,7 @@ private struct CategoryChip: View {
         .buttonStyle(.plain)
         // Colour-only change, so it stays animated under Reduce Motion.
         .animation(.snappyValue, value: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -169,6 +170,7 @@ private struct ItemRow: View {
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

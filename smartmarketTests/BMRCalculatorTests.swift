@@ -16,8 +16,12 @@ final class BMRCalculatorTests: XCTestCase {
     }
 
     func testCalorieFloorRespected() {
-        let goal = BMRCalculator.dailyGoal(tdee: 1000, goal: .lose, pace: .medium, gender: .female)
-        XCTAssertGreaterThanOrEqual(goal, Constants.Calories.minimumFemale)
+        // The safety floor holds whenever the person burns more than it…
+        let goal = BMRCalculator.dailyGoal(tdee: 1400, goal: .lose, pace: .fast, gender: .female)
+        XCTAssertEqual(goal, Constants.Calories.minimumFemale)
+        // …but a weight-loss target never rises above what they burn (that would be a surplus).
+        let tiny = BMRCalculator.dailyGoal(tdee: 1000, goal: .lose, pace: .medium, gender: .female)
+        XCTAssertLessThanOrEqual(tiny, 1000)
     }
 
     func testMacroSplitRoughlySumsToCalories() {

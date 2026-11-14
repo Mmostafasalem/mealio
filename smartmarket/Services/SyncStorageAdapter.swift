@@ -68,6 +68,7 @@ enum SyncStorageAdapter {
         }
         for (key, data) in lists { UserDefaults.standard.set(data, forKey: key) }
         ShoppingCartService.shared.reloadFromStorage()
+        StockStore.shared.reload()
         FoodLogStore.shared.reload()
         AppState.shared.reloadStoredData()
         NotificationCenter.default.post(name: .personalDataDidChange, object: nil)

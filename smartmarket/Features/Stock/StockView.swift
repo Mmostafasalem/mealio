@@ -7,10 +7,11 @@ struct StockView: View {
     @State private var selected: StockItem?
     @State private var errorMessage: String?
     @State private var query = ""
+    @State private var pendingRemoval: StockItem?
 
     private var filtered: [StockItem] {
         store.items.filter { query.isEmpty || $0.food.name.localizedStandardContains(query) }
-            .sorted { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }
+            .sorted(by: StockItem.expiryOrder)
     }
 
     var body: some View {
@@ -25,24 +26,31 @@ struct StockView: View {
                 ContentUnavailableView("Your stock starts here", systemImage: "cabinet",
                                        description: Text("Search reference foods, enter a barcode, or choose one of your saved dishes."))
             }
+            else if filtered.isEmpty && !query.isEmpty {
+                ContentUnavailableView.search(text: query)
+                    .listRowBackground(Color.clear)
+            }
             ForEach(filtered) { item in
                 Button { selected = item } label: {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(item.food.name).foregroundStyle(.primary)
                         Text("\(item.amount.formatted()) \(item.food.basis.rawValue) available")
                             .font(.subheadline).foregroundStyle(.secondary)
-                        if let expiry = item.expiresAt {
-                            Text("Use by \(expiry.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.caption).foregroundStyle(expiry < Date() ? Color.red : Color.secondary)
+                        if let expiry = item.expiryDay() {
+                            let expired = item.isExpired()
+                            Text((expired ? "Expired · use by " : "Use by ") + expiry.formatted(date: .abbreviated, time: .omitted))
+                                .font(.caption).foregroundStyle(expired ? Color.red : Color.secondary)
                         }
                     }
                 }
                 .accessibilityIdentifier("stock.item." + item.food.id)
-                .swipeActions {
-                    Button("Remove", role: .destructive) {
-                        do { try store.remove(id: item.id) } catch { errorMessage = error.localizedDescription }
-                    }
+                .swipeActions(allowsFullSwipe: false) {
+                    Button("Remove", role: .destructive) { pendingRemoval = item }
                 }
+                .contextMenu {
+                    Button("Remove from stock", systemImage: "trash", role: .destructive) { pendingRemoval = item }
+                }
+                .accessibilityAction(named: "Remove from stock") { pendingRemoval = item }
             }
         }
         .scrollContentBackground(.hidden)
@@ -57,6 +65,17 @@ struct StockView: View {
             })
         }
         .sheet(item: $selected) { item in StockItemSheet(item: item, store: store) }
+        .confirmationDialog("Remove \(pendingRemoval?.food.name ?? "this food") from your stock?",
+                            isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
+                            titleVisibility: .visible, presenting: pendingRemoval) { item in
+            Button("Remove", role: .destructive) {
+                do { try store.remove(id: item.id) } catch { errorMessage = error.localizedDescription }
+                pendingRemoval = nil
+            }
+            Button("Cancel", role: .cancel) { pendingRemoval = nil }
+        } message: { _ in
+            Text("Food you have already logged stays in your history.")
+        }
         .alert("Could not update stock", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK") { errorMessage = nil }
         } message: { Text(errorMessage ?? "") }
@@ -72,6 +91,7 @@ private struct StockItemSheet: View {
     @State private var slot = MealSlot.suggested()
     @State private var expiry = Date()
     @State private var hasExpiry = false
+    @State private var confirmRemove = false
     @State private var errorMessage: String?
     private var value: Double? { Double(amount.replacingOccurrences(of: ",", with: ".")) }
     private var remainingValue: Double? { Double(remainingAmount.replacingOccurrences(of: ",", with: ".")) }
@@ -102,7 +122,14 @@ private struct StockItemSheet: View {
                     Button("Save remaining amount") {
                         perform { try store.update(id: item.id, amount: remainingValue ?? 0, expiresAt: hasExpiry ? expiry : nil) }
                     }.disabled(remainingValue == nil || (remainingValue ?? 0) <= 0)
-                    Button("Remove from stock", role: .destructive) { perform { try store.remove(id: item.id) } }
+                    Button("Remove from stock", role: .destructive) { confirmRemove = true }
+                        .confirmationDialog("Remove \(item.food.name) from your stock?", isPresented: $confirmRemove,
+                                            titleVisibility: .visible) {
+                            Button("Remove", role: .destructive) { perform { try store.remove(id: item.id) } }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Food you have already logged stays in your history.")
+                        }
                 }
                 Section("Nutrition source") {
                     Text(item.food.sourceName)
@@ -117,7 +144,7 @@ private struct StockItemSheet: View {
                 amount = String(min(item.amount, item.food.defaultAmount))
                 remainingAmount = String(item.amount)
                 hasExpiry = item.expiresAt != nil
-                expiry = item.expiresAt ?? Date()
+                expiry = item.expiryDay() ?? Date()
             }
         }
     }

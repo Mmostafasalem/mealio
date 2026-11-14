@@ -68,6 +68,12 @@ service from a network whose public IP you know, and confirm that your IP is
 the entry at position `len - TRUSTED_PROXY_COUNT`. Set `TRUSTED_PROXY_COUNT` if
 it differs, then remove the log line.
 
+This only holds while every request reaches the app through those proxies. The
+app trusts the hop the last proxy appended; if clients can reach gunicorn
+directly (an exposed port, a second host without the proxy), they control the
+whole header and can pick any IP, which defeats the per-IP limit. Keep the
+service reachable only through the platform proxy.
+
 ### Point the iOS app at it
 
 In `smartmarket/Info.plist`:
@@ -83,10 +89,10 @@ In `smartmarket/Info.plist`:
 - **Free tier sleeps** after inactivity; the first request after idle takes
   ~30–60s to cold-start. The app's 60s meal-plan timeout covers this, but
   consider a paid instance or a cron ping for production.
-- **1 worker, 4 threads**: keeps the in-process caches (catalog, recipe LRU,
-  idempotent-response replay) and the per-IP rate limiter shared. If you scale
-  to multiple workers or instances, move the rate limiter to shared storage. AI
-  quotas already live in the account database.
+- **1 worker, 4 threads**: keeps the in-process caches (catalog, recipe LRU)
+  and the per-IP rate limiter shared. If you scale to multiple workers or
+  instances, move the rate limiter to shared storage. AI quotas and
+  idempotent-response replays already live in the account database.
 - **Deals data**: products come from the curated `deals_data.json` feed (edit it
   weekly; there is no scraping and no scraper cache). Nutrition is enriched from
   **Open Food Facts** (by barcode, then name) with category-average fallback;

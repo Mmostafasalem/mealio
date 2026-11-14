@@ -62,6 +62,8 @@ struct SmartMarketAgentApp: App {
                 if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.stateForNudge()) }
             }
             .task(id: appState.isOnboarded) {
+                // Reads Train's exercise drawings on a background queue so they're ready when Train opens.
+                ExerciseDrawings.preload()
                 ReminderStore.shared.streakState = { DailyLoopStore.shared.state }
                 DailyLoopStore.shared.startObservingCart()
                 DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }

@@ -24,8 +24,21 @@
   - Transport or provider errors are refunded in full. If the provider answered
     but its output failed validation, 1 credit is kept (the provider call was
     paid for), so one account cannot drain the shared ceiling for free.
-  - `Idempotency-Key` requests are not rerun or charged twice. A failed request
-    releases its key so the client can retry with it.
+  - `Idempotency-Key` requests are not rerun or charged twice. A finished
+    response is stored with its claim in the account database (encrypted with
+    `AI_TOKEN_ENCRYPTION_KEY`, at most 128 KB, newest 64 per account, deleted
+    with the claim after 24 h or with the account), so a retry after a restart
+    gets the same result. A failed request releases its key so the client can
+    retry with it, and so does a request whose worker died before finishing
+    (once its 3-minute reservation has expired and been refunded).
+  - Response headers say which case happened: `X-AI-Result` is `online`,
+    `fallback`, `cached`, `cached-online` or `replayed-…`. A `fallback` also has
+    `X-AI-Fallback: unusable-output` (the provider answered but its output
+    failed validation: a 200 with the on-device-style fallback body, 1 credit
+    kept) or `provider-error` (nothing kept). `X-AI-Request-Key: released` means
+    the key was released: a retry with it is a new request that calls the
+    provider again and, if the output is unusable again, keeps another credit.
+    Clients should not retry an `unusable-output` fallback automatically.
   - Apple server-to-server deletion/revocation notifications are signature
     checked; `event_time` is accepted in seconds or milliseconds.
 - **Abuse protection:** per-IP rate limiting (60 req/min) with stale-bucket

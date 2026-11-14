@@ -53,7 +53,7 @@ struct CalorieSummaryCard: View {
             VStack(spacing: Spacing.md) {
                 macroRow(label: "Protein", symbol: "bolt.fill",
                          current: vm.proteinCurrent, goal: vm.proteinGoal,
-                         tooltip: "Protein builds and repairs muscle. Your target is \(Int(vm.proteinGoal))g/day based on your weight and goal.")
+                         tooltip: "Protein builds and repairs muscle. Your target is \(Self.grams(vm.proteinGoal))g/day based on your weight and goal.")
                 macroRow(label: "Carbs", symbol: "leaf.fill",
                          current: vm.carbsCurrent, goal: vm.carbsGoal,
                          tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
@@ -72,6 +72,19 @@ struct CalorieSummaryCard: View {
         // The three macro "i" buttons share one travelling tooltip bubble.
         .morphTooltipHost()
         .premiumCard(surface: .hero)
+    }
+
+    /// Whole grams, rounded to nearest (29.9 g reads 30 g, not 29 g).
+    static func grams(_ value: Double) -> Int {
+        value.isFinite ? Int(value.rounded()) : 0
+    }
+
+    static func macroText(current: Double, goal: Double) -> String {
+        "\(grams(current)) / \(grams(goal)) g"
+    }
+
+    static func macroAccessibilityText(label: String, current: Double, goal: Double) -> String {
+        "\(label): \(grams(current)) of \(grams(goal)) grams"
     }
 
     private func macroRow(label: String, symbol: String,
@@ -95,10 +108,10 @@ struct CalorieSummaryCard: View {
                         .frame(height: 24)
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                Text("\(Int(current)) / \(Int(goal)) g")
+                Text(Self.macroText(current: current, goal: goal))
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
-                    .accessibilityLabel("\(label): \(Int(current)) of \(Int(goal)) grams")
+                    .accessibilityLabel(Self.macroAccessibilityText(label: label, current: current, goal: goal))
             }
             ProgressView(value: min(max(current, 0), goal), total: max(goal, 1))
                 .tint(Color.brandPrimary)

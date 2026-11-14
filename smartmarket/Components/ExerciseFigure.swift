@@ -248,9 +248,10 @@ enum ExerciseMotion: String, CaseIterable {
             return (stand.arms(elbow: pt(0.51, 0.4), hand: pt(0.53, 0.53)), up)
         case .deadlift:
             let down = FigurePose(head: pt(0.66, 0.36), shoulder: pt(0.58, 0.44), hip: pt(0.4, 0.6))
-                .legs(knee: pt(0.56, 0.74), foot: pt(0.52, 0.9))
-                .arms(elbow: pt(0.585, 0.58), hand: pt(0.585, 0.71))
-            return (down, stand.arms(elbow: pt(0.51, 0.4), hand: pt(0.535, 0.53)))
+                .legs(knee: pt(0.54, 0.74), foot: pt(0.52, 0.9))
+                .arms(elbow: pt(0.62, 0.58), hand: pt(0.635, 0.71))
+            // At lockout the bar sits just in front of the thighs.
+            return (down, stand.arms(elbow: pt(0.52, 0.4), hand: pt(0.56, 0.53)))
         case .tricepsOverhead:
             return (stand.arms(elbow: pt(0.52, 0.13), hand: pt(0.45, 0.21)),
                     stand.arms(elbow: pt(0.52, 0.125), hand: pt(0.525, 0.0)))
@@ -264,11 +265,23 @@ enum ExerciseMotion: String, CaseIterable {
                     stand.arms(elbow: pt(0.535, 0.135), hand: pt(0.525, 0.005)))
         case .singleLegDeadlift, .sideLunge, .crunch, .highKnees, .march, .frontKick, .skip, .windmill,
              .kneeLift, .squatReach, .hipCircle, .sideShuffle, .jumpSquat,
-             .farmerCarry, .dumbbellSquat, .barbellLunge, .gobletSideLunge, .dumbbellSingleLegDeadlift,
+             .farmerCarry, .dumbbellSquat, .dumbbellSingleLegDeadlift,
              .dumbbellPunch, .raiseOverhead, .dumbbellSquatReach:
             var up = stand
             up.kneeF = pt(0.6, 0.62); up.footF = pt(0.58, 0.78)
             return (stand, up)
+        case .barbellLunge:
+            // Captured; these stand in without the clip. The bar stays on the upper back
+            // (hands just outside the shoulders, as in the back squat) while the legs lunge.
+            let rack = stand.arms(elbow: pt(0.44, 0.39), hand: pt(0.445, 0.275))
+            var down = FigurePose(head: pt(0.5, 0.25), shoulder: pt(0.5, 0.37), hip: pt(0.5, 0.66))
+                .arms(elbow: pt(0.44, 0.5), hand: pt(0.445, 0.385))
+            down.kneeF = pt(0.65, 0.72); down.footF = pt(0.66, 0.9)
+            down.kneeB = pt(0.42, 0.86); down.footB = pt(0.27, 0.87)
+            return (rack, down)
+        case .gobletSideLunge:
+            // Captured; without the clip it is drawn like the goblet squat, the weight at the chest.
+            return ExerciseMotion.gobletSquat.poses
         case .cycle:
             var a = FigurePose(head: pt(0.66, 0.24), shoulder: pt(0.58, 0.34), hip: pt(0.4, 0.5))
                 .arms(elbow: pt(0.68, 0.42), hand: pt(0.76, 0.46))
@@ -436,37 +449,103 @@ enum ExerciseMotion: String, CaseIterable {
         }
     }
 
-    /// Best match for a free-text exercise name (AI-written workouts). `nil`
-    /// when nothing fits, so no misleading demo is shown.
+    /// Best match for a free-text exercise name (AI-written workouts). A catalogue
+    /// exercise with the same (or nearly the same) name wins; otherwise whole words
+    /// and phrases are matched, most specific first, so "Narrow-grip push-up" is a
+    /// push-up and "Overhead triceps extension" is not a press. `nil` when nothing
+    /// fits, so no misleading demo is shown.
     static func matching(name: String) -> ExerciseMotion? {
-        let n = name.lowercased()
-        if let exact = Exercise.catalog.first(where: { $0.name.lowercased() == n }) { return byExerciseID[exact.id] }
-        // Order matters: more specific phrases first.
-        let rules: [(String, ExerciseMotion)] = [
-            ("mountain climber", .climber), ("burpee", .burpee), ("pike", .pikePushUp), ("push-up", .pushUp),
-            ("push up", .pushUp), ("pushup", .pushUp), ("dumbbell bench", .dumbbellBench), ("dumbbell press", .dumbbellBench),
-            ("bench", .benchPress), ("chest press", .benchPress), ("goblet", .gobletSquat), ("back squat", .backSquat),
-            ("barbell squat", .backSquat),
-            ("leg press", .legPress), ("overhead", .press), ("shoulder press", .press), ("military", .press),
-            ("pulldown", .pulldown), ("pull-down", .pulldown), ("pull-up", .pulldown), ("pull up", .pulldown), ("chin", .pulldown),
-            ("dumbbell row", .bentRow), ("one-arm", .bentRow), ("one arm", .bentRow), ("bent", .barbellRow), ("barbell row", .barbellRow), ("rowing", .rowing), ("rower", .rowing), ("row", .seatedRow),
-            ("deadlift", .hinge), ("good morning", .hinge), ("hip hinge", .hinge), ("kettlebell swing", .hinge),
-            ("lunge", .lunge), ("split squat", .lunge), ("step", .stepUp), ("stair", .stairs), ("squat", .squat),
-            ("bridge", .bridge), ("hip thrust", .bridge), ("plank", .plank), ("dead bug", .deadBug),
-            ("knee raise", .kneeRaise), ("leg raise", .kneeRaise), ("dip", .dip), ("superman", .superman),
-            ("woodchop", .woodchop), ("twist", .twist), ("rotation", .twist),
-            ("skipping", .jumpRope), ("rope", .jumpRope), ("jump", .jump),
-            ("sprint", .run), ("interval", .run), ("jog", .run), ("run", .run), ("walk", .walk),
-            ("cycl", .cycle), ("bike", .cycle), ("spin", .cycle), ("swim", .superman),
-            ("cat", .catCow), ("child", .childsPose), ("hamstring", .fold), ("forward fold", .fold), ("toe touch", .fold),
-            ("hip flexor", .lungeReach), ("world's greatest", .lungeReach), ("circle", .armCircle),
-        ]
-        return rules.first { n.contains($0.0) }?.1
+        if let known = Exercise.closestMatch(name: name), let motion = known.motion { return motion }
+        let words = ExerciseText.matchWords(name)
+        return rules.first { rule in
+            rule.phrases.contains { ExerciseText.containsFolded(words, $0) }
+                && !(rule.motion == .walk && notAPlainWalk(words))
+        }?.motion
     }
+
+    /// Words that make a "walk" a different exercise (a wall walk, crab walk, banded
+    /// monster walk, waiter's walk …): no demo is better than a misleading plain walk.
+    private static let notWalkWords: Set<String> = [
+        "wall", "crab", "bear", "duck", "spider", "hand", "monster", "band", "banded", "lateral",
+        "out", "plank", "inchworm", "waiter", "suitcase", "farmer", "carry", "overhead", "sled",
+        "lunge", "knee", "tightrope", "heel", "toe", "squat",
+    ]
+
+    private static func notAPlainWalk(_ words: [String]) -> Bool {
+        words.contains { notWalkWords.contains($0) }
+    }
+
+    /// Phrases are matched as whole words, after plurals are folded ("lunges" → "lunge").
+    private static let rules: [(phrases: [String], motion: ExerciseMotion)] = [
+        (["mountain climber"], .climber), (["burpee"], .burpee),
+        (["pike push up", "pike pushup"], .pikePushUp), (["push up", "pushup"], .pushUp),
+        (["dumbbell bench", "dumbbell chest press"], .dumbbellBench), (["bench press", "chest press"], .benchPress),
+        (["goblet squat"], .gobletSquat), (["back squat", "barbell squat"], .backSquat),
+        (["jump squat", "squat jump"], .jumpSquat), (["leg press"], .legPress),
+        (["overhead press", "shoulder press", "military press"], .press),
+        (["lat pulldown", "pulldown", "pull down", "pull up", "pullup", "chin up", "chinup"], .pulldown),
+        (["dumbbell row", "one arm row", "single arm row"], .bentRow),
+        (["bent over row", "barbell row"], .barbellRow),
+        (["rowing machine", "rower", "rowing", "erg row"], .rowing),
+        (["seated row", "cable row", "seated cable row"], .seatedRow),
+        (["upright row"], .uprightRow),
+        (["single leg deadlift", "single leg romanian deadlift"], .singleLegDeadlift),
+        (["romanian deadlift", "rdl", "deadlift", "good morning", "hip hinge", "kettlebell swing"], .hinge),
+        (["side lunge", "lateral lunge"], .sideLunge),
+        (["lunge", "split squat"], .lunge), (["step up"], .stepUp),
+        (["stair", "stair climb", "stair climber"], .stairs), (["squat"], .squat),
+        (["glute bridge", "hip bridge", "hip thrust"], .bridge), (["plank"], .plank), (["dead bug"], .deadBug),
+        (["knee raise", "leg raise"], .kneeRaise), (["dip"], .dip), (["superman"], .superman),
+        (["woodchop", "wood chop"], .woodchop), (["russian twist", "twist", "thoracic rotation"], .twist),
+        (["jump rope", "skipping rope", "skip rope", "rope skipping"], .jumpRope),
+        (["jumping jack", "star jump"], .jumpingJack), (["high knee"], .highKnees),
+        (["lateral raise", "side raise"], .lateralRaise), (["reverse fly", "rear delt fly"], .reverseFly),
+        (["shadow boxing", "shadowboxing"], .boxing), (["march", "marching"], .march), (["front kick"], .frontKick),
+        (["box jump", "tuck jump", "jump"], .jump),
+        (["cycling", "cycle", "bike", "spin", "spinning"], .cycle),
+        (["sprint", "jog", "jogging", "run", "running", "interval"], .run),
+        (["walk", "walking", "hike", "hiking"], .walk),
+        (["swim", "swimming"], .superman),
+        (["cat cow", "cat camel"], .catCow), (["child's pose", "childs pose", "child pose"], .childsPose),
+        (["hamstring stretch", "forward fold", "toe touch"], .fold),
+        (["hip flexor stretch", "hip flexor", "world's greatest stretch", "worlds greatest stretch"], .lungeReach),
+        (["arm circle", "shoulder circle"], .armCircle), (["leg circle", "hip circle"], .hipCircle),
+    ]
 }
 
 extension Exercise {
     var motion: ExerciseMotion? { ExerciseMotion.forExercise(id: id) }
+
+    /// The catalogue exercise a free-text name refers to: the same name ignoring case,
+    /// or the same words ignoring hyphens and plurals ("Push ups" → "Push-up").
+    static func closestMatch(name: String) -> Exercise? {
+        if let exact = named(name) { return exact }
+        let words = ExerciseText.matchWords(name)
+        guard !words.isEmpty else { return nil }
+        return byMatchWords[words.joined(separator: " ")]
+    }
+
+    private static let byMatchWords: [String: Exercise] = Dictionary(
+        catalog.map { (ExerciseText.matchWords($0.name).joined(separator: " "), $0) },
+        uniquingKeysWith: { first, _ in first })
+}
+
+extension ExerciseText {
+    /// Words for matching: lowercased, apostrophes dropped ("Child's" → "childs"), hyphens
+    /// split, plurals folded ("Lunges" → "lunge", "Push ups" → "push up", "childs" → "child");
+    /// two-letter words and "-ss" words are kept.
+    static func matchWords(_ text: String) -> [String] {
+        let plain = text.replacingOccurrences(of: "'", with: "").replacingOccurrences(of: "\u{2019}", with: "")
+        return words(plain).map { word in
+            guard word.count >= 3, word.hasSuffix("s"), !word.hasSuffix("ss") else { return word }
+            return String(word.dropLast())
+        }
+    }
+
+    /// `contains` for a phrase, folding the phrase's plurals the same way.
+    static func containsFolded(_ words: [String], _ phrase: String) -> Bool {
+        contains(words, matchWords(phrase).joined(separator: " "))
+    }
 }
 
 // MARK: - Drawing

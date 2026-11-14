@@ -25,19 +25,79 @@ final class ProfileViewModel {
         return String(letters).uppercased()
     }
 
-    func load() {
-        guard !didLoad else { return }
-        didLoad = true
-        profile = .load()
-        selectedPreferences = .load()
-        favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+    /// What was last loaded or saved, so `save()` can skip when nothing changed.
+    private struct Snapshot: Equatable {
+        var profile: UserProfile
+        var preferences: Set<DietaryPreference>
+        var favorites: Set<String>
+    }
+    @ObservationIgnored private var lastSaved: Snapshot?
+
+    private var current: Snapshot {
+        Snapshot(profile: profile, preferences: selectedPreferences, favorites: favoriteFoodIDs)
     }
 
-    func save() {
+    func load() {
+        guard !didLoad else { return }
+        load(profile: .load(), preferences: .load(),
+             favorites: Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? []))
+    }
+
+    /// Takes the given values as the loaded (already saved) state.
+    func load(profile: UserProfile, preferences: Set<DietaryPreference>, favorites: Set<String>) {
+        didLoad = true
+        self.profile = profile
+        selectedPreferences = preferences
+        favoriteFoodIDs = favorites
+        lastSaved = current
+    }
+
+    // MARK: - Goal
+
+    /// Under-18s are offered maintain or gain only.
+    var allowsWeightLoss: Bool { BMRCalculator.allowsWeightLoss(age: profile.age) }
+
+    var availableGoals: [WeightGoal] {
+        allowsWeightLoss ? WeightGoal.allCases : WeightGoal.allCases.filter { $0 != .lose }
+    }
+
+    /// Targets for the current body stats with a given goal and pace.
+    func targets(goal: WeightGoal? = nil, pace: LossPace? = nil) -> BMRCalculator.Targets {
+        BMRCalculator.targets(weight: profile.weight, height: profile.height, age: profile.age,
+                              gender: profile.gender, activityLevel: profile.activityLevel,
+                              goal: goal ?? profile.weightGoal, pace: pace ?? profile.lossPace)
+    }
+
+    func effectiveDeficit(for pace: LossPace) -> Int {
+        BMRCalculator.effectiveDeficit(tdee: targets().tdee, pace: pace, gender: profile.gender, age: profile.age)
+    }
+
+    func isCappedBySafetyFloor(_ pace: LossPace) -> Bool {
+        BMRCalculator.isCappedBySafetyFloor(tdee: targets().tdee, pace: pace, gender: profile.gender, age: profile.age)
+    }
+
+    func setGoal(_ goal: WeightGoal) {
+        profile.weightGoal = BMRCalculator.effectiveGoal(goal, age: profile.age)
+        save()
+    }
+
+    func setPace(_ pace: LossPace) {
+        profile.lossPace = pace
+        save()
+    }
+
+    // MARK: - Save
+
+    /// Recomputes targets (the same path as onboarding) and saves. Does nothing,
+    /// and posts nothing, when nothing changed since the last load or save.
+    @discardableResult
+    func save() -> Bool {
+        profile = Self.prepared(profile)
+        guard current != lastSaved else { return false }
         isSaving = true
         defer { isSaving = false }
-        BMRCalculator.populate(profile: &profile)
         profile.save()
+        UserProfile.markTargetsCurrent()
         selectedPreferences.save()
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
         // Propagate like onboarding does, so Home, the planner and the agent
@@ -46,6 +106,16 @@ final class ProfileViewModel {
         AppState.shared.saveBMR(BMRCalculator.response(for: profile,
                                                        isKeto: selectedPreferences.contains(.keto)))
         NotificationCenter.default.post(name: .personalDataDidChange, object: nil)
+        lastSaved = current
+        return true
+    }
+
+    /// The profile `save()` stores: goal moved to what the age allows and
+    /// targets recomputed. Pure, so tests can check it without the Keychain.
+    nonisolated static func prepared(_ profile: UserProfile) -> UserProfile {
+        var profile = profile
+        BMRCalculator.populate(profile: &profile)
+        return profile
     }
 
     func togglePreference(_ pref: DietaryPreference) {
@@ -97,9 +167,7 @@ final class ProfileViewModel {
         ShoppingCartService.shared.resetAll()
         LocalDataEraser.clear(defaults: .standard,
                               domain: Bundle.main.bundleIdentifier ?? "com.mostafa.mealio")
-        FoodLogStore.shared.clearAll()
-        WorkoutStore.shared.reload()
-        ReminderStore.shared.reload()
+        Self.reloadErasedStores()
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
 
@@ -122,6 +190,19 @@ final class ProfileViewModel {
         selectedPreferences = []
         favoriteFoodIDs = []
         didLoad = false
+        lastSaved = nil
         PrivateSyncService.shared.finishDeletion()
+    }
+
+    /// Every app-wide store that keeps user data in memory re-reads (now empty)
+    /// storage, so nothing erased can be shown again or written back. Called
+    /// right after the stored data is erased. The cart is reset before the
+    /// erase, and the food log (with stock and saved foods) clears itself.
+    static func reloadErasedStores() {
+        FoodLogStore.shared.clearAll()          // also StockStore and NutritionCatalogService
+        WorkoutStore.shared.reload()
+        ReminderStore.shared.reload()
+        RecipeRatingStore.shared.reload()
+        DailyLoopStore.shared.reset()
     }
 }

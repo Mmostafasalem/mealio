@@ -107,6 +107,8 @@ enum Constants {
         static let weightUnit               = "weightUnit_v1"
         /// "cm" or "ft" — display only; height is always stored in cm.
         static let heightUnit               = "heightUnit_v1"
+        /// Version of the calorie-target maths the saved profile was computed with.
+        static let targetsVersion           = "targetsVersion"
     }
 
     // MARK: - BMR safety floors
@@ -114,10 +116,16 @@ enum Constants {
         static let minimumFemale: Int = 1200
         static let minimumMale: Int   = 1500
         static let minimumOther: Int  = 1200
+        /// Below this age no weight-loss deficit is ever applied.
+        static let adultAge: Int      = 18
+        /// Daily surplus for "gain weight" (lean bulk).
+        static let gainSurplus: Int   = 300
     }
 
     // MARK: - Onboarding limits
     enum Onboarding {
         static let minimumFavorites = 5
+        static let minimumAge = 13
+        static let maximumAge = 100
     }
 }

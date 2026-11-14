@@ -33,9 +33,9 @@ struct RulerPicker: View {
     @State private var dragStart: Double?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var lowTick: Int { Int((range.lowerBound / step).rounded(.up)) }
-    private var highTick: Int { Int((range.upperBound / step).rounded(.down)) }
-    private var valueTick: Int { clampTick(Int((value / step).rounded())) }
+    private var lowTick: Int { RulerMath.lowTick(range, step: step) }
+    private var highTick: Int { RulerMath.highTick(range, step: step) }
+    private var valueTick: Int { RulerMath.tick(for: value, range: range, step: step) }
 
     private func clampTick(_ tick: Int) -> Int { min(max(tick, lowTick), highTick) }
     private func clampPosition(_ p: Double) -> Double { min(max(p, Double(lowTick)), Double(highTick)) }
@@ -65,8 +65,10 @@ struct RulerPicker: View {
         .accessibilityValue(spokenValue?(value) ?? tickLabel(value))
         .accessibilityAdjustableAction { direction in
             switch direction {
-            case .increment: value = Double(clampTick(valueTick + 1)) * step
-            case .decrement: value = Double(clampTick(valueTick - 1)) * step
+            case .increment:
+                if let next = RulerMath.newValue(current: value, targetTick: valueTick + 1, range: range, step: step) { value = next }
+            case .decrement:
+                if let next = RulerMath.newValue(current: value, targetTick: valueTick - 1, range: range, step: step) { value = next }
             @unknown default: break
             }
         }
@@ -79,7 +81,9 @@ struct RulerPicker: View {
         if dragStart == nil { dragStart = start }
         position = clampPosition(start + ticks(for: distance))
         let tick = clampTick(Int(position.rounded()))
-        if tick != valueTick { value = Double(tick) * step }
+        if let next = RulerMath.newValue(current: value, targetTick: tick, range: range, step: step) {
+            value = next
+        }
     }
 
     private func dragEnded(_ projectedDistance: CGFloat) {
@@ -89,7 +93,11 @@ struct RulerPicker: View {
         withAnimation(reduceMotion ? .reducedFade : .spring(response: 0.45, dampingFraction: 0.9)) {
             position = Double(target)
         }
-        value = Double(target) * step
+        // Only write when the tick changed: rewriting an untouched value would
+        // round a stored metric value through the display unit.
+        if let next = RulerMath.newValue(current: value, targetTick: target, range: range, step: step) {
+            value = next
+        }
     }
 
     private func ticks(for distance: CGFloat) -> Double {
@@ -114,6 +122,26 @@ struct RulerPicker: View {
                 .position(x: size.width / 2, y: size.height * anchor)
                 .allowsHitTesting(false)
         }
+    }
+}
+
+// MARK: - Tick math
+
+/// Pure tick arithmetic shared by the ruler (and its tests).
+enum RulerMath {
+    static func lowTick(_ range: ClosedRange<Double>, step: Double) -> Int { Int((range.lowerBound / step).rounded(.up)) }
+    static func highTick(_ range: ClosedRange<Double>, step: Double) -> Int { Int((range.upperBound / step).rounded(.down)) }
+
+    /// The tick a value rests on, clamped to the range.
+    static func tick(for value: Double, range: ClosedRange<Double>, step: Double) -> Int {
+        min(max(Int((value / step).rounded()), lowTick(range, step: step)), highTick(range, step: step))
+    }
+
+    /// The value to write when the ruler settles on `targetTick`, or nil when
+    /// that is the tick the current value already shows (nothing to write).
+    static func newValue(current: Double, targetTick: Int, range: ClosedRange<Double>, step: Double) -> Double? {
+        let target = min(max(targetTick, lowTick(range, step: step)), highTick(range, step: step))
+        return target == tick(for: current, range: range, step: step) ? nil : Double(target) * step
     }
 }
 
@@ -317,13 +345,28 @@ enum HeightUnit: String, CaseIterable, Identifiable {
 struct WeightRuler: View {
     @Binding var kilograms: Double
     let unit: WeightUnit
-    var range: ClosedRange<Double> = 40...150
+    static let defaultRange: ClosedRange<Double> = 30...300
+    var range: ClosedRange<Double> = WeightRuler.defaultRange
 
     private var pounds: Binding<Double> {
         Binding(
-            get: { (kilograms / WeightUnit.kgPerPound).rounded() },
-            set: { kilograms = min(max($0 * WeightUnit.kgPerPound, range.lowerBound), range.upperBound) }
+            get: { Self.pounds(fromKilograms: kilograms) },
+            set: { kilograms = Self.kilograms(fromPounds: $0, range: range) }
         )
+    }
+
+    /// Whole pounds shown for a stored weight.
+    static func pounds(fromKilograms kg: Double) -> Double { (kg / WeightUnit.kgPerPound).rounded() }
+
+    /// Stored kilograms for a picked whole-pound value, clamped to the range.
+    static func kilograms(fromPounds lb: Double, range: ClosedRange<Double> = defaultRange) -> Double {
+        min(max(lb * WeightUnit.kgPerPound, range.lowerBound), range.upperBound)
+    }
+
+    /// The pound ruler's range: the whole pounds the range's ends are shown as,
+    /// so the ruler and the readout agree at the limits.
+    static func poundRange(_ range: ClosedRange<Double>) -> ClosedRange<Double> {
+        pounds(fromKilograms: range.lowerBound)...pounds(fromKilograms: range.upperBound)
     }
 
     var body: some View {
@@ -333,7 +376,7 @@ struct WeightRuler: View {
                             accessibilityName: "Weight", spokenValue: { _ in Self.text(kilograms, unit) })
             } else {
                 RulerPicker(value: pounds,
-                            range: (range.lowerBound / WeightUnit.kgPerPound)...(range.upperBound / WeightUnit.kgPerPound),
+                            range: Self.poundRange(range),
                             step: 1, majorEvery: 10, midEvery: 5,
                             accessibilityName: "Weight", spokenValue: { _ in Self.text(kilograms, unit) })
             }
@@ -358,13 +401,28 @@ struct HeightRuler: View {
     var axis: Axis = .horizontal
     var anchor: CGFloat = 0.5
     var showsMarker: Bool = true
-    var range: ClosedRange<Double> = 140...220
+    static let defaultRange: ClosedRange<Double> = 100...250
+    var range: ClosedRange<Double> = HeightRuler.defaultRange
 
     private var inches: Binding<Double> {
         Binding(
-            get: { (centimetres / HeightUnit.cmPerInch).rounded() },
-            set: { centimetres = min(max(($0 * HeightUnit.cmPerInch).rounded(), range.lowerBound), range.upperBound) }
+            get: { Self.inches(fromCentimetres: centimetres) },
+            set: { centimetres = Self.centimetres(fromInches: $0, range: range) }
         )
+    }
+
+    /// Whole inches shown for a stored height.
+    static func inches(fromCentimetres cm: Double) -> Double { (cm / HeightUnit.cmPerInch).rounded() }
+
+    /// Stored whole centimetres for a picked inch value, clamped to the range.
+    static func centimetres(fromInches inches: Double, range: ClosedRange<Double> = defaultRange) -> Double {
+        min(max((inches * HeightUnit.cmPerInch).rounded(), range.lowerBound), range.upperBound)
+    }
+
+    /// The inch ruler's range: the whole inches the range's ends are shown as,
+    /// so the ruler and the readout agree at the limits.
+    static func inchRange(_ range: ClosedRange<Double>) -> ClosedRange<Double> {
+        inches(fromCentimetres: range.lowerBound)...inches(fromCentimetres: range.upperBound)
     }
 
     var body: some View {
@@ -375,7 +433,7 @@ struct HeightRuler: View {
                             accessibilityName: "Height", spokenValue: { _ in Self.text(centimetres, unit) })
             } else {
                 RulerPicker(value: inches,
-                            range: (range.lowerBound / HeightUnit.cmPerInch)...(range.upperBound / HeightUnit.cmPerInch),
+                            range: Self.inchRange(range),
                             step: 1, axis: axis, majorEvery: 12, midEvery: 6, spacing: 22,
                             anchor: anchor, showsMarker: showsMarker,
                             tickLabel: { "\(Int($0) / 12)′" },

@@ -42,6 +42,8 @@ struct StoreProductsView: View {
         .onChange(of: selectedCategory) { _, _ in scheduleFilter() }
         .onChange(of: minPrice)         { _, _ in scheduleFilter() }
         .onChange(of: maxPrice)         { _, _ in scheduleFilter() }
+        // A price correction moves the product within (or out of) the price range.
+        .onChange(of: cart.priceOverrides) { _, _ in scheduleFilter() }
         .onAppear { scheduleFilter() }
     }
 
@@ -68,9 +70,12 @@ struct StoreProductsView: View {
 
     // MARK: - Price filter
 
-    /// Cheapest to dearest product in the catalogue, widened to the 10-cent grid.
+    /// Cheapest to dearest catalogue estimate, widened to the 10-cent grid.
+    /// Prices the user entered don't stretch the slider: a thumb left at either
+    /// end leaves that side open (nil), so an entered price outside the bounds
+    /// still shows unless the user moves that thumb.
     private func computePriceBounds() -> ClosedRange<Double> {
-        let prices = CatalogItem.all.map { cart.effectivePrice(for: $0, store: store) }.filter { $0.isFinite && $0 > 0 }
+        let prices = CatalogItem.all.map { $0.estimatedPrice(for: store) }.filter { $0.isFinite && $0 > 0 }
         guard let lo = prices.min(), let hi = prices.max() else { return 0...1 }
         let step = Self.priceStep
         let a = (lo / step).rounded(.down) * step
@@ -290,6 +295,7 @@ private struct FilterChip: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .animation(reduceMotion ? .none : .snappyValue, value: isSelected)
     }
 }
@@ -302,6 +308,7 @@ struct ProductShopRow: View {
     @State private var cart = ShoppingCartService.shared
     @State private var showPriceEditor = false
     @State private var priceInput = ""
+    @State private var priceError: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -335,6 +342,7 @@ struct ProductShopRow: View {
                 // Price row — tap to enter the real price you paid
                 Button {
                     priceInput = String(format: "%.2f", price)
+                    priceError = nil
                     showPriceEditor = true
                 } label: {
                     HStack(spacing: 5) {
@@ -376,6 +384,14 @@ struct ProductShopRow: View {
                         Text("€")
                         TextField("0.00", text: $priceInput)
                             .keyboardType(.decimalPad)
+                            .accessibilityLabel("Price in euros")
+                            .accessibilityIdentifier("shop.priceInput")
+                            .onChange(of: priceInput) { _, _ in priceError = nil }
+                    }
+                    if let priceError {
+                        Text(priceError)
+                            .font(.footnote).foregroundStyle(Color.brandDanger)
+                            .accessibilityIdentifier("shop.priceError")
                     }
                 } header: {
                     Text(item.name)
@@ -389,10 +405,14 @@ struct ProductShopRow: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let val = Double(priceInput.replacingOccurrences(of: ",", with: ".")), val.isFinite, val > 0 {
-                            cart.setRealPrice(val, for: item.id, store: store.name)
+                        switch EuroInput.validate(priceInput, in: ShoppingCartService.priceRange) {
+                        case .success(let value):
+                            cart.setRealPrice(value, for: item.id, store: store.name)
+                            showPriceEditor = false
+                        case .failure(let problem):
+                            priceError = EuroInput.message(for: problem, example: "2.50")
+                            UIAccessibility.post(notification: .announcement, argument: priceError)
                         }
-                        showPriceEditor = false
                     }
                 }
                 ToolbarItem(placement: .cancellationAction) {

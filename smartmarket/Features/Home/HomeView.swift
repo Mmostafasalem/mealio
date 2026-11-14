@@ -14,10 +14,12 @@ struct HomeView: View {
     @State private var showBackOnline = false
 
     /// Today's reminders whose time has come, as a pile of cards. Tap to fan
-    /// them out, tap one to act on it, swipe one away to dismiss it.
+    /// them out, tap one to act on it, swipe one away to dismiss it. Meals
+    /// already logged today have nothing left to remind about.
     @ViewBuilder
     private var dueReminders: some View {
-        let due = reminders.due()
+        let loggedSlots = vm.loggedSlots
+        let due = reminders.due(now: vm.now, loggedSlots: loggedSlots)
         if !due.isEmpty {
             NotificationStack(
                 notices: due.map { StackNotice(id: $0.id, symbol: $0.symbol, title: $0.title, body: $0.message, detail: $0.timeText) },
@@ -34,7 +36,7 @@ struct HomeView: View {
                 onDismiss: { notice in
                     if let reminder = due.first(where: { $0.id == notice.id }) { reminders.dismiss(reminder) }
                 },
-                onClearAll: { reminders.dismissAllDue() })
+                onClearAll: { reminders.dismissAllDue(now: vm.now, loggedSlots: loggedSlots) })
             .accessibilityIdentifier("home.dueReminders")
         }
     }
@@ -113,7 +115,22 @@ struct HomeView: View {
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
         .task { await vm.load() }
-        .onAppear { loop.refresh() }
+        // Keeps the date, today's log and due reminders current while Home is
+        // on screen: one cheap tick at each minute boundary.
+        .task {
+            while !Task.isCancelled {
+                let seconds = 60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
+                try? await Task.sleep(for: .seconds(seconds + 0.05))
+                guard !Task.isCancelled else { return }
+                vm.tick()
+            }
+        }
+        .onAppear {
+            vm.activate()
+            loop.refresh()
+        }
+        // A new day: today's quest starts over.
+        .onChange(of: Calendar.current.startOfDay(for: vm.now)) { _, _ in loop.refresh() }
         .onChange(of: FoodLogStore.shared.revision) { _, _ in loop.refresh() }
         .onChange(of: StockStore.shared.logs.count) { _, _ in loop.refresh() }
         // The newest session's id changes even once the history is capped at 200.

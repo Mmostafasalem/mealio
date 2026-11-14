@@ -126,7 +126,7 @@ enum LossPace: Double, Codable, CaseIterable, Identifiable {
 }
 
 // MARK: - UserProfile  (Codable so it can be saved to UserDefaults + sent to Python API)
-struct UserProfile: Codable {
+struct UserProfile: Codable, Equatable {
     var name: String         = ""
     var email: String        = ""
     var weight: Double       = 70       // kg
@@ -163,15 +163,66 @@ extension UserProfile {
 // MARK: - Persistence helper (Keychain — health data is sensitive)
 extension UserProfile {
     static func load() -> UserProfile {
-        var profile = loadStored()
+        let stored = loadStored()
+        var profile = stored ?? UserProfile()
+        if let stored, needsTargetsMigration {
+            profile = migrateTargets(stored)
+        }
         // The Keychain item is this-device-only, but the onboarding flag in
         // UserDefaults survives a restore to a new iPhone. Never hand Home a
         // zero goal: derive targets from the stored (or default) body stats.
-        if profile.dailyCalorieGoal <= 0 { BMRCalculator.populate(profile: &profile) }
+        // An under-18 profile saved with a weight-loss goal (older data) is
+        // recomputed as maintain so no deficit reaches Home or the planner.
+        let minorLosing = profile.weightGoal == .lose && !BMRCalculator.allowsWeightLoss(age: profile.age)
+        if profile.dailyCalorieGoal <= 0 || minorLosing { BMRCalculator.populate(profile: &profile) }
         return profile
     }
 
-    private static func loadStored() -> UserProfile {
+    // MARK: Targets migration
+
+    /// Bump when the target maths changes, so saved profiles are recomputed
+    /// once. 2: the safety floor applies only to weight loss, and under-18s
+    /// never get a weight-loss goal.
+    static let currentTargetsVersion = 2
+
+    /// True when an onboarded profile was saved under older target maths.
+    static var needsTargetsMigration: Bool {
+        UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
+            && UserDefaults.standard.integer(forKey: Constants.Storage.targetsVersion) < currentTargetsVersion
+    }
+
+    /// Called whenever targets are saved with the current maths.
+    static func markTargetsCurrent() {
+        UserDefaults.standard.set(currentTargetsVersion, forKey: Constants.Storage.targetsVersion)
+    }
+
+    /// Recomputes a saved profile's targets through the same path as onboarding
+    /// and Profile (`populate` + `response`) and saves the profile and calorie
+    /// targets once. Writes storage only (no notifications), so it can run
+    /// while the app state is still loading; the app state reads the new
+    /// targets right after. If the Keychain can't be written (locked), the
+    /// version stays old and the next load tries again.
+    static func migrateTargets(_ stored: UserProfile) -> UserProfile {
+        var profile = stored
+        BMRCalculator.populate(profile: &profile)
+        let isKeto = Set<DietaryPreference>.load().contains(.keto)
+        let bmr = BMRCalculator.response(for: profile, isKeto: isKeto)
+        profile.save()
+        KeychainHelper.save(bmr, key: Constants.Storage.bmrResponse)
+        let saved = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) == profile
+            && KeychainHelper.load(BMRResponse.self, key: Constants.Storage.bmrResponse) != nil
+        if saved {
+            UserDefaults.standard.removeObject(forKey: Constants.Storage.bmrResponse)
+            // The saved plan's recorded inputs predate the new targets; drop them so
+            // the agent adopts the current inputs instead of asking the AI for a refresh
+            // (an off-target plan is still rebuilt on the device by the agent's tick).
+            UserDefaults.standard.removeObject(forKey: "mealPlanInputs")   // AgentLoop.planInputsKey
+            markTargetsCurrent()
+        }
+        return profile
+    }
+
+    private static func loadStored() -> UserProfile? {
         // Keychain is the source of truth
         if let profile = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) {
             return profile
@@ -183,7 +234,7 @@ extension UserProfile {
             UserDefaults.standard.removeObject(forKey: Constants.Storage.userProfile)
             return profile
         }
-        return UserProfile()
+        return nil
     }
 
     func save() {

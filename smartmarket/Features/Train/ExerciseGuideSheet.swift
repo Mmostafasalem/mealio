@@ -6,8 +6,8 @@ struct ExerciseGuide: Identifiable {
     let name: String
     /// `nil` when the movement isn't one the app can draw.
     let motion: ExerciseMotion?
-    /// The hand-drawn frames, when the exercise has them (shown in place of the posed figure).
-    let drawing: ExerciseDrawing?
+    /// The catalogue exercise whose hand-drawn frames to show (in place of the posed figure), if any.
+    let drawingID: String?
     /// How to do it, one instruction per step.
     let steps: [String]
     var muscles: String? = nil
@@ -19,7 +19,7 @@ struct ExerciseGuide: Identifiable {
     init(exercise: Exercise) {
         name = exercise.name
         motion = exercise.motion
-        drawing = ExerciseDrawings.shared.drawing(forExercise: exercise.id)
+        drawingID = exercise.id
         steps = Self.sentences(exercise.howTo)
         muscles = exercise.muscles
         equipment = exercise.equipment
@@ -29,15 +29,33 @@ struct ExerciseGuide: Identifiable {
 
     /// A step in a workout. Uses the catalogue entry when the name matches one.
     init(step: WorkoutExercise) {
-        let known = Exercise.catalog.first { $0.name.caseInsensitiveCompare(step.name) == .orderedSame }
+        let known = Exercise.closestMatch(name: step.name)
         name = step.name
         motion = known?.motion ?? ExerciseMotion.matching(name: step.name)
-        drawing = known.flatMap { ExerciseDrawings.shared.drawing(forExercise: $0.id) }
+        drawingID = known?.id
         let cue = step.note.isEmpty ? (known?.howTo ?? "") : step.note
         steps = Self.sentences(cue)
         muscles = known?.muscles
         equipment = known?.equipment
         prescription = step.restSeconds > 0 ? "\(step.prescription) · rest \(step.restSeconds) sec" : step.prescription
+    }
+
+    /// The hand-drawn frames, once the drawings have loaded and this one's paths are
+    /// built off the main thread (`nil` before, and for exercises without one).
+    /// Reading it in a view's body updates the view when it is ready.
+    @MainActor var drawing: ExerciseDrawing? {
+        drawingID.flatMap { ExerciseDrawingsStatus.shared.drawing(forExercise: $0) }
+    }
+
+    /// True while a drawing for this exercise is still loading or being built, so a placeholder can stand in.
+    @MainActor var drawingPending: Bool {
+        drawingID.map { ExerciseDrawingsStatus.shared.isPending(forExercise: $0) } ?? false
+    }
+
+    /// What VoiceOver reads for the demo.
+    var demoDescription: String {
+        guard let muscles, !muscles.isEmpty else { return "Demonstration of \(name)" }
+        return "Demonstration of \(name), works \(muscles.lowercased())"
     }
 
     private static func sentences(_ text: String) -> [String] {
@@ -74,7 +92,7 @@ struct ExerciseGuideSheet: View {
                     }
 
                     if let drawing = guide.drawing {
-                        ExerciseDrawingDemo(drawing: drawing)
+                        ExerciseDrawingDemo(drawing: drawing, description: guide.demoDescription)
                             .frame(maxWidth: .infinity)
                             .frame(height: 300)
                             .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
@@ -91,15 +109,20 @@ struct ExerciseGuideSheet: View {
                             }
                         }
 
-                        if let credit = ExerciseDrawings.shared.credit {
-                            // The drawings are CC BY-SA 4.0: their authors are credited wherever they are shown.
-                            Link(credit.text, destination: credit.link)
-                                .font(.caption2)
-                                .foregroundStyle(Color.labelSecondary)
-                                .multilineTextAlignment(.leading)
-                        }
+                        // The drawings are CC BY-SA 4.0: their authors are credited wherever they are shown.
+                        ExerciseDrawingCredit()
+                    } else if guide.drawingPending {
+                        // The drawings are still loading (only right after launch): a quiet placeholder.
+                        RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+                            .fill(Color.surface)
+                            .overlay(ProgressView())
+                            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+                            .frame(height: 300)
+                            .accessibilityLabel("Loading the demonstration")
                     } else if let motion = guide.motion {
                         ExerciseDemo(motion: motion)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityLabel(guide.demoDescription)
                             .frame(maxWidth: .infinity)
                             .frame(height: 280)
                             .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))

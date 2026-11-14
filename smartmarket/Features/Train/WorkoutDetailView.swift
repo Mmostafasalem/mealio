@@ -6,7 +6,7 @@ struct WorkoutDetailView: View {
     let workout: Workout
     /// Shown when this session was built on the phone instead of by AI.
     let localReason: String?
-
+    @State private var guideCache = GuideCache()
     @State private var store = WorkoutStore.shared
     @State private var markedDone = false
     @State private var guide: ExerciseGuide?
@@ -43,8 +43,8 @@ struct WorkoutDetailView: View {
             }
 
             Section {
-                ForEach(Array(workout.exercises.enumerated()), id: \.offset) { index, exercise in
-                    let item = ExerciseGuide(step: exercise)
+                ForEach(Array(zip(workout.exercises, guides).enumerated()), id: \.offset) { index, pair in
+                    let (exercise, item) = pair
                     Button { guide = item } label: {
                         HStack(alignment: .center, spacing: Spacing.md) {
                             if let drawing = item.drawing {
@@ -52,6 +52,10 @@ struct WorkoutDetailView: View {
                                     .padding(4)
                                     .frame(width: 72, height: 72)
                                     .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                            } else if item.drawingPending {
+                                RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                                    .fill(Color.surfaceSecondary)
+                                    .frame(width: 72, height: 72)
                             } else if let motion = item.motion {
                                 ExerciseFrame(motion: motion, finish: true)
                                     .padding(4)
@@ -85,7 +89,12 @@ struct WorkoutDetailView: View {
             } header: {
                 Text("Exercises")
             } footer: {
-                Text("Tap an exercise to see the movement and step-by-step notes.")
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Tap an exercise to see the movement and step-by-step notes.")
+                    // The drawings are CC BY-SA 4.0: credited wherever one is shown (not for
+                    // steps that show the posed figure instead).
+                    if guides.contains(where: { $0.drawing != nil }) { ExerciseDrawingCredit() }
+                }
             }
 
             if !workout.cooldown.isEmpty {
@@ -118,12 +127,12 @@ struct WorkoutDetailView: View {
         }
         .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: markedDone ? "Logged for today" : "Mark as done",
-                          systemImage: markedDone ? "checkmark" : "checkmark.circle") {
-                store.complete(workout, weightKg: weight)
+            PrimaryButton(title: isDone ? "Logged for today" : "Mark as done",
+                          systemImage: isDone ? "checkmark" : "checkmark.circle") {
+                store.complete(workout, weightKg: weight)      // once per workout per day
                 withAnimation(reduceMotion ? .reducedFade : .snappyValue) { markedDone = true }
             }
-            .disabled(markedDone)
+            .disabled(isDone)
             .sensoryFeedback(.success, trigger: markedDone)
             .accessibilityIdentifier("workout.done")
             .padding(.horizontal, Spacing.xl)
@@ -131,6 +140,25 @@ struct WorkoutDetailView: View {
             .background(.ultraThinMaterial)
         }
     }
+
+    /// One guide per step, matched to the catalogue the first time they're needed
+    /// and kept, not rebuilt on every redraw (or every time a parent builds this view).
+    private var guides: [ExerciseGuide] { guideCache.guides(for: workout) }
+
+    private final class GuideCache {
+        private var workoutID: UUID?
+        private var built: [ExerciseGuide] = []
+        func guides(for workout: Workout) -> [ExerciseGuide] {
+            if workoutID != workout.id {
+                built = workout.exercises.map { ExerciseGuide(step: $0) }
+                workoutID = workout.id
+            }
+            return built
+        }
+    }
+
+    /// Done now, or already logged today (e.g. a saved workout opened again).
+    private var isDone: Bool { markedDone || store.isCompletedToday(workout) }
 
     private func fact(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 5) {
@@ -180,7 +208,7 @@ struct ExerciseLibraryView: View {
     @State private var kind: ExerciseKind?
     @State private var guide: ExerciseGuide?
 
-    private var exercises: [Exercise] {
+    private func filtered() -> [Exercise] {
         Exercise.catalog.filter { exercise in
             (kind == nil || exercise.kind == kind)
                 && (query.isEmpty || exercise.name.localizedStandardContains(query)
@@ -189,7 +217,9 @@ struct ExerciseLibraryView: View {
     }
 
     var body: some View {
-        List {
+        let exercises = filtered()        // once per redraw, not once per use
+        let drawings = ExerciseDrawingsStatus.shared
+        return List {
             Section {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Spacing.sm) {
@@ -209,11 +239,15 @@ struct ExerciseLibraryView: View {
                 ForEach(exercises) { exercise in
                     Button { guide = ExerciseGuide(exercise: exercise) } label: {
                         HStack(spacing: Spacing.md) {
-                            if let drawing = ExerciseDrawings.shared.drawing(forExercise: exercise.id) {
+                            if let drawing = drawings.drawing(forExercise: exercise.id) {
                                 ExerciseDrawingCanvas(drawing: drawing, frame: 1)
                                     .padding(4)
                                     .frame(width: 60, height: 60)
                                     .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                            } else if drawings.isPending(forExercise: exercise.id) {
+                                RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                                    .fill(Color.surfaceSecondary)
+                                    .frame(width: 60, height: 60)
                             } else if let motion = exercise.motion {
                                 ExerciseFrame(motion: motion, finish: true)
                                     .padding(4)
@@ -235,6 +269,9 @@ struct ExerciseLibraryView: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("exercise." + exercise.id)
                 }
+            } header: {
+                // The drawings are CC BY-SA 4.0: credited wherever they are shown, here above the list.
+                ExerciseDrawingCredit().textCase(nil)
             }
         }
         .listStyle(.insetGrouped)

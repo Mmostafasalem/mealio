@@ -3,11 +3,12 @@ import json
 import math
 import os
 import re
+import threading
 import time
 from groq import Groq
 import ai_usage
 
-from openfoodfacts import nutrition_for
+from openfoodfacts import nutrition_for, flush as flush_nutrition_cache
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # Catalog-only/local deployments do not need provider access. Production online
@@ -33,29 +34,32 @@ _rate_buckets: dict = collections.defaultdict(list)
 _RATE_WINDOW = 60
 _RATE_MAX    = 60
 _last_sweep  = 0.0
+# gunicorn runs several threads per worker; buckets are per process.
+_rate_lock   = threading.Lock()
 
 def _is_rate_limited(ip: str) -> bool:
-    now    = time.time()
-    cutoff = now - _RATE_WINDOW
+    with _rate_lock:
+        now    = time.time()
+        cutoff = now - _RATE_WINDOW
 
-    # Periodically evict stale IP buckets so the dict can't grow unbounded.
-    global _last_sweep
-    if now - _last_sweep > 300:
-        _last_sweep = now
-        for key in list(_rate_buckets.keys()):
-            b = _rate_buckets[key]
-            while b and b[0] < cutoff:
-                b.pop(0)
-            if not b:
-                del _rate_buckets[key]
+        # Periodically evict stale IP buckets so the dict can't grow unbounded.
+        global _last_sweep
+        if now - _last_sweep > 300:
+            _last_sweep = now
+            for key in list(_rate_buckets.keys()):
+                b = _rate_buckets[key]
+                while b and b[0] < cutoff:
+                    b.pop(0)
+                if not b:
+                    del _rate_buckets[key]
 
-    bucket = _rate_buckets[ip]
-    while bucket and bucket[0] < cutoff:
-        bucket.pop(0)
-    if len(bucket) >= _RATE_MAX:
-        return True
-    bucket.append(now)
-    return False
+        bucket = _rate_buckets[ip]
+        while bucket and bucket[0] < cutoff:
+            bucket.pop(0)
+        if len(bucket) >= _RATE_MAX:
+            return True
+        bucket.append(now)
+        return False
 
 # ---------------------------------------------------------------------------
 # Custom error for returning HTTP error responses from handlers
@@ -341,6 +345,8 @@ def get_product_catalog() -> list[dict]:
         except Exception as exc:
             print(f"[Catalog] skip item {raw.get('id')}: {exc}")
 
+    # Lookups are saved in batches; write the last partial batch once per build.
+    flush_nutrition_cache()
     _CATALOG_CACHE = {"data": catalog, "ts": now}
     print(f"[Catalog] {len(catalog)} curated products from "
           f"{len(set(p['store'] for p in catalog))} stores")
@@ -645,6 +651,17 @@ _ACTIVITY_MULTIPLIERS = {
     "super_active": 1.9, "veryactive": 1.9,
 }
 
+# Mifflin-St Jeor sex constants, matching the iOS BMRCalculator. A missing
+# gender keeps the legacy "male" default; "other", or any value that is not
+# "male"/"female", uses the midpoint of the two constants instead of silently
+# taking the female formula.
+_BMR_GENDER_CONSTANT = {"male": 5, "female": -161}
+_BMR_OTHER_CONSTANT = -78
+
+# Minimum safe daily intake for weight-loss targets (iOS Constants.Calories).
+_LOSS_CALORIE_FLOOR = {"male": 1500, "female": 1200}
+_LOSS_CALORIE_FLOOR_OTHER = 1200
+
 def handle_bmr(body):
     try:
         w = float(body.get("weight", 70))
@@ -664,13 +681,17 @@ def handle_bmr(body):
     g  = _as_str(body.get("gender"), "male").lower()
     al = _as_str(body.get("activityLevel"), "moderate").strip().lower().replace("-", "_").replace(" ", "_")
 
-    bmr = 10*w + 6.25*h - 5*a + (5 if g == "male" else -161)
+    bmr = 10*w + 6.25*h - 5*a + _BMR_GENDER_CONSTANT.get(g, _BMR_OTHER_CONSTANT)
     tdee = bmr * _ACTIVITY_MULTIPLIERS.get(al, 1.55)
+    # The deficit never takes a weight-loss target below the safe floor.
+    # …but never above maintenance (the same rule as the iOS app): a floor above
+    # what a very small person burns would turn "lose" into a surplus.
+    lose = max(tdee - 500, min(_LOSS_CALORIE_FLOOR.get(g, _LOSS_CALORIE_FLOOR_OTHER), tdee))
 
     return {
         "bmr": round(bmr),
         "tdee": round(tdee),
-        "loseCalories":     round(tdee - 500),
+        "loseCalories":     round(lose),
         "maintainCalories": round(tdee),
         "gainCalories":     round(tdee + 500),
         "macros": {
@@ -757,6 +778,25 @@ def _planning_remaining(raw):
 
 _MEAL_PLAN_GOALS = frozenset({"lose", "maintain", "gain"})
 
+# Sane bounds for client-sent daily targets. The minimum is the lowest safety
+# floor the app uses (1200 kcal, female/other; 1500 for men, applied to
+# weight-loss plans below); above 6000 is outside any realistic plan.
+# Out-of-range values are clamped, never trusted, so a negative or huge target
+# can't produce an unsafe plan, negative-kcal meals or disable plan validation.
+_TARGET_KCAL_MIN, _TARGET_KCAL_MAX = _LOSS_CALORIE_FLOOR_OTHER, 6000
+_MACRO_LIMITS_G = {"protein": 600, "carbs": 900, "fat": 700}  # ~6000 kcal at any split
+
+def _target_kcal(val, default: int) -> int:
+    return _clamped_int(val, default, _TARGET_KCAL_MIN, _TARGET_KCAL_MAX)
+
+def _loss_target_kcal(val, maintain: int, gender) -> int:
+    """A weight-loss target: clamped like any target, and never under the safety
+    floor for the person's gender (1500 men, 1200 otherwise), unless that floor is
+    above their maintenance target (as on iOS, a floor never forces a surplus)."""
+    target = _target_kcal(val, maintain - 500)
+    floor = _LOSS_CALORIE_FLOOR.get(_as_str(gender, "").strip().lower(), _LOSS_CALORIE_FLOOR_OTHER)
+    return max(target, min(floor, maintain))
+
 def handle_meal_plan(body):
     # Bodies are client-controlled — coerce every field to the expected type so a
     # malformed payload degrades gracefully instead of 500-ing a handler.
@@ -778,15 +818,15 @@ def handle_meal_plan(body):
                 if isinstance(g, dict) and g.get("name")] if isinstance(grocery, list) else []
     stock = _planning_stock(body.get("stock"))
     macros      = _as_dict(bmr_data.get("macros"))
-    target_kcal = _as_int(bmr_data.get("maintainCalories"), 2000)
-    protein_g   = _as_int(macros.get("protein"), 120)
-    carbs_g     = _as_int(macros.get("carbs"), 225)
-    fat_g       = _as_int(macros.get("fat"), 56)
+    target_kcal = _target_kcal(bmr_data.get("maintainCalories"), 2000)
+    protein_g   = _clamped_int(macros.get("protein"), 120, 0, _MACRO_LIMITS_G["protein"])
+    carbs_g     = _clamped_int(macros.get("carbs"),   225, 0, _MACRO_LIMITS_G["carbs"])
+    fat_g       = _clamped_int(macros.get("fat"),     56,  0, _MACRO_LIMITS_G["fat"])
 
     if goal == "lose":
-        target_kcal = _as_int(bmr_data.get("loseCalories"), target_kcal - 500)
+        target_kcal = _loss_target_kcal(bmr_data.get("loseCalories"), target_kcal, user.get("gender"))
     elif goal == "gain":
-        target_kcal = _as_int(bmr_data.get("gainCalories"), target_kcal + 500)
+        target_kcal = _target_kcal(bmr_data.get("gainCalories"), target_kcal + 500)
 
     active      = _active_deals()
     avail_deals = deals_summary(active)
@@ -905,6 +945,8 @@ def handle_shopping_advice(body):
 # limit (memory-exhaustion). Oldest entry is evicted once the cap is reached.
 _RECIPE_CACHE_MAX = 500
 _recipe_cache: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
+# gunicorn threads share the cache: every read/write holds this lock.
+_recipe_cache_lock = threading.Lock()
 
 class _VerifiedRecipe(dict):
     """Internal provenance; callers cannot create this marker through JSON."""
@@ -916,10 +958,13 @@ def handle_recipe(body):
         return {"error": "mealName required"}
 
     cache_key = meal_name.lower()
-    if cache_key in _recipe_cache:
-        _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
-        ai_usage.verified_cache.set(isinstance(_recipe_cache[cache_key], _VerifiedRecipe))
-        return _recipe_cache[cache_key]
+    with _recipe_cache_lock:
+        cached = _recipe_cache.get(cache_key)
+        if cached is not None:
+            _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
+    if cached is not None:
+        ai_usage.verified_cache.set(isinstance(cached, _VerifiedRecipe))
+        return cached
 
     deals = deals_summary(_active_deals(), max_items=10)
 
@@ -946,10 +991,11 @@ def handle_recipe(body):
     )
     result["mealName"] = meal_name
     if ai_usage.succeeded.get():
-        _recipe_cache[cache_key] = _VerifiedRecipe(result)
-        _recipe_cache.move_to_end(cache_key)
-        while len(_recipe_cache) > _RECIPE_CACHE_MAX:
-            _recipe_cache.popitem(last=False)      # evict least-recently used
+        with _recipe_cache_lock:
+            _recipe_cache[cache_key] = _VerifiedRecipe(result)
+            _recipe_cache.move_to_end(cache_key)
+            while len(_recipe_cache) > _RECIPE_CACHE_MAX:
+                _recipe_cache.popitem(last=False)      # evict least-recently used
     return result
 
 
@@ -1098,8 +1144,8 @@ def handle_agent_chat(body):
     user_ctx = user_ctx if isinstance(user_ctx, dict) else {}
 
     goal        = str(user_ctx.get("goal", "maintain"))[:20]
-    target_kcal = _as_int(user_ctx.get("targetCalories"), 2000)
-    consumed    = _as_int(user_ctx.get("caloriesConsumed"), 0)
+    target_kcal = _target_kcal(user_ctx.get("targetCalories"), 2000)
+    consumed    = _clamped_int(user_ctx.get("caloriesConsumed"), 0, 0, 20000)
     fav_names   = _bounded_strings(user_ctx.get("favoriteFoods"))
     language = dict(en='English', lt='Lithuanian', ar='Arabic').get(_as_str(user_ctx.get('lang'), 'en'), 'English')
 

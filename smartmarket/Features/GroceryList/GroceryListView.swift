@@ -5,6 +5,7 @@ struct GroceryListView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var vm = GroceryListViewModel()
     @State private var actionsMenu = DynamicMenuModel()
+    @State private var confirmClearBought = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -51,6 +52,28 @@ struct GroceryListView: View {
         }
         .animation(reduceMotion ? .none : .snappyValue, value: vm.undoMessage)
         .onAppear { vm.loadItems() }
+        .confirmationDialog(clearBoughtTitle, isPresented: $confirmClearBought, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { vm.clearBought() }
+                .accessibilityIdentifier("groceries.clearBought.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(clearBoughtMessage)
+        }
+    }
+
+    private var clearBoughtTitle: String {
+        let count = vm.boughtItems.count, cartCount = vm.boughtCartCount
+        let noun = count == 1 ? "item" : "items"
+        return cartCount == count
+            ? "Remove \(count) bought \(noun) from your cart?"
+            : "Remove \(count) bought \(noun)?"
+    }
+
+    private var clearBoughtMessage: String {
+        let cartCount = vm.boughtCartCount
+        guard cartCount > 0 else { return "They're removed from your grocery list." }
+        let noun = cartCount == 1 ? "item" : "items"
+        return "\(cartCount) \(noun) also leave your cart, so they no longer count toward your weekly budget."
     }
 
     /// Share and Clear bought, in the toolbar's springy menu.
@@ -60,7 +83,7 @@ struct GroceryListView: View {
                             id: "groceries.share", share: vm.shareText()),
             DynamicMenuItem("Clear bought", systemImage: "checkmark.circle",
                             id: "groceries.clearBought",
-                            isDisabled: !vm.items.contains { $0.isBought }) { vm.clearBought() },
+                            isDisabled: !vm.items.contains { $0.isBought }) { confirmClearBought = true },
         ]
     }
 

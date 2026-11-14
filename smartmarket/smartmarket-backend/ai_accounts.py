@@ -31,11 +31,21 @@ UNUSABLE_OUTPUT_COST = 1
 # read that depends on expiry also checks it directly, so a delay is harmless.
 CLEANUP_INTERVAL = 60
 
+# Idempotent replay storage. A finished request keeps its response (encrypted,
+# at most REPLAY_MAX_BYTES) with its claim for the claim's lifetime (24 h), so a
+# retry after a worker restart gets the original result instead of a second
+# charge. Only the newest REPLAY_MAX_PER_ACCOUNT bodies per account are kept;
+# older claims stay as no-rerun markers without a body.
+REPLAY_MAX_BYTES = 128 * 1024
+REPLAY_MAX_PER_ACCOUNT = 64
+
 
 class AccountError(Exception):
-    def __init__(self, message, status=401, code='ai_sign_in_required'):
+    def __init__(self, message, status=401, code='ai_sign_in_required', replay=None):
         super().__init__(message)
         self.message, self.status, self.code = message, status, code
+        # For ai_request_repeated: the stored (body, status, content_type, result).
+        self.replay = replay
 
 
 def digest(value):
@@ -155,8 +165,19 @@ class AccountService:
               CREATE TABLE IF NOT EXISTS reservations(id TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, day TEXT NOT NULL, cost INTEGER NOT NULL, expires REAL NOT NULL);
               CREATE INDEX IF NOT EXISTS session_account ON sessions(account);
               CREATE TABLE IF NOT EXISTS guest_registrations(network TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL, PRIMARY KEY(network,day));
-              CREATE TABLE IF NOT EXISTS ai_requests(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, key TEXT NOT NULL, fingerprint TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(account,key));
+              CREATE TABLE IF NOT EXISTS ai_requests(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, key TEXT NOT NULL, fingerprint TEXT NOT NULL, created REAL NOT NULL, reservation TEXT, response BLOB, status INTEGER, content_type TEXT, result TEXT, PRIMARY KEY(account,key));
             ''')
+            # reservation: set while the request is in flight, NULL once finished.
+            # response/status/content_type/result: the stored replay (encrypted body).
+            replay_columns = (('reservation','TEXT'),('response','BLOB'),('status','INTEGER'),
+                              ('content_type','TEXT'),('result','TEXT'))
+            if self.storage.postgres:
+                for name, kind in replay_columns:
+                    db.execute(f'ALTER TABLE ai_requests ADD COLUMN IF NOT EXISTS {name} {kind}')
+            else:
+                existing = {r['name'] for r in db.execute('PRAGMA table_info(ai_requests)')}
+                for name, kind in replay_columns:
+                    if name not in existing: db.execute(f'ALTER TABLE ai_requests ADD COLUMN {name} {kind}')
             if not self.storage.postgres:
                 if 'created' not in {r['name'] for r in db.execute('PRAGMA table_info(accounts)')}:
                     db.execute('ALTER TABLE accounts ADD COLUMN created REAL NOT NULL DEFAULT 0')
@@ -346,11 +367,15 @@ class AccountService:
             if not db.execute('SELECT 1 FROM sessions WHERE hash=? AND account=? AND expires>?',(user.session_hash,user.account_id,self.clock())).fetchone():
                 raise AccountError('Sign in with Apple again.')
             if request_key is not None:
-                previous=db.execute('SELECT fingerprint FROM ai_requests WHERE account=? AND key=?',(user.account_id,request_key)).fetchone()
+                previous=db.execute('SELECT * FROM ai_requests WHERE account=? AND key=?',(user.account_id,request_key)).fetchone()
                 if previous is not None:
                     if not hmac.compare_digest(previous['fingerprint'],fingerprint):
                         raise AccountError('This request key was already used for different input.',409,'ai_request_conflict')
-                    raise AccountError('This request is already processing or completed. No additional credits were used.',409,'ai_request_repeated')
+                    if previous['reservation'] is not None and self._release_abandoned(db,user.account_id,request_key,previous['reservation']):
+                        previous=None  # its worker died: the claim is gone and the client may run it again
+                if previous is not None:
+                    raise AccountError('This request is already processing or completed. No additional credits were used.',
+                                       409,'ai_request_repeated',replay=self._stored_replay(previous))
                 if db.execute('SELECT COUNT(*) FROM ai_requests WHERE account=?',(user.account_id,)).fetchone()[0]>=2048:
                     raise AccountError('Too many recent requests. Please try again later.',503,'ai_unavailable')
             db.execute('INSERT OR IGNORE INTO quota(account,day) VALUES(?,?)',(user.account_id,day))
@@ -364,10 +389,35 @@ class AccountService:
             db.execute('UPDATE global_quota SET used=used+1 WHERE day=?',(day,))
             db.execute('INSERT INTO reservations VALUES(?,?,?,?,?)',(reservation,user.account_id,day,cost,self.clock()+180))
             if request_key is not None:
-                db.execute('INSERT INTO ai_requests VALUES(?,?,?,?)',(user.account_id,request_key,fingerprint,self.clock()))
+                db.execute('INSERT INTO ai_requests(account,key,fingerprint,created,reservation) VALUES(?,?,?,?,?)',
+                           (user.account_id,request_key,fingerprint,self.clock(),reservation))
         return reservation
 
-    def finish(self,reservation,succeeded,attempted,responded=False,release_request_key=None):
+    def _release_abandoned(self,db,account,request_key,reservation):
+        """Drop a claim whose request never finished (worker killed or restarted).
+
+        Runs inside the caller's write transaction, so it cannot race the
+        original request's finish(): either finish() already settled the claim
+        (reservation is NULL) or the reservation has expired and finish() will
+        find nothing to settle. An expired reservation is refunded here exactly
+        as cleanup would, so the retry is the only charge.
+        """
+        pending=db.execute('SELECT * FROM reservations WHERE id=?',(reservation,)).fetchone()
+        if pending is not None and pending['expires']>self.clock(): return False  # still running
+        if pending is not None:
+            db.execute('UPDATE quota SET used=MAX(0,used-?) WHERE account=? AND day=?',
+                       (pending['cost'],pending['account'],pending['day']))
+            db.execute('DELETE FROM reservations WHERE id=?',(reservation,))
+        db.execute('DELETE FROM ai_requests WHERE account=? AND key=? AND reservation=?',(account,request_key,reservation))
+        return True
+
+    def _stored_replay(self,row):
+        if row['response'] is None: return None
+        try: body=self.cipher.decrypt(bytes(row['response']))
+        except Exception: return None  # rotated key or damaged row: no replay, still no rerun
+        return (body,row['status'],row['content_type'],row['result'])
+
+    def finish(self,reservation,succeeded,attempted,responded=False,release_request_key=None,replay=None):
         """Settle a reservation.
 
         succeeded: keep the full cost. responded (provider answered, output
@@ -375,18 +425,36 @@ class AccountService:
         error, cache, invalid input): full refund. The shared attempt ceiling is
         refunded only when the provider was never attempted. release_request_key
         (unsuccessful requests only) deletes that idempotency claim so a retry
-        with the same key runs instead of being rejected as a repeat.
+        with the same key runs instead of being rejected as a repeat. Otherwise
+        the reservation's claim (if any) is marked finished and replay (body,
+        status, content_type, result) is stored with it, so a retry with that
+        key gets the same response without running or charging again.
         """
         with self.transaction() as db:
             row=db.execute('SELECT * FROM reservations WHERE id=?',(reservation,)).fetchone()
             if row is None: return False
+            released=not succeeded and release_request_key is not None
             if not succeeded:
                 kept=min(row['cost'],UNUSABLE_OUTPUT_COST) if attempted and responded else 0
                 db.execute('UPDATE quota SET used=MAX(0,used-?) WHERE account=? AND day=?',
                            (row['cost']-kept,row['account'],row['day']))
-                if release_request_key is not None:
-                    db.execute('DELETE FROM ai_requests WHERE account=? AND key=?',
-                               (row['account'],digest(release_request_key)))
+            if released:
+                db.execute('DELETE FROM ai_requests WHERE account=? AND reservation=?',(row['account'],reservation))
+            else:
+                stored=replay if replay is not None and len(replay[0])<=REPLAY_MAX_BYTES else None
+                if stored:
+                    # Bound stored bodies per account (this one included); older
+                    # claims stay as no-rerun markers without a body.
+                    db.execute('UPDATE ai_requests SET response=NULL,status=NULL,content_type=NULL,result=NULL '
+                               'WHERE account=? AND response IS NOT NULL AND key NOT IN '
+                               '(SELECT key FROM ai_requests WHERE account=? AND response IS NOT NULL '
+                               'ORDER BY created DESC, key DESC LIMIT ?)',
+                               (row['account'],row['account'],REPLAY_MAX_PER_ACCOUNT-1))
+                db.execute('UPDATE ai_requests SET reservation=NULL,response=?,status=?,content_type=?,result=? '
+                           'WHERE account=? AND reservation=?',
+                           (self.cipher.encrypt(bytes(stored[0])) if stored else None,
+                            stored[1] if stored else None,stored[2] if stored else None,stored[3] if stored else None,
+                            row['account'],reservation))
             if not attempted:
                 db.execute('UPDATE global_quota SET used=MAX(0,used-1) WHERE day=?',(row['day'],))
             db.execute('DELETE FROM reservations WHERE id=?',(reservation,))

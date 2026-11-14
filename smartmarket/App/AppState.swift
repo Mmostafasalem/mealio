@@ -38,8 +38,39 @@ final class AppState {
 
     // MARK: - Meal Plan
     var weeklyMealPlan: WeeklyMealPlan? = AppState.loadWeeklyMealPlan()
-    var isGeneratingMealPlan: Bool = false
+    /// True while an online meal-plan request (agent loop or Meals tab) runs.
+    var isGeneratingMealPlan: Bool { mealPlanRequest != nil }
     var lastGroceryCount: Int = 0
+
+    enum MealPlanRequester { case background, user }
+    struct MealPlanRequestTicket: Equatable {
+        let id = UUID()
+        let requester: MealPlanRequester
+    }
+    /// The one meal-plan request allowed to save its result.
+    private(set) var mealPlanRequest: MealPlanRequestTicket?
+
+    /// Claims the single meal-plan slot. A background request never starts
+    /// while another runs; a user request takes over from a background one
+    /// (whose result is then discarded). Returns nil when the slot is taken.
+    func beginMealPlanRequest(_ requester: MealPlanRequester) -> MealPlanRequestTicket? {
+        if let current = mealPlanRequest {
+            guard requester == .user, current.requester == .background else { return nil }
+            agentLoop.cancelBackgroundRegeneration()
+        }
+        let ticket = MealPlanRequestTicket(requester: requester)
+        mealPlanRequest = ticket
+        return ticket
+    }
+
+    /// Whether this request still owns the slot (it may save its plan).
+    func ownsMealPlanRequest(_ ticket: MealPlanRequestTicket) -> Bool {
+        mealPlanRequest == ticket
+    }
+
+    func endMealPlanRequest(_ ticket: MealPlanRequestTicket) {
+        if mealPlanRequest == ticket { mealPlanRequest = nil }
+    }
 
     // MARK: - Agent
     let agentLoop = AgentLoop()

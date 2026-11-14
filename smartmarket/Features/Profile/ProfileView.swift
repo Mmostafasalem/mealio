@@ -81,13 +81,8 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(vm.profile.name.isEmpty ? "Nourlo User" : vm.profile.name)
                         .font(.headline)
-                    HStack(spacing: 4) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.brandPrimary)
-                        Text(vm.profile.email.isEmpty ? "Vilnius, Lithuania" : vm.profile.email)
-                            .font(.caption).foregroundStyle(Color.labelSecondary)
-                    }
+                    Text(vm.profile.email.isEmpty ? vm.profile.weightGoal.displayName : vm.profile.email)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
             }
             .padding(.vertical, 6)
@@ -111,6 +106,11 @@ struct ProfileView: View {
             NavigationLink {
                 EditBodyStatsView(vm: vm)
             } label: { Label("Body Stats", systemImage: "figure") }
+
+            NavigationLink {
+                EditGoalView(vm: vm)
+            } label: { Label("Goal", systemImage: "target") }
+            .accessibilityIdentifier("profile.goal")
 
             NavigationLink {
                 EditDietaryPrefsView(vm: vm)

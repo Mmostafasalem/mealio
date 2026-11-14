@@ -11,6 +11,8 @@ final class APIService {
     private var sharingConsentKey: String {
         ownerConfiguration == nil ? "aiSharingConsent_v1" : "ownerAISharingConsent_v1"
     }
+    /// Whether the person allowed online AI sharing (every AI call needs it).
+    var hasAIConsent: Bool { UserDefaults.standard.bool(forKey: sharingConsentKey) }
     init(session: URLSession = .shared,
          authorization: (@MainActor () throws -> String)? = nil,
          ownerConfiguration: OwnerAITestConfiguration? = nil) {
@@ -34,16 +36,32 @@ final class APIService {
     // MARK: - Product catalog (all markets, with/without discount)
 
     func fetchProducts(store: String? = nil, category: String? = nil, query: String? = nil) async throws -> [Product] {
-        var path = Constants.API.Endpoint.products
-        var params: [String] = []
-        if let store    = store,    !store.isEmpty    { params.append("store=\(store)") }
-        if let category = category, !category.isEmpty { params.append("category=\(category)") }
-        if let query    = query,    !query.isEmpty    { params.append("q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)") }
-        if !params.isEmpty { path += "?" + params.joined(separator: "&") }
-        let req = try get(path)
+        guard let url = Self.productsURL(baseURL: Constants.API.baseURL, store: store,
+                                         category: category, query: query) else {
+            throw APIError.invalidURL
+        }
+        let req = request(for: url)
         let (data, response) = try await session.data(for: req)
         try validateResponse(response)
         return try decoder.decode([Product].self, from: data)
+    }
+
+    /// Products URL with every filter percent-encoded as a query item.
+    static func productsURL(baseURL: String, store: String? = nil,
+                            category: String? = nil, query: String? = nil) -> URL? {
+        guard var components = URLComponents(string: baseURL + Constants.API.Endpoint.products) else { return nil }
+        var items: [URLQueryItem] = []
+        if let store, !store.isEmpty       { items.append(URLQueryItem(name: "store", value: store)) }
+        if let category, !category.isEmpty { items.append(URLQueryItem(name: "category", value: category)) }
+        if let query, !query.isEmpty       { items.append(URLQueryItem(name: "q", value: query)) }
+        if !items.isEmpty {
+            components.queryItems = items
+            // URLQueryItem encodes "&", "=" and spaces but leaves "+", which the
+            // server would read as a space.
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+        }
+        return components.url
     }
 
     // MARK: - Health
@@ -56,25 +74,37 @@ final class APIService {
 
     // MARK: - Deals
 
-    /// True when the last `getDeals()` returned the bundled offline list
-    /// rather than a live backend response.
-    private(set) var lastDealsWereFallback = false
+    /// Deals together with whether they are the bundled offline list, so each
+    /// caller gets the status of its own request.
+    struct DealsResult {
+        let deals: [Deal]
+        let isFallback: Bool
+    }
 
     /// No location is sent: distance filtering happens on-device
     /// (`HomeViewModel.nearbyDeals`).
-    func getDeals() async throws -> [Deal] {
+    func fetchDeals() async -> DealsResult {
         do {
             let req = try get(Constants.API.Endpoint.deals)
             let (data, response) = try await session.data(for: req)
             try validateResponse(response)
-            let deals = try decoder.decode([Deal].self, from: data)
-            lastDealsWereFallback = deals.isEmpty
-            return deals.isEmpty ? FallbackData.deals : deals
+            let deals = try Self.decodeDeals(data)
+            return deals.isEmpty ? DealsResult(deals: FallbackData.deals, isFallback: true)
+                                 : DealsResult(deals: deals, isFallback: false)
         } catch {
             appLog("[API] getDeals failed — using offline fallback:", error)
-            lastDealsWereFallback = true
-            return FallbackData.deals
+            return DealsResult(deals: FallbackData.deals, isFallback: true)
         }
+    }
+
+    /// Deals only; falls back to the bundled list like `fetchDeals()`.
+    func getDeals() async throws -> [Deal] {
+        await fetchDeals().deals
+    }
+
+    /// Decodes a deals array, skipping malformed entries instead of failing all.
+    static func decodeDeals(_ data: Data) throws -> [Deal] {
+        try JSONDecoder().decode([ResilientStorage.Lossy<Deal>].self, from: data).compactMap(\.value)
     }
 
     // MARK: - Meal Plan (AI — allow up to 60s)
@@ -94,22 +124,27 @@ final class APIService {
             plan = MealPlanGrounding.resolve(plan, foods: request.stock?.map(\.food) ?? [])
             let target = request.bmrData.calories(forGoal: request.goal)
             guard plan.isOnTarget(target) else {
-                // Off-target AI output: plan on the device for the real target instead.
+                // Off-target AI output is a failed refresh, handled like any other below.
                 appLog("[API] online meal plan ignored: days far from \(target) kcal")
-                var local = FallbackData.mealPlan(targetKcal: target, pantry: [])
-                local.generationSource = "local"
-                return local
+                throw APIError.unverifiedAIResponse
             }
             plan.generationSource = "online"
             return plan
         } catch {
             appLog("[API] generateMealPlan failed:", error)
-            // A failed refresh must not replace a saved plan with generic meals.
-            if AppState.shared.weeklyMealPlan != nil { throw error }
-            var plan = FallbackData.mealPlan(targetKcal: request.bmrData.calories(forGoal: request.goal), pantry: [])
-            plan.generationSource = "local"
-            return plan
+            return try Self.fallbackMealPlan(after: error, hasSavedPlan: AppState.shared.weeklyMealPlan != nil,
+                                             target: request.bmrData.calories(forGoal: request.goal))
         }
+    }
+
+    /// What a failed or unusable online plan leaves: a saved plan is kept (the
+    /// error is rethrown); with nothing saved, an on-device plan marked "local",
+    /// which callers must not count as a fresh AI plan.
+    static func fallbackMealPlan(after error: Error, hasSavedPlan: Bool, target: Int) throws -> WeeklyMealPlan {
+        if hasSavedPlan { throw error }
+        var plan = FallbackData.mealPlan(targetKcal: target, pantry: [])
+        plan.generationSource = "local"
+        return plan
     }
 
     // MARK: - Shopping Advice (AI)
@@ -218,6 +253,11 @@ final class APIService {
         guard let url = URL(string: Constants.API.baseURL + path) else {
             throw APIError.invalidURL
         }
+        return request(for: url)
+    }
+
+    /// GET request for a full URL with API key header.
+    private func request(for url: URL) -> URLRequest {
         var req = URLRequest(url: url)
         req.timeoutInterval = 15
         if !Constants.API.appKey.isEmpty {

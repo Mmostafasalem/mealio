@@ -34,35 +34,41 @@ final class OnboardingViewModel {
     @ObservationIgnored private var filterTask: Task<Void, Never>?
 
     // MARK: - Live computed values (local Mifflin-St Jeor; no network)
-    var liveBMR: Int {
-        Int(BMRCalculator.bmr(
-            weight: weight, height: height, age: age, gender: gender
-        ).rounded())
+    // The same calculation `finish()` saves, so the number shown is the one saved.
+    func liveTargets(goal: WeightGoal? = nil, pace: LossPace? = nil) -> BMRCalculator.Targets {
+        BMRCalculator.targets(weight: weight, height: height, age: age, gender: gender,
+                              activityLevel: activityLevel, goal: goal ?? weightGoal, pace: pace ?? lossPace)
     }
 
-    var liveTDEE: Int {
-        Int(BMRCalculator.tdee(
-            bmr: Double(liveBMR), activityLevel: activityLevel
-        ).rounded())
+    var liveBMR: Int { Int(liveTargets().bmr.rounded()) }
+
+    var liveTDEE: Int { Int(liveTargets().tdee.rounded()) }
+
+    var liveDailyGoal: Int { liveTargets().dailyGoal }
+
+    /// Under-18s are offered maintain or gain only.
+    var allowsWeightLoss: Bool { BMRCalculator.allowsWeightLoss(age: age) }
+
+    var availableGoals: [WeightGoal] {
+        allowsWeightLoss ? WeightGoal.allCases : WeightGoal.allCases.filter { $0 != .lose }
     }
 
-    var liveDailyGoal: Int {
-        switch weightGoal {
-        case .lose:     return BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .lose,     pace: lossPace, gender: gender)
-        case .maintain: return liveTDEE
-        case .gain:     return BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .gain,     pace: lossPace, gender: gender)
-        }
+    /// Moves a weight-loss goal to maintain when the age no longer allows it.
+    func normalizeGoalForAge() {
+        weightGoal = BMRCalculator.effectiveGoal(weightGoal, age: age)
     }
 
-    var isBelowSafeFloor: Bool {
-        let floor: Int
-        switch gender {
-        case .male:   floor = Constants.Calories.minimumMale
-        case .female: floor = Constants.Calories.minimumFemale
-        case .other:  floor = Constants.Calories.minimumOther
-        }
-        return liveDailyGoal <= floor
+    /// The deficit a pace will actually apply, after the safety floor.
+    func effectiveDeficit(for pace: LossPace) -> Int {
+        BMRCalculator.effectiveDeficit(tdee: liveTargets().tdee, pace: pace, gender: gender, age: age)
     }
+
+    func isCappedBySafetyFloor(_ pace: LossPace) -> Bool {
+        BMRCalculator.isCappedBySafetyFloor(tdee: liveTargets().tdee, pace: pace, gender: gender, age: age)
+    }
+
+    /// The selected pace is limited by the minimum safe calories.
+    var isBelowSafeFloor: Bool { weightGoal == .lose && isCappedBySafetyFloor(lossPace) }
 
     // MARK: - Catalog filtering (synchronous — catalog is static)
 
@@ -97,11 +103,34 @@ final class OnboardingViewModel {
         else { selectedPreferences.insert(pref) }
     }
 
-    func advance(to step: OnboardingStep) { path.append(step) }
+    /// Pushes `step` unless it is already on the stack or isn't ahead of the
+    /// current screen, so a double tap on Next (or a tap on the previous
+    /// screen while the push animates) can't push the same step twice.
+    func advance(to step: OnboardingStep) {
+        let current = path.last ?? .name
+        guard step.rawValue > current.rawValue, !path.contains(step) else { return }
+        path.append(step)
+    }
 
     // MARK: - Finish onboarding
     @MainActor
     func finish() {
+        let profile = makeProfile()
+        profile.save()
+        UserProfile.markTargetsCurrent()
+        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
+                                                       isKeto: selectedPreferences.contains(.keto)))
+
+        selectedPreferences.save()
+        UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
+
+        AppState.shared.userProfile = profile
+        AppState.shared.completeOnboarding()
+        AppState.shared.agentLoop.start(appState: AppState.shared)
+    }
+
+    /// The profile `finish()` saves, with its targets. Pure (no storage).
+    func makeProfile() -> UserProfile {
         var profile = UserProfile()
         let fullName = [firstName.trimmingCharacters(in: .whitespaces),
                         lastName.trimmingCharacters(in: .whitespaces)]
@@ -113,18 +142,9 @@ final class OnboardingViewModel {
         profile.age           = age
         profile.gender        = gender
         profile.activityLevel = activityLevel
-        profile.weightGoal    = weightGoal
+        profile.weightGoal    = BMRCalculator.effectiveGoal(weightGoal, age: age)
         profile.lossPace      = lossPace
         BMRCalculator.populate(profile: &profile)
-        profile.save()
-        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
-                                                       isKeto: selectedPreferences.contains(.keto)))
-
-        selectedPreferences.save()
-        UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
-
-        AppState.shared.userProfile = profile
-        AppState.shared.completeOnboarding()
-        AppState.shared.agentLoop.start(appState: AppState.shared)
+        return profile
     }
 }

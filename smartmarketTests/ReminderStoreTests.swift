@@ -99,7 +99,7 @@ final class ReminderStoreTests: XCTestCase {
         let now = try! XCTUnwrap(Calendar.current.date(from: c))
         XCTAssertEqual(Calendar.current.component(.weekday, from: now), 3)
         XCTAssertEqual(store.due(now: now).map(\.kind), [.lunch, .breakfast])
-        store.dismiss(try! XCTUnwrap(store.reminders.first { $0.kind == .lunch }))
+        store.dismiss(try! XCTUnwrap(store.reminders.first { $0.kind == .lunch }), now: now)
         XCTAssertEqual(store.due(now: now).map(\.kind), [.breakfast])
     }
 }

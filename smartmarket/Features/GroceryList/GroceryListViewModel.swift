@@ -59,10 +59,16 @@ final class GroceryListViewModel {
 
     // MARK: - Mutations
 
+    /// Flips one row against the latest stored list, so rows the cart or sync
+    /// rewrote since this screen loaded are not overwritten.
     func toggleBought(_ item: GroceryItem) {
-        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
-        items[index].isBought.toggle()
-        saveItems()
+        var latest = GroceryStorage.load()
+        guard let index = latest.firstIndex(where: { $0.id == item.id }) else { items = latest; return }
+        latest[index].isBought.toggle()
+        ShoppingCartService.noteBoughtTick(rowId: latest[index].id, quantity: latest[index].quantity,
+                                           isBought: latest[index].isBought)
+        GroceryStorage.save(latest)
+        items = latest
     }
 
     func deleteItem(_ item: GroceryItem) {
@@ -127,9 +133,17 @@ final class GroceryListViewModel {
         saveItems()
     }
 
+    /// Bought rows, and how many of them are cart lines (removing those also
+    /// takes them out of the cart and the budget total).
+    var boughtItems: [GroceryItem] { items.filter(\.isBought) }
+    var boughtCartCount: Int { boughtItems.filter { ShoppingCartService.parseCartRowId($0.id) != nil }.count }
+
+    /// Removes every bought row. Cart rows leave the cart too, so the view asks
+    /// for confirmation first; an undo toast follows.
     func clearBought() {
-        let bought = items.filter(\.isBought)
-        removeItems(bought, message: "\(bought.count) bought items removed")
+        let bought = GroceryStorage.load().filter(\.isBought)
+        let noun = bought.count == 1 ? "item" : "items"
+        removeItems(bought, message: "\(bought.count) bought \(noun) removed")
     }
 
     func clearCart() {
@@ -142,8 +156,10 @@ final class GroceryListViewModel {
     }
 
     func addItem(_ item: GroceryItem) {
-        items.append(item)
-        saveItems()
+        var latest = GroceryStorage.load()
+        latest.append(item)
+        GroceryStorage.save(latest)
+        items = latest
     }
 
     func shareText() -> String {

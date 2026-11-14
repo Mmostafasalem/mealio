@@ -85,6 +85,8 @@ struct AgeStepView: View {
 
     @Bindable var vm: OnboardingViewModel
 
+    private let ageRange = Double(Constants.Onboarding.minimumAge)...Double(Constants.Onboarding.maximumAge)
+
     private var age: Binding<Double> {
         Binding(get: { Double(vm.age) }, set: { vm.age = Int($0.rounded()) })
     }
@@ -94,7 +96,7 @@ struct AgeStepView: View {
             VStack(spacing: Spacing.sm) {
                 Spacer()
                 OnboardingReadout(number: "\(vm.age)", unit: "years")
-                RulerPicker(value: age, range: 10...100, step: 1,
+                RulerPicker(value: age, range: ageRange, step: 1,
                             accessibilityName: "Age", spokenValue: { "\(Int($0)) years" })
                     .frame(height: 130)
                 Spacer()
@@ -118,7 +120,7 @@ struct HeightStepView: View {
     @State private var growth: Double = 0
     @State private var settleTask: Task<Void, Never>?
 
-    private let range: ClosedRange<Double> = 140...220
+    private let range: ClosedRange<Double> = HeightRuler.defaultRange
 
     private var targetGrowth: Double {
         min(max((vm.height - range.lowerBound) / (range.upperBound - range.lowerBound), 0), 1)

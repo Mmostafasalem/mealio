@@ -98,7 +98,13 @@ final class FoodLogStore {
     private let defaults: UserDefaults
     private let stock: StockStore
     var allEntries: [FoodLogEntry] { (history + stock.logs).sorted { $0.loggedAt < $1.loggedAt } }
-    var entries: [FoodLogEntry] { allEntries.filter { Calendar.current.isDateInToday($0.loggedAt) } }
+    var entries: [FoodLogEntry] { entries(on: Date()) }
+    /// The entries logged on `date`'s calendar day. Views that stay on screen
+    /// pass their own clock so they move to the new day at midnight.
+    func entries(on date: Date) -> [FoodLogEntry] {
+        let calendar = Calendar.current
+        return allEntries.filter { calendar.isDate($0.loggedAt, inSameDayAs: date) }
+    }
     private(set) var recentFoodIDs: [String] = []
 
     init(defaults: UserDefaults = .standard, stock: StockStore? = nil) {

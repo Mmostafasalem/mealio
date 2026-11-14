@@ -87,49 +87,10 @@ struct TrainView: View {
 
     // MARK: Exercise browser
 
-    /// The exercise library as a card you drill into in place:
-    /// type → exercises → one exercise.
+    /// The exercise library as a card you drill into in place. Its own view, built
+    /// once, so the builder's controls (e.g. every ruler tick) don't rebuild 300+ pages.
     private var exerciseBrowser: some View {
-        var pages: [String: StackPanelPage] = [:]
-        pages["root"] = StackPanelPage(title: "Exercises", sections: [
-            StackPanelSection(rows: ExerciseKind.allCases.map { kind in
-                StackPanelRow(id: kind.rawValue, label: kind.title, symbol: kind.symbol,
-                              detail: "\(Exercise.catalog.filter { $0.kind == kind }.count)", to: "kind." + kind.rawValue)
-            }),
-            StackPanelSection(rows: [
-                StackPanelRow(id: "search", label: "Search all exercises", symbol: "magnifyingglass",
-                              action: { showLibrary = true }),
-            ]),
-        ])
-        for kind in ExerciseKind.allCases {
-            let exercises = Exercise.catalog.filter { $0.kind == kind }
-            // Strength work is grouped by body area; cardio and mobility are one list.
-            let groups: [(String?, [Exercise])] = exercises.contains { $0.focus != nil }
-                ? ExerciseFocus.allCases.compactMap { focus in
-                    let matching = exercises.filter { $0.focus == focus }
-                    return matching.isEmpty ? nil : (focus.title, matching)
-                }
-                : [(nil, exercises)]
-            pages["kind." + kind.rawValue] = StackPanelPage(title: kind.title, sections: groups.map { title, items in
-                StackPanelSection(title: title, rows: items.map { exercise in
-                    StackPanelRow(id: exercise.id, label: exercise.name, detail: exercise.level.title, to: "exercise." + exercise.id)
-                })
-            })
-            for exercise in exercises {
-                pages["exercise." + exercise.id] = StackPanelPage(title: exercise.name, sections: [
-                    StackPanelSection(rows: [
-                        StackPanelRow(id: exercise.id + ".works", label: "Works", detail: exercise.muscles),
-                        StackPanelRow(id: exercise.id + ".kit", label: "Equipment", detail: exercise.equipment),
-                        StackPanelRow(id: exercise.id + ".typical", label: "Typical", detail: exercise.prescription),
-                    ]),
-                    StackPanelSection(rows: [
-                        StackPanelRow(id: exercise.id + ".howto", label: "Show how to do it", symbol: "play.circle.fill",
-                                      action: { guide = ExerciseGuide(exercise: exercise) }),
-                    ]),
-                ])
-            }
-        }
-        return StackPanel(pages: pages, root: "root")
+        ExerciseBrowserCard(showLibrary: $showLibrary, guide: $guide)
     }
 
     // MARK: This week
@@ -263,6 +224,79 @@ struct TrainView: View {
 }
 
 // MARK: - Pieces
+
+/// The exercise library as a card you drill into in place: type → exercises → one
+/// exercise. Depends only on the catalogue, so its pages are built the first time
+/// it is drawn and kept.
+private struct ExerciseBrowserCard: View {
+    @Binding var showLibrary: Bool
+    @Binding var guide: ExerciseGuide?
+    @State private var cache = PageCache()
+
+    /// Holds the built pages; a plain reference so filling it doesn't redraw anything.
+    private final class PageCache {
+        var pages: [String: StackPanelPage]?
+    }
+
+    var body: some View {
+        StackPanel(pages: pages(), root: "root")
+    }
+
+    private func pages() -> [String: StackPanelPage] {
+        if let built = cache.pages { return built }
+        // The rows' actions write through the bindings, which keep pointing at TrainView's state.
+        let showLibrary = $showLibrary, guide = $guide
+        let built = Self.makePages(search: { showLibrary.wrappedValue = true },
+                                   open: { guide.wrappedValue = ExerciseGuide(exercise: $0) })
+        cache.pages = built
+        return built
+    }
+
+    private static func makePages(search: @escaping () -> Void,
+                                  open: @escaping (Exercise) -> Void) -> [String: StackPanelPage] {
+        let byKind = Dictionary(grouping: Exercise.catalog, by: \.kind)
+        var pages: [String: StackPanelPage] = [:]
+        pages["root"] = StackPanelPage(title: "Exercises", sections: [
+            StackPanelSection(rows: ExerciseKind.allCases.map { kind in
+                StackPanelRow(id: kind.rawValue, label: kind.title, symbol: kind.symbol,
+                              detail: "\(byKind[kind]?.count ?? 0)", to: "kind." + kind.rawValue)
+            }),
+            StackPanelSection(rows: [
+                StackPanelRow(id: "search", label: "Search all exercises", symbol: "magnifyingglass", action: search),
+            ]),
+        ])
+        for kind in ExerciseKind.allCases {
+            let exercises = byKind[kind] ?? []
+            // Strength work is grouped by body area; cardio and mobility are one list.
+            let byFocus = Dictionary(grouping: exercises.filter { $0.focus != nil }, by: { $0.focus! })
+            let groups: [(String?, [Exercise])] = byFocus.isEmpty
+                ? [(nil, exercises)]
+                : ExerciseFocus.allCases.compactMap { focus in
+                    guard let matching = byFocus[focus], !matching.isEmpty else { return nil }
+                    return (focus.title, matching)
+                }
+            pages["kind." + kind.rawValue] = StackPanelPage(title: kind.title, sections: groups.map { title, items in
+                StackPanelSection(title: title, rows: items.map { exercise in
+                    StackPanelRow(id: exercise.id, label: exercise.name, detail: exercise.level.title, to: "exercise." + exercise.id)
+                })
+            })
+            for exercise in exercises {
+                pages["exercise." + exercise.id] = StackPanelPage(title: exercise.name, sections: [
+                    StackPanelSection(rows: [
+                        StackPanelRow(id: exercise.id + ".works", label: "Works", detail: exercise.muscles),
+                        StackPanelRow(id: exercise.id + ".kit", label: "Equipment", detail: exercise.equipment),
+                        StackPanelRow(id: exercise.id + ".typical", label: "Typical", detail: exercise.prescription),
+                    ]),
+                    StackPanelSection(rows: [
+                        StackPanelRow(id: exercise.id + ".howto", label: "Show how to do it", symbol: "play.circle.fill",
+                                      action: { open(exercise) }),
+                    ]),
+                ])
+            }
+        }
+        return pages
+    }
+}
 
 private struct KindTile: View {
     let kind: ExerciseKind

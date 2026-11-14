@@ -145,6 +145,7 @@ private struct CategoryChip: View {
         .buttonStyle(.plain)
         // Colour-only change, so it stays animated under Reduce Motion.
         .animation(.snappyValue, value: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

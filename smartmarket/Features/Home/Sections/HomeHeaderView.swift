@@ -15,7 +15,7 @@ struct HomeHeaderView: View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(Date(), format: dynamicTypeSize.isAccessibilitySize
+                    Text(vm.now, format: dynamicTypeSize.isAccessibilitySize
                          ? .dateTime.day().month(.abbreviated)
                          : .dateTime.weekday(.wide).day().month(.wide))
                         .font(.captionText)

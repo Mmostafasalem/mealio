@@ -17,6 +17,12 @@ final class RecipeRatingStore {
         ratings = defaults.dictionary(forKey: Self.key) as? [String: Int] ?? [:]
     }
 
+    /// Re-reads ratings from storage (after Delete All Data erased them), so a
+    /// later rating can't write the old ones back.
+    func reload() {
+        ratings = defaults.dictionary(forKey: Self.key) as? [String: Int] ?? [:]
+    }
+
     /// 0 when the recipe has not been rated.
     func rating(for title: String) -> Int { ratings[Self.normalize(title)] ?? 0 }
 

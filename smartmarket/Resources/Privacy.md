@@ -1,6 +1,6 @@
 # Nourlo — Privacy Policy
 
-_Last updated: 2026-11-13_
+_Last updated: 2026-11-14_
 
 Nourlo ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not
@@ -165,8 +165,10 @@ does not automatically erase provider records.
 - **Apple** — optional CloudKit shopping sync.
 
 ## Children
-Nourlo is not directed at children under 13 and should not be used to set
-calorie goals for minors without medical guidance.
+Nourlo is not directed at children under 13, and setup does not accept an age
+below 13. For people aged 13 to 17, Nourlo offers only "maintain" or "gain"
+goals and never sets a calorie deficit, even if an older saved profile asked
+for weight loss. Teens should talk to a doctor about any weight goals.
 
 ## Your choices
 - Revoke notification permission anytime in iOS Settings.

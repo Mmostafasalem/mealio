@@ -162,6 +162,8 @@ struct LogFoodSheet: View {
             }
             .onDisappear { lookupTask?.cancel() }
             .onAppear {
+                // Brings "From today's plan" to today if the day has changed.
+                vm.activate()
                 catalog.reloadSaved()
                 slot = vm.logSheetSlot ?? .suggested()
             }
@@ -254,7 +256,7 @@ struct LogFoodSheet: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add \(Int(food.defaultAmount)) \(food.basis.rawValue) of \(food.name)")
+            .accessibilityLabel("Add \(Self.amountText(food.defaultAmount, basis: food.basis)) of \(food.name)")
         }
         .padding(.vertical, 2)
     }
@@ -283,7 +285,17 @@ struct LogFoodSheet: View {
         }
         vm.logFood(food, slot: slot, amount: food.defaultAmount)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        showToast("Added \(Int(food.defaultAmount)) \(food.basis.rawValue) · \(food.name)")
+        showToast("Added \(Self.amountText(food.defaultAmount, basis: food.basis)) · \(food.name)")
+    }
+
+    /// "0.5 serving", "2 servings", "100 g", "250 ml": no truncation, no
+    /// trailing zeros.
+    static func amountText(_ amount: Double, basis: NutritionFood.Basis, locale: Locale = .current) -> String {
+        let number = amount.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+        switch basis {
+        case .serving: return "\(number) \(amount > 1 ? "servings" : "serving")"
+        case .grams, .millilitres: return "\(number) \(basis.rawValue)"
+        }
     }
 
     private func showToast(_ message: String) {

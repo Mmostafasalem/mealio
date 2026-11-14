@@ -42,7 +42,11 @@ struct LoopState: Equatable {
 @MainActor
 @Observable
 final class DailyLoopStore {
-    static let shared = DailyLoopStore()
+    /// The app's store only runs once onboarding is done, so nothing is written
+    /// to the ledger before setup or while Delete All Data is erasing it.
+    static let shared = DailyLoopStore(isActive: {
+        AppState.shared.isOnboarded && UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
+    })
 
     private(set) var state = LoopState()
     private(set) var ledger: [LoopEvent] = []
@@ -57,14 +61,18 @@ final class DailyLoopStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let currentCalendar: () -> Calendar
     @ObservationIgnored private let source: @MainActor () -> LoopSource
+    /// False while the user isn't onboarded: refresh and cart check-ins do nothing.
+    @ObservationIgnored private let isActive: @MainActor () -> Bool
     private var calendar: Calendar { currentCalendar() }
 
     /// `calendar` is read on every refresh, so a time-zone change is picked up.
     init(defaults: UserDefaults = .standard, calendar: @escaping () -> Calendar = { .autoupdatingCurrent },
-         source: @escaping @MainActor () -> LoopSource = LoopSource.live) {
+         source: @escaping @MainActor () -> LoopSource = LoopSource.live,
+         isActive: @escaping @MainActor () -> Bool = { true }) {
         self.defaults = defaults
         self.currentCalendar = calendar
         self.source = source
+        self.isActive = isActive
         ledger = ResilientStorage.loadArray(LoopEvent.self, key: Self.key, defaults: defaults)
     }
 
@@ -76,6 +84,7 @@ final class DailyLoopStore {
     }
 
     func refresh(now: Date = Date()) {
+        guard isActive() else { return }
         // Another store (or "delete my data") may have changed the stored ledger.
         ledger = ResilientStorage.loadArray(LoopEvent.self, key: Self.key, defaults: defaults)
         var i = inputs(now: now).prepared()
@@ -120,6 +129,7 @@ final class DailyLoopStore {
     /// The user changed the cart. Counts for today only if it now has items
     /// and sits within the weekly budget.
     func cartChanged(now: Date = Date()) {
+        guard isActive() else { return }
         let s = source()
         let today = DayKey(now, calendar: calendar)
         ledger = ResilientStorage.loadArray(LoopEvent.self, key: Self.key, defaults: defaults)
@@ -130,8 +140,9 @@ final class DailyLoopStore {
         refresh(now: now)
     }
 
-    convenience init(defaults: UserDefaults, calendar: Calendar, source: @escaping @MainActor () -> LoopSource) {
-        self.init(defaults: defaults, calendar: { calendar }, source: source)
+    convenience init(defaults: UserDefaults, calendar: Calendar, source: @escaping @MainActor () -> LoopSource,
+                     isActive: @escaping @MainActor () -> Bool = { true }) {
+        self.init(defaults: defaults, calendar: { calendar }, source: source, isActive: isActive)
     }
 
     /// Fresh state for scheduling tonight's nudge.
@@ -141,6 +152,15 @@ final class DailyLoopStore {
     }
 
     func consumeMilestone() { pendingMilestone = nil }
+
+    /// Drops everything held in memory and re-reads the stored ledger (empty
+    /// after Delete All Data). Observers and the nudge hook stay attached.
+    func reset() {
+        ledger = ResilientStorage.loadArray(LoopEvent.self, key: Self.key, defaults: defaults)
+        state = LoopState()
+        lastCompletion = nil
+        pendingMilestone = nil
+    }
 
     /// Cart edits can happen on any tab; listen once for the app's lifetime.
     @ObservationIgnored private var cartObserver: NSObjectProtocol?

@@ -20,6 +20,7 @@ import logging
 from flask import Flask, request, jsonify
 from werkzeug.exceptions import HTTPException
 from ai_accounts import AI_PATHS
+from ai_account_routes import _INVALID_JSON, parse_json_body
 
 from app import (
     APP_API_KEY,
@@ -88,7 +89,9 @@ def _gate():
     session_route = session_route or (request.method == "POST" and request.path in AI_PATHS)
     if APP_API_KEY and request.path != "/api/auth/apple/notifications" and not public_liveness and not session_route:
         provided = request.headers.get("X-API-Key", "")
-        if not hmac.compare_digest(provided, APP_API_KEY):
+        # Compare bytes: compare_digest raises TypeError for non-ASCII str.
+        if not hmac.compare_digest(provided.encode("utf-8", "surrogatepass"),
+                                   APP_API_KEY.encode("utf-8", "surrogatepass")):
             return jsonify({"error": "Unauthorized"}), 401
 
 
@@ -119,8 +122,9 @@ def _body() -> dict:
     # No body at all → treat as empty object (handlers apply their own defaults).
     if not request.data:
         return {}
-    data = request.get_json(force=True, silent=True)
-    if data is None:
+    # Safe parse: deep nesting (RecursionError) or bad UTF-8 is a 400, not a 500.
+    data = parse_json_body(request.get_data(cache=True))
+    if data is _INVALID_JSON or data is None:
         raise RequestError("Invalid JSON body")
     if not isinstance(data, dict):
         raise RequestError("Request body must be a JSON object")

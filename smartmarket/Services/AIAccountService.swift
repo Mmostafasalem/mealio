@@ -243,7 +243,10 @@ final class AIAccountService {
         allowance = AIAllowance(limit: limit, used: max(0, limit-left), remaining: max(0, left),
                                 resetsAt: reset, mealPlanCost: 5, shortRequestCost: 1)
         if response.value(forHTTPHeaderField: "X-AI-Result") == "fallback" {
-            message = "Online AI was unavailable. No credits were used."
+            // The service keeps 1 credit when the AI answered but the answer was unusable.
+            message = response.value(forHTTPHeaderField: "X-AI-Fallback") == "unusable-output"
+                ? "Online AI couldn't write a usable answer. 1 credit was used."
+                : "Online AI was unavailable. No credits were used."
         }
     }
 

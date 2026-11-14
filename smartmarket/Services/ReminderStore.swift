@@ -117,8 +117,10 @@ final class ReminderStore {
     private(set) var reminders: [Reminder] = Reminder.defaults
     /// True when iOS notifications are switched off for the app.
     private(set) var permissionDenied = false
-    /// Reminders the person swiped away in the app today.
-    private(set) var dismissedToday: Set<String> = []
+    /// Reminders the person swiped away in the app, and the day they did it.
+    /// Read through `dismissed(on:)` so yesterday's swipes never hide today's cards.
+    private var dismissedIDs: Set<String> = []
+    private var dismissedDay = ""
     /// The evening streak nudge (only while the bell is on).
     private(set) var streakNudgeOn = true
     /// Today's loop, for the streak nudge. Set by the app at launch.
@@ -141,11 +143,14 @@ final class ReminderStore {
         let saved = ResilientStorage.loadArray(Reminder.self, key: key, defaults: defaults)
         // Keep the built-in order and pick up any kind added in a later version.
         reminders = Reminder.defaults.map { fallback in saved.first { $0.kind == fallback.kind } ?? fallback }
+        // One day is stored; `dismissed(on:)` ignores it once that day has passed.
         if let stored = defaults.dictionary(forKey: dismissedKey) as? [String: [String]],
-           let today = stored[Self.dayKey(Date())] {
-            dismissedToday = Set(today)
+           let latest = stored.max(by: { $0.key < $1.key }) {
+            dismissedDay = latest.key
+            dismissedIDs = Set(latest.value)
         } else {
-            dismissedToday = []
+            dismissedDay = ""
+            dismissedIDs = []
         }
     }
 
@@ -176,7 +181,18 @@ final class ReminderStore {
     func setStreakNudge(_ on: Bool, now: Date = Date(), calendar: Calendar = .current) async {
         streakNudgeOn = on
         defaults.set(on, forKey: streakKey)
-        scheduleStreakNudges(streakState?() ?? LoopState(), now: now, calendar: calendar)
+        replanStreakNudges(now: now, calendar: calendar)
+    }
+
+    /// Re-plans streak nudges from today's loop. Until the app has handed over
+    /// `streakState` there's nothing to plan from, so pending nudges are kept,
+    /// unless the bell or the nudge is off, when they're removed.
+    private func replanStreakNudges(now: Date = Date(), calendar: Calendar = .current) {
+        if let state = streakState?() {
+            scheduleStreakNudges(state, now: now, calendar: calendar)
+        } else if !isEnabled || !streakNudgeOn {
+            scheduler.remove(StreakNudge.candidateIDs(now: now, calendar: calendar))
+        }
     }
 
     /// Replaces pending streak nudges. Nothing is added unless the bell and
@@ -202,7 +218,7 @@ final class ReminderStore {
     /// Replaces every pending reminder with the current set.
     func reschedule() async {
         scheduler.remove(await scheduler.pendingReminderIdentifiers())
-        scheduleStreakNudges(streakState?() ?? LoopState())
+        replanStreakNudges()
         guard isEnabled else { return }
         for reminder in reminders where reminder.isOn {
             for request in Self.requests(for: reminder) { scheduler.add(request) }
@@ -232,30 +248,44 @@ final class ReminderStore {
     // MARK: In-app stack
 
     /// Today's reminders whose time has come and that haven't been swiped away,
-    /// newest first: what the Home stack shows.
-    func due(now: Date = Date()) -> [Reminder] {
+    /// newest first: what the Home stack shows. A meal reminder is left out
+    /// once something is logged for that meal today (`loggedSlots`).
+    func due(now: Date = Date(), loggedSlots: Set<MealSlot> = []) -> [Reminder] {
         guard isEnabled else { return [] }
         let calendar = Calendar.current
         let weekday = calendar.component(.weekday, from: now)
         let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
+        let dismissed = dismissed(on: now)
         return reminders
             .filter { $0.isOn && $0.isScheduled(on: weekday) && $0.hour * 60 + $0.minute <= minutes
-                      && !dismissedToday.contains($0.id) }
+                      && !dismissed.contains($0.id)
+                      && !($0.mealSlot.map(loggedSlots.contains) ?? false) }
             .sorted { $0.hour * 60 + $0.minute > $1.hour * 60 + $1.minute }
     }
 
-    func dismiss(_ reminder: Reminder) {
-        dismissedToday.insert(reminder.id)
-        defaults.set([Self.dayKey(Date()): Array(dismissedToday)], forKey: dismissedKey)
+    /// The reminders swiped away on `date`'s day; empty once that day has passed.
+    func dismissed(on date: Date) -> Set<String> {
+        dismissedDay == Self.dayKey(date) ? dismissedIDs : []
     }
 
-    func dismissAllDue() {
-        for reminder in due() { dismissedToday.insert(reminder.id) }
-        defaults.set([Self.dayKey(Date()): Array(dismissedToday)], forKey: dismissedKey)
+    func dismiss(_ reminder: Reminder, now: Date = Date()) {
+        markDismissed([reminder.id], now: now)
+    }
+
+    func dismissAllDue(now: Date = Date(), loggedSlots: Set<MealSlot> = []) {
+        markDismissed(due(now: now, loggedSlots: loggedSlots).map(\.id), now: now)
+    }
+
+    /// Adds to the day's dismissals, starting afresh on a new day.
+    private func markDismissed(_ ids: [String], now: Date) {
+        let day = Self.dayKey(now)
+        dismissedIDs = dismissed(on: now).union(ids)
+        dismissedDay = day
+        defaults.set([day: Array(dismissedIDs)], forKey: dismissedKey)
     }
 
     private static func dayKey(_ date: Date) -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return "\(c.year ?? 0)-\(c.month ?? 0)-\(c.day ?? 0)"
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 }

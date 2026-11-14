@@ -76,9 +76,6 @@ enum FallbackData {
         let (allStock, baseMessage) = resolveStock(pantry: pantry)
         let stock = allStock.filter { $0.isAllowed(by: preferences) }
         guard !stock.isEmpty else { return genericMealPlan(targetKcal: kcal, preferences: preferences) }
-        let planMessage = stock.count < allStock.count
-            ? baseMessage + " Items that conflict with your dietary preferences were left out."
-            : baseMessage
 
         // Group in-stock foods by culinary role.
         let proteins = stock.filter { ["meat", "poultry", "seafood", "fish", "eggs", "legumes"].contains($0.category) }
@@ -87,6 +84,16 @@ enum FallbackData {
         let fruits   = stock.filter { ["fruit", "fruits"].contains($0.category) }
         let dairy    = stock.filter { $0.category == "dairy" }
         let nutsSnacks = stock.filter { ["nuts", "snacks", "seeds"].contains($0.category) }
+
+        // Only claim the plan is built around the stock when a stock item
+        // actually fills a meal (drinks, oils or sauces alone fill none).
+        let fillsAMeal = !(proteins + carbs + veg + fruits + dairy + nutsSnacks).isEmpty
+        var planMessage = fillsAMeal
+            ? baseMessage
+            : "Offline plan targeting \(kcal) kcal/day with standard foods — nothing in your list fits a meal yet."
+        if fillsAMeal && stock.count < allStock.count {
+            planMessage += " Items that conflict with your dietary preferences were left out."
+        }
 
         func firstSafe(_ options: [StockFood]) -> StockFood? {
             options.first { $0.isAllowed(by: preferences) }
@@ -117,6 +124,9 @@ enum FallbackData {
         }
 
         typealias Component = (food: StockFood, base: Int, maxG: Int, label: String)
+        // Serving caps are sized for about 2,000 kcal a day and grow with
+        // higher targets, so a 3,000–4,000 kcal plan still reaches its target.
+        let capScale = max(1, Double(kcal) / 2000)
         // Compose a meal from components, nudging portions toward the calorie
         // target but capping them so servings stay believable.
         func compose(_ comps: [Component?], target: Int, name: (([StockFood]) -> String)? = nil) -> MealItem {
@@ -127,7 +137,7 @@ enum FallbackData {
             var total = 0
             var ings: [String] = []
             for c in comps {
-                let g = min(max(Int(Double(c.base) * factor), 20), c.maxG)
+                let g = min(max(Int(Double(c.base) * factor), 20), Int(Double(c.maxG) * capScale))
                 total += g * c.food.kcal100 / 100
                 ings.append("\(c.food.name) · \(c.label) (\(g)g)")
             }
@@ -190,10 +200,14 @@ enum FallbackData {
     // MARK: - Stock resolution
 
     private static func resolveStock(pantry: [Deal]) -> (stock: [StockFood], message: String) {
-        if let cart = cartPantry(), !cart.isEmpty {
-            let budget = UserDefaults.standard.double(forKey: "weeklyBudget")
-            let budgetStr = budget > 0 ? String(format: " (within your €%.0f budget)", budget) : ""
-            return (cart, "Offline plan built around your cart — \(cart.count) item\(cart.count == 1 ? "" : "s")\(budgetStr).")
+        let items = ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1")
+        if !items.isEmpty {
+            let cart = cartPantry(items)
+            // Same default as ShoppingCartService when no budget was saved.
+            let saved = UserDefaults.standard.double(forKey: "weeklyBudget")
+            let budget = saved > 0 ? saved : 60
+            let total = items.reduce(0) { $0 + $1.lineTotal }
+            return (cart, cartMessage(itemCount: cart.count, total: total, budget: budget))
         }
         let groceries = groceryPantry()
         if !groceries.isEmpty {
@@ -211,14 +225,26 @@ enum FallbackData {
 
     /// Shop-tab cart (ShoppingCartService) read from disk, with real per-item
     /// calories via the catalog id.
-    private static func cartPantry() -> [StockFood]? {
-        let items = ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1")
-        guard !items.isEmpty else { return nil }
-        return items.map { item in
+    private static func cartPantry(_ items: [CartItem]) -> [StockFood] {
+        items.map { item in
             let cat = item.category.lowercased()
             let kcal = itemKcal[item.catalogId] ?? categoryKcal[cat] ?? 150
             return StockFood(name: item.name, category: cat, kcal100: kcal)
         }
+    }
+
+    /// Mentions the budget only as it really stands against the cart total.
+    static func cartMessage(itemCount: Int, total: Double, budget: Double) -> String {
+        let items = "\(itemCount) item\(itemCount == 1 ? "" : "s")"
+        let budgetNote: String
+        if budget <= 0 {
+            budgetNote = ""
+        } else if total <= budget {
+            budgetNote = String(format: " (€%.2f, within your €%.2f budget)", total, budget)
+        } else {
+            budgetNote = String(format: " (€%.2f, €%.2f over your €%.2f budget)", total, total - budget, budget)
+        }
+        return "Offline plan built around your cart — \(items)\(budgetNote)."
     }
 
     private static func groceryPantry() -> [StockFood] {

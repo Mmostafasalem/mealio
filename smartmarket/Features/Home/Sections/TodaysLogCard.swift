@@ -92,16 +92,21 @@ struct MealSlotRow: View {
 
             ForEach(entries) { entry in
                 HStack(spacing: Spacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
-                        Text(entry.nutritionFood?.sourceName ?? "Estimated / older entry")
-                            .font(.caption2).foregroundStyle(Color.labelSecondary)
+                    // The row's text reads as one element; the button stays a
+                    // separate control for VoiceOver, Voice Control and Switch Control.
+                    HStack(spacing: Spacing.sm) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
+                            Text(entry.nutritionFood?.sourceName ?? "Estimated / older entry")
+                                .font(.caption2).foregroundStyle(Color.labelSecondary)
+                        }
+                        Spacer()
+                        Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
+                        Text("\(entry.calories)")
+                            .font(.caption2).fontWeight(.semibold)
+                            .foregroundStyle(Color.labelSecondary).monospacedDigit()
                     }
-                    Spacer()
-                    Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
-                    Text("\(entry.calories)")
-                        .font(.caption2).fontWeight(.semibold)
-                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
+                    .accessibilityElement(children: .combine)
                     Button { onDelete(entry) } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 16))
@@ -113,7 +118,6 @@ struct MealSlotRow: View {
                     .accessibilityLabel("Remove \(entry.name)")
                 }
                 .padding(.leading, HomeGrid.textInset)
-                .accessibilityElement(children: .combine)
             }
         }
     }

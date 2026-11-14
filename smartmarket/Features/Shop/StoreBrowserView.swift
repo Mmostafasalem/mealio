@@ -6,6 +6,7 @@ struct StoreBrowserView: View {
     @State private var cart = ShoppingCartService.shared
     @State private var showBudgetEditor = false
     @State private var budgetInput = ""
+    @State private var budgetError: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -60,7 +61,7 @@ struct StoreBrowserView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                             .contentTransition(.numericText())
-                        Text("/ \(String(format: "€%.0f", cart.weeklyBudget))")
+                        Text("/ \(String(format: "€%.2f", cart.weeklyBudget))")
                             .font(.subheadline).foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -68,7 +69,9 @@ struct StoreBrowserView: View {
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Button {
-                    budgetInput = String(format: "%.0f", cart.weeklyBudget)
+                    budgetInput = cart.weeklyBudget == cart.weeklyBudget.rounded()
+                        ? String(format: "%.0f", cart.weeklyBudget) : String(format: "%.2f", cart.weeklyBudget)
+                    budgetError = nil
                     showBudgetEditor = true
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
@@ -91,6 +94,9 @@ struct StoreBrowserView: View {
                 }
             }
             .frame(height: 8)
+            .accessibilityElement()
+            .accessibilityLabel("Weekly budget")
+            .accessibilityValue(String(format: "€%.2f of €%.2f spent", cart.total, cart.weeklyBudget))
 
             HStack {
                 Spacer()
@@ -169,12 +175,15 @@ struct StoreBrowserView: View {
     // MARK: - Budget sheet
 
     /// The ruler and the text field share `budgetInput`: dragging rewrites the text,
-    /// a valid typed amount glides the ruler there (clamped to its 10…300 range).
+    /// a valid typed amount glides the ruler there. The ruler covers the whole
+    /// allowed budget range, and only a drag to another tick writes, so opening
+    /// or touching it never changes a typed amount like €7 or €500.
     private var budgetSliderValue: Binding<Double> {
         Binding(
             get: {
-                let typed = Double(budgetInput.replacingOccurrences(of: ",", with: "."))
-                return min(max(typed ?? cart.weeklyBudget, 10), 300)
+                let range = ShoppingCartService.budgetRange
+                let typed = EuroInput.parse(budgetInput)
+                return min(max(typed ?? cart.weeklyBudget, range.lowerBound), range.upperBound)
             },
             set: { budgetInput = String(format: "%.0f", $0) }
         )
@@ -184,7 +193,7 @@ struct StoreBrowserView: View {
         NavigationStack {
             Form {
                 Section("Weekly grocery budget") {
-                    RulerPicker(value: budgetSliderValue, range: 10...300, step: 5,
+                    RulerPicker(value: budgetSliderValue, range: ShoppingCartService.budgetRange, step: 5,
                                 majorEvery: 10, midEvery: 2, spacing: 12,
                                 tickLabel: { "€\(Int($0))" },
                                 accessibilityName: "Weekly budget")
@@ -194,6 +203,14 @@ struct StoreBrowserView: View {
                         Text("€")
                         TextField("60", text: $budgetInput)
                             .keyboardType(.decimalPad)
+                            .accessibilityLabel("Weekly budget in euros")
+                            .accessibilityIdentifier("shop.budgetInput")
+                            .onChange(of: budgetInput) { _, _ in budgetError = nil }
+                    }
+                    if let budgetError {
+                        Text(budgetError)
+                            .font(.footnote).foregroundStyle(Color.brandDanger)
+                            .accessibilityIdentifier("shop.budgetError")
                     }
                 }
                 Section {
@@ -206,10 +223,14 @@ struct StoreBrowserView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let val = Double(budgetInput.replacingOccurrences(of: ",", with: ".")), val > 0 {
-                            cart.weeklyBudget = val
+                        switch EuroInput.validate(budgetInput, in: ShoppingCartService.budgetRange) {
+                        case .success(let value):
+                            cart.weeklyBudget = value
+                            showBudgetEditor = false
+                        case .failure(let problem):
+                            budgetError = EuroInput.message(for: problem, example: "60")
+                            UIAccessibility.post(notification: .announcement, argument: budgetError)
                         }
-                        showBudgetEditor = false
                     }
                 }
                 ToolbarItem(placement: .cancellationAction) {
@@ -281,7 +302,9 @@ struct CartBadge: View {
 
 struct CartView: View {
     @State private var cart = ShoppingCartService.shared
-    @State private var undo = GroceryListViewModel()
+    /// Created once on appear: a `@State` initial value would be rebuilt (storage
+    /// load and a notification task) every time the parent re-renders.
+    @State private var undo: GroceryListViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -322,20 +345,27 @@ struct CartView: View {
         .toolbar {
             if !cart.cartItems.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Clear", role: .destructive) { undo.clearCart() }
+                    Button("Clear", role: .destructive) { undoModel.clearCart() }
                         .accessibilityIdentifier("cart.clear")
                 }
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if let message = undo.undoMessage {
-                UndoToast(message: message) { undo.undoDelete() }
+            if let message = undo?.undoMessage {
+                UndoToast(message: message) { undo?.undoDelete() }
                     .padding(.vertical, Spacing.sm)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(reduceMotion ? .none : .snappyValue, value: undo.undoMessage)
+        .animation(reduceMotion ? .none : .snappyValue, value: undo?.undoMessage)
+        .onAppear { if undo == nil { undo = GroceryListViewModel() } }
+    }
 
+    private var undoModel: GroceryListViewModel {
+        if let undo { return undo }
+        let model = GroceryListViewModel()
+        undo = model
+        return model
     }
 }
 

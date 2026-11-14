@@ -45,21 +45,40 @@ final class MealPlanViewModel {
         if selectedTab == .week { await loadWeekPlans() }
     }
 
+    static let offlinePlanNotice = "Couldn't reach the planner. Showing an offline plan."
+
     private func fetchTodaysPlan() async {
         guard !isGenerating else { return }
-        let generation = AppState.shared.dataGeneration
+        let appState = AppState.shared
+        // One shared slot with the agent loop; the user's request takes over
+        // from a background one instead of racing it.
+        guard let ticket = appState.beginMealPlanRequest(.user) else { return }
+        let generation = appState.dataGeneration
         profile = .load()
         groceryList = GroceryStorage.load()
         isGenerating = true
         errorMessage = nil
-        defer { isGenerating = false }
+        defer {
+            isGenerating = false
+            appState.endMealPlanRequest(ticket)
+        }
         do {
-            let request = MealPlanRequest.current(profile: profile, bmr: AppState.shared.bmrData)
+            let builtFor = AgentLoop.PlanInputs.current(appState)
+            let request = MealPlanRequest.current(profile: profile, bmr: appState.bmrData)
             let weekly = try await APIService.shared.generateMealPlan(request)
-            guard !Task.isCancelled, AppState.shared.dataGeneration == generation else { return }
+            guard !Task.isCancelled, appState.dataGeneration == generation,
+                  appState.ownsMealPlanRequest(ticket) else { return }
             todaysPlan = MealPlan.from(weekly: weekly)
-            AppState.shared.saveMealPlan(weekly)
-            AgentLoop.markPlanGeneratedToday()
+            appState.saveMealPlan(weekly)
+            AgentLoop.recordPlanInputs(builtFor)
+            if AgentLoop.isAIPlan(weekly) {
+                AgentLoop.markPlanGeneratedToday()
+            } else {
+                // The AI call failed with no saved plan: say so, keep the day
+                // unstamped and back off like a failed background refresh.
+                AgentLoop.noteRefreshFailed()
+                errorMessage = Self.offlinePlanNotice
+            }
         } catch {
             appLog("[MealPlan] load failed:", error)
             errorMessage = "Could not update your meal plan. Your saved plan is kept. Check the AI connection in Profile, then retry."
