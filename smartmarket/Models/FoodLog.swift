@@ -159,12 +159,14 @@ final class FoodLogStore {
         NutritionCatalogService.shared.clear()
         defaults.removeObject(forKey: key)
         defaults.removeObject(forKey: recentsKey)
+        NotificationCenter.default.post(name: .foodLogDidChange, object: nil)
     }
 
     private func persist() {
         if let data = try? JSONEncoder().encode(history) {
             defaults.set(data, forKey: key)
         }
+        NotificationCenter.default.post(name: .foodLogDidChange, object: nil)
     }
 
     // MARK: Recents

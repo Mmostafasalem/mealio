@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreSpotlight
 import UserNotifications
 
 @main
@@ -44,6 +45,9 @@ struct SmartMarketAgentApp: App {
             .foregroundStyle(Color.labelPrimary)
             .environment(appState)
             .tint(Color.brandPrimary)
+            // nourlo:// links (widgets) and Spotlight results open screens through the router.
+            .onOpenURL { AppRouter.shared.open($0) }
+            .onContinueUserActivity(CSSearchableItemActionType) { AppRouter.shared.handle($0) }
             .safeAreaInset(edge: .bottom) {
                 if PrivateSyncService.shared.deletionPending {
                     VStack(spacing: 6) {

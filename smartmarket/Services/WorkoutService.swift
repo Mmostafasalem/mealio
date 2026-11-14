@@ -291,5 +291,6 @@ final class WorkoutStore {
         let encoder = JSONEncoder()
         if let data = try? encoder.encode(saved) { defaults.set(data, forKey: savedKey) }
         if let data = try? encoder.encode(completed) { defaults.set(data, forKey: completedKey) }
+        NotificationCenter.default.post(name: .workoutsDidChange, object: nil)
     }
 }

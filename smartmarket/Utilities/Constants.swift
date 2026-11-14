@@ -15,6 +15,11 @@ extension Notification.Name {
     /// The bowl in Home's header was tapped: open or close its guide.
     static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
+    /// Logged food changed (added, removed, cleared, or logged from stock). Listeners
+    /// (Apple Health, widgets) re-read `FoodLogStore.allEntries` and sync the difference.
+    static let foodLogDidChange     = Notification.Name("foodLogDidChange")
+    /// Completed workouts changed. Listeners re-read `WorkoutStore.completed`.
+    static let workoutsDidChange    = Notification.Name("workoutsDidChange")
 }
 
 // MARK: - Grocery list persistence (used by AppDelegate, ViewModels, and Views)

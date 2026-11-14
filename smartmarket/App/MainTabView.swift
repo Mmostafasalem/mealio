@@ -55,6 +55,15 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
         .sheet(isPresented: $showGuideChat) { AgentChatSheet(vm: quickLog) }
+        // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
+        .onAppear { AppRouter.shared.takeInbox(); route(AppRouter.shared.pending) }
+        .onChange(of: AppRouter.shared.pending) { _, link in route(link) }
+        .sheet(isPresented: Binding(get: { AppRouter.shared.exerciseID != nil },
+                                    set: { if !$0 { AppRouter.shared.exerciseID = nil } })) {
+            if let id = AppRouter.shared.exerciseID, let exercise = Exercise.catalog.first(where: { $0.id == id }) {
+                ExerciseGuideSheet(guide: ExerciseGuide(exercise: exercise))
+            }
+        }
         .sheet(item: $activeAction) { action in
             switch action {
             case .logFood: LogFoodSheet(vm: quickLog)
@@ -76,6 +85,20 @@ struct MainTabView: View {
                     .presentationDetents([.large])
             default: EmptyView()
             }
+        }
+    }
+
+    /// Shows the screen an outside entry point asked for, then clears the request.
+    private func route(_ link: NourloLink?) {
+        guard let link else { return }
+        AppRouter.shared.pending = nil
+        showGuideChat = false
+        switch link {
+        case .home: activeAction = nil; selection = 0
+        case .meals: activeAction = nil; selection = 1
+        case .train: activeAction = nil; selection = 3
+        case .logFood, .scan: activeAction = .logFood
+        case .groceries: activeAction = .groceries
         }
     }
 

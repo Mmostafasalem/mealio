@@ -271,6 +271,9 @@ final class StockStore {
         let next = pruned(next)
         let data = try JSONEncoder().encode(next)
         defaults.set(data, forKey: key)
+        let logsChanged = snapshot.logs != next.logs
         snapshot = next
+        // Food logged from (or removed back to) stock counts as logged food too.
+        if logsChanged { NotificationCenter.default.post(name: .foodLogDidChange, object: nil) }
     }
 }
