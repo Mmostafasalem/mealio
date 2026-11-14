@@ -17,10 +17,12 @@ OUT="${MEALIO_PHONE_BUILD:-/tmp/MealioPhoneTestBuild}"
 cd "$ROOT"
 
 # The connected phone, as devicectl and xcodebuild each know it.
-DEVICE=$(xcrun devicectl list devices 2>/dev/null | grep -E ' connected ' | grep -i iphone \
-  | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1)
+# "connected" is a cabled phone; "available (paired)" is one reachable over Wi-Fi.
+# (|| true: with pipefail a non-matching grep would end the script before the message below.)
+DEVICE=$(xcrun devicectl list devices 2>/dev/null | grep -E ' (connected|available \(paired\)) ' | grep -i iphone \
+  | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -1 || true)
 [ -n "$DEVICE" ] || { echo "No connected iPhone (unlock it and check the cable)."; exit 1; }
-UDID=$(xcodebuild -project smartmarket.xcodeproj -scheme smartmarket -showdestinations 2>/dev/null | sed -n 's/.*platform:iOS, arch:arm64, id:\([^,]*\),.*/\1/p' | head -1)
+UDID=$(xcodebuild -project smartmarket.xcodeproj -scheme smartmarket -showdestinations 2>/dev/null | sed -n 's/.*platform:iOS, arch:arm64, id:\([^,]*\),.*/\1/p' | head -1 || true)
 [ -n "$UDID" ] || { echo "xcodebuild does not see the phone."; exit 1; }
 
 # The phone-test profile and the signing identity.
