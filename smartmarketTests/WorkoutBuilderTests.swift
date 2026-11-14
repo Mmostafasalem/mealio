@@ -74,7 +74,9 @@ final class WorkoutBuilderTests: XCTestCase {
 final class ExerciseMotionTests: XCTestCase {
     func testEveryCatalogueExerciseHasADemo() {
         for exercise in Exercise.catalog {
-            XCTAssertNotNil(exercise.motion, "\(exercise.id) has no movement demo")
+            // A hand-drawn demo (ExerciseDrawings) or a posed figure (ExerciseMotion).
+            let drawn = ExerciseDrawings.shared.drawing(forExercise: exercise.id) != nil
+            XCTAssertTrue(drawn || exercise.motion != nil, "\(exercise.id) has no movement demo")
         }
     }
 
