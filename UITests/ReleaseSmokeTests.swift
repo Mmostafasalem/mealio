@@ -17,7 +17,9 @@ final class ReleaseSmokeTests: XCTestCase {
             // The Home avatar is a header control right under the status bar,
             // so the bottom-reach margin does not apply to it either.
             var safeFrame = (id.hasPrefix("tab.") || id == "navigation.quickActions" || id == "home.profile") ? app.frame : app.frame.insetBy(dx: 0, dy: 40)
-            if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
+            if id.hasPrefix("favorite.item."), app.scrollViews["favorites.list"].exists {
+                safeFrame = safeFrame.intersection(app.scrollViews["favorites.list"].frame.insetBy(dx: 0, dy: 4))
+            } else if id.hasPrefix("favorite.item."), app.collectionViews.firstMatch.exists {
                 safeFrame = safeFrame.intersection(app.collectionViews.firstMatch.frame.insetBy(dx: 0, dy: 12))
             }
             return safeFrame.contains(CGPoint(x: control.frame.midX, y: control.frame.midY))
@@ -34,8 +36,13 @@ final class ReleaseSmokeTests: XCTestCase {
             // text sizes. Scroll the actual list rather than the footer.
             if app.scrollViews["favorites.list"].exists {
                 // The favourites chips scroll vertically; the first scroll view
-                // on that screen is the sideways category strip.
-                app.scrollViews["favorites.list"].swipeUp(velocity: .slow)
+                // on that screen is the sideways category strip. A short, slow
+                // drag (either way) keeps a chip from flying past the viewport.
+                let list = app.scrollViews["favorites.list"]
+                let reverse = control.exists && control.frame.midY < list.frame.minY
+                let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.35 : 0.65))
+                let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.65 : 0.35))
+                start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             } else if app.collectionViews.firstMatch.exists {
                 let list = app.collectionViews.firstMatch
                 let reverse = control.exists && control.frame.midY < list.frame.minY
