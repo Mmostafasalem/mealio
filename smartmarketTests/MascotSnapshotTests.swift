@@ -6,7 +6,7 @@ import SwiftUI
 /// on pixels and silently skips writing when the folder can't be created.
 @MainActor
 final class MascotSnapshotTests: XCTestCase {
-    private let outDir = URL(fileURLWithPath: "/private/tmp/claude-501/-Users-mmostafasalem/7fe0ca52-e40e-4c45-b23c-5ec0fc3013b8/scratchpad/mascot-snapshots", isDirectory: true)
+    private let outDir = URL(fileURLWithPath: "/tmp/mealio-run/mascot", isDirectory: true)
 
     func testRenderMascotPoses() throws {
         var poses: [(String, MascotRig)] = []
@@ -49,6 +49,9 @@ final class MascotSnapshotTests: XCTestCase {
         for (name, rig) in poses {
             for scheme in [ColorScheme.light, .dark] {
                 write(MascotFigure(pose: rig.pose, size: 132), name: "\(name)-\(scheme == .dark ? "dark" : "light")", scheme: scheme, side: 132)
+            }
+            if MascotMood(rawValue: name) != nil {
+                write(MascotFigure(pose: rig.pose, size: 36), name: "\(name)-36pt-light", scheme: .light, side: 36)
             }
             rig.stop()
         }

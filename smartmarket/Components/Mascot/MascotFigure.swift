@@ -30,18 +30,18 @@ struct MascotFigure: View {
     }
 }
 
-// MARK: - Palette (sampled from the original PNG)
+// MARK: - Palette (brand-pink glaze; fruit and feet from the original PNG)
 
 enum MascotPalette {
-    static let bodyLight = Color(hex: "#FAD8D2")
-    static let body = Color(hex: "#F0C5BE")
-    static let bodyShade = Color(hex: "#E2B0A9")
-    static let bodyDeep = Color(hex: "#D69E98")
-    static let rimLight = Color(hex: "#F09AA5")
-    static let rim = Color(hex: "#E58894")
-    static let rimDeep = Color(hex: "#CC6F7B")
-    static let wallDark = Color(hex: "#B04A4B")
-    static let wall = Color(hex: "#C8646A")
+    static let bodyLight = Color(hex: "#F7A5B8")
+    static let body = Color(hex: "#E8698A")
+    static let bodyShade = Color(hex: "#D4587A")
+    static let bodyDeep = Color(hex: "#BD4A6B")
+    static let rimLight = Color(hex: "#F8B3C3")
+    static let rim = Color(hex: "#F09AAE")
+    static let rimDeep = Color(hex: "#D9768F")
+    static let wallDark = Color(hex: "#9C3350")
+    static let wall = Color(hex: "#B9415E")
     static let oat = Color(hex: "#F4D0B0")
     static let oatLight = Color(hex: "#FBE2C8")
     static let oatShade = Color(hex: "#DDAA80")
@@ -56,7 +56,12 @@ enum MascotPalette {
     static let berrySeed = Color(hex: "#FBC9C0")
     static let navy = Color(hex: "#2E4060")
     static let navyLight = Color(hex: "#4A5F8C")
-    static let cheek = Color(hex: "#EE8D98")
+    static let cheek = Color(hex: "#FFB3C1")
+    static let blueberryLight = Color(hex: "#8C9CE8")
+    static let blueberry = Color(hex: "#4A5AB5")
+    static let blueberryDeep = Color(hex: "#2E3780")
+    static let heart = Color(hex: "#F2445E")
+    static let heartDeep = Color(hex: "#B8203D")
     static let tongue = Color(hex: "#E98290")
 }
 
@@ -117,6 +122,7 @@ enum MascotArt {
         drawFace(p, in: body)
         drawArm(p.armL, left: true, in: body)
         drawArm(p.armR, left: false, in: body)
+        MascotExtras.draw(p, figure: fig, body: body, dark: dark)
     }
 
     // MARK: Shadow
@@ -292,6 +298,10 @@ enum MascotArt {
         for (i, c, r, rot) in bananas {
             drawBanana(at: CGPoint(x: c.x, y: c.y + p.fruitY[i]), radius: r, rotation: rot + p.fruitRotation[i], in: ctx)
         }
+        // Blueberries share the strawberries' jiggle springs.
+        for (i, c, r) in [(3, CGPoint(x: 262, y: 128), 15.0), (4, CGPoint(x: 352, y: 188), 14.0), (5, CGPoint(x: 424, y: 160), 13.0)] as [(Int, CGPoint, CGFloat)] {
+            drawBlueberry(at: CGPoint(x: c.x, y: c.y + p.fruitY[i] * 0.8), radius: r, in: ctx)
+        }
         let berries: [(Int, CGPoint, CGFloat, Double)] = [
             (3, CGPoint(x: 326, y: 98), 1.18, -0.05),
             (4, CGPoint(x: 384, y: 144), 1.14, 0.2),
@@ -300,6 +310,22 @@ enum MascotArt {
         for (i, c, s, rot) in berries {
             drawBerry(at: CGPoint(x: c.x, y: c.y + p.fruitY[i]), scale: s, rotation: rot + p.fruitRotation[i], in: ctx)
         }
+    }
+
+    private static func drawBlueberry(at c: CGPoint, radius r: CGFloat, in ctx: GraphicsContext) {
+        ctx.fill(Path(ellipseIn: CGRect(x: c.x - r + 2, y: c.y - r + 5, width: 2 * r, height: 2 * r)),
+                 with: .color(P.oatDeep.opacity(0.35)))
+        ctx.fill(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)),
+                 with: .radialGradient(Gradient(colors: [P.blueberryLight, P.blueberry, P.blueberryDeep]),
+                                       center: CGPoint(x: c.x - r * 0.35, y: c.y - r * 0.4), startRadius: 0, endRadius: r * 1.3))
+        // the little crown on top
+        var crown = Path()
+        for i in 0..<5 {
+            let a = Double(i) * 2 * .pi / 5
+            crown.move(to: CGPoint(x: c.x + r * 0.05, y: c.y - r * 0.15))
+            crown.addLine(to: CGPoint(x: c.x + r * 0.05 + cos(a) * r * 0.32, y: c.y - r * 0.15 + sin(a) * r * 0.32))
+        }
+        ctx.stroke(crown, with: .color(P.blueberryDeep.opacity(0.9)), style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
     }
 
     private static func drawBanana(at c: CGPoint, radius r: CGSize, rotation: Double, in ctx: GraphicsContext) {
@@ -384,8 +410,21 @@ enum MascotArt {
 
         // Eyes
         let eyeOffset = CGPoint(x: p.lookX * 7, y: p.lookY * 6)
-        for e in [eyeL, eyeR] {
-            drawEye(at: CGPoint(x: e.x + eyeOffset.x, y: e.y + eyeOffset.y), p, in: c)
+        for (e, right) in [(eyeL, false), (eyeR, true)] {
+            drawEye(at: CGPoint(x: e.x + eyeOffset.x, y: e.y + eyeOffset.y), right: right, p, in: c)
+        }
+
+        // Worried brows: inner ends lifted.
+        if p.worry > 0.01 {
+            for (e, inward) in [(eyeL, 1.0), (eyeR, -1.0)] {
+                var brow = Path()
+                let y = e.y - 36 + eyeOffset.y * 0.5
+                brow.move(to: CGPoint(x: e.x - 13 * inward, y: y + 2))
+                brow.addQuadCurve(to: CGPoint(x: e.x + 12 * inward, y: y - 9), control: CGPoint(x: e.x, y: y - 6))
+                var b = c
+                b.opacity = motionClamp(p.worry, 0, 1)
+                b.stroke(brow, with: .color(P.navy), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+            }
         }
 
         // Brows (raised for help/surprise)
@@ -404,8 +443,10 @@ enum MascotArt {
         drawMouth(p, in: c)
     }
 
-    private static func drawEye(at e: CGPoint, _ p: MascotPose, in ctx: GraphicsContext) {
-        let open = 1 - motionClamp(p.squint, 0, 1)
+    private static func drawEye(at e: CGPoint, right: Bool, _ p: MascotPose, in ctx: GraphicsContext) {
+        let wink = right ? motionClamp(p.wink, 0, 1) : 0
+        let asleep = motionClamp(p.asleep, 0, 1), hearts = motionClamp(p.hearts, 0, 1)
+        let open = (1 - motionClamp(p.squint, 0, 1)) * (1 - wink) * (1 - asleep) * (1 - hearts)
         if open > 0.01 {
             var c = ctx
             c.opacity = open
@@ -434,10 +475,30 @@ enum MascotArt {
                 line.stroke(lidLine, with: .color(P.navy), style: StrokeStyle(lineWidth: 5, lineCap: .round))
             }
         }
-        if p.squint > 0.01 {
-            // Happy squint: a thick ∩.
+        if asleep > 0.01 {
+            // Asleep: a closed ⌣.
             var c = ctx
-            c.opacity = motionClamp(p.squint, 0, 1)
+            c.opacity = asleep
+            var arc = Path()
+            arc.move(to: CGPoint(x: e.x - 15, y: e.y - 2))
+            arc.addQuadCurve(to: CGPoint(x: e.x + 15, y: e.y - 2), control: CGPoint(x: e.x, y: e.y + 14))
+            c.stroke(arc, with: .color(P.navy), style: StrokeStyle(lineWidth: 6.5, lineCap: .round))
+        }
+        if hearts > 0.01 {
+            var c = ctx
+            c.opacity = hearts
+            c.translateBy(x: e.x, y: e.y)
+            let k = 0.7 + 0.15 * hearts
+            c.scaleBy(x: k, y: k)
+            c.fill(MascotExtras.heart, with: .linearGradient(Gradient(colors: [P.heart, P.heartDeep]),
+                                                            startPoint: CGPoint(x: 0, y: -26), endPoint: CGPoint(x: 0, y: 24)))
+            c.fill(Path(ellipseIn: CGRect(x: -15, y: -16, width: 10, height: 10)), with: .color(.white.opacity(0.85)))
+        }
+        let arcAlpha = max(motionClamp(p.squint, 0, 1), wink) * (1 - asleep) * (1 - hearts)
+        if arcAlpha > 0.01 {
+            // Happy squint or wink: a thick ∩.
+            var c = ctx
+            c.opacity = arcAlpha
             var arc = Path()
             arc.move(to: CGPoint(x: e.x - 15, y: e.y + 6))
             arc.addQuadCurve(to: CGPoint(x: e.x + 15, y: e.y + 6), control: CGPoint(x: e.x, y: e.y - 18))
@@ -465,6 +526,19 @@ enum MascotArt {
             s.move(to: CGPoint(x: m.x - 21, y: m.y - 3))
             s.addQuadCurve(to: CGPoint(x: m.x + 21, y: m.y - 3), control: CGPoint(x: m.x, y: m.y + 17))
             c.stroke(s, with: .color(P.navy), style: StrokeStyle(lineWidth: 6.5, lineCap: .round))
+        }
+        if p.smirk > 0.01 {
+            // Cheeky: lopsided, higher on the right, with a dimple.
+            var c = ctx
+            c.opacity = motionClamp(p.smirk, 0, 1)
+            var s = Path()
+            s.move(to: CGPoint(x: m.x - 20, y: m.y + 1))
+            s.addQuadCurve(to: CGPoint(x: m.x + 23, y: m.y - 10), control: CGPoint(x: m.x + 6, y: m.y + 16))
+            c.stroke(s, with: .color(P.navy), style: StrokeStyle(lineWidth: 6.5, lineCap: .round))
+            var d = Path()
+            d.move(to: CGPoint(x: m.x + 20, y: m.y - 16))
+            d.addLine(to: CGPoint(x: m.x + 27, y: m.y - 7))
+            c.stroke(d, with: .color(P.navy), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
         }
         if p.ooh > 0.01 {
             var c = ctx
