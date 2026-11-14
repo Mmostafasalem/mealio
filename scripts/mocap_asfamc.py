@@ -236,19 +236,25 @@ def figure_joints_vicon(path):
         for row in reader:
             if len(row) < 10 or not row[0].strip().isdigit():
                 continue
-            try:
-                frame = [[float(row[i]) for i in c] if c else [0.0, 0.0, 0.0] for c in cols]
-            except ValueError:
-                frame = None                      # a gap in the capture
+            frame = []
+            for c in cols:
+                if c is None:
+                    frame.append([0.0, 0.0, 0.0])
+                    continue
+                try:
+                    frame.append([float(row[i]) for i in c])
+                except (ValueError, IndexError):
+                    frame.append([np.nan, np.nan, np.nan])     # this joint was not seen in this frame
             frames.append(frame)
-    # Fill gaps from the nearest good frame.
-    last = next(f for f in frames if f is not None)
-    for i, f in enumerate(frames):
-        if f is None:
-            frames[i] = last
-        else:
-            last = f
     raw = np.array(frames) / 1000.0
+    # Fill each joint's gaps from its own neighbouring frames; the rest of the body keeps moving.
+    t = np.arange(len(raw))
+    for joint in range(raw.shape[1]):
+        for axis in range(3):
+            v = raw[:, joint, axis]
+            good = ~np.isnan(v)
+            if good.any() and not good.all():
+                raw[:, joint, axis] = np.interp(t, t[good], v[good])
     j = np.stack([raw[..., 0], raw[..., 2], -raw[..., 1]], axis=-1)     # z up -> y up, still right-handed
     j[:, 1] = j[:, 0] * 0.45 + j[:, 2] * 0.55                           # mid-spine between pelvis and thorax
     np.save(cache, j)

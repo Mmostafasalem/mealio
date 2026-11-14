@@ -39,7 +39,8 @@ CLIPS = [
     dict(name='walk', src=('cmu', '35_01'), span=(40, 340), period=(0.9, 1.4)),
     dict(name='run', src=('cmu', '35_17'), span=(0, 167), period=(0.6, 0.95)),
     dict(name='stairs', src=('cmu', '13_35'), span=(236, 520), period=(1.1, 1.75), climb=True),
-    dict(name='squat', src=('cmu', '22_14'), span=(60, 660), period=(1.8, 2.9), rest='high'),
+    # A controlled exercise squat (the CMU squats are loose, sit-on-the-heels ones).
+    dict(name='squat', src=('vicon', 'squat.csv'), span=(2000, 9000), period=(2.0, 6.0), rest='high', credit='ARKit-Vicon'),
     dict(name='twist', src=('cmu', '13_29'), span=(600, 1200), period=(2.8, 4.2)),
     dict(name='fold', src=('cmu', '14_20'), span=(3000, 3560), period=(2.3, 3.5), rest='high'),
     dict(name='armCircle', src=('cmu', '42_01'), span=(200, 560), period=(0.8, 1.3)),
@@ -69,10 +70,81 @@ CLIPS = [
 ]
 
 
+# Candidates for review: captured, not yet used by any exercise. `title` is what the review
+# reel calls them. Approved ones get an exercise and a motion; the rest are removed.
+def _style(name, file, title, period=(0.8, 1.7)):
+    return dict(name=name, src=('bvh', '100style', file + '.bvh'), straight=True, period=period, credit='100STYLE', title=title)
+
+
+def _cmu(name, take, title, period=(1.0, 6.0), span=None, **more):
+    return dict(name=name, src=('cmu', take), span=span, period=period, title=title, **more)
+
+
+CANDIDATES = [
+    _style('backwardWalk', 'Neutral_BW', 'Backward walk'),
+    _style('sideStep', 'Neutral_SW', 'Side steps'),
+    _style('backpedal', 'Neutral_BR', 'Backpedal run', (0.5, 1.1)),
+    _style('lateralRun', 'Neutral_SR', 'Lateral run', (0.5, 1.1)),
+    _style('highKneeRun', 'HighKnees_FR', 'High-knee run', (0.5, 1.1)),
+    _style('longStride', 'BigSteps_FW', 'Long-stride walk'),
+    _style('crouchWalk', 'Crouched_FW', 'Low crouch walk'),
+    _style('toeWalk', 'Tiptoe_FW', 'Toe walk'),
+    _style('heelWalk', 'OnHeels_FW', 'Heel walk'),
+    _style('crossover', 'CrossOver_FW', 'Crossover steps'),
+    _style('wideWalk', 'WideLegs_FW', 'Wide-stance walk'),
+    _style('overheadWalk', 'ArmsAboveHead_FW', 'Overhead-reach walk'),
+    _style('sideTilt', 'Aeroplane_FW', 'Side-tilt walk'),
+    _style('walkingPunch', 'Punch_FW', 'Walking punches'),
+    _style('chopWalk', 'KarateChop_FW', 'Walking chops'),
+    _style('hopLeft', 'LeftHop_FW', 'Single-leg hops, left', (0.3, 1.2)),
+    _style('hopRight', 'RightHop_FW', 'Single-leg hops, right', (0.3, 1.2)),
+    _style('lungeWalk', 'Lunge_FW', 'Lunge walk', (1.2, 3.2)),
+    _style('backLungeWalk', 'Lunge_BW', 'Backward lunge walk', (1.2, 3.2)),
+    _style('flickKick', 'FlickLegs_FW', 'Flick kicks'),
+    _style('powerWalk', 'Rushed_FW', 'Power walk', (0.6, 1.4)),
+    _style('shoulderSwing', 'SwingShoulders_FW', 'Shoulder-swing walk'),
+    _style('swimArms', 'Swimming_FW', 'Swim-arm walk'),
+    _style('armSwing', 'SwingArmsRound_FW', 'Arm-circle walk'),
+    _style('whirlArms', 'WhirlArms_FW', 'Whirling arms'),
+    _style('hipWiggle', 'WiggleHips_FW', 'Hip-swing walk'),
+    _style('stepTogether', 'TogetherStep_FW', 'Step-together'),
+    _style('sideHops', 'TwoFootJump_SW', 'Side-to-side hops', (0.3, 1.4)),
+    _style('backHops', 'TwoFootJump_BW', 'Backward hops', (0.3, 1.4)),
+    _style('sideSkip', 'Skip_SW', 'Side skips', (0.5, 1.8)),
+    _style('bentWalk', 'BentForward_FW', 'Bent-forward walk'),
+    _style('reachWalk', 'Superman_FW', 'Forward-reach walk'),
+    _style('swingWalk', 'HandsBetweenLegs_FW', 'Wide swing walk'),
+    _cmu('punches', '143_23', 'Punches', (0.8, 4.0)),
+    _cmu('kicks', '143_24', 'Kicks', (1.0, 5.0)),
+    _cmu('punchKick', '141_14', 'Punch and kick', (1.0, 5.0)),
+    _cmu('lateralJump', '143_07', 'Lateral jumps', (0.8, 4.0)),
+    _cmu('jumpTwist', '143_08', 'Jump twists', (0.8, 4.0)),
+    _cmu('hopscotch', '143_31', 'Hopscotch hops', (0.8, 4.0)),
+    _cmu('sitStand', '143_18', 'Sit-to-stand', (2.0, 7.0), rest='high'),
+    _cmu('stepOver', '143_14', 'Step-overs', (1.5, 6.0)),
+    _cmu('stepUpOver', '141_07', 'Step up and over', (1.5, 6.0)),
+    _cmu('taiChi', '12_04', 'Tai chi flow', (3.0, 9.0)),
+    _cmu('jumpHop', '49_02', 'Jump and hop', (0.5, 3.0)),
+    _cmu('balance', '49_18', 'Single-leg balance', (2.0, 8.0)),
+    _cmu('boxJump', '75_12', 'Box jump', (1.5, 6.0)),
+    _cmu('jump180', '75_06', '180 jumps', (1.0, 5.0)),
+    _cmu('lowSit', '75_20', 'Low sit and stand', (1.5, 7.0), rest='high'),
+    _cmu('stretching', '77_21', 'Stretch sequence', (3.0, 9.0)),
+    _cmu('woodChop', '79_01', 'Wood chops', (1.0, 5.0)),
+    _cmu('standingRow', '79_95', 'Standing row', (1.0, 5.0)),
+    _cmu('swimStrokes', '79_02', 'Standing swim strokes', (1.0, 5.0)),
+    _cmu('reachTiptoe', '14_07', 'Reach and calf raise', (1.5, 7.0)),
+    _cmu('kickThrough', '10_01', 'Kick-through', (1.5, 6.0)),
+    _cmu('highJump', '16_03', 'High jump', (1.0, 5.0)),
+    _cmu('neckRoll', '42_01', 'Neck rolls', (1.5, 5.0), span=(0, 200)),
+    dict(name='armRaise2', src=('cmu', '13_29'), span=(1260, 1470), period=(1.0, 3.0), title='Arms-out hold'),
+]
+
+
 def rate_of(spec):
     if spec['src'][0] == 'cmu':
         import json
-        return 60 if spec['src'][1].split('_')[0] in ('42', '79') else 120
+        return 60 if spec['src'][1].split('_')[0] in ('42', '75', '77', '79') else 120
     return None
 
 
@@ -313,11 +385,20 @@ def preview(clips, folder):
 if __name__ == '__main__':
     only = [a for a in sys.argv[1:] if not a.startswith('--') and not a.startswith('/')]
     built = []
-    for spec in CLIPS:
+    review = '--candidates' in sys.argv
+    titles = {}
+    for spec in CLIPS + (CANDIDATES if review else []):
         try:
             built.append(build(spec))
+            if 'title' in spec:
+                titles[spec['name']] = dict(title=spec['title'], credit=spec.get('credit', 'CMU'))
         except Exception as error:                      # one bad take must not stop the rest
             print(f"  {spec['name']:16s} FAILED: {error}")
     write(built, OUT)
+    if review:
+        import json
+        os.makedirs('/tmp/mealio-run/review', exist_ok=True)
+        json.dump(titles, open('/tmp/mealio-run/review/titles.json', 'w'), indent=1)
+        print(len(titles), 'candidates for review')
     if '--preview' in sys.argv:
         preview(built, sys.argv[sys.argv.index('--preview') + 1])

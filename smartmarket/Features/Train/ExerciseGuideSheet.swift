@@ -6,6 +6,8 @@ struct ExerciseGuide: Identifiable {
     let name: String
     /// `nil` when the movement isn't one the app can draw.
     let motion: ExerciseMotion?
+    /// The hand-drawn frames, when the exercise has them (shown in place of the posed figure).
+    let drawing: ExerciseDrawing?
     /// How to do it, one instruction per step.
     let steps: [String]
     var muscles: String? = nil
@@ -17,6 +19,7 @@ struct ExerciseGuide: Identifiable {
     init(exercise: Exercise) {
         name = exercise.name
         motion = exercise.motion
+        drawing = ExerciseDrawings.shared.drawing(forExercise: exercise.id)
         steps = Self.sentences(exercise.howTo)
         muscles = exercise.muscles
         equipment = exercise.equipment
@@ -29,6 +32,7 @@ struct ExerciseGuide: Identifiable {
         let known = Exercise.catalog.first { $0.name.caseInsensitiveCompare(step.name) == .orderedSame }
         name = step.name
         motion = known?.motion ?? ExerciseMotion.matching(name: step.name)
+        drawing = known.flatMap { ExerciseDrawings.shared.drawing(forExercise: $0.id) }
         let cue = step.note.isEmpty ? (known?.howTo ?? "") : step.note
         steps = Self.sentences(cue)
         muscles = known?.muscles
@@ -69,7 +73,32 @@ struct ExerciseGuideSheet: View {
                         }
                     }
 
-                    if let motion = guide.motion {
+                    if let drawing = guide.drawing {
+                        ExerciseDrawingDemo(drawing: drawing)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 300)
+                            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+
+                        HStack(spacing: Spacing.sm) {
+                            keyFrame(number: 1, label: "Start") { ExerciseDrawingCanvas(drawing: drawing, frame: 0).aspectRatio(1, contentMode: .fit) }
+                            Image(systemName: "arrow.right")
+                                .font(.headline)
+                                .foregroundStyle(Color.labelSecondary)
+                                .accessibilityHidden(true)
+                            keyFrame(number: 2, label: "Finish") {
+                                ExerciseDrawingCanvas(drawing: drawing, frame: drawing.frames.count - 1).aspectRatio(1, contentMode: .fit)
+                            }
+                        }
+
+                        if let credit = ExerciseDrawings.shared.credit {
+                            // The drawings are CC BY-SA 4.0: their authors are credited wherever they are shown.
+                            Link(credit.text, destination: credit.link)
+                                .font(.caption2)
+                                .foregroundStyle(Color.labelSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                    } else if let motion = guide.motion {
                         ExerciseDemo(motion: motion)
                             .frame(maxWidth: .infinity)
                             .frame(height: 280)
@@ -77,23 +106,17 @@ struct ExerciseGuideSheet: View {
                             .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
 
                         HStack(spacing: Spacing.sm) {
-                            keyFrame(motion, finish: false, number: 1, label: motion.isContinuous ? "One side" : "Start")
+                            keyFrame(number: 1, label: motion.isContinuous ? "One side" : "Start") { ExerciseFrame(motion: motion, finish: false) }
                             Image(systemName: "arrow.right")
                                 .font(.headline)
                                 .foregroundStyle(Color.labelSecondary)
                                 .accessibilityHidden(true)
-                            keyFrame(motion, finish: true, number: 2, label: motion.isContinuous ? "Other side" : "Finish")
+                            keyFrame(number: 2, label: motion.isContinuous ? "Other side" : "Finish") { ExerciseFrame(motion: motion, finish: true) }
                         }
 
                         Label("Drag the figure to look around it.", systemImage: "hand.draw")
                             .font(.footnote)
                             .foregroundStyle(Color.labelSecondary)
-                        // The body model is CC BY 4.0: its author must be credited where it is shown.
-                        Link("Figure: “Male base muscular anatomy” by Harshit Prajapati · CC BY 4.0",
-                             destination: URL(string: "https://sketchfab.com/3d-models/male-base-muscular-anatomy-0954aa04666d45aab9633009318f7b66")!)
-                            .font(.caption2)
-                            .foregroundStyle(Color.labelSecondary)
-                            .multilineTextAlignment(.leading)
                         if let clip = motion.clip {
                             // Captured movement is credited to whoever recorded it, as its licence asks.
                             Link(clip.credit.text, destination: clip.credit.link)
@@ -148,9 +171,9 @@ struct ExerciseGuideSheet: View {
         .presentationDragIndicator(.visible)
     }
 
-    private func keyFrame(_ motion: ExerciseMotion, finish: Bool, number: Int, label: String) -> some View {
+    private func keyFrame<Picture: View>(number: Int, label: String, @ViewBuilder picture: () -> Picture) -> some View {
         VStack(spacing: Spacing.xs) {
-            ExerciseFrame(motion: motion, finish: finish)
+            picture()
                 .padding(Spacing.sm)
                 .frame(maxWidth: .infinity)
                 .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))

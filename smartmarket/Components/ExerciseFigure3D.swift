@@ -1,17 +1,15 @@
 import SwiftUI
 import SceneKit
 
-// MARK: - 3D exercise figure
+// MARK: - Exercise figure posing
 //
-// The how-to figure as an anatomy-chart style model in SceneKit: a grey,
-// muscular human body in dark shorts, with the muscles the exercise works
-// shown in red. The body is a real mesh (`Resources/ExerciseBody.bin` and its
-// normal map, built by `scripts/build-exercise-figure.py` from "Male base
-// muscular anatomy" by Harshit Prajapati, CC BY 4.0 — credited in the app) skinned
-// to sixteen bones, with the hands closed, relaxed or flat to suit the exercise. Poses come from `ExerciseMotion` (a side-view start and
-// finish); each joint is placed in depth by which side of the body it belongs
-// to, and each bone is turned and stretched to run between its two joints.
-// The large demo can be dragged to look around.
+// Poses the how-to figure in 3D: a 16-bone body of fixed proportions
+// (`BodyRig`), its equipment, and a camera that frames the whole movement.
+// Poses come from `ExerciseMotion` (a side-view start and finish, eased by
+// `RepTempo`), a generated stride (`Gait`) or a captured clip (`MotionClip`);
+// each bone keeps its real length and takes its direction from the source.
+// Nothing here is rendered: `FigureScene.frame()` hands the posed joints and
+// equipment to `LineFigureCanvas`, which draws them as a line drawing.
 
 /// The muscle groups the figure can light up.
 enum Muscle: CaseIterable {
@@ -50,6 +48,18 @@ extension ExerciseMotion {
         case .hipCircle:    return [.glutes]
         case .boxing:       return [.shoulders, .abs]
         case .jumpSquat:    return [.quads, .glutes, .calves]
+        case .farmerCarry:  return [.forearms, .traps]
+        case .dumbbellSquat, .barbellLunge, .gobletSideLunge: return [.quads, .glutes]
+        case .dumbbellSingleLegDeadlift: return [.hamstrings, .glutes]
+        case .dumbbellPunch: return [.shoulders, .abs]
+        case .raiseOverhead, .frontRaise: return [.shoulders]
+        case .dumbbellSquatReach: return [.quads, .glutes, .shoulders]
+        case .barbellCurl, .dumbbellCurl: return [.biceps, .forearms]
+        case .uprightRow:   return [.shoulders, .traps]
+        case .shrug:        return [.traps]
+        case .deadlift:     return [.hamstrings, .glutes, .lowerBack]
+        case .tricepsOverhead, .kickback: return [.triceps]
+        case .dumbbellPress: return [.shoulders, .triceps]
         case .cycle:        return [.quads, .calves]
         case .jump, .jumpRope: return [.calves, .quads]
         case .burpee:       return [.quads, .chest, .shoulders, .abs]
@@ -81,6 +91,18 @@ extension ExerciseMotion {
         }
     }
 
+    /// Where the arms stay on a captured movement that carries a weight.
+    enum ArmHold { case backRack, goblet, hang }
+
+    var armHold: ArmHold? {
+        switch self {
+        case .backSquat, .barbellLunge: return .backRack
+        case .gobletSquat, .gobletSideLunge: return .goblet
+        case .lunge, .farmerCarry, .dumbbellSquat: return .hang
+        default: return nil
+        }
+    }
+
     /// Back and pulling work is shown from behind, where those muscles are.
     var viewedFromBehind: Bool {
         let m = muscles
@@ -90,86 +112,23 @@ extension ExerciseMotion {
     }
 }
 
-// MARK: - Body mesh
+// MARK: - Rig
 
-/// The body mesh, its skin weights and one mask per muscle, read once from the bundle.
-struct BodyModel {
-    static let shared = BodyModel()
-
-    /// Mask order in the file: the `Muscle` cases, then shorts, an unused slot,
-    /// and last the shading that darkens the dips between muscles.
-    static let muscleOrder: [Muscle] = [.chest, .shoulders, .traps, .lats, .lowerBack, .abs, .obliques,
-                                        .biceps, .triceps, .forearms, .glutes, .quads, .hamstrings, .calves]
-    static let shortsMask = 14, shadeMask = 16
-
-    let vertexCount: Int, triangleCount: Int, maskCount: Int
-    let positions: Data, normals: Data, texcoords: Data, tangents: Data, boneIndices: Data, boneWeights: Data, indices: Data
-    /// `maskCount` bytes per vertex.
-    let masks: [UInt8]
-    /// Rest joints: top, mid, bottom, head, then per side shoulder, elbow, hand
-    /// (wrist), hip, knee, foot; then per side the middle knuckle and a point
-    /// off the palm.
-    let rig: [SIMD3<Float>]
-    /// Hand shapes that replace some vertices: 0 closed in a grip, 1 relaxed.
-    /// The mesh as stored has the fingers straight.
-    private let shapes: [(indices: [UInt16], positions: Data, normals: Data)]
-
-    /// Vertex positions and normals with the hands in the given shape (`nil` for straight fingers).
-    func surface(handShape: Int?) -> (positions: Data, normals: Data) {
-        guard let handShape, shapes.indices.contains(handShape) else { return (positions, normals) }
-        let shape = shapes[handShape]
-        var p = positions, n = normals
-        for (i, vertex) in shape.indices.enumerated() {
-            let from = i * 12, to = Int(vertex) * 12
-            p.replaceSubrange(to..<to + 12, with: shape.positions.subdata(in: from..<from + 12))
-            n.replaceSubrange(to..<to + 12, with: shape.normals.subdata(in: from..<from + 12))
-        }
-        return (p, n)
-    }
-
-    private init?() {
-        guard let url = Bundle.main.url(forResource: "ExerciseBody", withExtension: "bin"),
-              let data = try? Data(contentsOf: url), data.count > 20,
-              data.prefix(4) == Data("NFG2".utf8) else { return nil }
-        func count(_ offset: Int) -> Int {
-            Int(data.subdata(in: offset..<offset + 4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) })
-        }
-        let v = count(4), t = count(8), m = count(12), r = count(16)
-        var cursor = 20
-        func take(_ bytes: Int) -> Data? {
-            guard cursor + bytes <= data.count else { return nil }
-            defer { cursor += bytes }
-            return data.subdata(in: cursor..<cursor + bytes)
-        }
-        guard v < 65_536, m > Self.shadeMask, r == 20,
-              let positions = take(v * 12), let normals = take(v * 12), let texcoords = take(v * 8),
-              let tangents = take(v * 16), let boneIndices = take(v * 8),
-              let boneWeights = take(v * 16), let masks = take(v * m), let indices = take(t * 6),
-              let rig = take(r * 12) else { return nil }
-        var shapes: [(indices: [UInt16], positions: Data, normals: Data)] = []
-        if let header = take(4) {
-            let shapeCount = Int(header.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) })
-            for _ in 0..<shapeCount {
-                guard let size = take(4) else { return nil }
-                let n = Int(size.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) })
-                guard let index = take(n * 2), let p = take(n * 12), let nrm = take(n * 12) else { return nil }
-                let list = index.withUnsafeBytes { raw in (0..<n).map { raw.loadUnaligned(fromByteOffset: $0 * 2, as: UInt16.self) } }
-                shapes.append((list, p, nrm))
-            }
-        }
-        self.shapes = shapes
-        vertexCount = v; triangleCount = t; maskCount = m
-        self.positions = positions; self.normals = normals; self.texcoords = texcoords; self.tangents = tangents
-        self.boneIndices = boneIndices; self.boneWeights = boneWeights; self.indices = indices
-        self.masks = [UInt8](masks)
-        self.rig = rig.withUnsafeBytes { raw in
-            (0..<r).map { i in
-                SIMD3(raw.loadUnaligned(fromByteOffset: i * 12, as: Float.self),
-                      raw.loadUnaligned(fromByteOffset: i * 12 + 4, as: Float.self),
-                      raw.loadUnaligned(fromByteOffset: i * 12 + 8, as: Float.self))
-            }
-        }
-    }
+/// The joints of the body the poses were made for, standing in a T-pose
+/// (metres; x forward, y up, z to the figure's right). Measured once on an
+/// adult male figure 1.74 m tall: top, mid and bottom of the spine, head, then
+/// per side shoulder, elbow, wrist, hip, knee, ankle; then per side the middle
+/// knuckle and a point off the palm.
+enum BodyRig {
+    static let joints: [SIMD3<Float>] = [
+        SIMD3(-0.0117, 1.3505, 0), SIMD3(-0.0058, 1.1231, 0), SIMD3(0, 0.8957, 0), SIMD3(0.0355, 1.6182, 0),
+        SIMD3(-0.0117, 1.3505, 0.2053), SIMD3(0.0059, 1.3509, 0.5158), SIMD3(0.0643, 1.3492, 0.792),
+        SIMD3(0, 0.8957, 0.0957), SIMD3(0.0337, 0.4627, 0.1754), SIMD3(0.0411, 0.0705, 0.2242),
+        SIMD3(-0.0117, 1.3505, -0.2053), SIMD3(0.0059, 1.3509, -0.5158), SIMD3(0.0643, 1.3492, -0.792),
+        SIMD3(0, 0.8957, -0.0957), SIMD3(0.0337, 0.4627, -0.1754), SIMD3(0.0418, 0.0705, -0.2242),
+        SIMD3(0.0697, 1.3489, 0.8713), SIMD3(0.0643, 1.2622, 0.792),
+        SIMD3(0.0697, 1.3489, -0.8713), SIMD3(0.0643, 1.2622, -0.792),
+    ]
 }
 
 @MainActor
@@ -242,52 +201,44 @@ final class FigureScene {
     /// For a captured movement: the moment last shown and how the capture was scaled to this body.
     private var capturedTime: Double = 0, capturedScale: Float = 1
     private let clip: MotionClip?
+    private let armHold: ExerciseMotion.ArmHold?
     /// How far through the movement the last pose was, and whether it was moving toward the finish.
     private var lastProgress: Float = 0, rising = true
     private(set) var joints = Joints(top: .zero, mid: .zero, bottom: .zero, head: .zero,
                                      shoulder: [.zero, .zero], elbow: [.zero, .zero], hand: [.zero, .zero],
                                      hip: [.zero, .zero], knee: [.zero, .zero], foot: [.zero, .zero])
 
-    init(motion: ExerciseMotion, dark: Bool) {
-        self.prop = motion.prop
-        self.grip = motion.grip
-        self.clip = motion.clip
-        let kit = UIColor(white: dark ? 0.52 : 0.42, alpha: 1)
+    convenience init(motion: ExerciseMotion, dark: Bool) {
+        self.init(prop: motion.prop, grip: motion.grip, muscles: motion.muscles, fromBehind: motion.viewedFromBehind,
+                  clip: motion.clip, poses: motion.poses, armHold: motion.armHold, dark: dark)
+    }
 
-        func material(_ colour: UIColor) -> SCNMaterial {
-            let m = SCNMaterial()
-            m.diffuse.contents = colour
-            m.lightingModel = .lambert
-            return m
-        }
+    /// A figure for a captured clip that no exercise uses yet (the review reel).
+    convenience init(clip: MotionClip, dark: Bool) {
+        self.init(prop: .none, grip: .open, muscles: [], fromBehind: false, clip: clip,
+                  poses: (FigurePose(), FigurePose()), armHold: nil, dark: dark)
+    }
 
-        if let model = BodyModel.shared {
-            let r = model.rig
-            shoulderHalf = abs(r[4].z)
-            hipHalf = abs(r[7].z)
-            lift = max(0, r[9].y - 0.04)
-            kneeOut = 0.8 * (abs(r[8].z) - abs(r[7].z))
-            footOut = 0.8 * (abs(r[9].z) - abs(r[7].z))
-            buildBody(model, worked: motion.muscles, handShape: motion.grip == .open || motion.grip == .cup ? 1 : 0, dark: dark)
-        } else {
-            shoulderHalf = 0.2; hipHalf = 0.1; lift = 0; kneeOut = 0; footOut = 0
-        }
+    init(prop: ExerciseMotion.Prop, grip: ExerciseMotion.Grip, muscles: Set<Muscle>, fromBehind: Bool,
+         clip: MotionClip?, poses: (FigurePose, FigurePose), armHold: ExerciseMotion.ArmHold?, dark: Bool) {
+        self.armHold = armHold
+        self.prop = prop
+        self.grip = grip
+        self.clip = clip
+        let r = BodyRig.joints
+        shoulderHalf = abs(r[4].z)
+        hipHalf = abs(r[7].z)
+        lift = max(0, r[9].y - 0.04)
+        kneeOut = 0.8 * (abs(r[8].z) - abs(r[7].z))
+        footOut = 0.8 * (abs(r[9].z) - abs(r[7].z))
+        buildRig(r)
 
-        // Ground: invisible except for the shadow the figure and kit cast on it.
-        let plane = SCNPlane(width: 8, height: 8)
-        let catcher = SCNMaterial()
-        catcher.lightingModel = .shadowOnly
-        plane.materials = [catcher]
-        let floor = SCNNode(geometry: plane)
-        floor.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
-        floor.castsShadow = false          // or it shades itself with a faint haze
-        scene.rootNode.addChildNode(floor)
+        // The equipment is kept as nodes so `propShapes()` can read where each piece sits.
+        buildProps(SCNMaterial(), SCNMaterial())
 
-        buildProps(material(kit), material(UIColor(white: dark ? 0.34 : 0.2, alpha: 1)))
-
-        // Three-quarter view, slightly above: from the front, or from behind
-        // when the working muscles are on the back of the body.
-        let side: Float = motion.viewedFromBehind ? -1 : 1
+        // Three-quarter view, slightly above, from the way the body actually faces
+        // (captured movements face all sorts of ways): from the front, or from
+        // behind when the working muscles are on the back of the body.
         let camera = SCNCamera()
         camera.fieldOfView = 36
         camera.zNear = 0.05          // so zooming right in never slices the body open
@@ -299,19 +250,26 @@ final class FigureScene {
         // take (a hanging body is also lifted until its feet clear the floor),
         // then stand the camera back far enough to fit it.
         var low = SIMD3<Float>(repeating: .greatestFiniteMagnitude), high = -low
+        var facing = SIMD3<Float>(repeating: 0), upright: Float = 0, samples: Float = 0
         for pass in 0..<2 {
             low = SIMD3(repeating: .greatestFiniteMagnitude); high = -low
+            facing = .zero; upright = 0; samples = 0
             // A captured movement is framed over the whole clip, a drawn one over its two positions.
-            let clip = motion.clip
             let moments: [() -> Void] = clip.map { clip in
                 (0..<10).map { i in { self.apply(clip: clip, at: clip.duration * Double(i) / 10) } }
-            } ?? [motion.poses.0, motion.poses.1].map { pose in { self.apply(pose) } }
+            } ?? [poses.0, poses.1].map { pose in { self.apply(pose) } }
             for moment in moments {
                 moment()
                 let j = joints
                 for p in [j.top, j.bottom, j.head] + j.elbow + j.hand + j.knee + j.foot {
                     low = simd_min(low, p); high = simd_max(high, p)
                 }
+                // Which way the chest and hips face (index 0 is the figure's right), and how upright the trunk is.
+                var right = (j.shoulder[0] - j.shoulder[1]) + (j.hip[0] - j.hip[1])
+                right.y = 0
+                if simd_length(right) > 0.01 { facing += simd_cross(SIMD3(0, 1, 0), simd_normalize(right)) }
+                upright += abs(simd_normalize(j.top - j.bottom).y)
+                samples += 1
             }
             if pass == 0, prop == .highBar, low.y < 0.16 { hangLift = 0.16 - low.y }
         }
@@ -319,144 +277,33 @@ final class FigureScene {
         if prop == .barbell || prop == .bench { low.z = min(low.z, -0.78); high.z = max(high.z, 0.78); high.y += 0.1 }
         low.y = min(low.y, 0)
         let centre = (low + high) / 2
-        let direction = simd_normalize(SIMD3<Float>(1.85 * side, 0.62, 2.7))
+        let forward = simd_length(facing) > 0.01 ? simd_normalize(facing) : SIMD3<Float>(1, 0, 0)
+        let right = simd_cross(forward, SIMD3(0, 1, 0))
+        // Standing: well round to the front, so the two legs and arms stand apart.
+        // Lying or on all fours: more from the side, so the body is not seen end-on.
+        let lying = samples > 0 && upright / samples < 0.55
+        let turn: Float = (lying ? 62 : 34) * .pi / 180, rise: Float = 13 * .pi / 180
+        let around = (fromBehind ? -forward : forward) * cos(turn) + right * sin(turn)
+        let direction = simd_normalize(around * cos(rise) + SIMD3(0, sin(rise), 0))
         let radius = simd_length(high - low) / 2
         let distance = max(radius / tan(18 * .pi / 180) * 0.92, 2.2)
         focus = centre
         cameraNode.simdPosition = centre + direction * distance
         cameraNode.look(at: SCNVector3(centre.x, centre.y, centre.z))
-        if let clip = motion.clip { apply(clip: clip, at: 0) } else { apply(motion.poses.0) }
-
-        // A strong key light from the camera's side models the muscles; a
-        // soft fill and ambient keep the far side from going black.
-        func light(_ type: SCNLight.LightType, _ intensity: CGFloat, from position: SCNVector3?, shadows: Bool = false) {
-            let node = SCNNode()
-            let light = SCNLight()
-            light.type = type
-            light.intensity = intensity
-            if shadows {
-                // Soft shadows: on the floor, and of one limb on another.
-                light.castsShadow = true
-                light.shadowMode = .forward
-                light.shadowColor = UIColor(white: 0, alpha: dark ? 0.38 : 0.32)
-                light.shadowRadius = 5
-                light.shadowSampleCount = 16
-                light.shadowMapSize = CGSize(width: 2048, height: 2048)
-                light.shadowBias = 4
-                light.orthographicScale = 2.4
-                light.zNear = 0.5
-                light.zFar = 12
-            }
-            node.light = light
-            if let position {
-                node.position = position
-                node.look(at: SCNVector3(0, 0.9, 0))
-            }
-            scene.rootNode.addChildNode(node)
-        }
-        light(.ambient, 210, from: nil)
-        light(.directional, 780, from: SCNVector3(2.4 * side, 3.4, 2.0), shadows: true)
-        light(.directional, 160, from: SCNVector3(-2.4 * side, 1.2, 2.6))
+        if let clip { apply(clip: clip, at: 0) } else { apply(poses.0) }
     }
 
-    // MARK: Body
+    // MARK: Rig
 
-    /// Colour by (working muscle, shorts): grey skin turning red across the
-    /// middle of one axis, and dark cloth across the middle of the other.
-    private static var textures: [Bool: UIImage] = [:]
-    private static func skinTexture(dark: Bool) -> UIImage {
-        if let hit = textures[dark] { return hit }
-        let side = 128
-        let skin = SIMD3<Float>(repeating: dark ? 0.7 : 0.74)
-        let cloth = SIMD3<Float>(repeating: dark ? 0.2 : 0.1)
-        let red = SIMD3<Float>(0.87, 0.13, 0.09)
-        var pixels = [UInt8](repeating: 255, count: side * side * 4)
-        for row in 0..<side {
-            for column in 0..<side {
-                let heat = simd_smoothstep(0.44, 0.56, (Float(column) + 0.5) / Float(side))
-                let cover = simd_smoothstep(0.44, 0.56, (Float(row) + 0.5) / Float(side))
-                let colour = simd_mix(simd_mix(skin, red, SIMD3(repeating: heat)), cloth, SIMD3(repeating: cover))
-                let at = (row * side + column) * 4
-                pixels[at] = UInt8(colour.x * 255); pixels[at + 1] = UInt8(colour.y * 255); pixels[at + 2] = UInt8(colour.z * 255)
-            }
-        }
-        let image = pixels.withUnsafeMutableBytes { raw -> UIImage in
-            let context = CGContext(data: raw.baseAddress, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
-                                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
-            return context?.makeImage().map { UIImage(cgImage: $0) } ?? UIImage()
-        }
-        textures[dark] = image
-        return image
-    }
-
-    private func buildBody(_ model: BodyModel, worked: Set<Muscle>, handShape: Int, dark: Bool) {
-        // Each vertex carries how strongly a working muscle covers it and
-        // whether the shorts do; the texture turns those two numbers into
-        // colour per pixel, so the edges are smooth curves whatever the mesh.
-        // The vertex colour is the muscle-definition shading.
-        let active = BodyModel.muscleOrder.enumerated().filter { worked.contains($0.element) }.map(\.offset)
-        var coordinates = [Float](repeating: 0, count: model.vertexCount * 2)
-        var shading = [Float](repeating: 1, count: model.vertexCount * 4)
-        for v in 0..<model.vertexCount {
-            let row = v * model.maskCount
-            // Summed, so two working muscles that meet (chest and shoulder) leave no seam between them.
-            let heat = min(1, Float(active.reduce(0) { $0 + Int(model.masks[row + $1]) }) / 255)
-            coordinates[v * 2] = 0.05 + 0.9 * heat
-            coordinates[v * 2 + 1] = 0.05 + 0.9 * Float(model.masks[row + BodyModel.shortsMask]) / 255
-            let shade = Float(model.masks[row + BodyModel.shadeMask]) / 255
-            shading[v * 4] = shade; shading[v * 4 + 1] = shade; shading[v * 4 + 2] = shade
-        }
-        let coordinateData = coordinates.withUnsafeBufferPointer { Data(buffer: $0) }
-        let colourData = shading.withUnsafeBufferPointer { Data(buffer: $0) }
-
-        func floats(_ data: Data, _ semantic: SCNGeometrySource.Semantic, _ components: Int) -> SCNGeometrySource {
-            SCNGeometrySource(data: data, semantic: semantic, vectorCount: model.vertexCount, usesFloatComponents: true,
-                              componentsPerVector: components, bytesPerComponent: 4, dataOffset: 0, dataStride: components * 4)
-        }
-        let element = SCNGeometryElement(data: model.indices, primitiveType: .triangles,
-                                         primitiveCount: model.triangleCount, bytesPerIndex: 2)
-        let surface = model.surface(handShape: handShape)
-        let geometry = SCNGeometry(sources: [floats(surface.positions, .vertex, 3), floats(surface.normals, .normal, 3),
-                                             floats(colourData, .color, 4), floats(model.tangents, .tangent, 4),
-                                             // Texture channel 0 is the model's own (for its normal map), 1 the colour lookup.
-                                             floats(model.texcoords, .texcoord, 2), floats(coordinateData, .texcoord, 2)],
-                                   elements: [element])
-        let material = SCNMaterial()
-        material.diffuse.contents = Self.skinTexture(dark: dark)
-        material.diffuse.wrapS = .clamp
-        material.diffuse.wrapT = .clamp
-        material.diffuse.mipFilter = .none
-        material.diffuse.mappingChannel = 1
-        // The model's normal map carries the fine muscle detail.
-        if let url = Bundle.main.url(forResource: "ExerciseBodyNormal", withExtension: "jpg"),
-           let detail = UIImage(contentsOfFile: url.path) {
-            material.normal.contents = detail
-            material.normal.mappingChannel = 0
-        }
-        // A little sheen, so the light picks out the shape of the muscles.
-        material.lightingModel = .blinn
-        material.specular.contents = UIColor(white: 0.16, alpha: 1)
-        material.shininess = 0.12
-        geometry.materials = [material]
-
+    /// One node per bone, at its rest frame. Nothing is drawn from them: each
+    /// only carries its bone's transform (read by `feet`).
+    private func buildRig(_ r: [SIMD3<Float>]) {
         bones = (0..<16).map { _ in
             let node = SCNNode()
             scene.rootNode.addChildNode(node)
             return node
         }
-        let indices = SCNGeometrySource(data: model.boneIndices, semantic: .boneIndices, vectorCount: model.vertexCount,
-                                        usesFloatComponents: false, componentsPerVector: 4, bytesPerComponent: 2,
-                                        dataOffset: 0, dataStride: 8)
-        // Each bone's rest transform is the identity, so its pose transform
-        // maps the rest mesh straight to where that bone has moved.
-        let identity = [NSValue](repeating: NSValue(scnMatrix4: SCNMatrix4Identity), count: bones.count)
-        let body = SCNNode(geometry: geometry)
-        body.skinner = SCNSkinner(baseGeometry: geometry, bones: bones, boneInverseBindTransforms: identity,
-                                  boneWeights: floats(model.boneWeights, .boneWeights, 4), boneIndices: indices)
-        scene.rootNode.addChildNode(body)
-
         // Rest frames, in bone order.
-        let r = model.rig
         let top = r[0], mid = r[1], bottom = r[2], head = r[3]
         var waist = Frame.sagittal(mid, bottom)
         rest = [waist, waist, .sagittal(top, mid), .sagittal(head, top)]
@@ -1132,7 +979,17 @@ extension FigureScene {
         var bottom = SIMD3<Float>(j[J.pelvis.rawValue].x * scale, 0, j[J.pelvis.rawValue].z * scale)
         var mid = bottom + direction(.pelvis, .mid, up) * waistLength
         var top = mid + direction(.mid, .top, up) * chestLength
-        var headAt = top + direction(.top, .head, up) * neckLength
+        // The neck follows the capture but stays within 25° of the line of the trunk:
+        // some captures put the head marker well behind the shoulders, which would
+        // throw the head back (and in a back squat, behind the bar).
+        let trunkUp = unit(top - mid, up)
+        var neckDir = direction(.top, .head, up)
+        let lean = simd_dot(neckDir, trunkUp), most = cos(Float(25) * .pi / 180)
+        if lean < most {
+            let away = unit(neckDir - trunkUp * lean, SIMD3(1, 0, 0))
+            neckDir = trunkUp * most + away * (1 - most * most).squareRoot()
+        }
+        var headAt = top + neckDir * neckLength
 
         // Shoulders and hips sit on the captured lines across the chest and the pelvis.
         // Index 0 is the near side (+z), which is the figure's right.
@@ -1165,26 +1022,26 @@ extension FigureScene {
             elbow[i] = shoulder[i] + along * (upperArm * cosine) + side * (upperArm * (max(1 - cosine * cosine, 0)).squareRoot())
             hand[i] = shoulder[i] + along * distance
         }
-        switch prop {
-        case .barbell:
+        switch armHold {
+        case .backRack:
             // The bar across the upper back, hands just outside the shoulders, elbows down and back.
             for (i, sign) in [Float(1), -1].enumerated() {
                 reach(i, to: top + shoulderAxis * (sign * (shoulderHalf + 0.13)) + chestUp * 0.015 - chestForward * 0.075,
                       pole: -chestUp - chestForward * 0.45)
             }
         case .goblet:
-            // One weight held at the chest, elbows tucked under it.
+            // One weight held at the chest, elbows tucked under it. (`ArmHold.goblet`)
             for (i, sign) in [Float(1), -1].enumerated() {
                 reach(i, to: top + shoulderAxis * (sign * 0.062) - chestUp * 0.09 + chestForward * 0.21,
                       pole: -chestUp + shoulderAxis * (sign * 0.35))
             }
-        case .dumbbells where clip.name == "lunge":
-            // Dumbbells hang at the sides through a lunge, whatever the captured arms did.
+        case .hang:
+            // Weights hang at the sides, whatever the captured arms did.
             for (i, sign) in [Float(1), -1].enumerated() {
                 reach(i, to: shoulder[i] + shoulderAxis * (sign * 0.07) - up * (upperArm + forearm - 0.02) + chestForward * 0.02,
                       pole: -chestForward)
             }
-        default:
+        case nil:
             break
         }
 
@@ -1205,7 +1062,7 @@ extension FigureScene {
             }
             return out
         }
-        if prop != .barbell && prop != .goblet {
+        if armHold == nil {
             for i in 0..<2 {
                 let lower = unit(hand[i] - elbow[i], -up)
                 elbow[i] = clear(elbow[i], radius: 0.2)
@@ -1303,84 +1160,77 @@ extension FigureScene {
     }
 }
 
-// MARK: - Live view
+// MARK: - Drawing data
 
-/// The figure in a live 3D view. Drag to look around it.
-struct ExerciseFigure3DView: UIViewRepresentable {
-    /// The two key positions and how far between them the figure is (0…1).
-    let start: FigurePose
-    let finish: FigurePose
-    let progress: CGFloat
-    let motion: ExerciseMotion
-    /// Each part's own place in the movement; `nil` moves everything together.
-    var parts: RepState? = nil
-    /// The moment to show of the movement's captured clip, when it has one.
-    var clipTime: Double? = nil
-    @Environment(\.colorScheme) private var colorScheme
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeUIView(context: Context) -> SCNView {
-        let view = SCNView()
-        view.backgroundColor = .clear
-        view.antialiasingMode = .multisampling4X
-        view.allowsCameraControl = true
-        view.defaultCameraController.interactionMode = .orbitTurntable
-        view.defaultCameraController.maximumVerticalAngle = 60
-        view.defaultCameraController.minimumVerticalAngle = -5
-        view.isAccessibilityElement = false
-        return view
-    }
-
-    func updateUIView(_ view: SCNView, context: Context) {
-        let dark = colorScheme == .dark
-        if context.coordinator.figure == nil || context.coordinator.dark != dark || context.coordinator.motion != motion {
-            let figure = FigureScene(motion: motion, dark: dark)
-            context.coordinator.figure = figure
-            context.coordinator.dark = dark
-            context.coordinator.motion = motion
-            view.scene = figure.scene
-            view.pointOfView = figure.cameraNode
-        }
-        if let clipTime, let clip = motion.clip {
-            context.coordinator.figure?.apply(clip: clip, at: clipTime)
-        } else {
-            context.coordinator.figure?.apply(from: start, to: finish, progress: progress, parts: parts)
+extension FigureScene {
+    /// Heel and toe of each foot (index 0 the near side), as the foot bones sit now.
+    var feet: [(heel: SIMD3<Float>, toe: SIMD3<Float>)] {
+        (0..<2).map { i in
+            let b = 8 + i * 5, ankle = joints.foot[i]
+            guard b < bones.count, b < rest.count else {
+                return (ankle + SIMD3(-0.055, -0.035, 0), ankle + SIMD3(0.16, -0.035, 0))
+            }
+            let frame = rest[b], m = bones[b].simdTransform
+            func posed(_ p: SIMD3<Float>) -> SIMD3<Float> { let v = m * SIMD4(p, 1); return SIMD3(v.x, v.y, v.z) }
+            let forward = frame.basis.columns.2, down = frame.basis.columns.1
+            return (posed(frame.origin - forward * 0.055 + down * 0.035), posed(frame.origin + forward * 0.16 + down * 0.035))
         }
     }
 
-    @MainActor
-    final class Coordinator {
-        var figure: FigureScene?
-        var dark = false
-        var motion: ExerciseMotion?
+    /// A piece of equipment as simple shapes, in world space.
+    enum PropShape {
+        /// A bar, handle, cable or frame tube.
+        case rod(SIMD3<Float>, SIMD3<Float>, radius: Float)
+        /// A plate or dumbbell head: a short cylinder.
+        case disc(centre: SIMD3<Float>, axis: SIMD3<Float>, radius: Float, thickness: Float)
+        /// A bench, seat, box or step: its eight corners.
+        case box([SIMD3<Float>])
+        /// A wheel: points round its rim, and the tube's radius.
+        case ring([SIMD3<Float>], radius: Float)
+        /// A skipping rope: points along it.
+        case line([SIMD3<Float>])
     }
-}
 
-// MARK: - Still frames
-
-/// Rendered stills of the start and finish positions, cached, for list rows
-/// and the key-frame pair. A live 3D view per row would be far too heavy.
-@MainActor
-enum ExerciseSnapshot {
-    private static let cache = NSCache<NSString, UIImage>()
-
-    static func image(_ motion: ExerciseMotion, finish: Bool, dark: Bool, side: CGFloat = 240) -> UIImage? {
-        let key = "\(motion.rawValue)-\(finish)-\(dark)-\(Int(side))" as NSString
-        if let hit = cache.object(forKey: key) { return hit }
-        // Without the body mesh there is nothing worth showing; callers fall back to the flat drawing.
-        guard BodyModel.shared != nil else { return nil }
-        let figure = FigureScene(motion: motion, dark: dark)
-        if let clip = motion.clip {
-            figure.apply(clip: clip, at: finish ? clip.duration * Double(clip.key) : 0)
-        } else {
-            figure.apply(finish ? motion.poses.1 : motion.poses.0)
+    /// Every visible piece of equipment, as it sits after the last pose.
+    func propShapes() -> [PropShape] {
+        var shapes: [PropShape] = []
+        func visit(_ node: SCNNode, name: String) {
+            guard !node.isHidden else { return }
+            let m = node.simdWorldTransform
+            func at(_ p: SIMD3<Float>) -> SIMD3<Float> { let v = m * SIMD4(p, 1); return SIMD3(v.x, v.y, v.z) }
+            func along(_ p: SIMD3<Float>) -> SIMD3<Float> { let v = m * SIMD4(p, 0); return SIMD3(v.x, v.y, v.z) }
+            if name == "rope" {
+                let reach = Float.pi - asin(0.3 / Self.ropeRadius)
+                shapes.append(.line((0...40).map { i in
+                    let angle = -reach + 2 * reach * Float(i) / 40
+                    return at(SIMD3(cos(angle), 0, sin(angle)) * Self.ropeRadius)
+                }))
+            } else if let c = node.geometry as? SCNCylinder {
+                let half = along(SIMD3(0, Float(c.height) / 2, 0)), centre = at(.zero), radius = Float(c.radius)
+                let length = simd_length(half) * 2
+                if length < radius * 3 {
+                    shapes.append(.disc(centre: centre, axis: half / max(length / 2, 0.00001), radius: radius, thickness: length))
+                } else {
+                    shapes.append(.rod(centre - half, centre + half, radius: radius))
+                }
+            } else if let b = node.geometry as? SCNBox {
+                let w = Float(b.width) / 2, h = Float(b.height) / 2, l = Float(b.length) / 2
+                let signs: [Float] = [-1, 1]
+                shapes.append(.box(signs.flatMap { x in signs.flatMap { y in signs.map { z in at(SIMD3(x * w, y * h, z * l)) } } }))
+            } else if let t = node.geometry as? SCNTorus {
+                shapes.append(.ring((0..<40).map { i in
+                    let angle = 2 * Float.pi * Float(i) / 40
+                    return at(SIMD3(cos(angle), 0, sin(angle)) * Float(t.ringRadius))
+                }, radius: Float(t.pipeRadius)))
+            }
+            for child in node.childNodes { visit(child, name: "") }
         }
-        let renderer = SCNRenderer(device: MTLCreateSystemDefaultDevice(), options: nil)
-        renderer.scene = figure.scene
-        renderer.pointOfView = figure.cameraNode
-        let image = renderer.snapshot(atTime: 0, with: CGSize(width: side, height: side), antialiasingMode: .multisampling4X)
-        cache.setObject(image, forKey: key)
-        return image
+        for (name, node) in propNodes.sorted(by: { $0.key < $1.key }) { visit(node, name: name) }
+        return shapes
+    }
+
+    /// Everything the line drawing needs for the current pose.
+    func frame() -> FigureFrame {
+        FigureFrame(joints: joints, feet: feet, props: propShapes(), camera: cameraNode.simdPosition, focus: focus)
     }
 }

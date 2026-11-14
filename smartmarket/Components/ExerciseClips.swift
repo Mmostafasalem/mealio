@@ -124,7 +124,14 @@ extension ExerciseMotion {
     /// squats use the bodyweight squat's legs and back, with the arms on the weight.
     var clip: MotionClip? {
         switch self {
-        case .backSquat, .gobletSquat: return MotionClip.library["squat"]
+        case .backSquat, .gobletSquat, .dumbbellSquat: return MotionClip.library["squat"]
+        case .farmerCarry: return MotionClip.library["walk"]
+        case .barbellLunge: return MotionClip.library["lunge"]
+        case .gobletSideLunge: return MotionClip.library["sideLunge"]
+        case .dumbbellSingleLegDeadlift: return MotionClip.library["singleLegDeadlift"]
+        case .dumbbellPunch: return MotionClip.library["boxing"]
+        case .raiseOverhead: return MotionClip.library["armRaise"]
+        case .dumbbellSquatReach: return MotionClip.library["squatReach"]
         default: return MotionClip.library[rawValue]
         }
     }

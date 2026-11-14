@@ -47,7 +47,12 @@ struct WorkoutDetailView: View {
                     let item = ExerciseGuide(step: exercise)
                     Button { guide = item } label: {
                         HStack(alignment: .center, spacing: Spacing.md) {
-                            if let motion = item.motion {
+                            if let drawing = item.drawing {
+                                ExerciseDrawingCanvas(drawing: drawing, frame: 1)
+                                    .padding(4)
+                                    .frame(width: 72, height: 72)
+                                    .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                            } else if let motion = item.motion {
                                 ExerciseFrame(motion: motion, finish: true)
                                     .padding(4)
                                     .frame(width: 72, height: 72)
@@ -204,7 +209,12 @@ struct ExerciseLibraryView: View {
                 ForEach(exercises) { exercise in
                     Button { guide = ExerciseGuide(exercise: exercise) } label: {
                         HStack(spacing: Spacing.md) {
-                            if let motion = exercise.motion {
+                            if let drawing = ExerciseDrawings.shared.drawing(forExercise: exercise.id) {
+                                ExerciseDrawingCanvas(drawing: drawing, frame: 1)
+                                    .padding(4)
+                                    .frame(width: 60, height: 60)
+                                    .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                            } else if let motion = exercise.motion {
                                 ExerciseFrame(motion: motion, finish: true)
                                     .padding(4)
                                     .frame(width: 60, height: 60)
