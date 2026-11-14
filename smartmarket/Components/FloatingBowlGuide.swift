@@ -354,8 +354,6 @@ struct FloatingBowlGuide: View {
                         .accessibilityIdentifier("guide.chat")
                 }
                 .font(.footnote).frame(minHeight: 44)
-                Text("These shortcuts work without AI.")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
         .padding(.bottom, Spacing.sm)
