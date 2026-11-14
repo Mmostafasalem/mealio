@@ -23,6 +23,11 @@ struct FigurePose: Equatable {
     var footF = CGPoint(x: 0.53, y: 0.9)
     var kneeB = CGPoint(x: 0.49, y: 0.72)
     var footB = CGPoint(x: 0.47, y: 0.9)
+    /// How much of the body's weight each foot carries (0…1), when the pose
+    /// knows (a stride cycle does). `nil` lets the figure work it out from
+    /// which foot is lowest.
+    var supportF: CGFloat? = nil
+    var supportB: CGFloat? = nil
 
     /// Same position for both arms.
     func arms(elbow: CGPoint, hand: CGPoint) -> FigurePose {
@@ -69,27 +74,38 @@ enum ExerciseMotion: String, CaseIterable {
     case squat, lunge, hinge, pushUp, pikePushUp, plank, press, benchPress, seatedRow, pulldown, bentRow
     case bridge, run, walk, cycle, jump, burpee, climber, kneeRaise, fold, catCow, armCircle, dip, stepUp
     case superman, deadBug, rowing, twist, lungeReach, childsPose, legPress
+    case backSquat, gobletSquat, dumbbellBench, jumpRope, woodchop, barbellRow
+    case stairs
 
-    enum Prop { case none, barbell, dumbbells, bench, highBar, step, wheels, seat }
+    enum Prop { case none, barbell, dumbbells, oneDumbbell, goblet, bench, benchDumbbells, highBar, pulldown, step, wheels, seat, cableSeat, rope, cableHandle, pedals }
 
     var prop: Prop {
         switch self {
         case .benchPress:            return .bench
-        case .press, .hinge:         return .barbell
-        case .bentRow, .lunge:       return .dumbbells
-        case .pulldown, .kneeRaise:  return .highBar
+        case .dumbbellBench:         return .benchDumbbells
+        case .press, .hinge, .backSquat, .barbellRow: return .barbell
+        case .jumpRope:              return .rope
+        case .woodchop:              return .cableHandle
+        case .lunge:                 return .dumbbells
+        case .bentRow:               return .oneDumbbell
+        case .gobletSquat:           return .goblet
+        case .pulldown:              return .pulldown
+        case .kneeRaise:             return .highBar
         case .stepUp, .dip:          return .step
+        case .stairs:                return .pedals
         case .cycle:                 return .wheels
-        case .seatedRow, .rowing, .legPress: return .seat
+        case .legPress:              return .seat
+        case .seatedRow, .rowing:    return .cableSeat
         default:                     return .none
         }
     }
 
     /// Seconds for one full rep (there and back).
     var period: Double {
+        if let gait { return gait.period }
         switch self {
         case .run, .climber:          return 0.7
-        case .walk, .cycle, .jump:    return 1.0
+        case .walk, .cycle, .jump, .jumpRope: return 1.0
         case .plank, .fold, .childsPose, .lungeReach: return 3.2
         default:                      return 2.2
         }
@@ -104,6 +120,18 @@ enum ExerciseMotion: String, CaseIterable {
                 .legs(knee: pt(0.6, 0.72), foot: pt(0.5, 0.9))
                 .arms(elbow: pt(0.61, 0.47), hand: pt(0.72, 0.44))
             return (stand.arms(elbow: pt(0.56, 0.36), hand: pt(0.62, 0.3)), down)
+        case .backSquat:
+            // The bar rides on the upper back; the hands hold it just outside the shoulders.
+            let down = FigurePose(head: pt(0.55, 0.33), shoulder: pt(0.5, 0.44), hip: pt(0.4, 0.68))
+                .legs(knee: pt(0.6, 0.72), foot: pt(0.5, 0.9))
+                .arms(elbow: pt(0.395, 0.537), hand: pt(0.4435, 0.433))
+            return (stand.arms(elbow: pt(0.44, 0.39), hand: pt(0.445, 0.275)), down)
+        case .gobletSquat:
+            // One weight held at the chest with both hands.
+            let down = FigurePose(head: pt(0.55, 0.33), shoulder: pt(0.5, 0.44), hip: pt(0.4, 0.68))
+                .legs(knee: pt(0.6, 0.72), foot: pt(0.5, 0.9))
+                .arms(elbow: pt(0.59, 0.59), hand: pt(0.655, 0.48))
+            return (stand.arms(elbow: pt(0.56, 0.41), hand: pt(0.625, 0.3)), down)
         case .lunge:
             var down = FigurePose(head: pt(0.5, 0.25), shoulder: pt(0.5, 0.37), hip: pt(0.5, 0.66))
             down.kneeF = pt(0.65, 0.72); down.footF = pt(0.66, 0.9)
@@ -113,7 +141,7 @@ enum ExerciseMotion: String, CaseIterable {
             let down = FigurePose(head: pt(0.76, 0.44), shoulder: pt(0.65, 0.48), hip: pt(0.41, 0.55))
                 .legs(knee: pt(0.47, 0.72), foot: pt(0.5, 0.9))
                 .arms(elbow: pt(0.65, 0.6), hand: pt(0.64, 0.74))
-            return (stand.arms(elbow: pt(0.51, 0.41), hand: pt(0.53, 0.56)), down)
+            return (stand.arms(elbow: pt(0.535, 0.41), hand: pt(0.575, 0.555)), down)
         case .pushUp:
             let top = FigurePose(head: pt(0.79, 0.57), shoulder: pt(0.68, 0.62), hip: pt(0.45, 0.7))
                 .legs(knee: pt(0.3, 0.8), foot: pt(0.15, 0.9))
@@ -140,28 +168,37 @@ enum ExerciseMotion: String, CaseIterable {
         case .press:
             return (stand.arms(elbow: pt(0.57, 0.4), hand: pt(0.57, 0.25)),
                     stand.arms(elbow: pt(0.54, 0.13), hand: pt(0.53, 0.02)))
-        case .benchPress:
+        case .benchPress, .dumbbellBench:
             let lying = FigurePose(head: pt(0.24, 0.6), shoulder: pt(0.35, 0.62), hip: pt(0.6, 0.62))
                 .legs(knee: pt(0.76, 0.62), foot: pt(0.8, 0.9))
-            return (lying.arms(elbow: pt(0.4, 0.7), hand: pt(0.38, 0.54)),
+            return (lying.arms(elbow: pt(0.4, 0.68), hand: pt(0.38, 0.49)),
                     lying.arms(elbow: pt(0.37, 0.47), hand: pt(0.37, 0.33)))
         case .seatedRow:
             let seated = FigurePose(head: pt(0.43, 0.32), shoulder: pt(0.42, 0.44), hip: pt(0.4, 0.72))
                 .legs(knee: pt(0.6, 0.64), foot: pt(0.74, 0.78))
             var back = seated
             back.head = pt(0.39, 0.32); back.shoulder = pt(0.38, 0.44)
-            return (seated.arms(elbow: pt(0.58, 0.5), hand: pt(0.72, 0.52)),
-                    back.arms(elbow: pt(0.3, 0.58), hand: pt(0.46, 0.55)))
+            return (seated.arms(elbow: pt(0.58, 0.45), hand: pt(0.72, 0.435)),
+                    back.arms(elbow: pt(0.3, 0.53), hand: pt(0.52, 0.445)))
         case .pulldown:
             let seated = FigurePose(head: pt(0.44, 0.36), shoulder: pt(0.45, 0.48), hip: pt(0.46, 0.74))
                 .legs(knee: pt(0.66, 0.73), foot: pt(0.67, 0.92))
             return (seated.arms(elbow: pt(0.5, 0.31), hand: pt(0.54, 0.14)),
                     seated.arms(elbow: pt(0.5, 0.64), hand: pt(0.57, 0.47)))
-        case .bentRow:
+        case .barbellRow:
             let bent = FigurePose(head: pt(0.76, 0.44), shoulder: pt(0.65, 0.48), hip: pt(0.41, 0.55))
                 .legs(knee: pt(0.47, 0.72), foot: pt(0.5, 0.9))
             return (bent.arms(elbow: pt(0.65, 0.6), hand: pt(0.64, 0.74)),
                     bent.arms(elbow: pt(0.55, 0.42), hand: pt(0.62, 0.54)))
+        case .bentRow:
+            let bent = FigurePose(head: pt(0.76, 0.44), shoulder: pt(0.65, 0.48), hip: pt(0.41, 0.55))
+                .legs(knee: pt(0.47, 0.72), foot: pt(0.5, 0.9))
+            // One arm rows; the other braces on the knee.
+            var start = bent.arms(elbow: pt(0.65, 0.6), hand: pt(0.64, 0.74))
+            var finish = bent.arms(elbow: pt(0.55, 0.42), hand: pt(0.62, 0.54))
+            for brace in [\FigurePose.elbowB] { start[keyPath: brace] = pt(0.6, 0.62); finish[keyPath: brace] = pt(0.6, 0.62) }
+            start.handB = pt(0.5, 0.7); finish.handB = pt(0.5, 0.7)
+            return (start, finish)
         case .bridge:
             let lying = FigurePose(head: pt(0.19, 0.85), shoulder: pt(0.3, 0.86), hip: pt(0.5, 0.86))
                 .legs(knee: pt(0.66, 0.66), foot: pt(0.76, 0.9))
@@ -170,26 +207,19 @@ enum ExerciseMotion: String, CaseIterable {
             up.hip = pt(0.5, 0.67)
             return (lying, up)
         case .run:
-            var a = FigurePose(head: pt(0.55, 0.15), shoulder: pt(0.52, 0.27), hip: pt(0.49, 0.55))
-            a.kneeF = pt(0.63, 0.64); a.footF = pt(0.6, 0.82)
-            a.kneeB = pt(0.42, 0.74); a.footB = pt(0.28, 0.72)
-            a.elbowF = pt(0.44, 0.4); a.handF = pt(0.38, 0.5)
-            a.elbowB = pt(0.6, 0.38); a.handB = pt(0.66, 0.29)
-            return (a, a.mirroredLimbs)
+            // A stride cycle (see `Gait`); these two moments are its stills.
+            return (Gait.run.pose(phase: 0.05), Gait.run.pose(phase: 0.55))
         case .walk:
-            var a = FigurePose()
-            a.kneeF = pt(0.56, 0.72); a.footF = pt(0.62, 0.9)
-            a.kneeB = pt(0.46, 0.73); a.footB = pt(0.4, 0.89)
-            a.elbowF = pt(0.46, 0.4); a.handF = pt(0.43, 0.52)
-            a.elbowB = pt(0.55, 0.4); a.handB = pt(0.6, 0.5)
-            return (a, a.mirroredLimbs)
+            return (Gait.walk.pose(phase: 0.0), Gait.walk.pose(phase: 0.5))
+        case .stairs:
+            return (Gait.stairs.pose(phase: 0.25), Gait.stairs.pose(phase: 0.75))
         case .cycle:
             var a = FigurePose(head: pt(0.66, 0.24), shoulder: pt(0.58, 0.34), hip: pt(0.4, 0.5))
                 .arms(elbow: pt(0.68, 0.42), hand: pt(0.76, 0.46))
             a.kneeF = pt(0.6, 0.55); a.footF = pt(0.57, 0.74)
             a.kneeB = pt(0.5, 0.66); a.footB = pt(0.5, 0.86)
             return (a, a.mirroredLimbs)
-        case .jump:
+        case .jump, .jumpRope:
             let low = FigurePose(head: pt(0.5, 0.2), shoulder: pt(0.5, 0.32), hip: pt(0.48, 0.6))
                 .legs(knee: pt(0.54, 0.75), foot: pt(0.5, 0.9))
                 .arms(elbow: pt(0.56, 0.44), hand: pt(0.62, 0.54))
@@ -269,12 +299,12 @@ enum ExerciseMotion: String, CaseIterable {
         case .rowing:
             let front = FigurePose(head: pt(0.52, 0.36), shoulder: pt(0.48, 0.47), hip: pt(0.4, 0.72))
                 .legs(knee: pt(0.56, 0.55), foot: pt(0.7, 0.74))
-                .arms(elbow: pt(0.58, 0.54), hand: pt(0.7, 0.58))
+                .arms(elbow: pt(0.58, 0.5), hand: pt(0.7, 0.52))
             let back = FigurePose(head: pt(0.2, 0.36), shoulder: pt(0.23, 0.48), hip: pt(0.3, 0.72))
                 .legs(knee: pt(0.5, 0.7), foot: pt(0.7, 0.74))
-                .arms(elbow: pt(0.2, 0.62), hand: pt(0.36, 0.58))
+                .arms(elbow: pt(0.2, 0.59), hand: pt(0.36, 0.54))
             return (front, back)
-        case .twist:
+        case .twist, .woodchop:
             return (stand.arms(elbow: pt(0.4, 0.2), hand: pt(0.32, 0.08)),
                     stand.arms(elbow: pt(0.62, 0.44), hand: pt(0.74, 0.6)))
         case .lungeReach:
@@ -302,17 +332,17 @@ enum ExerciseMotion: String, CaseIterable {
     // MARK: Lookup
 
     private static let byExerciseID: [String: ExerciseMotion] = [
-        "back-squat": .squat, "goblet-squat": .squat, "bodyweight-squat": .squat,
+        "back-squat": .backSquat, "goblet-squat": .gobletSquat, "bodyweight-squat": .squat,
         "romanian-deadlift": .hinge, "leg-press": .legPress,
         "walking-lunge": .lunge, "reverse-lunge": .lunge,
-        "bench-press": .benchPress, "dumbbell-bench-press": .benchPress,
+        "bench-press": .benchPress, "dumbbell-bench-press": .dumbbellBench,
         "overhead-press": .press, "lat-pulldown": .pulldown, "seated-row": .seatedRow,
-        "dumbbell-row": .bentRow, "cable-woodchop": .twist, "hanging-knee-raise": .kneeRaise,
+        "dumbbell-row": .bentRow, "cable-woodchop": .woodchop, "hanging-knee-raise": .kneeRaise,
         "glute-bridge": .bridge, "step-up": .stepUp, "push-up": .pushUp, "pike-push-up": .pikePushUp,
         "chair-dip": .dip, "superman": .superman, "plank": .plank, "dead-bug": .deadBug,
         "mountain-climber": .climber, "burpee": .burpee,
         "brisk-walk": .walk, "easy-run": .run, "run-intervals": .run, "cycling": .cycle,
-        "rowing": .rowing, "jump-rope": .jump, "stair-climb": .stepUp, "swimming": .superman,
+        "rowing": .rowing, "jump-rope": .jumpRope, "stair-climb": .stairs, "swimming": .superman,
         "cat-cow": .catCow, "worlds-greatest-stretch": .lungeReach, "hip-flexor-stretch": .lungeReach,
         "hamstring-stretch": .fold, "thoracic-rotation": .twist, "shoulder-circles": .armCircle,
         "childs-pose": .childsPose, "ankle-rocks": .lungeReach,
@@ -328,16 +358,18 @@ enum ExerciseMotion: String, CaseIterable {
         // Order matters: more specific phrases first.
         let rules: [(String, ExerciseMotion)] = [
             ("mountain climber", .climber), ("burpee", .burpee), ("pike", .pikePushUp), ("push-up", .pushUp),
-            ("push up", .pushUp), ("pushup", .pushUp), ("bench", .benchPress), ("chest press", .benchPress),
+            ("push up", .pushUp), ("pushup", .pushUp), ("dumbbell bench", .dumbbellBench), ("dumbbell press", .dumbbellBench),
+            ("bench", .benchPress), ("chest press", .benchPress), ("goblet", .gobletSquat), ("back squat", .backSquat),
+            ("barbell squat", .backSquat),
             ("leg press", .legPress), ("overhead", .press), ("shoulder press", .press), ("military", .press),
             ("pulldown", .pulldown), ("pull-down", .pulldown), ("pull-up", .pulldown), ("pull up", .pulldown), ("chin", .pulldown),
-            ("bent", .bentRow), ("dumbbell row", .bentRow), ("rowing", .rowing), ("rower", .rowing), ("row", .seatedRow),
+            ("dumbbell row", .bentRow), ("one-arm", .bentRow), ("one arm", .bentRow), ("bent", .barbellRow), ("barbell row", .barbellRow), ("rowing", .rowing), ("rower", .rowing), ("row", .seatedRow),
             ("deadlift", .hinge), ("good morning", .hinge), ("hip hinge", .hinge), ("kettlebell swing", .hinge),
-            ("lunge", .lunge), ("split squat", .lunge), ("step", .stepUp), ("stair", .stepUp), ("squat", .squat),
+            ("lunge", .lunge), ("split squat", .lunge), ("step", .stepUp), ("stair", .stairs), ("squat", .squat),
             ("bridge", .bridge), ("hip thrust", .bridge), ("plank", .plank), ("dead bug", .deadBug),
             ("knee raise", .kneeRaise), ("leg raise", .kneeRaise), ("dip", .dip), ("superman", .superman),
-            ("woodchop", .twist), ("twist", .twist), ("rotation", .twist),
-            ("jump", .jump), ("skipping", .jump), ("rope", .jump),
+            ("woodchop", .woodchop), ("twist", .twist), ("rotation", .twist),
+            ("skipping", .jumpRope), ("rope", .jumpRope), ("jump", .jump),
             ("sprint", .run), ("interval", .run), ("jog", .run), ("run", .run), ("walk", .walk),
             ("cycl", .cycle), ("bike", .cycle), ("spin", .cycle), ("swim", .superman),
             ("cat", .catCow), ("child", .childsPose), ("hamstring", .fold), ("forward fold", .fold), ("toe touch", .fold),
@@ -357,7 +389,7 @@ extension ExerciseMotion {
     /// Movements that swing continuously from side to side (no start and finish to pause on).
     var isContinuous: Bool {
         switch self {
-        case .run, .walk, .cycle, .climber: return true
+        case .run, .walk, .cycle, .climber, .stairs: return true
         default: return false
         }
     }
@@ -447,21 +479,26 @@ struct ExerciseFigureCanvas: View {
         let thin = StrokeStyle(lineWidth: side * 0.03, lineCap: .round)
         func disc(_ c: CGPoint, _ r: CGFloat) -> Path { Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)) }
         switch prop {
-        case .none:
+        case .none, .rope, .cableHandle:
             break
+        case .pedals:
+            for foot in [p.footF, p.footB] {
+                context.fill(Path(roundedRect: CGRect(x: at(foot).x - side * 0.05, y: at(foot).y + side * 0.012, width: side * 0.13, height: side * 0.025),
+                                  cornerRadius: side * 0.01), with: .color(kit.opacity(0.6)))
+            }
         case .barbell:
             // Seen end-on from the side: a plate at the hands.
             context.stroke(disc(at(p.handF), side * 0.07), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.03))
             context.fill(disc(at(p.handF), side * 0.02), with: .color(kit))
-        case .dumbbells:
+        case .dumbbells, .oneDumbbell, .goblet:
             context.fill(Path(roundedRect: CGRect(x: at(p.handF).x - side * 0.05, y: at(p.handF).y - side * 0.028,
                                                   width: side * 0.1, height: side * 0.056), cornerRadius: side * 0.02), with: .color(kit))
-        case .bench:
+        case .bench, .benchDumbbells:
             context.stroke(line([at(pt(0.16, 0.685)), at(pt(0.68, 0.685))]), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.04, lineCap: .round))
             context.stroke(line([at(pt(0.24, 0.7)), at(pt(0.24, 0.93))]), with: .color(kit), style: thin)
             context.stroke(line([at(pt(0.6, 0.7)), at(pt(0.6, 0.93))]), with: .color(kit), style: thin)
             context.stroke(disc(at(p.handF), side * 0.07), with: .color(kit), style: StrokeStyle(lineWidth: side * 0.03))
-        case .highBar:
+        case .highBar, .pulldown:
             if p.handF.y > 0.1 && p.hip.y > 0.6 {
                 // Pulldown: the bar travels with the hands on a cable.
                 context.stroke(line([at(pt(p.handF.x, 0.0)), at(p.handF)]), with: .color(kit.opacity(0.6)), style: StrokeStyle(lineWidth: side * 0.014))
@@ -483,7 +520,7 @@ struct ExerciseFigureCanvas: View {
             context.stroke(disc(at(pt(0.78, 0.77)), side * 0.15), with: .color(kit), style: ring)
             context.stroke(line([at(pt(0.26, 0.77)), at(pt(0.4, 0.54)), at(pt(0.53, 0.8)), at(pt(0.26, 0.77))]), with: .color(kit), style: ring)
             context.stroke(line([at(pt(0.53, 0.8)), at(pt(0.74, 0.5)), at(pt(0.78, 0.77))]), with: .color(kit), style: ring)
-        case .seat:
+        case .seat, .cableSeat:
             context.stroke(line([at(pt(p.hip.x - 0.09, p.hip.y + 0.075)), at(pt(p.hip.x + 0.09, p.hip.y + 0.075))]),
                            with: .color(kit), style: StrokeStyle(lineWidth: side * 0.04, lineCap: .round))
             context.stroke(line([at(pt(0.12, 0.93)), at(pt(0.88, 0.93))]), with: .color(kit.opacity(0.5)), style: thin)
@@ -524,17 +561,32 @@ struct ExerciseDemo: View {
     @State private var startedAt: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var period: Double { motion.isContinuous ? motion.period : max(motion.period, 2.6) }
+    private var period: Double { motion.clip?.duration ?? RepTempo.period(for: motion) }
     private var runTime: Double { period * Double(reps) }
     private var isPlaying: Bool { startedAt != nil }
 
     var body: some View {
         let (a, b) = motion.poses
         ZStack(alignment: .bottomTrailing) {
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isPlaying)) { timeline in
                 let elapsed = startedAt.map { timeline.date.timeIntervalSince($0) } ?? runTime
                 let done = elapsed >= runTime
-                ExerciseFigure3DView(pose: done ? a : a.lerp(to: b, phase(elapsed)), motion: motion)
+                Group {
+                if let clip = motion.clip {
+                    // Captured human movement.
+                    ExerciseFigure3DView(start: a, finish: a, progress: 0, motion: motion,
+                                         clipTime: done ? 0 : elapsed.truncatingRemainder(dividingBy: clip.duration))
+                } else if let gait = motion.gait {
+                    // A stride cycle: the pose is generated for this moment.
+                    let phase = done ? 0 : elapsed / gait.period
+                    let pose = done ? a : gait.pose(phase: phase)
+                    ExerciseFigure3DView(start: pose, finish: pose, progress: CGFloat(phase - phase.rounded(.down)), motion: motion)
+                } else {
+                    let state = done ? RepState() : RepTempo.state(for: motion, elapsed: elapsed)
+                    ExerciseFigure3DView(start: a, finish: b, progress: motion.legsLead ? state.legs : state.armNear,
+                                         motion: motion, parts: state)
+                }
+                }
                     .onChange(of: done) { _, finished in if finished { startedAt = nil } }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -562,20 +614,6 @@ struct ExerciseDemo: View {
         }
         .onAppear { play() }
         .animation(.snappyValue, value: isPlaying)
-    }
-
-    /// 0 at the start position, 1 at the finish.
-    private func phase(_ elapsed: Double) -> CGFloat {
-        let t = (elapsed / period).truncatingRemainder(dividingBy: 1)
-        if motion.isContinuous { return 0.5 - 0.5 * cos(2 * .pi * t) }
-        // Hold start, move, hold finish, return.
-        func ease(_ x: Double) -> Double { 0.5 - 0.5 * cos(.pi * min(max(x, 0), 1)) }
-        switch t {
-        case ..<0.12: return 0
-        case ..<0.47: return ease((t - 0.12) / 0.35)
-        case ..<0.65: return 1
-        default:      return 1 - ease((t - 0.65) / 0.35)
-        }
     }
 
     private func play() {

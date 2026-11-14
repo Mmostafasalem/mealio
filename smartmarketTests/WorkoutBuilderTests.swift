@@ -79,9 +79,10 @@ final class ExerciseMotionTests: XCTestCase {
     }
 
     func testFreeTextNamesMapToSensibleMotions() {
-        XCTAssertEqual(ExerciseMotion.matching(name: "Barbell Back Squat"), .squat)
-        XCTAssertEqual(ExerciseMotion.matching(name: "Incline dumbbell bench press"), .benchPress)
-        XCTAssertEqual(ExerciseMotion.matching(name: "Bent-over row"), .bentRow)
+        XCTAssertEqual(ExerciseMotion.matching(name: "Barbell Back Squat"), .backSquat)
+        XCTAssertEqual(ExerciseMotion.matching(name: "Incline dumbbell bench press"), .dumbbellBench)
+        XCTAssertEqual(ExerciseMotion.matching(name: "Bent-over row"), .barbellRow)
+        XCTAssertEqual(ExerciseMotion.matching(name: "One-arm dumbbell row"), .bentRow)
         XCTAssertEqual(ExerciseMotion.matching(name: "Treadmill jog"), .run)
         XCTAssertEqual(ExerciseMotion.matching(name: "Push-up"), .pushUp)
         XCTAssertNil(ExerciseMotion.matching(name: "Turkish get-up"), "Unknown movements show no demo rather than a wrong one")

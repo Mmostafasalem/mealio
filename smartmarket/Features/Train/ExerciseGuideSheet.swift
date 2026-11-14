@@ -88,6 +88,20 @@ struct ExerciseGuideSheet: View {
                         Label("Drag the figure to look around it.", systemImage: "hand.draw")
                             .font(.footnote)
                             .foregroundStyle(Color.labelSecondary)
+                        // The body model is CC BY 4.0: its author must be credited where it is shown.
+                        Link("Figure: “Male base muscular anatomy” by Harshit Prajapati · CC BY 4.0",
+                             destination: URL(string: "https://sketchfab.com/3d-models/male-base-muscular-anatomy-0954aa04666d45aab9633009318f7b66")!)
+                            .font(.caption2)
+                            .foregroundStyle(Color.labelSecondary)
+                            .multilineTextAlignment(.leading)
+                        if motion.clip != nil {
+                            // Captured movement comes from CMU's motion capture database, credited as it asks.
+                            Link("Movement: CMU Graphics Lab Motion Capture Database (mocap.cs.cmu.edu), funded by NSF EIA-0196217",
+                                 destination: URL(string: "http://mocap.cs.cmu.edu")!)
+                                .font(.caption2)
+                                .foregroundStyle(Color.labelSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
                     }
 
                     if !guide.steps.isEmpty {
