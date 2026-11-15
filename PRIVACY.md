@@ -1,6 +1,6 @@
 # Nourlo — Privacy Policy
 
-_Last updated: 2026-11-13_
+_Last updated: 2026-11-14_
 
 Nourlo ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not
@@ -15,7 +15,8 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
   preferences, favourite foods). Stored **on your device** (profile and computed
   BMR in the iOS Keychain; preferences in local app storage). Used to calculate calorie targets
   and personalise meal plans.
-- **Food log** (what you log, calories, macros). Stored **on your device** only.
+- **Food log** (what you log, calories, macros). Stored **on your device** only,
+  and in Apple Health if you turn that on (see below).
 - **Shopping cart, grocery list, budget and price corrections.** Stored locally.
   If you enable shopping sync in Profile, these and your language setting are
   also stored in your private Apple CloudKit database. No Nourlo account is
@@ -23,6 +24,30 @@ sell your data, show ads, or use third-party analytics or tracking SDKs.
   nutrition meal plans are excluded from this app's iCloud sync. Grocery rows
   added from a meal plan ("Add missing ingredients to groceries") are derived
   from your nutrition plan, so they stay on this device and are not synced.
+
+## Apple Health (optional)
+Apple Health is off until you turn it on in Profile → Apple Health, and iOS
+asks for your permission for each kind of data. When it is on:
+
+- **Written to Apple Health:** each food you log (food energy, protein,
+  carbohydrate and fat, with the food's name and time) and each workout you
+  track with Start workout (type, the real start and finish time, and an
+  estimate of active energy based on the workout plan and how long you trained).
+  Workouts you only mark as done are kept in Nourlo and not written to Apple
+  Health. Removing a logged food or workout from the last seven days also
+  removes it from Apple Health.
+- **Read from Apple Health:** your latest weight, and today's steps and active
+  energy. Weight is only offered as a suggestion; your profile changes only if
+  you tap to use it. Steps and active energy are shown on Home.
+
+Health data stays on your iPhone and in Apple Health and is not sent anywhere:
+not to Nourlo's servers, to Groq or any other AI provider, to iCloud shopping
+sync, or used for advertising. If you choose to use your Health weight in your
+profile, it becomes your profile weight and is used like a weight you type in,
+including in AI meal plans if you have allowed online AI. You can turn Apple
+Health off in Profile or change access in the Health app (Sharing → Apps →
+Nourlo). Turning it off, or using Delete All Data, stops syncing but leaves data
+already saved in Apple Health; you can review or delete it in the Health app.
 
 ## Optional shopping sync
 Sync starts only after you enable it in Profile and requires an available iCloud
@@ -53,6 +78,17 @@ today's entries. Removing an intake record does not replenish stock. Delete All 
 clears stock, saved products, custom dishes and logs. Open Food Facts is a
 community database; compare branded products with their current package labels.
 Product lookup sends no location.
+When you scan a barcode, the camera image is processed only on your device; only
+the barcode number is looked up (and only when that product isn't already saved on
+your device), with a generic app identifier and no account or device identifier.
+
+## Siri, Shortcuts, widgets and Spotlight
+
+Siri and Shortcuts answers (calories left, today's meals) and quick logging by voice
+use only data on your device; quick logging searches only foods already on your
+device. Widgets and the workout Live Activity show today's totals, planned meals and
+the current exercise from a copy kept in the app's own shared storage on your
+device. Spotlight indexes only the exercise catalogue, never your personal data.
 
 ## Information sent to our servers
 
@@ -162,16 +198,19 @@ does not automatically erase provider records.
 - **Groq** — AI meal plans, chat, recipes and workouts ([groq.com](https://groq.com)).
 - **Neon** — private account and allowance database ([neon.com](https://neon.com/privacy-policy)).
 - **Open Food Facts** — product nutrition ([openfoodfacts.org](https://openfoodfacts.org)).
-- **Apple** — optional CloudKit shopping sync.
+- **Apple** — optional CloudKit shopping sync and optional Apple Health (on device).
 
 ## Children
-Nourlo is not directed at children under 13 and should not be used to set
-calorie goals for minors without medical guidance.
+Nourlo is not directed at children under 13, and setup does not accept an age
+below 13. For people aged 13 to 17, Nourlo offers only "maintain" or "gain"
+goals and never sets a calorie deficit, even if an older saved profile asked
+for weight loss. Teens should talk to a doctor about any weight goals.
 
 ## Your choices
 - Revoke notification permission anytime in iOS Settings.
 - Use "Delete All Data" in Profile to clear local data and request cloud deletion.
 - Turn shopping sync off in Profile to stop future sync without deleting cloud data.
+- Turn Apple Health off in Profile, or change Nourlo's access in the Health app.
 
 ## Health disclaimer
 Calorie and macro values are **estimates** and may vary by product and
