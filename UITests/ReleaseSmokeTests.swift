@@ -8,8 +8,18 @@ final class ReleaseSmokeTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
+    /// The system tab bar's buttons carry their names, not identifiers: "tab.home"
+    /// → "Home", …, "navigation.quickActions" → the "+" ("Quick actions").
+    private static let tabNames = ["tab.home": "Home", "tab.meals": "Meals", "tab.shop": "Shop",
+                                   "tab.train": "Train", "navigation.quickActions": "Quick actions"]
+
+    private func control(_ id: String, in app: XCUIApplication) -> XCUIElement {
+        if let name = Self.tabNames[id] { return app.tabBars.buttons[name].firstMatch }
+        return app.buttons[id].firstMatch
+    }
+
     private func tap(_ id: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        let control = app.buttons[id].firstMatch
+        let control = self.control(id, in: app)
         func isVisibleForTap() -> Bool {
             guard control.exists && control.isHittable else { return false }
             // The custom tab bar already reserves its bottom inset. Applying a
@@ -46,8 +56,10 @@ final class ReleaseSmokeTests: XCTestCase {
             } else if app.collectionViews.firstMatch.exists {
                 let list = app.collectionViews.firstMatch
                 let reverse = control.exists && control.frame.midY < list.frame.minY
-                let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.4 : 0.7))
-                let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: reverse ? 0.7 : 0.4))
+                // Near the right edge: the middle of a list can hold its own drag
+                // controls (Profile's appearance cord), which would swallow the scroll.
+                let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: reverse ? 0.4 : 0.7))
+                let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: reverse ? 0.7 : 0.4))
                 // A short drag with a hold avoids flinging past unmaterialized
                 // large-text rows in SwiftUI's lazy list.
                 start.press(forDuration: 0.1, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
@@ -99,24 +111,20 @@ final class ReleaseSmokeTests: XCTestCase {
                        "\(element) is still on screen", file: file, line: line)
     }
 
-    /// Opens the quick-actions menu and picks one bubble. A tap on "+" can be
-    /// swallowed while a sheet is still animating away, so this checks the menu
-    /// really opened (re-tapping "+" if not) and waits for the bubble to take a tap.
+    /// Opens the quick-actions sheet from the tab bar's "+" and picks a row. A tap
+    /// on "+" can be swallowed while another sheet is still animating away, so
+    /// this re-taps "+" if the sheet didn't open, and waits for the row to take a tap.
     private func chooseQuickAction(_ action: String, in app: XCUIApplication,
                                    file: StaticString = #filePath, line: UInt = #line) {
-        let plus = app.buttons["navigation.quickActions"].firstMatch
-        let bubble = app.buttons["quickActions." + action].firstMatch
+        let plus = control("navigation.quickActions", in: app)
+        let row = app.buttons["quickActions." + action].firstMatch
         XCTAssertTrue(plus.waitForExistence(timeout: 5), file: file, line: line)
         for _ in 0..<3 {
-            // The "+" button says whether the menu is open; the bubbles alone can't tell.
-            if (plus.value as? String) != "Quick actions shown" {
-                tap("navigation.quickActions", in: app, file: file, line: line)
-            }
-            // The bubbles spring out over about half a second; poll until one can take a tap.
+            if !row.exists { tap("navigation.quickActions", in: app, file: file, line: line) }
             let deadline = Date().addingTimeInterval(3)
             while Date() < deadline {
-                if bubble.exists && bubble.isHittable {
-                    bubble.tap()
+                if row.exists && row.isHittable {
+                    row.tap()
                     return
                 }
                 RunLoop.current.run(until: Date().addingTimeInterval(0.2))
@@ -172,7 +180,7 @@ final class ReleaseSmokeTests: XCTestCase {
             XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
         }
         tap("onboarding.favorites.finish", in: app)
-        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 15))
+        XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
     }
 
     func testAppStoreScreenshotCandidates() {
@@ -269,7 +277,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("floating-bowl-tour-home")
         tap("guide.next", in: app)
         XCTAssertTrue(app.staticTexts["Build your grocery list"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["tab.shop"].isSelected)
+        XCTAssertTrue(control("tab.shop", in: app).isSelected)
         tap("guide.next", in: app)
         XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
         tap("guide.next", in: app)
@@ -315,18 +323,29 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(info.frame.height, 44 - geometryTolerance)
     }
 
-    func testCustomNavigationHidesSystemTabBar() {
+    func testSystemTabBarShowsIconsOnly() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         launchForTesting(app)
-        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 15))
-        XCTAssertFalse(app.tabBars.firstMatch.exists, "Only Nourlo's custom tab bar should be exposed")
+        let bar = app.tabBars.firstMatch
+        XCTAssertTrue(bar.waitForExistence(timeout: 15), "the native tab bar")
+        XCTAssertEqual(bar.buttons.count, 5)
+        for name in ["Home", "Meals", "Quick actions", "Shop", "Train"] {
+            XCTAssertTrue(bar.buttons[name].exists, "\(name) is named for VoiceOver")
+        }
+        XCTAssertEqual(bar.staticTexts.count, 0, "icons only: no visible tab titles")
+        // The "+" opens the quick actions without leaving the current tab.
+        tap("navigation.quickActions", in: app)
+        XCTAssertTrue(app.buttons["quickActions.logFood"].waitForExistence(timeout: 5))
+        XCTAssertTrue(bar.buttons["Home"].isSelected)
+        tap("quickActions.done", in: app)
+        waitUntilGone(app.buttons["quickActions.done"])
         // Shop provides an unobstructed header independent of transient Home banners.
         tap("tab.shop", in: app)
-        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        XCTAssertTrue(bar.buttons["Shop"].isSelected)
         XCTAssertFalse(app.staticTexts["Best value in Lithuania"].exists)
         XCTAssertFalse(app.staticTexts["Everyday low prices"].exists)
-        capture("custom-navigation")
+        capture("system-tab-bar")
     }
 
     func testOnboardingAndTabsInLandscape() {
@@ -355,8 +374,7 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(signIn.waitForExistence(timeout: 5))
         XCTAssertGreaterThanOrEqual(signIn.frame.height, 44)
         tap("tab.home", in: app)
-        XCTAssertTrue(app.buttons["tab.home"].exists)
-        XCTAssertEqual(app.tabBars.count, 0)
+        XCTAssertTrue(control("tab.home", in: app).isSelected)
     }
 
     func testQuickActionsMenuOpensCartAndChecklist() {
@@ -370,11 +388,11 @@ final class ReleaseSmokeTests: XCTestCase {
         if app.buttons["quickCart.done"].exists && app.buttons["quickCart.done"].isHittable { tap("quickCart.done", in: app) }
         // The next tap only counts once the sheet has fully gone.
         waitUntilGone(app.buttons["quickCart.done"])
-        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
         chooseQuickAction("groceries", in: app)
         XCTAssertTrue(app.buttons["groceries.done"].waitForExistence(timeout: 5))
         tap("groceries.done", in: app)
-        XCTAssertTrue(app.buttons["tab.home"].waitForExistence(timeout: 5))
+        XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 5))
     }
 
     func testQuickLoggerCustomServingDismissesAfterAdding() {
@@ -393,7 +411,7 @@ final class ReleaseSmokeTests: XCTestCase {
         tap("logFood.addServing", in: app)
         // The Add button plays a short "Added" success moment before the sheet closes.
         XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["navigation.quickActions"].exists)
+        XCTAssertTrue(control("navigation.quickActions", in: app).exists)
     }
 
     func testRestaurantMenuDishCanBeSavedAndLoggedPerServing() {
@@ -422,7 +440,7 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["650"].exists)
         capture("restaurant-menu-serving")
         tap("logFood.addServing", in: app)
-        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
     }
 
     func testStockSearchAddConsumeAndHistory() {
@@ -467,7 +485,7 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["45"].exists)
         capture("recipe-source-and-yield")
         tap("logFood.addServing", in: app)
-        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
+        XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
     }
 
     func testStoreUsesNativeSwipeBackAndLargeQuantityTargets() {

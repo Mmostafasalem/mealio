@@ -4,10 +4,7 @@ import TipKit
 /// TipKit setup and the app's few tips. Each tip shows once, at most one a day,
 /// and is invalidated as soon as the person does the thing it teaches.
 ///
-/// Placement rule: tips are inline (`TipView`) wherever there is room, so they
-/// never cover controls. The only popover is on the tab bar's "+", which has no
-/// room for an inline tip; it waits until the second app launch, so it never
-/// stacks on top of first-run screens.
+/// Placement rule: tips are inline (`TipView`), so they never cover controls.
 enum NourloTips {
 
     /// The launch argument UI tests pass (`-NourloUITesting YES`) to keep tips away.
@@ -39,17 +36,6 @@ enum NourloTips {
         }
     }
 
-    /// Counted once per launch; the quick-actions tip waits for the second one.
-    static let appLaunched = Tips.Event(id: "nourlo.appLaunched")
-    private static var didDonateLaunch = false
-
-    /// Records this launch once, however often the tab bar reappears.
-    static func donateLaunchOnce() async {
-        guard !didDonateLaunch else { return }
-        didDonateLaunch = true
-        await appLaunched.donate()
-    }
-
     /// Food was logged (in the app or through Siri / Shortcuts): the "Log food"
     /// tip has done its job. (Intent files can't import TipKit, whose `@Parameter`
     /// clashes with App Intents', so they call this.)
@@ -74,18 +60,6 @@ nonisolated struct LogFoodTip: Tip {
     var title: Text { Text("Log food in two taps") }
     var message: Text? { Text("Tap Log food, then the plus next to any food to add a standard portion.") }
     var image: Image? { Image(systemName: "fork.knife") }
-}
-
-/// On the "+" at the end of the tab bar.
-nonisolated struct QuickActionsTip: Tip {
-    var id: String { "nourlo.quickActions" }
-    var title: Text { Text("Quick actions") }
-    var message: Text? { Text("Tap + to log food, open your cart or checklist, or ask Nourlo.") }
-    var image: Image? { Image(systemName: "plus.circle") }
-    var rules: [Rule] {
-        // Not on the very first launch: the app has enough to show then.
-        #Rule(NourloTips.appLaunched) { $0.donations.count >= 2 }
-    }
 }
 
 /// In the food logger, only on devices that can scan.

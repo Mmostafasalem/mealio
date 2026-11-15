@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat
+    case logFood, cart, groceries, chat, quickActions
     case exercise(String)
 
     var id: String {
@@ -14,6 +14,7 @@ enum MainSheet: Identifiable, Equatable {
         case .cart: return "cart"
         case .groceries: return "groceries"
         case .chat: return "chat"
+        case .quickActions: return "quickActions"
         case .exercise(let id): return "exercise:" + id
         }
     }
@@ -29,41 +30,49 @@ struct MainTabView: View {
     @State private var dismissalTimeout: Task<Void, Never>?
     @State private var quickLog = HomeViewModel()
     @State private var keyboardVisible = false
-    @State private var navigationHeight: CGFloat = 80
+    /// Height of the system tab bar above the home indicator (sizes the bowl's guide panel).
+    @State private var tabBarHeight: CGFloat = 49
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
-    init() {
-        // Hide the system tab bar so our floating one takes over
-        UITabBar.appearance().isHidden = true
+    /// The "+" in the middle of the tab bar is a button, not a screen: choosing it
+    /// opens the quick actions and leaves the current tab selected.
+    private static let quickActionsTag = 4
+
+    private var tabSelection: Binding<Int> {
+        Binding(get: { selection }, set: { tag in
+            if tag == Self.quickActionsTag { present(.quickActions) } else { selection = tag }
+        })
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TabView(selection: $selection) {
-                HomeView().tag(0).toolbar(.hidden, for: .tabBar)
-                NavigationStack { MealPlanView() }.tag(1).toolbar(.hidden, for: .tabBar)
-                StoreBrowserView().tag(2).toolbar(.hidden, for: .tabBar)
-                TrainView().tag(3).toolbar(.hidden, for: .tabBar)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // A sibling reserves real layout space on every tab, including iPad.
-            FloatingTabBar(selection: $selection, choose: chooseQuickAction, openChat: {
-                guard sheet == nil else { return }
-                present(.chat)
-            })
-                // Its goo menu pours out over the content above the bar.
-                .zIndex(2)
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: NavigationHeightKey.self, value: geometry.size.height)
-                })
+        // The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
+        TabView(selection: tabSelection) {
+            HomeView()
+                .background(TabBarInsetReader())
+                .tabItem { TabIcon(symbol: "house.fill", name: "Home") }
+                .tag(0)
+            NavigationStack { MealPlanView() }
+                .tabItem { TabIcon(symbol: "fork.knife", name: "Meals") }
+                .tag(1)
+            Color.clear
+                .tabItem { TabIcon(symbol: "plus.circle.fill", name: "Quick actions") }
+                .tag(Self.quickActionsTag)
+            StoreBrowserView()
+                .tabItem { TabIcon(symbol: "storefront.fill", name: "Shop") }
+                .tag(2)
+            TrainView()
+                .tabItem { TabIcon(symbol: "figure.run", name: "Train") }
+                .tag(3)
         }
-        .onPreferenceChange(NavigationHeightKey.self) { navigationHeight = $0 }
+        .tint(Color.brandPrimary)
+        .sensoryFeedback(.selection, trigger: selection)
+        .onPreferenceChange(TabBarInsetKey.self) { tabBarHeight = $0 }
         // The bowl's guide panel, above every tab (the bowl itself is in Home's header).
         .overlay(alignment: .top) {
             if !keyboardVisible {
                 GeometryReader { geometry in
-                    FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - navigationHeight,
+                    FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - tabBarHeight,
                                       choose: followGuide)
                 }
                 .zIndex(10)
@@ -105,6 +114,13 @@ struct MainTabView: View {
                     .presentationDetents([.large])
             case .chat:
                 AgentChatSheet(vm: quickLog)
+            case .quickActions:
+                QuickActionsMenu(close: { self.sheet = nil }) { choice in
+                    switch choice {
+                    case .chat: present(.chat)
+                    case .action(let action): chooseQuickAction(action)
+                    }
+                }
             case .exercise(let id):
                 if let exercise = Exercise.catalog.first(where: { $0.id == id }) {
                     ExerciseGuideSheet(guide: ExerciseGuide(exercise: exercise))
@@ -237,141 +253,68 @@ enum PresentedScreens {
     }
 }
 
-private struct NavigationHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat { 80 }
+// MARK: - System tab bar
+
+/// One tab's icon. The name isn't shown (icons only, like Apple's own apps) but
+/// VoiceOver and Voice Control still use it.
+private struct TabIcon: View {
+    let symbol: String
+    let name: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .environment(\.symbolVariants, .fill)
+            .accessibilityLabel(name)
+    }
+}
+
+/// How much of the screen bottom the tab bar covers, read from a tab's content
+/// (its bottom safe area is the bar plus the home indicator).
+private struct TabBarInsetReader: View {
+    var body: some View {
+        GeometryReader { geometry in
+            Color.clear.preference(key: TabBarInsetKey.self, value: geometry.safeAreaInsets.bottom)
+        }
+    }
+}
+
+private struct TabBarInsetKey: PreferenceKey {
+    static var defaultValue: CGFloat { 49 }
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
-// MARK: - Floating tab bar
+/// What the "+" tab offers, as a native sheet.
+private struct QuickActionsMenu: View {
+    enum Choice { case action(MealioQuickAction), chat }
+    /// Closes the sheet through `MainTabView`'s own state (its single sheet path).
+    let close: () -> Void
+    let choose: (Choice) -> Void
 
-private struct FloatingTabBar: View {
-
-    @Binding var selection: Int
-    let choose: (MealioQuickAction) -> Void
-    let openChat: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let quickActionsTip = QuickActionsTip()
-
-    private let items: [(icon: String, filled: String, label: String)] = [
-        ("house",               "house.fill",               "Home"),
-        ("fork.knife.circle",   "fork.knife.circle.fill",   "Meals"),
-        ("storefront",          "storefront.fill",          "Shop"),
-        ("figure.run",          "figure.run",               "Train"),
-    ]
-
-    /// The + at the end of the bar pours these out. Ids are `MealioQuickAction`
-    /// raw values, except "chat".
-    private static let quickItems: [GooMenuItem] = [
-        GooMenuItem(id: MealioQuickAction.logFood.rawValue, title: "Log food", systemImage: "fork.knife"),
-        GooMenuItem(id: MealioQuickAction.cart.rawValue, title: "Cart", systemImage: "cart"),
-        GooMenuItem(id: MealioQuickAction.groceries.rawValue, title: "Checklist", systemImage: "checklist"),
-        GooMenuItem(id: "chat", title: "Ask Nourlo", systemImage: "bubble.left.and.text.bubble.right"),
+    private let rows: [(id: String, title: String, symbol: String, choice: Choice)] = [
+        (MealioQuickAction.logFood.rawValue, "Log food", "fork.knife", .action(.logFood)),
+        (MealioQuickAction.cart.rawValue, "Cart", "cart", .action(.cart)),
+        (MealioQuickAction.groceries.rawValue, "Checklist", "checklist", .action(.groceries)),
+        ("chat", "Ask Nourlo", "bubble.left.and.text.bubble.right", .chat),
     ]
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
-                TabItem(
-                    icon:      item.icon,
-                    filled:    item.filled,
-                    label:     item.label,
-                    isActive:  selection == idx,
-                    index:     idx
-                ) {
-                    withAnimation(reduceMotion ? .none : .snappyValue) {
-                        selection = idx
-                    }
+        NavigationStack {
+            List(rows, id: \.id) { row in
+                Button { choose(row.choice) } label: {
+                    Label(row.title, systemImage: row.symbol)
+                        .foregroundStyle(Color.labelPrimary)
                 }
-                .frame(minWidth: 0, maxWidth: .infinity)
+                .accessibilityIdentifier("quickActions." + row.id)
             }
-            // Bubbles fan out above the bar, clear of the tabs.
-            GooMenu(items: Self.quickItems, accessibilityLabel: "Quick actions",
-                    startAngle: 204, endAngle: 264,
-                    openValue: "Quick actions shown", openHint: "Shows quick actions",
-                    closeHint: "Closes the quick actions", itemHint: { "Opens \($0)" },
-                    buttonIdentifier: "navigation.quickActions", itemIdentifierPrefix: "quickActions.",
-                    glass: true,
-                    onOpen: { quickActionsTip.invalidate(reason: .actionPerformed) }) { item in
-                if item.id == "chat" { openChat() }
-                else if let action = MealioQuickAction(rawValue: item.id) { choose(action) }
-            }
-            // The bar has no room for an inline tip; the popover points down at the +.
-            .popoverTip(quickActionsTip, arrowEdge: .bottom)
-            .padding(.horizontal, Spacing.sm)
-        }
-        // One shared pill behind the tabs: its edges are springs that chase the
-        // selected tab's icon frame, so it stretches toward the new tab.
-        .backgroundPreferenceValue(StretchTabPillAnchors.self) { anchors in
-            GeometryReader { geometry in
-                StretchTabPill(target: anchors[selection].map { geometry[$0] }, id: selection, isHidden: false) {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.brandLight)
+            .navigationTitle("Quick actions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { close() }.accessibilityIdentifier("quickActions.done")
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
-        .modifier(TabBarBackground(radius: 24))
-        .padding(.horizontal, Spacing.lg)
-        .padding(.bottom, Spacing.sm)
-        .task { await NourloTips.donateLaunchOnce() }
-    }
-}
-
-/// Liquid Glass behind the bar on iOS 26+; the solid card on earlier systems
-/// and whenever Reduce Transparency is on.
-private struct TabBarBackground: ViewModifier {
-    let radius: CGFloat
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content.glassEffect(.regular, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-        } else {
-            content.glassCard(radius: radius)
-        }
-    }
-}
-
-private struct TabItem: View {
-
-    let icon: String
-    let filled: String
-    let label: String
-    let isActive: Bool
-    /// Tab index; reports the icon frame for the shared stretch pill.
-    let index: Int
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var typeSize
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: isActive ? filled : icon)
-                    .font(.body.weight(isActive ? .semibold : .regular))
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                    .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
-                    .animation(reduceMotion ? .none : .snappyValue, value: isActive)
-                    .frame(width: 46, height: 30)
-                    .stretchTabPillAnchor(index)
-
-                if !typeSize.isAccessibilitySize {
-                    Text(label)
-                        .font(.caption2.weight(isActive ? .semibold : .regular))
-                        .foregroundStyle(isActive ? Color.brandPrimary : Color.labelSecondary)
-                        .lineLimit(1)
-                }
-            }
-            // Keep its natural size while the open command field squeezes the slot to zero.
-            .fixedSize()
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier("tab.\(label.lowercased())")
-        .accessibilityAddTraits(isActive ? .isSelected : [])
-        .sensoryFeedback(.selection, trigger: isActive)
+        .presentationDetents([.height(300), .medium])
+        .presentationDragIndicator(.visible)
     }
 }
