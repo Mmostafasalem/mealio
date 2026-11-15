@@ -348,11 +348,23 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("system-tab-bar")
     }
 
-    func testOnboardingAndTabsInLandscape() {
+    func testOnboardingAndTabsInLandscape() throws {
         let app = XCUIApplication()
         onboard(app)
         XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
+        // Some headless simulators ignore rotation for every app (Apple's Settings
+        // included). Check the screen itself turned; if it didn't, there's nothing
+        // to test here, which is reported as a skip rather than an app failure.
+        let deadline = Date().addingTimeInterval(4)
+        var screen = XCUIScreen.main.screenshot().image.size
+        while screen.width <= screen.height && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+            screen = XCUIScreen.main.screenshot().image.size
+        }
+        if screen.width <= screen.height {
+            throw XCTSkip("This simulator didn't rotate to landscape; check rotation on a device.")
+        }
         tap("tab.home", in: app)
         XCTAssertGreaterThan(app.frame.width, app.frame.height)
         for name in ["home", "meals", "shop", "train"] {

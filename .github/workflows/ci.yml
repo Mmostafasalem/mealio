@@ -60,13 +60,18 @@ jobs:
 
   ios-build:
     name: iOS tests and release build
-    # macos-15 ships Xcode 16+, required for this project's objectVersion 77.
-    runs-on: macos-15
-    timeout-minutes: 60
-    env:
-      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+    # The app needs Xcode 26 (iOS 26 SDK: Liquid Glass, Swift 6.2 isolation
+    # features, default MainActor isolation); the macos-26 image ships it.
+    runs-on: macos-26
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ] && xcodebuild -version | grep -q "^Xcode 26"; then XCODE=$(dirname "$(dirname "$(xcode-select -p)")"); fi
+          [ -n "$XCODE" ] || { echo "No Xcode 26 on this runner:"; ls /Applications | grep -i xcode; exit 1; }
+          echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
       - name: Xcode version
         run: xcodebuild -version
       - name: Sync merge regression tests
