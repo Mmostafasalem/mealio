@@ -35,6 +35,8 @@ final class VoiceCommandModel {
     /// Seconds until a complete command saves itself; nil when it won't.
     private(set) var countdown: Int?
     private(set) var canUndo = false
+    /// The reading allowed for misheard words, so it waits for a tap.
+    private var guessed = false
     /// Which model helped when the rule book couldn't place the phrase (shown on the card).
     private(set) var helper: VoiceInterpreter.Source?
     /// The microphone or speech permission was refused; the sheet offers Settings.
@@ -201,7 +203,16 @@ final class VoiceCommandModel {
             phase = .failed("I didn't hear anything. Tap the microphone and try again.")
             return
         }
-        let plan = VoiceCommandRunner.plan(for: VoiceRuleBook.parse(trimmed, language: language), language: language)
+        var plan = VoiceCommandRunner.plan(for: VoiceRuleBook.parse(trimmed, language: language), language: language)
+        // Nothing placed as heard: allow for a misheard word or two before asking a model.
+        guessed = false
+        if Self.needsHelp(plan) {
+            let loose = VoiceCommandRunner.plan(for: VoiceRuleBook.parse(trimmed, language: language, tolerant: true), language: language)
+            if Self.isBetter(loose, than: plan) {
+                plan = loose
+                guessed = true
+            }
+        }
         // The rules placed it: done, with no model involved.
         guard Self.needsHelp(plan), Self.testPhrase == nil, VoiceInterpreter.isAvailable(for: language) else {
             present(plan)
@@ -229,8 +240,9 @@ final class VoiceCommandModel {
         self.plan = plan
         if plan.needsConfirmation {
             phase = .review
-            // A model's reading is shown for a tap; only the rules' own save by themselves.
-            if plan.isComplete, helper == nil { startCountdown() }
+            // A model's reading, or one that allowed for misheard words, is shown for a tap;
+            // only the rules' exact readings save by themselves.
+            if plan.isComplete, helper == nil, !guessed { startCountdown() }
         } else {
             run(plan)
         }

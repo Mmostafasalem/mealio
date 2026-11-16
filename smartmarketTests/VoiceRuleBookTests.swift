@@ -138,6 +138,24 @@ final class VoiceRuleBookTests: XCTestCase {
         XCTAssertEqual(parse("كم سعرة حرارية باقي لي اليوم؟"), .caloriesLeft)
     }
 
+    /// The offline model misspells Lithuanian: a word a letter or two off still counts, when asked.
+    func testMisheardWordsAreReadWhenTolerant() {
+        let heard = "Joutiana Bakarenei."
+        XCTAssertEqual(VoiceRuleBook.parse(heard, language: .lithuanian), .unknown("joutiana bakarenei"))
+        XCTAssertEqual(VoiceRuleBook.parse(heard, language: .lithuanian, tolerant: true),
+                       .logFood(items: [food("beef", nil)], slot: .dinner))
+        XCTAssertEqual(VoiceRuleBook.parse("Sivalgiau du kiausinus", language: .lithuanian, tolerant: true),
+                       .logFood(items: [food("egg", 2)], slot: nil))
+        // Short words and words that are far off stay as said.
+        XCTAssertEqual(VoiceSpelling.near("kova", "kava"), nil)
+        XCTAssertEqual(VoiceSpelling.near("stalas", "vakarienei"), nil)
+        XCTAssertEqual(VoiceSpelling.near("jautiena", "jautien*"), nil)
+        XCTAssertEqual(VoiceSpelling.near("joutiana", "jautien*"), 2)
+        // An exact reading is the same with or without it.
+        XCTAssertEqual(VoiceRuleBook.parse("Suvalgiau du kiaušinius pusryčiams", language: .lithuanian, tolerant: true),
+                       VoiceRuleBook.parse("Suvalgiau du kiaušinius pusryčiams", language: .lithuanian))
+    }
+
     func testLithuanian() {
         func parse(_ text: String) -> VoiceCommand { VoiceRuleBook.parse(text, language: .lithuanian) }
         XCTAssertEqual(parse("Suvalgiau du kiaušinius ir riekelę duonos pusryčiams"),

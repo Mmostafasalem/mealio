@@ -53,8 +53,13 @@ enum VoiceCommand: Equatable {
 
 enum VoiceRuleBook {
 
-    static func parse(_ spoken: String, language: VoiceLanguage = .english) -> VoiceCommand {
-        let lexicon = language.lexicon
+    /// `tolerant` also accepts a word that is a letter or two away from one the
+    /// lexicon knows ("joutiana" for "jautiena"): speech models mishear, most of
+    /// all in the smaller languages. The caller tries the exact reading first and
+    /// shows a tolerant one for a tap instead of saving it by itself.
+    static func parse(_ spoken: String, language: VoiceLanguage = .english, tolerant: Bool = false) -> VoiceCommand {
+        var lexicon = language.lexicon
+        lexicon.tolerant = tolerant
         let text = stripFillers(normalize(spoken, lexicon), lexicon)
         guard !text.isEmpty else { return .unknown("") }
 
@@ -198,6 +203,23 @@ enum VoiceRuleBook {
             }
             if slot != nil { break }
         }
+        // A misheard meal: "bakarenei" for "vakarienei".
+        if slot == nil, lexicon.tolerant {
+            var words = rest.split(separator: " ").map(String.init)
+            var best: (index: Int, slot: MealSlot, distance: Int)?
+            for (index, word) in words.enumerated() {
+                for meal in lexicon.meals {
+                    for name in meal.names {
+                        if let distance = VoiceSpelling.near(word, name), distance < best?.distance ?? .max { best = (index, meal.slot, distance) }
+                    }
+                }
+            }
+            if let best {
+                slot = best.slot
+                words.remove(at: best.index)
+                rest = words.joined(separator: " ")
+            }
+        }
         rest = rest.split(separator: " ").joined(separator: " ")
         // Drop the verb: "log", "i just had", "add", "i ate"…
         var hadVerb = false
@@ -205,6 +227,12 @@ enum VoiceRuleBook {
             rest = String(rest.dropFirst(verb.count)).trimmingCharacters(in: .whitespaces)
             hadVerb = true
             break
+        }
+        // A misheard one-word verb at the start: "sivalgiau" for "suvalgiau".
+        if !hadVerb, lexicon.tolerant, let first = rest.split(separator: " ").first.map(String.init), first != rest,
+           lexicon.foodVerbs.contains(where: { VoiceSpelling.near(first, $0) != nil }) {
+            rest = String(rest.dropFirst(first.count)).trimmingCharacters(in: .whitespaces)
+            hadVerb = true
         }
         let items = foodPhrases(rest, lexicon, translated: true).filter { !$0.name.isEmpty }
         guard !items.isEmpty else { return nil }
@@ -440,6 +468,8 @@ struct VoiceLexicon {
     var foods: [VoiceTranslation] = []
     /// Prefixes dropped from a word before it is looked up (the Arabic article).
     var wordPrefixes: [String] = []
+    /// Also accept a word a letter or two away from a known one (see `VoiceRuleBook.parse`).
+    var tolerant = false
 
     static let fractionRewrites: [(String, String)] = [
         (#"(?<![\d/.])1/2(?![\d/])"#, "0.5"), (#"(?<![\d/.])1/4(?![\d/])"#, "0.25"),
@@ -472,11 +502,22 @@ struct VoiceLexicon {
                 }
             }
             if !matched {
-                result.append(words[index])
+                result.append(tolerant ? nearest(words[index], in: table) ?? words[index] : words[index])
                 index += 1
             }
         }
         return result.joined(separator: " ")
+    }
+
+    /// The translation whose one-word form is closest to a misheard word, if any is close enough.
+    private func nearest(_ word: String, in table: [VoiceTranslation]) -> String? {
+        var best: (english: String, distance: Int)?
+        for line in table {
+            for form in line.forms where !form.contains(" ") {
+                if let distance = VoiceSpelling.near(word, form), distance < best?.distance ?? .max { best = (line.english, distance) }
+            }
+        }
+        return best?.english
     }
 
     private func strip(_ word: String) -> String {
@@ -511,5 +552,48 @@ struct VoiceTranslation {
                 stem.hasSuffix("*") ? word.hasPrefix(stem.dropLast()) : word == stem
             }
         }
+    }
+}
+
+// MARK: - Misheard words
+
+/// How far a heard word may be from a known one and still count as it.
+enum VoiceSpelling {
+
+    /// The number of wrong letters between `word` and `form` when that is small
+    /// enough to be a mishearing: one for a form of 5 or 6 letters, two for 7 or
+    /// more, never for shorter ones. A form ending in `*` is a stem and is
+    /// compared with the start of the word. nil when they are the same or too far apart.
+    static func near(_ word: String, _ form: String) -> Int? {
+        let isStem = form.hasSuffix("*")
+        let known = Array(isStem ? String(form.dropLast()) : form)
+        let said = Array(word)
+        let allowed = known.count >= 7 ? 2 : known.count >= 5 ? 1 : 0
+        guard allowed > 0, !known.contains(" "), said.count >= known.count - 1 else { return nil }
+        var best = Int.max
+        if isStem {
+            for length in (known.count - 1)...(known.count + 1) where length <= said.count {
+                best = min(best, distance(Array(said.prefix(length)), known))
+            }
+        } else {
+            best = distance(said, known)
+        }
+        return (1...allowed).contains(best) ? best : nil
+    }
+
+    /// Edit distance: letters changed, added or dropped.
+    static func distance(_ a: [Character], _ b: [Character]) -> Int {
+        if a.isEmpty || b.isEmpty { return max(a.count, b.count) }
+        var row = Array(0...b.count)
+        for i in 1...a.count {
+            var previous = row[0]
+            row[0] = i
+            for j in 1...b.count {
+                let current = row[j]
+                row[j] = a[i - 1] == b[j - 1] ? previous : min(previous, row[j], row[j - 1]) + 1
+                previous = current
+            }
+        }
+        return row[b.count]
     }
 }
