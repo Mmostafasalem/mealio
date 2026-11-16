@@ -177,10 +177,9 @@ final class ReleaseSmokeTests: XCTestCase {
         // Narrow the ~340 chips to a handful first: on a slow machine, reading the
         // whole chip grid for every query can time out.
         let search = app.textFields.element(matching: NSPredicate(format: "placeholderValue BEGINSWITH 'Search'"))
-        if search.waitForExistence(timeout: 5) {
-            search.tap()
-            search.typeText("chicken\n")
-        }
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "favourites search field")
+        search.tap()
+        search.typeText("chicken\n")
         // The short filtered list can rest a row under the category strip; start from its top.
         let list = app.scrollViews["favorites.list"]
         if list.exists { list.swipeDown(velocity: .slow) }
@@ -188,6 +187,11 @@ final class ReleaseSmokeTests: XCTestCase {
             let chip = app.buttons["favorite.item." + id].firstMatch
             XCTAssertTrue(chip.waitForExistence(timeout: 5), id)
             if !chip.isHittable, list.exists { list.swipeDown(velocity: .slow) }
+            XCTAssertTrue(chip.isHittable, "Unreachable control: favorite.item." + id)
+            XCTAssertGreaterThanOrEqual(chip.frame.width, 44 - 0.001, id)
+            XCTAssertGreaterThanOrEqual(chip.frame.height, 44 - 0.001, id)
+            XCTAssertTrue(app.frame.insetBy(dx: 0, dy: 40).contains(CGPoint(x: chip.frame.midX, y: chip.frame.midY)),
+                          "Control outside safe tap area: favorite.item." + id)
             chip.tap()
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
             XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
