@@ -4,7 +4,8 @@ import CoreFoundation
 /// A source record, not an AI estimate. Nutrients always describe 100 of `basis`.
 struct NutritionFood: Codable, Hashable, Identifiable {
     enum Basis: String, Codable { case grams = "g", millilitres = "ml", serving = "serving" }
-    enum Source: String, Codable { case usda, openFoodFacts, recipe, menu }
+    /// `regional`: Nourlo's own dishes, calculated from typical recipes (`RegionalDishes.json`).
+    enum Source: String, Codable { case usda, openFoodFacts, recipe, menu, regional }
     let id: String
     let name: String
     let brand: String?
@@ -20,6 +21,9 @@ struct NutritionFood: Codable, Hashable, Identifiable {
     var searchNames: [String]? = nil
     var recipeDetails: NutritionRecipe? = nil
     var menuURL: String? = nil
+    var reportedRetailers: [String]? = nil
+    /// For regional dishes: what the recipe is made with and how its weight was reached.
+    var summary: String? = nil
 
     var referenceAmount: Double { basis == .serving ? 1 : 100 }
     var defaultAmount: Double { referenceAmount }
@@ -38,6 +42,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
         case .openFoodFacts: return "Open Food Facts · product data"
         case .recipe: return "Your recipe · calculated estimate"
         case .menu: return "Menu nutrition · entered by you"
+        case .regional: return "Nourlo recipe estimate · USDA ingredients"
         }
     }
     var sourceExplanation: String {
@@ -46,6 +51,9 @@ struct NutritionFood: Codable, Hashable, Identifiable {
         case .openFoodFacts: return "Community-contributed product data, as sold. Check the brand and current package label; preparation can change the values."
         case .recipe: return "Calculated from the ingredient records and final cooked weight you entered. This is a recipe estimate; include oils, sauces and all edible ingredients."
         case .menu: return "Nutrition entered by you per restaurant serving. Nourlo has not verified the menu or portion; check current published figures and adjust for what you ate."
+        case .regional:
+            let method = "Calculated by Nourlo from a typical recipe: its ingredients' USDA values divided by the weight of the finished dish. Home and restaurant versions vary, so treat this as an estimate and weigh what you ate."
+            return [summary, method].compactMap { $0 }.joined(separator: " ")
         }
     }
     var sourceURL: URL? {
@@ -54,12 +62,17 @@ struct NutritionFood: Codable, Hashable, Identifiable {
         case .openFoodFacts: return URL(string: "https://world.openfoodfacts.org/product/\(sourceID)")
         case .recipe: return nil
         case .menu: return menuURL.flatMap(URL.init(string:))
+        case .regional: return nil
         }
     }
     var subtitle: String { [brand, referenceLabel].compactMap { $0 }.joined(separator: " · ") }
     var isValid: Bool {
         let identifierValid: Bool
         if source == .recipe || source == .menu { identifierValid = UUID(uuidString: sourceID) != nil }
+        else if source == .regional {
+            identifierValid = !sourceID.isEmpty && sourceID.count <= 60 && id == "regional:" + sourceID &&
+                sourceID.allSatisfy { $0.isASCII && ($0.isLowercase || $0.isNumber || $0 == "-") }
+        }
         else { identifierValid = !sourceID.isEmpty && sourceID.allSatisfy { $0.isASCII && $0.isNumber } }
         let energyLimit: Double = basis == .serving ? 10000 : 1000
         let macroLimit: Double = basis == .serving ? 1000 : 100
@@ -121,6 +134,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
                                  source: .openFoodFacts, sourceID: code, sourceDate: String(ISO8601DateFormatter().string(from: Date()).prefix(10)))
         food.searchNames = ["product_name", "product_name_en", "product_name_ar", "product_name_lt", "generic_name"]
             .compactMap { product[$0] as? String }.filter { !$0.isEmpty }
+        food.reportedRetailers = product["stores_tags"] as? [String]
         return food.isValid ? food : nil
     }
 }
@@ -133,6 +147,15 @@ enum NutritionDatabase {
         }
         let catalog = try JSONDecoder().decode(Catalog.self, from: Data(contentsOf: url))
         return catalog.foods.filter(\.isValid)
+    }
+    /// Nourlo's regional dishes (Lithuanian and Middle Eastern), built by
+    /// `scripts/build-regional-dishes.py`. Missing or unreadable is not an error:
+    /// the USDA foods still work.
+    static func loadRegional(bundle: Bundle = .main) -> [NutritionFood] {
+        guard let url = bundle.url(forResource: "RegionalDishes", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let catalog = try? JSONDecoder().decode(Catalog.self, from: data) else { return [] }
+        return catalog.foods.filter { $0.source == .regional && $0.isValid }
     }
     static func search(_ query: String, in foods: [NutritionFood], limit: Int = 60) -> [NutritionFood] {
         NutritionSearchIndex(foods: foods).search(query, limit: limit)

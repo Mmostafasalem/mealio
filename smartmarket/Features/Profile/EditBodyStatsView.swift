@@ -13,8 +13,17 @@ struct EditBodyStatsView: View {
     @State private var gender: Gender = .male
     @State private var activityLevel: ActivityLevel = .sedentary
     
+    @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
+    @AppStorage(Constants.Storage.heightUnit) private var heightUnit: HeightUnit = .cm
+
     @FocusState private var focusedField: Field?
-    
+    /// Edits save shortly after they stop, so a killed app keeps them.
+    @State private var saveTask: Task<Void, Never>?
+    @State private var isReady = false
+    /// The goal was "lose weight" when this screen opened. Under 18 it is
+    /// saved as maintain; raising the age again here brings it back.
+    @State private var goalWasLose = false
+
     private enum Field {
         case firstName
         case lastName
@@ -52,16 +61,34 @@ struct EditBodyStatsView: View {
             }
 
             Section("Body") {
-                StatSlider(label: "Weight", value: $weight, range: 40...150, step: 0.5, unit: "kg", symbol: "scalemass.fill")
-                StatSlider(label: "Height", value: $height, range: 140...220, step: 1, unit: "cm", symbol: "ruler.fill")
+                StatRuler(label: "Weight", symbol: "scalemass.fill", valueText: WeightRuler.text(weight, weightUnit)) {
+                    UnitToggle(selection: $weightUnit, options: WeightUnit.allCases, label: \.label,
+                               accessibilityName: "Weight unit")
+                } ruler: {
+                    WeightRuler(kilograms: $weight, unit: weightUnit)
+                }
+                StatRuler(label: "Height", symbol: "ruler.fill", valueText: HeightRuler.text(height, heightUnit)) {
+                    UnitToggle(selection: $heightUnit, options: HeightUnit.allCases, label: \.label,
+                               accessibilityName: "Height unit")
+                } ruler: {
+                    HeightRuler(centimetres: $height, unit: heightUnit)
+                }
                 
-                Stepper(value: $age, in: 10...100) {
+                Stepper(value: $age, in: Constants.Onboarding.minimumAge...Constants.Onboarding.maximumAge) {
                     HStack {
                         Image(systemName: "calendar").foregroundStyle(Color.brandPrimary).frame(width: 22)
                         Text("Age")
                         Spacer()
                         Text("\(age)").foregroundStyle(Color.brandPrimary).monospacedDigit()
                     }
+                }
+                if goalWasLose && !BMRCalculator.allowsWeightLoss(age: age) {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        MinorGoalNote()
+                        Text("Your goal is set to maintain weight.")
+                            .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
 
@@ -105,34 +132,67 @@ struct EditBodyStatsView: View {
             }
         }
         .onAppear {
-            // Fix 2: Initialize local copies from the VM so editing happens
-            // completely in isolation from the Observation layer.
+            // Edit local copies, isolated from the Observation layer.
             let parts = vm.profile.name.split(separator: " ", maxSplits: 1)
             firstName = parts.indices.contains(0) ? String(parts[0]) : ""
             lastName  = parts.indices.contains(1) ? String(parts[1]) : ""
-            
+
             weight = vm.profile.weight
             height = vm.profile.height
-            age = vm.profile.age
+            // Older data may hold an age outside the Stepper's range.
+            age = min(max(vm.profile.age, Constants.Onboarding.minimumAge), Constants.Onboarding.maximumAge)
+            goalWasLose = vm.profile.weightGoal == .lose
             gender = vm.profile.gender
             activityLevel = vm.profile.activityLevel
+            isReady = true
         }
+        .onChange(of: draft) { _, _ in scheduleSave() }
         .onDisappear {
-            // Fix 3: Push everything back to the view model all at once when the screen closes.
-            let full = [firstName, lastName]
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-                .joined(separator: " ")
-            
-            vm.profile.name = full.isEmpty ? "" : full
-            vm.profile.weight = weight
-            vm.profile.height = height
-            vm.profile.age = age
-            vm.profile.gender = gender
-            vm.profile.activityLevel = activityLevel
-            
-            vm.save()
+            saveTask?.cancel()
+            commit()
         }
+    }
+
+    private struct Draft: Equatable {
+        var firstName: String, lastName: String
+        var weight: Double, height: Double, age: Int
+        var gender: Gender, activityLevel: ActivityLevel
+    }
+
+    private var draft: Draft {
+        Draft(firstName: firstName, lastName: lastName, weight: weight, height: height, age: age,
+              gender: gender, activityLevel: activityLevel)
+    }
+
+    private func scheduleSave() {
+        guard isReady else { return }
+        saveTask?.cancel()
+        saveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            commit()
+        }
+    }
+
+    /// Pushes the edits to the view model. `save()` skips (and posts nothing)
+    /// when nothing actually changed.
+    private func commit() {
+        guard isReady else { return }
+        let full = [firstName, lastName]
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        vm.profile.name = full
+        vm.profile.weight = weight
+        vm.profile.height = height
+        vm.profile.age = age
+        vm.profile.gender = gender
+        vm.profile.activityLevel = activityLevel
+        // Saving moves an under-18 "lose" goal to maintain (see the note);
+        // if the age goes back to 18 or over here, keep the original goal.
+        if goalWasLose && BMRCalculator.allowsWeightLoss(age: age) { vm.profile.weightGoal = .lose }
+        vm.save()
     }
 
     // Calculated instantly using pure local states without checking the server or VM properties
@@ -141,25 +201,30 @@ struct EditBodyStatsView: View {
     }
 }
 
-// Keep this component isolated and clean
-private struct StatSlider: View {
+/// A labelled ruler row: name and live value on top, unit switch, then the ruler.
+private struct StatRuler<Toggle: View, Ruler: View>: View {
     let label: String
-    @Binding var value: Double
-    let range: ClosedRange<Double>
-    let step: Double
-    let unit: String
     let symbol: String
+    let valueText: String
+    @ViewBuilder var toggle: () -> Toggle
+    @ViewBuilder var ruler: () -> Ruler
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(spacing: Spacing.sm) {
             HStack {
                 Image(systemName: symbol).foregroundStyle(Color.brandPrimary).frame(width: 22)
                 Text(label)
                 Spacer()
-                Text("\(value, specifier: step < 1 ? "%.1f" : "%.0f") \(unit)")
-                    .foregroundStyle(Color.brandPrimary).monospacedDigit()
+                toggle().scaleEffect(0.85, anchor: .trailing)
             }
-            Slider(value: $value, in: range, step: step).tint(Color.brandPrimary)
+            Text(valueText)
+                .font(.system(.title, design: .rounded).weight(.semibold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(.snappyValue, value: valueText)
+                .accessibilityHidden(true)
+            ruler().frame(height: 96)
         }
+        .padding(.vertical, Spacing.xs)
     }
 }

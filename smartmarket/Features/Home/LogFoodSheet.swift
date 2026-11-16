@@ -1,10 +1,12 @@
 import SwiftUI
+import TipKit
 
 /// Source-backed food logging. Quick-add uses the explicitly displayed 100 g/ml basis;
 /// the row opens the source and portion editor.
 struct LogFoodSheet: View {
 
     @Bindable var vm: HomeViewModel
+    var onSelect: ((NutritionFood, Double) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var slot: MealSlot = .suggested()
@@ -12,7 +14,8 @@ struct LogFoodSheet: View {
     @State private var addedToast: String?
     @State private var detailFood: NutritionFood?
     @State private var catalog = NutritionCatalogService.shared
-    @State private var market: NutritionCatalogService.Market = .worldwide
+    /// Products are searched worldwide (the market switch was removed on 16 Nov 2026).
+    private let market: NutritionCatalogService.Market = .worldwide
     @State private var productPage = 0
     @State private var hasMoreProducts = false
     @State private var showCustomCreator = false
@@ -21,25 +24,47 @@ struct LogFoodSheet: View {
     @State private var productNotice: String?
     @State private var isSearching = false
     @State private var lookupTask: Task<Void, Never>?
+    /// Looks up packaged products a moment after typing stops (on unless turned off here).
+    @AppStorage("autoProductSearch_v1") private var autoProductSearch = true
+    @State private var autoSearchTask: Task<Void, Never>?
+    @State private var toastDismissTask: Task<Void, Never>?
+    @State private var showScanner = false
+    @State private var scanned: ScannedBarcode?
+    @State private var scanState: ScanState = .idle
+    @State private var scanTask: Task<Void, Never>?
+    @State private var scanOpenTask: Task<Void, Never>?
+    private let scanTip = ScanBarcodeTip()
 
-    @FocusState private var searchFocused: Bool
+    /// Where a barcode lookup stands; shown at the top of the list.
+    private enum ScanState: Equatable {
+        case idle
+        case looking(String)
+        case noMatch(String)
+        case failed(String, String)
+    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var results: [NutritionFood] { catalog.searchLocal(query) }
+
+    /// The first offline match whose name starts with what was typed, offered as ghost text.
+    private var suggestion: String? {
+        guard query.count >= 2, !query.hasSuffix("  ") else { return nil }
+        return results.first { GhostSuggestionField.remainder(of: $0.name, after: query) != nil }?.name
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                slotPicker
+                if onSelect == nil { slotPicker }
                 searchField
-                Picker("Product market", selection: $market) {
-                    ForEach(NutritionCatalogService.Market.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .accessibilityIdentifier("logFood.market")
-
                 List {
                     if let error = catalog.loadError { Text(error).foregroundStyle(Color.brandDanger) }
+                    if scanState != .idle { scanSection }
+                    if BarcodeScannerView.shouldOffer && scanState == .idle {
+                        TipView(scanTip, arrowEdge: .top)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                            .listRowBackground(Color.clear)
+                    }
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         if !catalog.customFoods.isEmpty {
                             Section("Your dishes and restaurant entries") {
@@ -55,12 +80,7 @@ struct LogFoodSheet: View {
                                 ForEach(vm.recentNutritionFoods) { food in row(food) }
                             }
                         }
-                        Section("Food database") {
-                            Text("Search \(catalog.foods.count.formatted()) reference foods offline, including prepared and restaurant-style dishes. Look up packaged products worldwide or by market.")
-                            Text("Choose the description that matches what you weighed: raw, cooked, drained or prepared.")
-                                .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        }
-                        if !vm.plannedEntries(for: slot).isEmpty {
+                        if onSelect == nil && !vm.plannedEntries(for: slot).isEmpty {
                             Section("From today's plan") {
                                 ForEach(vm.plannedEntries(for: slot)) { entry in
                                     Text(entry.foodName).font(.subheadline)
@@ -80,12 +100,17 @@ struct LogFoodSheet: View {
                             }
                         }
                         Section("Packaged products") {
+                            Toggle("Look up products as I type", isOn: $autoProductSearch)
+                                .toggleStyle(.spring)
+                                .accessibilityIdentifier("logFood.autoProducts")
                             Button { searchProducts() } label: {
-                                Label(isSearching ? "Searching products…" : "Search Open Food Facts", systemImage: "magnifyingglass")
+                                Label(isSearching ? "Searching products…" : "Search Open Food Facts now", systemImage: "magnifyingglass")
                             }
                             .disabled(isSearching || query.trimmingCharacters(in: .whitespacesAndNewlines).count < 2)
                             .accessibilityIdentifier("logFood.searchProducts")
-                            Text("Sends only your search or barcode to Open Food Facts. Search runs when you tap; your profile and food log are not sent.")
+                            Text(autoProductSearch
+                                 ? "A moment after you stop typing, your search text (and nothing else) is sent to Open Food Facts to find packaged products. Your profile and food log are never sent. Turn this off to search only when you tap."
+                                 : "Sends only your search or barcode to Open Food Facts, and only when you tap. Your profile and food log are not sent.")
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                             if isSearching { ProgressView() }
                             if let notice = productNotice { Text(notice).font(.footnote) }
@@ -116,13 +141,17 @@ struct LogFoodSheet: View {
                 }
                 .listStyle(.insetGrouped)
                 .navigationDestination(item: $detailFood) { food in
-                    ServingDetailView(food: food, slot: slot) { grams in
-                        vm.logFood(food, slot: slot, amount: grams)
+                    ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock",
+                                      slotSelection: onSelect == nil ? $slot : nil) { grams in
+                        // A scanned or searched product is saved only once it's actually used
+                        // (`HomeViewModel.logFood` saves it when logging).
+                        if let onSelect { catalog.remember(food); onSelect(food, grams) }
+                        else { vm.logFood(food, slot: slot, amount: grams); LogFoodTip().invalidate(reason: .actionPerformed) }
                         dismiss()
                     }
                 }
             }
-            .navigationTitle("Add Food")
+            .navigationTitle(onSelect == nil ? "Add Food" : "Add to Stock")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -137,6 +166,11 @@ struct LogFoodSheet: View {
             }) {
                 CustomNutritionEntryView(catalog: catalog, market: market) { pendingCustom = $0 }
             }
+            .sheet(isPresented: $showScanner, onDismiss: {
+                if let code = scanned { scanned = nil; lookUp(code) }
+            }) {
+                BarcodeScannerSheet { scanned = $0 }
+            }
             .overlay(alignment: .bottom) { toast }
             .onChange(of: query) {
                 lookupTask?.cancel()
@@ -145,17 +179,20 @@ struct LogFoodSheet: View {
                 isSearching = false
                 productPage = 0
                 hasMoreProducts = false
+                scheduleAutoProductSearch()
             }
-            .onChange(of: market) {
-                lookupTask?.cancel()
-                products = []; productNotice = nil; isSearching = false
-                productPage = 0; hasMoreProducts = false
-            }
-            .onDisappear { lookupTask?.cancel() }
+            .onChange(of: autoProductSearch) { scheduleAutoProductSearch() }
+            .onDisappear { lookupTask?.cancel(); autoSearchTask?.cancel(); scanTask?.cancel(); scanOpenTask?.cancel() }
             .onAppear {
+                // Brings "From today's plan" to today if the day has changed.
+                vm.activate()
                 catalog.reloadSaved()
                 slot = vm.logSheetSlot ?? .suggested()
+                // Opened from a "Scan" widget, control or shortcut: start with the camera.
+                takeScanRequest()
             }
+            // A scan request while the logger is already open.
+            .onChange(of: AppRouter.shared.scanRequestID) { _, _ in takeScanRequest() }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -177,17 +214,36 @@ struct LogFoodSheet: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
-            TextField("Search foods", text: $query)
-                .accessibilityIdentifier("logFood.search")
-                .focused($searchFocused)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .onSubmit { searchProducts() }
+            // Letters land with a bounce; a matching food name is offered as ghost text.
+            GhostSuggestionField(
+                placeholder: "Search foods",
+                text: $query,
+                suggestion: suggestion,
+                accessibilityIdentifier: "logFood.search",
+                returnKey: .search,
+                acceptIdentifier: "logFood.acceptSuggestion"
+            ) {
+                searchProducts()
+                return true
+            }
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelSecondary)
                 }
                 .accessibilityLabel("Clear search")
+            }
+            if BarcodeScannerView.shouldOffer {
+                Button { openScanner() } label: {
+                    Image(systemName: "barcode.viewfinder")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.brandPrimary)
+                        .minTapTarget()
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Scan barcode")
+                .accessibilityHint("Reads a package barcode with the camera")
+                .accessibilityIdentifier("logFood.scan")
             }
         }
         .padding(.horizontal, 12)
@@ -239,7 +295,7 @@ struct LogFoodSheet: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add \(Int(food.defaultAmount)) \(food.basis.rawValue) of \(food.name)")
+            .accessibilityLabel("Add \(Self.amountText(food.defaultAmount, basis: food.basis)) of \(food.name)")
         }
         .padding(.vertical, 2)
     }
@@ -254,28 +310,161 @@ struct LogFoodSheet: View {
                 .padding(.horizontal, 16).padding(.vertical, 10)
                 .background(Color.rhino, in: Capsule())
                 .padding(.bottom, 24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         }
     }
 
     // MARK: - Actions
 
     private func quickAdd(_ food: NutritionFood) {
+        if let onSelect {
+            catalog.remember(food)
+            onSelect(food, food.defaultAmount)
+            dismiss()
+            return
+        }
         vm.logFood(food, slot: slot, amount: food.defaultAmount)
+        LogFoodTip().invalidate(reason: .actionPerformed)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        showToast("Added \(Int(food.defaultAmount)) \(food.basis.rawValue) · \(food.name)")
+        showToast("Added \(Self.amountText(food.defaultAmount, basis: food.basis)) · \(food.name)")
+    }
+
+    /// "0.5 serving", "2 servings", "100 g", "250 ml": no truncation, no
+    /// trailing zeros.
+    static func amountText(_ amount: Double, basis: NutritionFood.Basis, locale: Locale = .current) -> String {
+        let number = amount.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+        switch basis {
+        case .serving: return "\(number) \(amount > 1 ? "servings" : "serving")"
+        case .grams, .millilitres: return "\(number) \(basis.rawValue)"
+        }
     }
 
     private func showToast(_ message: String) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { addedToast = message }
-        Task {
+        // Cancel the previous dismiss so a second add isn't cleared early.
+        toastDismissTask?.cancel()
+        withAnimation(.snappyValue) { addedToast = message }
+        UIAccessibility.post(notification: .announcement, argument: message)
+        toastDismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.4))
-            withAnimation { addedToast = nil }
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappyValue) { addedToast = nil }
+        }
+    }
+
+    // MARK: - Barcode
+
+    @ViewBuilder private var scanSection: some View {
+        Section("Barcode") {
+            switch scanState {
+            case .idle:
+                EmptyView()
+            case .looking(let code):
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Looking up \(code)…").font(.subheadline)
+                }
+                .accessibilityElement(children: .combine)
+            case .noMatch(let code):
+                Text("No match for \(code). Enter it yourself.")
+                    .font(.subheadline)
+                    .accessibilityIdentifier("logFood.scanNoMatch")
+                scanFollowUps
+            case .failed(_, let message):
+                Text(message).font(.subheadline)
+                scanFollowUps
+            }
+        }
+    }
+
+    @ViewBuilder private var scanFollowUps: some View {
+        Button("Enter it yourself") { scanState = .idle; showCustomCreator = true }
+            .accessibilityIdentifier("logFood.scanManual")
+        if BarcodeScannerView.shouldOffer {
+            Button("Scan again") { openScanner() }
+        }
+    }
+
+    private func openScanner() {
+        scanTip.invalidate(reason: .actionPerformed)
+        scanTask?.cancel()
+        scanState = .idle
+        showScanner = true
+    }
+
+    /// Opens the scanner for a fresh scan request from a widget, control or
+    /// shortcut. Only the food logger takes it ("Add to stock" leaves it to
+    /// expire). The camera opens once this sheet has finished presenting, so the
+    /// nested sheet isn't dropped.
+    private func takeScanRequest() {
+        guard onSelect == nil, AppRouter.shared.consumeScanRequest(), BarcodeScannerView.shouldOffer else { return }
+        guard !showScanner else { return }
+        // A sheet already up over the logger would block the scanner's sheet.
+        showCustomCreator = false
+        scanOpenTask?.cancel()
+        scanOpenTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled, !showScanner else { return }
+            openScanner()
+        }
+    }
+
+    private func lookUp(_ code: ScannedBarcode) {
+        scanTask?.cancel()
+        let shown = GTIN.normalize(code.payload, symbology: code.symbology) ?? code.payload
+        scanState = .looking(shown)
+        scanTask = Task { @MainActor in
+            let outcome = await BarcodeLookupService.shared.lookup(code.payload, symbology: code.symbology)
+            guard !Task.isCancelled else { return }
+            switch outcome {
+            case .found(let food):
+                scanState = .idle
+                // The same serving editor as a tapped search result; the product is
+                // saved only if it is logged.
+                detailFood = food
+            case .notFound(let found):
+                scanState = .noMatch(found)
+                UIAccessibility.post(notification: .announcement, argument: "No match for this barcode. Enter it yourself.")
+            case .invalidCode(let raw):
+                scanState = .failed(raw, "That isn't a product barcode. Try again, or enter it yourself.")
+            case .failed(let failedCode, let message):
+                scanState = .failed(failedCode, message)
+            }
+        }
+    }
+
+    /// How long typing must pause before products are looked up.
+    static let autoSearchPause: TimeInterval = 1.2
+
+    /// Whether a query is worth sending by itself: three letters or more, and
+    /// not a half-typed barcode (those are looked up when complete, on a tap or a scan).
+    static func isAutoSearchable(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3, trimmed.count <= 100 else { return false }
+        return !trimmed.allSatisfy { $0.isNumber || $0.isWhitespace }
+    }
+
+    /// Looks up packaged products once typing has paused, never faster than
+    /// Open Food Facts allows. A newer keystroke replaces the pending search.
+    private func scheduleAutoProductSearch() {
+        autoSearchTask?.cancel()
+        // UI tests stay offline and deterministic.
+        guard autoProductSearch, !NourloTips.isUITesting(), Self.isAutoSearchable(query) else { return }
+        let submitted = query
+        let submittedMarket = market
+        autoSearchTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.autoSearchPause))
+            // Wait out the spacing between searches instead of failing with "please wait".
+            while !Task.isCancelled, catalog.secondsUntilNextSearch > 0 {
+                try? await Task.sleep(for: .seconds(min(catalog.secondsUntilNextSearch + 0.05, 1)))
+            }
+            guard !Task.isCancelled, submitted == query, submittedMarket == market, products.isEmpty, !isSearching else { return }
+            searchProducts()
         }
     }
 
     private func searchProducts(loadMore: Bool = false) {
         guard !isSearching else { return }
+        autoSearchTask?.cancel()
         let submitted = query
         let submittedMarket = market
         let nextPage = loadMore ? productPage + 1 : 1
@@ -304,22 +493,46 @@ struct LogFoodSheet: View {
 
 // MARK: - Serving detail (fine-tune grams before logging)
 
-private struct ServingDetailView: View {
+struct ServingDetailView: View {
     let food: NutritionFood
-    let slot: MealSlot
+    let actionTitle: String?
+    /// When set, the meal can be changed here (spring dropdown) and is written back.
+    let slotSelection: Binding<MealSlot>?
     let onAdd: (Double) -> Void
 
     @State private var grams: Double
+    @State private var slot: MealSlot
     @State private var didAdd = false
 
-    init(food: NutritionFood, slot: MealSlot, onAdd: @escaping (Double) -> Void) {
+    init(food: NutritionFood, slot: MealSlot, actionTitle: String? = nil,
+         slotSelection: Binding<MealSlot>? = nil, onAdd: @escaping (Double) -> Void) {
         self.food = food
-        self.slot = slot
         self.onAdd = onAdd
+        self.actionTitle = actionTitle
+        self.slotSelection = slotSelection
         _grams = State(initialValue: food.defaultAmount)
+        _slot = State(initialValue: slotSelection?.wrappedValue ?? slot)
     }
 
     private var factor: Double { grams / food.referenceAmount }
+
+    // Portion stepper: whole steps of 0.25 serving or 1 g / ml, same as before.
+    private var amountStep: Double { food.basis == .serving ? 0.25 : 1 }
+    private var amountStepRange: ClosedRange<Int> {
+        Int((food.minimumAmount / amountStep).rounded())...Int((food.maximumAmount / amountStep).rounded())
+    }
+    private var amountSteps: Binding<Int> {
+        Binding(
+            get: { Int((grams / amountStep).rounded()) },
+            set: { grams = Double($0) * amountStep }
+        )
+    }
+    private var amountLabel: String {
+        food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres")
+    }
+    private func formatAmount(_ amount: Double) -> String {
+        "\(amount.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)"
+    }
     private var kcal: Int { Int((food.kcal * factor).rounded()) }
 
     var body: some View {
@@ -346,19 +559,34 @@ private struct ServingDetailView: View {
                     macroChip("Fat", food.fat * factor, .fatAccent)
                 }
 
+                if slotSelection != nil { mealPicker }
+
                 // Serving stepper
                 VStack(spacing: 12) {
-                    HStack {
-                        Text("Serving").font(.headline)
-                        Spacer()
-                        Text("\(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.headline).monospacedDigit()
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Serving").font(.headline)
+                            Text(amountLabel)
+                                .font(.caption).foregroundStyle(Color.labelSecondary)
+                        }
+                        Spacer(minLength: 8)
+                        SpringStepper(
+                            value: amountSteps,
+                            in: amountStepRange,
+                            format: { formatAmount(Double($0) * amountStep) },
+                            label: amountLabel,
+                            decrementLabel: "Less",
+                            incrementLabel: "More",
+                            font: .system(.headline, design: .rounded).weight(.bold)
+                        )
+                        .accessibilityIdentifier("logFood.amount")
                     }
-                    Stepper(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1) {
-                        Text(food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres"))
-                    }
-                    .accessibilityIdentifier("logFood.amount")
-                    Slider(value: $grams, in: food.minimumAmount...food.maximumAmount, step: food.basis == .serving ? 0.25 : 1)
-                        .tint(slot.accent)
+                    RulerPicker(value: $grams, range: food.minimumAmount...food.maximumAmount, step: amountStep,
+                                majorEvery: food.basis == .serving ? 4 : 10,
+                                midEvery: food.basis == .serving ? 2 : 5,
+                                spacing: food.basis == .serving ? 16 : 8,
+                                accessibilityName: "Amount", spokenValue: { _ in amountLabel })
+                        .frame(height: 96)
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
                             Button("\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
@@ -395,23 +623,46 @@ private struct ServingDetailView: View {
             .padding(16)
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
+        .onChange(of: slot) { _, s in slotSelection?.wrappedValue = s }
         .navigationTitle(food.name)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
-            Button {
-                guard !didAdd else { return }
+            LoadingSuccessButton(
+                title: actionTitle ?? "Add to \(slot.title)",
+                doneTitle: "Added",
+                systemImage: "plus"
+            ) {
+                guard !didAdd else { return false }
                 didAdd = true
+                return true
+            } onFinished: {
+                // Close after the success moment.
                 onAdd(grams)
-            } label: {
-                Label("Add to \(slot.title)", systemImage: "plus")
-                    .font(.headline).foregroundStyle(Color.almond)
-                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.pill))
             }
             .disabled(didAdd)
             .accessibilityIdentifier("logFood.addServing")
             .padding(.horizontal, 16).padding(.bottom, 8)
         }
+    }
+
+    /// Which meal this serving goes to. Replaces a plain picker with the spring dropdown;
+    /// it sits above the cards below so its menu can drop over them.
+    private var mealPicker: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Meal").font(.headline)
+                Text("Choose where this serving is logged")
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
+            }
+            Spacer(minLength: 8)
+            SpringDropdown(title: "Meal", selection: $slot, options: MealSlot.allCases,
+                           label: \.title, systemImage: \.sfSymbol,
+                           accessibilityIdentifier: "logFood.mealSlot")
+                .frame(maxWidth: 200)
+        }
+        .padding(16)
+        .premiumCard()
+        .zIndex(1)
     }
 
     private func macroChip(_ label: String, _ grams: Double, _ color: Color) -> some View {

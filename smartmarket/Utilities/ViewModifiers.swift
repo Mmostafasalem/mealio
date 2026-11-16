@@ -1,10 +1,12 @@
 import SwiftUI
 
 extension View {
-    /// Quiet surface separation; no glow or decorative gradient.
-    func premiumCard(radius: CGFloat = Radius.card) -> some View {
-        self.background(Color.surfaceElevated,
-            in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+    /// A lightly grained brand wash underneath an opaque, readable card.
+    func premiumCard(radius: CGFloat = Radius.card, surface: GrainyGradient.Surface = .card) -> some View {
+        self.background {
+            GrainyGradient(surface: surface)
+                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        }
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .strokeBorder(Color.hairline.opacity(0.6), lineWidth: 0.5))
             .elevation(Elevation.card)
@@ -12,7 +14,11 @@ extension View {
 
     /// Floating controls use the same opaque, accessible surface language.
     func glassCard(radius: CGFloat = Radius.card) -> some View {
-        premiumCard(radius: radius)
+        self.background(Color.surfaceElevated,
+            in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(Color.hairline.opacity(0.6), lineWidth: 0.5))
+            .elevation(Elevation.card)
     }
 }
 

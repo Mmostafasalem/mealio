@@ -13,7 +13,7 @@ enum SyncSnapshotCodec {
             let allowedFields: Set<String>?
             switch prefix {
             case "shoppingCart_v1": allowedFields = ["id", "catalogId", "name", "store", "price", "category", "quantity"]
-            case "groceryList": allowedFields = ["id", "food_id", "food_name", "quantity", "estimated_price", "store_id", "store_name", "is_bought"]
+            case "groceryList": allowedFields = ["id", "food_id", "food_name", "quantity", "estimated_price", "store_id", "store_name", "is_bought", "priceKnown"]
             default: allowedFields = nil
             }
             if let allowedFields { row = row.filter { allowedFields.contains($0.key) } }

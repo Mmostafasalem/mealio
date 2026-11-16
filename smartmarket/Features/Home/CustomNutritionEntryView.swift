@@ -34,9 +34,14 @@ struct CustomNutritionEntryView: View {
                     }
                 }
                 if mode == 0 {
+                    // The action comes first: on iOS 26 the keyboard's floating
+                    // "Done" pill owns a full-width, invisible strip above the
+                    // keyboard, so a row placed lower is unreachable while a
+                    // field is focused.
                     Section {
-                        Text("Add the ingredients and amounts you actually used, including oils and sauces. Match raw/cooked descriptions to when you weighed them.")
-                            .font(.footnote)
+                        Button("Add ingredient") { focusedField = nil; showIngredients = true }
+                            .disabled(ingredients.count >= 50)
+                            .accessibilityIdentifier("customFood.addIngredient")
                         ForEach($ingredients) { $ingredient in
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(ingredient.food.name).font(.subheadline)
@@ -50,10 +55,9 @@ struct CustomNutritionEntryView: View {
                                 }
                             }
                         }.onDelete { ingredients.remove(atOffsets: $0) }
-                        Button("Add ingredient") { focusedField = nil; showIngredients = true }
-                            .disabled(ingredients.count >= 50)
-                            .accessibilityIdentifier("customFood.addIngredient")
-                    } header: { Text("Ingredients") }
+                    } header: { Text("Ingredients") } footer: {
+                        Text("Add the ingredients and amounts you actually used, including oils and sauces. Match raw/cooked descriptions to when you weighed them.")
+                    }
                     Section {
                         TextField("Final cooked weight (g)", text: $yield).keyboardType(.decimalPad)
                             .focused($focusedField, equals: "customFood.yield")

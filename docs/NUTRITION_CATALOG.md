@@ -130,3 +130,16 @@ separation is covered by isolated transport tests, but a successful live Egypt
 lookup is not claimed. Offline Arabic ingredient search and custom dishes work
 independently of provider availability. Reference/menu/recipe source distinctions
 remain visible in the app.
+
+## Working product text search (2026-11-08)
+
+Generic product searches now POST to the official
+https://search.openfoodfacts.org/search service using its documented plain-text
+query and taxonomy country filter. Inputs are normalized to literal words;
+selected country tags are checked again on returned records. Barcode lookups
+retain exact-code API v2 matching, and retailer lookups retain explicit store-tag
+validation. No profile, account token or stock is sent to product search.
+Live checks: Lithuania milk search returned 64 matches, 40 records on page one,
+14 usable with the production nutrition parser. Egypt milk search returned 68
+matches, 40 records, 8 usable. Missing/ambiguous units or macros remain excluded.
+These checks establish working regional discovery, not current store inventory.

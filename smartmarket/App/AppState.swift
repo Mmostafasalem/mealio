@@ -6,11 +6,14 @@ import Combine
 final class AppState {
 
     static let shared = AppState()
+    /// Invalidates in-flight requests made for erased data (Delete All Data only).
     var dataGeneration = UUID()
+    /// Root view identity. Changed only by Delete All Data so a sync apply never
+    /// rebuilds the UI (open sheets and in-flight chat replies stay intact).
+    var uiIdentity = UUID()
 
+    /// Refreshes stores in place after a remote sync apply.
     func reloadStoredData() {
-        dataGeneration = UUID()
-        agentLoop.invalidateUserData()
         userProfile = UserProfile.load()
         bmrData = Self.loadBMR()
         weeklyMealPlan = Self.loadWeeklyMealPlan()
@@ -35,8 +38,39 @@ final class AppState {
 
     // MARK: - Meal Plan
     var weeklyMealPlan: WeeklyMealPlan? = AppState.loadWeeklyMealPlan()
-    var isGeneratingMealPlan: Bool = false
+    /// True while an online meal-plan request (agent loop or Meals tab) runs.
+    var isGeneratingMealPlan: Bool { mealPlanRequest != nil }
     var lastGroceryCount: Int = 0
+
+    enum MealPlanRequester { case background, user }
+    struct MealPlanRequestTicket: Equatable {
+        let id = UUID()
+        let requester: MealPlanRequester
+    }
+    /// The one meal-plan request allowed to save its result.
+    private(set) var mealPlanRequest: MealPlanRequestTicket?
+
+    /// Claims the single meal-plan slot. A background request never starts
+    /// while another runs; a user request takes over from a background one
+    /// (whose result is then discarded). Returns nil when the slot is taken.
+    func beginMealPlanRequest(_ requester: MealPlanRequester) -> MealPlanRequestTicket? {
+        if let current = mealPlanRequest {
+            guard requester == .user, current.requester == .background else { return nil }
+            agentLoop.cancelBackgroundRegeneration()
+        }
+        let ticket = MealPlanRequestTicket(requester: requester)
+        mealPlanRequest = ticket
+        return ticket
+    }
+
+    /// Whether this request still owns the slot (it may save its plan).
+    func ownsMealPlanRequest(_ ticket: MealPlanRequestTicket) -> Bool {
+        mealPlanRequest == ticket
+    }
+
+    func endMealPlanRequest(_ ticket: MealPlanRequestTicket) {
+        if mealPlanRequest == ticket { mealPlanRequest = nil }
+    }
 
     // MARK: - Agent
     let agentLoop = AgentLoop()
@@ -119,12 +153,11 @@ final class AppState {
 
     private static func loadWeeklyMealPlan() -> WeeklyMealPlan? {
         guard let data = UserDefaults.standard.data(forKey: Constants.Storage.currentMealPlan) else { return nil }
-        return try? JSONDecoder().decode(WeeklyMealPlan.self, from: data)
+        return ResilientStorage.decode(WeeklyMealPlan.self, from: data, key: Constants.Storage.currentMealPlan)
     }
 
     private static func loadGroceryDeals() -> [Deal] {
-        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.groceryDeals) else { return [] }
-        return (try? JSONDecoder().decode([Deal].self, from: data)) ?? []
+        ResilientStorage.loadArray(Deal.self, key: Constants.Storage.groceryDeals)
     }
 }
 

@@ -8,12 +8,12 @@
 #   ./scripts/verify-auth.sh  # prompts without echo/history
 #
 # Optional overrides:
-#   BACKEND_URL   (default: https://mealio-backend-17qg.onrender.com)
+#   BACKEND_URL   (default: https://mealio-backend-d7aa.onrender.com)
 #   WEB_URL       (default: https://web-ecru-nu-uyk5a9nlwp.vercel.app)
 #
 set -u
 
-BACKEND_URL="${BACKEND_URL:-https://mealio-backend-17qg.onrender.com}"
+BACKEND_URL="${BACKEND_URL:-https://mealio-backend-d7aa.onrender.com}"
 WEB_URL="${WEB_URL:-https://web-ecru-nu-uyk5a9nlwp.vercel.app}"
 KEY="${MEALIO_API_KEY:-}"
 
