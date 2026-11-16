@@ -449,7 +449,14 @@ final class ReleaseSmokeTests: XCTestCase {
         launchForTesting(app)
         chooseQuickAction("logFood", in: app)
         tap("logFood.createDishToolbar", in: app)
-        app.segmentedControls["customFood.mode"].buttons["Restaurant menu"].tap()
+        // A tap while the sheet is still sliding in can miss; retry until the menu-only field shows.
+        let menuMode = app.segmentedControls["customFood.mode"].buttons["Restaurant menu"]
+        XCTAssertTrue(menuMode.waitForExistence(timeout: 10))
+        for _ in 0..<4 {
+            menuMode.tap()
+            if app.textFields["customFood.restaurant"].waitForExistence(timeout: 3) { break }
+        }
+        XCTAssertTrue(app.textFields["customFood.restaurant"].exists, "Restaurant menu mode")
         for (id, value) in [("name", "QA Menu Plate"), ("restaurant", "QA Restaurant"), ("energy", "650"), ("protein", "35"), ("carbs", "80"), ("fat", "21")] {
             let field = app.textFields["customFood." + id]
             XCTAssertTrue(field.waitForExistence(timeout: 5))
