@@ -12,73 +12,65 @@ struct CalorieSummaryCard: View {
     private let logFoodTip = LogFoodTip()
 
     var body: some View {
-        VStack(spacing: 0) {
-            let layout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xl))
-                : AnyLayout(HStackLayout(spacing: Spacing.xl))
-            layout {
-                Button { showCalorieDetail.toggle() } label: {
-                    CalorieRingView(consumed: vm.consumed, goal: vm.goal, size: 128)
-                        .frame(width: 128, height: 128)
-                }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("home.calorieDetails")
-                    .popover(isPresented: $showCalorieDetail, attachmentAnchor: .point(.center), arrowEdge: .trailing) {
-                        CalorieDetailPopover(vm: vm)
-                    }
-                    .accessibilityLabel("Calories: \(vm.consumed) of \(vm.goal) kilocalories")
-                    .accessibilityHint("Tap for calorie breakdown")
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(vm.consumed > vm.goal ? "Above daily goal" : "Remaining today")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.labelSecondary)
-                    // Number and unit share a baseline instead of stacking.
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("\(abs(vm.goal - vm.consumed))")
-                            .font(.system(.largeTitle, design: .rounded).weight(.bold).monospacedDigit())
-                            .contentTransition(.numericText())
-                        Text("kcal")
-                            .font(.headline)
-                            .foregroundStyle(Color.labelSecondary)
-                    }
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .firstTextBaseline) {
+                HomeCardTitle(title: "Calories", symbol: "flame.fill")
+                Spacer(minLength: Spacing.sm)
+                Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")")
+                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.labelSecondary)
+                    .contentTransition(.numericText())
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                }
-                Spacer(minLength: 0)
+                    .minimumScaleFactor(0.7)
             }
-            .padding(Spacing.lg)
+
+            Button { showCalorieDetail.toggle() } label: {
+                NutritionRingsView(rings: [
+                    .init(id: "kcal", fraction: Self.fraction(Double(vm.consumed), Double(vm.goal)), color: .ringCalories),
+                    .init(id: "protein", fraction: Self.fraction(vm.proteinCurrent, vm.proteinGoal), color: .ringProtein),
+                    .init(id: "carbs", fraction: Self.fraction(vm.carbsCurrent, vm.carbsGoal), color: .ringCarbs),
+                    .init(id: "fat", fraction: Self.fraction(vm.fatCurrent, vm.fatGoal), color: .ringFat)
+                ])
+            }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("home.calorieDetails")
+                .popover(isPresented: $showCalorieDetail, attachmentAnchor: .point(.center), arrowEdge: .top) {
+                    CalorieDetailPopover(vm: vm)
+                }
+                .accessibilityLabel("Calories: \(vm.consumed) of \(vm.goal) kilocalories")
+                .accessibilityHint("Tap for calorie breakdown")
+
+            // Two columns of figures in the rings' colours; one column when text is very large.
+            let columns = dynamicTypeSize.isAccessibilitySize
+                ? [GridItem(.flexible(), alignment: .leading)]
+                : [GridItem(.flexible(), spacing: Spacing.lg, alignment: .leading), GridItem(.flexible(), alignment: .leading)]
+            LazyVGrid(columns: columns, alignment: .leading, spacing: Spacing.md) {
+                figure(label: "Calories", value: "\(vm.consumed)/\(vm.goal)", unit: "kcal", color: .ringCalories,
+                       spoken: "Calories: \(vm.consumed) of \(vm.goal) kilocalories", tooltip: nil)
+                macroFigure(label: "Protein", current: vm.proteinCurrent, goal: vm.proteinGoal, color: .ringProtein,
+                            tooltip: "Protein builds and repairs muscle. Your target is \(Self.grams(vm.proteinGoal))g/day based on your weight and goal.")
+                macroFigure(label: "Carbs", current: vm.carbsCurrent, goal: vm.carbsGoal, color: .ringCarbs,
+                            tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
+                macroFigure(label: "Fat", current: vm.fatCurrent, goal: vm.fatGoal, color: .ringFat,
+                            tooltip: "Healthy fats support hormones and brain function. Include olive oil, nuts, and fatty fish.")
+            }
             .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
 
-            Divider().padding(.horizontal, Spacing.lg)
-
-            VStack(spacing: Spacing.md) {
-                macroRow(label: "Protein", symbol: "bolt.fill",
-                         current: vm.proteinCurrent, goal: vm.proteinGoal,
-                         tooltip: "Protein builds and repairs muscle. Your target is \(Self.grams(vm.proteinGoal))g/day based on your weight and goal.")
-                macroRow(label: "Carbs", symbol: "leaf.fill",
-                         current: vm.carbsCurrent, goal: vm.carbsGoal,
-                         tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
-                macroRow(label: "Fat", symbol: "drop.fill",
-                         current: vm.fatCurrent, goal: vm.fatGoal,
-                         tooltip: "Healthy fats support hormones and brain function. Include olive oil, nuts, and fatty fish.")
-            }
-            .padding(.horizontal, Spacing.lg)
-            .padding(.top, Spacing.md)
-            .padding(.bottom, Spacing.lg)
-
-            // Inline, so it never covers the macros; gone once food is logged.
+            // Inline, so it never covers the figures; gone once food is logged.
             TipView(logFoodTip, arrowEdge: .bottom)
-                .padding(.horizontal, Spacing.lg)
-                .padding(.bottom, Spacing.sm)
 
             PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
                 .accessibilityIdentifier("home.logFood")
-                .padding([.horizontal, .bottom], Spacing.lg)
         }
+        .padding(Spacing.lg)
         // The three macro "i" buttons share one travelling tooltip bubble.
         .morphTooltipHost()
         .premiumCard(surface: .hero)
+    }
+
+    static func fraction(_ current: Double, _ goal: Double) -> Double {
+        goal > 0 && current.isFinite ? current / goal : 0
     }
 
     /// Whole grams, rounded to nearest (29.9 g reads 30 g, not 29 g).
@@ -94,35 +86,39 @@ struct CalorieSummaryCard: View {
         "\(label): \(grams(current)) of \(grams(goal)) grams"
     }
 
-    private func macroRow(label: String, symbol: String,
-                          current: Double, goal: Double, tooltip: String) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            let rowLayout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
-                : AnyLayout(HStackLayout(spacing: Spacing.sm))
-            rowLayout {
-                HStack(spacing: HomeGrid.gap) {
-                    // The shared icon column, so labels line up with the cards below.
-                    Image(systemName: symbol)
-                        .font(.footnote.weight(.semibold))
-                        .frame(width: HomeGrid.icon, alignment: .center)
-                        .accessibilityHidden(true)
-                    Text(label).font(.subheadline.weight(.semibold))
-                    // Keeps its 44pt tap target but sits right next to the label,
-                    // and doesn't stretch the row.
+    private func macroFigure(label: String, current: Double, goal: Double, color: Color, tooltip: String) -> some View {
+        figure(label: label, value: "\(Self.grams(current))/\(Self.grams(goal))", unit: "g", color: color,
+               spoken: Self.macroAccessibilityText(label: label, current: current, goal: goal), tooltip: tooltip)
+    }
+
+    /// A name over its "eaten/goal" figure, in its ring's colour.
+    private func figure(label: String, value: String, unit: String, color: Color,
+                        spoken: String, tooltip: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 0) {
+                Text(label)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.labelPrimary)
+                    .accessibilityHidden(true)
+                if let tooltip {
+                    // Keeps its 44pt tap target without stretching the row.
                     InfoTooltip(text: tooltip)
-                        .padding(.leading, -18)
-                        .frame(height: 24)
+                        .padding(.leading, -8)
+                        .frame(height: 20)
                 }
-                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                Text(Self.macroText(current: current, goal: goal))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(Color.labelSecondary)
-                    .accessibilityLabel(Self.macroAccessibilityText(label: label, current: current, goal: goal))
             }
-            ProgressView(value: min(max(current, 0), goal), total: max(goal, 1))
-                .tint(Color.brandPrimary)
-                .accessibilityHidden(true)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.system(.headline, design: .rounded).weight(.bold).monospacedDigit())
+                    .contentTransition(.numericText())
+                Text(unit.uppercased())
+                    .font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(spoken)
         }
     }
 }

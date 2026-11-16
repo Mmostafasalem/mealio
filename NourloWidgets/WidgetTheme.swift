@@ -9,10 +9,10 @@ extension Color {
     static let nourloPink = Color(red: 232 / 255, green: 105 / 255, blue: 138 / 255) // #E8698A
     /// The track behind a ring or bar.
     /// Dark ink for text on pink (white on this pink is too faint).
-    static let nourloOnPink = Color(red: 0x24 / 255, green: 0x33 / 255, blue: 0x4D / 255) // #24334D
+    static let nourloOnPink = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255) // #111111
     static let nourloTrack = Color(UIColor { traits in
         traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0x24 / 255, green: 0x30 / 255, blue: 0x42 / 255, alpha: 1)
+            ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1)
             : UIColor(red: 0xEF / 255, green: 0xE8 / 255, blue: 0xE6 / 255, alpha: 1)
     })
 }

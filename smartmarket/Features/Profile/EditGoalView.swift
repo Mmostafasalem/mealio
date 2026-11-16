@@ -58,7 +58,7 @@ struct EditGoalView: View {
     private func choiceRow(symbol: String, title: String, subtitle: String?, trailing: String,
                            isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: Spacing.md) {
+            HStack(spacing: Spacing.sm) {
                 Image(systemName: symbol)
                     .foregroundStyle(Color.brandPrimary)
                     .frame(width: 22)

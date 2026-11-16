@@ -80,8 +80,10 @@ struct HomeHeaderView: View {
 // then text. Titles, rows, dividers and nested lines all start on those edges,
 // and trailing values end on the card's right padding.
 enum HomeGrid {
-    static let icon: CGFloat = 30
-    static let gap: CGFloat = Spacing.md
+    /// A glyph sits centred in this column, so the column plus the gap is what the eye
+    /// reads as the space between icon and text: keep both small.
+    static let icon: CGFloat = 24
+    static let gap: CGFloat = 5
     /// Where text starts, measured from the card's leading padding.
     static var textInset: CGFloat { icon + gap }
 }

@@ -95,11 +95,8 @@ struct MealSlotRow: View {
                     // The row's text reads as one element; the button stays a
                     // separate control for VoiceOver, Voice Control and Switch Control.
                     HStack(spacing: Spacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
-                            Text(entry.nutritionFood?.sourceName ?? "Estimated / older entry")
-                                .font(.caption2).foregroundStyle(Color.labelSecondary)
-                        }
+                        // Name only: where the numbers come from is shown in the food's own detail view.
+                        Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
                         Spacer()
                         Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
                         Text("\(entry.calories)")

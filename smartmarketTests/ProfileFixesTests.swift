@@ -111,13 +111,13 @@ final class ProfileFixesTests: XCTestCase {
 
     func testAdvanceIgnoresRepeatedAndStaleSteps() {
         let vm = OnboardingViewModel()
-        vm.advance(to: .gender)
-        vm.advance(to: .gender)            // double tap on Next
-        XCTAssertEqual(vm.path, [.gender])
-        vm.advance(to: .age)
-        vm.advance(to: .gender)            // stale tap from the previous screen
-        XCTAssertEqual(vm.path, [.gender, .age])
-        vm.path = [.gender, .age, .height, .weight, .activity, .goal]
+        vm.advance(to: .height)
+        vm.advance(to: .height)            // double tap on Next
+        XCTAssertEqual(vm.path, [.height])
+        vm.advance(to: .weight)
+        vm.advance(to: .height)            // stale tap from the previous screen
+        XCTAssertEqual(vm.path, [.height, .weight])
+        vm.path = [.height, .weight, .activity, .goal]
         vm.advance(to: .diet)              // pace is skipped when not losing
         XCTAssertEqual(vm.path.last, .diet)
         vm.path.removeLast()               // back to goal, then choose lose

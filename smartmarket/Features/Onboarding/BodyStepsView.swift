@@ -1,109 +1,165 @@
 import SwiftUI
 
-// MARK: - Name
+// MARK: - About you (name, age, gender)
 
+/// The first screen: who you are, on one page. Name and surname are optional
+/// and sit side by side; gender is a three-way switch; age is a number with
+/// minus and plus (tap the number to type it). Nothing scrolls, and the
+/// keyboard covers only the space under the fields.
 struct NameStepView: View {
 
     @Bindable var vm: OnboardingViewModel
 
-    private enum Field { case firstName, lastName }
+    private enum Field { case firstName, lastName, age }
     @FocusState private var focusedField: Field?
+    @State private var ageText = ""
+
+    private static let ageRange = Constants.Onboarding.minimumAge...Constants.Onboarding.maximumAge
+
+    private var typedAge: Int? {
+        guard let age = Int(ageText), Self.ageRange.contains(age) else { return nil }
+        return age
+    }
 
     var body: some View {
-        OnboardingScaffold(vm: vm, step: .name, title: "What's your name?",
-                           subtitle: "So Nourlo knows what to call you. You can skip this.") {
-            VStack(spacing: Spacing.lg) {
-                field("First name", text: $vm.firstName, field: .firstName, contentType: .givenName)
-                    .submitLabel(.next)
-                    .onSubmit { focusedField = .lastName }
-                field("Last name", text: $vm.lastName, field: .lastName, contentType: .familyName)
-                    .submitLabel(.done)
-                    .onSubmit { focusedField = nil }
+        OnboardingScaffold(vm: vm, step: .name, title: "About you",
+                           subtitle: "Age and gender set your daily calories. Your name is optional.") {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                HStack(alignment: .top, spacing: Spacing.md) {
+                    field("First name", text: $vm.firstName, field: .firstName, contentType: .givenName)
+                        .submitLabel(.next)
+                        .onSubmit { focusedField = .lastName }
+                    field("Surname", text: $vm.lastName, field: .lastName, contentType: .familyName)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    label("Gender")
+                    SpringSegmentedControl(selection: $vm.gender, options: Gender.allCases,
+                                           label: \.displayName, accessibilityName: "Gender")
+                }
+                ageStepper
             }
         } footer: {
-            OnboardingNextButton(vm: vm, next: .gender, identifier: "onboarding.name.continue")
+            OnboardingNextButton(vm: vm, next: .height, identifier: "onboarding.name.continue")
+                .disabled(typedAge == nil)
+                .opacity(typedAge == nil ? 0.5 : 1)
+        }
+        // The page keeps its place when the keyboard comes up: no scrolling, no squeeze.
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focusedField = nil }
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("onboarding.keyboardDone")
+            }
+        }
+        .onAppear { if ageText.isEmpty { ageText = String(vm.age) } }
+        .onChange(of: ageText) { _, text in
+            // Digits only, three at most.
+            let digits = String(text.filter(\.isNumber).prefix(3))
+            if digits != text { ageText = digits; return }
+            if let typedAge { vm.age = typedAge }
         }
     }
 
-    private func field(_ label: String, text: Binding<String>, field: Field,
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(Color.labelSecondary)
+    }
+
+    private func fieldFrame<Content: View>(focused: Bool, invalid: Bool = false, padding: CGFloat = Spacing.lg,
+                                             @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .font(.body)
+            .padding(.horizontal, padding)
+            .frame(minHeight: 52)
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+                    .strokeBorder(invalid ? Color.brandDanger : focused ? Color.labelPrimary : Color.hairline,
+                                  lineWidth: focused || invalid ? 1.5 : 1)
+            )
+    }
+
+    private func field(_ title: String, text: Binding<String>, field: Field,
                        contentType: UITextContentType) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(Color.labelSecondary)
-            TextField("", text: text)
-                .font(.title3)
-                .textContentType(contentType)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.words)
-                .focused($focusedField, equals: field)
-                .padding(.horizontal, Spacing.lg)
-                .frame(minHeight: 56)
-                .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
-                        .strokeBorder(focusedField == field ? Color.labelPrimary : Color.hairline,
-                                      lineWidth: focusedField == field ? 1.5 : 1)
-                )
-                .accessibilityLabel(label)
+            label(title)
+            fieldFrame(focused: focusedField == field) {
+                TextField("", text: text)
+                    .textContentType(contentType)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.words)
+                    .focused($focusedField, equals: field)
+                    .accessibilityLabel(title)
+            }
         }
     }
-}
 
-// MARK: - Gender
+    // MARK: Age
 
-struct GenderStepView: View {
+    /// One year down or up from the current age (or from the nearest limit when
+    /// the box is empty or out of range).
+    private func step(_ delta: Int) {
+        let current = Int(ageText).map { min(max($0, Self.ageRange.lowerBound), Self.ageRange.upperBound) } ?? vm.age
+        ageText = String(min(max(current + delta, Self.ageRange.lowerBound), Self.ageRange.upperBound))
+    }
 
-    @Bindable var vm: OnboardingViewModel
+    private func stepButton(_ symbol: String, name: String, delta: Int, disabled: Bool) -> some View {
+        Button { step(delta) } label: {
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.labelPrimary)
+                .frame(width: 52, height: 52)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(ScalePressStyle())
+        .buttonRepeatBehavior(.enabled)
+        .disabled(disabled)
+        .opacity(disabled ? 0.35 : 1)
+        .accessibilityLabel(name)
+    }
 
-    var body: some View {
-        OnboardingScaffold(vm: vm, step: .gender, title: "What's your gender?",
-                           subtitle: "It changes how your daily calories are estimated.") {
-            OnboardingOptionList {
-                ForEach(Gender.allCases) { gender in
-                    OnboardingOptionRow(symbol: symbol(for: gender), title: gender.displayName,
-                                        isSelected: vm.gender == gender) { vm.gender = gender }
+    private var ageStepper: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            label("Age")
+            fieldFrame(focused: focusedField == .age, invalid: typedAge == nil && focusedField != .age, padding: 0) {
+                HStack(spacing: 0) {
+                    stepButton("minus", name: "One year younger", delta: -1,
+                               disabled: (typedAge ?? Self.ageRange.upperBound) <= Self.ageRange.lowerBound)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        TextField("", text: $ageText)
+                            .font(.title3.weight(.semibold))
+                            .keyboardType(.numberPad)
+                            .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
+                            .focused($focusedField, equals: .age)
+                            .fixedSize()
+                            .frame(minWidth: 30)
+                            .accessibilityLabel("Age in years")
+                            .accessibilityIdentifier("onboarding.age")
+                        Text("years")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.labelSecondary)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(maxWidth: .infinity)
+                    // Tapping anywhere in the middle starts typing.
+                    .contentShape(Rectangle())
+                    .onTapGesture { focusedField = .age }
+                    stepButton("plus", name: "One year older", delta: 1,
+                               disabled: (typedAge ?? Self.ageRange.lowerBound) >= Self.ageRange.upperBound)
                 }
             }
-        } footer: {
-            OnboardingNextButton(vm: vm, next: .age, identifier: "onboarding.gender.continue")
-        }
-    }
-
-    private func symbol(for gender: Gender) -> String {
-        switch gender {
-        case .male:   return "figure.stand"
-        case .female: return "figure.stand.dress"
-        case .other:  return "person.fill"
-        }
-    }
-}
-
-// MARK: - Age
-
-struct AgeStepView: View {
-
-    @Bindable var vm: OnboardingViewModel
-
-    private let ageRange = Double(Constants.Onboarding.minimumAge)...Double(Constants.Onboarding.maximumAge)
-
-    private var age: Binding<Double> {
-        Binding(get: { Double(vm.age) }, set: { vm.age = Int($0.rounded()) })
-    }
-
-    var body: some View {
-        OnboardingScaffold(vm: vm, step: .age, title: "How old are you?", contentPadding: 0) {
-            VStack(spacing: Spacing.sm) {
-                Spacer()
-                OnboardingReadout(number: "\(vm.age)", unit: "years")
-                RulerPicker(value: age, range: ageRange, step: 1,
-                            accessibilityName: "Age", spokenValue: { "\(Int($0)) years" })
-                    .frame(height: 130)
-                Spacer()
-                Spacer()
+            .sensoryFeedback(.selection, trigger: vm.age)
+            if typedAge == nil {
+                Text("Enter an age from \(Self.ageRange.lowerBound) to \(Self.ageRange.upperBound).")
+                    .font(.caption)
+                    .foregroundStyle(Color.brandDanger)
             }
-        } footer: {
-            OnboardingNextButton(vm: vm, next: .height, identifier: "onboarding.age.continue")
         }
     }
 }

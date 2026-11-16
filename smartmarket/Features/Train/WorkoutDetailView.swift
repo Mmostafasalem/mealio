@@ -281,7 +281,7 @@ struct WorkoutHistoryView: View {
     var body: some View {
         List {
             ForEach(store.completed) { session in
-                HStack(spacing: Spacing.md) {
+                HStack(spacing: Spacing.sm) {
                     Image(systemName: session.kind.symbol)
                         .foregroundStyle(Color.labelPrimary)
                         .frame(width: 28)

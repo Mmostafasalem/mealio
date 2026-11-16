@@ -8,6 +8,8 @@ struct RecipeSheet: View {
     @State private var recipe: Recipe?
     @State private var isLoading: Bool
     @State private var failed = false
+    /// Why the last load failed: the error screen says so, instead of always blaming the connection.
+    @State private var failure = Failure.connection
     @State private var speaker = ReadAlongSpeaker()
     @State private var ratings = RecipeRatingStore.shared
     @Environment(\.dismiss) private var dismiss
@@ -84,10 +86,8 @@ struct RecipeSheet: View {
     // MARK: - Error
 
     private var errorView: some View {
-        ErrorStateView(
-            title: "Couldn't load recipe",
-            message: "We couldn't reach the kitchen. Check your connection and try again."
-        ) { Task { await loadRecipe() } }
+        ErrorStateView(title: failure.title, message: failure.message) { Task { await loadRecipe() } }
+            .accessibilityIdentifier("recipe.error")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -245,9 +245,48 @@ struct RecipeSheet: View {
         do {
             recipe = try await APIService.shared.fetchRecipe(mealName: mealName)
         } catch {
+            failure = Failure(error)
             failed = true
         }
         isLoading = false
+    }
+
+    /// Recipes are written by the online AI, so most failures are about AI not
+    /// being set up or available, not about the connection.
+    enum Failure: Equatable {
+        case aiOff, aiBusy(String), connection
+
+        init(_ error: Error) {
+            switch error {
+            case APIError.aiConsentRequired, AIAccountError.signInRequired:
+                self = .aiOff
+            case let account as AIAccountError:
+                self = .aiBusy(account.errorDescription ?? "Nourlo AI isn't available right now. Please try again later.")
+            case APIError.unverifiedAIResponse:
+                self = .aiBusy("Nourlo AI isn't available right now. Please try again later.")
+            default:
+                self = .connection
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .aiOff: return "Recipes need Nourlo AI"
+            case .aiBusy: return "AI recipes aren't available"
+            case .connection: return "Couldn't load recipe"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .aiOff:
+                return "Step-by-step recipes are written by Nourlo AI, which isn't turned on yet. Turn it on in Profile, then try again. Everything else works without it."
+            case .aiBusy(let text):
+                return text
+            case .connection:
+                return "Recipes are written by Nourlo AI, and we couldn't reach it. Check your connection and try again."
+            }
+        }
     }
 }
 

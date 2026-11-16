@@ -159,7 +159,7 @@ struct HealthSettingsView: View {
     }
 
     private func infoRow(_ text: String, symbol: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
             Image(systemName: symbol)
                 .foregroundStyle(Color.labelPrimary)
                 .frame(width: 26)

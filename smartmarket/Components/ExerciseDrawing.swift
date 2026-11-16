@@ -351,7 +351,7 @@ struct ExerciseDrawingCredit: View {
 private enum ExerciseDrawingColor {
     /// The lines: the text colour in light mode; in dark mode a calm light grey rather than near-white, so they don't glare.
     static let ink: Color = {
-        let light = UIColor(Color(hex: "#1E2A40")), dark = UIColor(Color(hex: "#C3C9D4"))
+        let light = UIColor(Color(hex: "#111111")), dark = UIColor(Color(hex: "#C9C9CE"))
         return Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
     }()
     static let worked: Color = {

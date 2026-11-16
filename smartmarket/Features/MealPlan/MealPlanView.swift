@@ -133,21 +133,29 @@ struct MealPlanView: View {
 
     // MARK: - Week
 
+    @ViewBuilder
     private var weekContent: some View {
-        VStack(spacing: 12) {
-            if vm.weekPlans.isEmpty {
-                SkeletonWeekContent()
+        if vm.weekPlans.isEmpty {
+            if vm.isGenerating {
+                SkeletonWeekContent().padding(.horizontal, Spacing.lg)
             } else {
+                EmptyStateView(icon: "calendar", title: "No week plan yet",
+                               message: "Generate seven days of meals built around your goals and favourite foods.",
+                               actionTitle: "Generate week") { Task { await vm.regenerate() } }
+                    .padding(.top, Spacing.xxl)
+            }
+        } else {
+            VStack(spacing: Spacing.lg) {
                 ForEach(vm.weekPlans) { plan in
-                    WeekDayCard(
-                        date: plan.date,
-                        totalCalories: plan.totalCalories,
-                        goal: vm.goal
-                    )
+                    WeekDayCard(plan: plan)
+                }
+                // One request writes all seven days.
+                RegenerateButton(isGenerating: vm.isGenerating, idleTitle: "Regenerate week") {
+                    Task { await vm.regenerate() }
                 }
             }
+            .padding(.horizontal, Spacing.lg)
         }
-        .padding(.horizontal, 16)
     }
 }
 
@@ -278,9 +286,10 @@ private struct MealEntryRow: View {
                     .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 // The macro summary moves into the details while open.
                 Group {
-                    Text(entry.macrosAvailable ? "Calculated from ingredient portions" : "Estimated calories · macros unavailable")
-                        .font(.caption2).foregroundStyle(Color.labelSecondary)
+                    // Nothing extra when a meal has only an estimated calorie figure.
                     if entry.macrosAvailable {
+                        Text("Calculated from ingredient portions")
+                            .font(.caption2).foregroundStyle(Color.labelSecondary)
                         Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
@@ -302,11 +311,7 @@ private struct MealEntryRow: View {
     private var detail: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Divider().overlay(Color.hairline)
-            if ingredients.isEmpty {
-                Text("Ingredient portions are not available for this meal. The recipe lists what you need.")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
+            if !ingredients.isEmpty {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text("Ingredients").font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
                     ForEach(ingredients) { ingredient in
@@ -347,9 +352,6 @@ private struct MealEntryRow: View {
                         .background(Color.surfaceSecondary, in: Capsule())
                 }
             }
-        } else {
-            Text("Estimated calories · macros unavailable")
-                .font(.caption).foregroundStyle(Color.labelSecondary)
         }
     }
 
@@ -541,11 +543,12 @@ private struct PriorityBadge: View {
 
 private struct RegenerateButton: View {
     let isGenerating: Bool
+    var idleTitle = "Regenerate plan"
     let onTap: () -> Void
 
     var body: some View {
         PrimaryButton(
-            title: isGenerating ? "Agent is thinking…" : "Regenerate plan",
+            title: isGenerating ? "Agent is thinking…" : idleTitle,
             systemImage: isGenerating ? nil : "arrow.clockwise",
             isLoading: isGenerating,
             action: onTap
@@ -648,55 +651,83 @@ private struct SkeletonWeekDayCard: View {
     }
 }
 
+/// One day of the week: its date, total and every planned meal. Tap a meal for its recipe.
 private struct WeekDayCard: View {
-    let date: Date
-    let totalCalories: Int
-    let goal: Int
+    let plan: MealPlan
+    @State private var recipe: RecipeTarget?
 
-    private var percent: Int { goal > 0 ? min(Int(Double(totalCalories) / Double(goal) * 100), 100) : 0 }
-    private var isToday: Bool { Calendar.current.isDateInToday(date) }
-    private var fillColor: Color {
-        percent >= 100 ? .brandDanger : percent >= 80 ? .brandAmber : .brandPrimary
+    private struct RecipeTarget: Identifiable {
+        let name: String
+        var id: String { name }
+    }
+
+    private var isToday: Bool { Calendar.current.isDateInToday(plan.date) }
+    private var meals: [(title: String, sfSymbol: String, entries: [MealEntry])] {
+        plan.allMeals.filter { !$0.entries.isEmpty }
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 2) {
-                Text(date, format: .dateTime.weekday(.abbreviated))
-                    .font(.caption2).fontWeight(.bold).foregroundStyle(Color.labelSecondary)
-                Text(date, format: .dateTime.day())
-                    .font(.headline).fontWeight(.bold)
-                    .foregroundStyle(isToday ? Color.brandPrimary : .primary)
-            }
-            .frame(width: 36)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("\(totalCalories) kcal")
-                        .font(.subheadline).fontWeight(.semibold).monospacedDigit()
-                    Spacer()
-                    Text("\(percent)%")
-                        .font(.caption).foregroundStyle(Color.labelSecondary)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(plan.date, format: .dateTime.weekday(.wide))
+                    .font(.headline).foregroundStyle(Color.labelPrimary)
+                Text(plan.date, format: .dateTime.day().month(.abbreviated))
+                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
+                if isToday {
+                    Text("Today")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.onAccent)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color.progress, in: Capsule())
                 }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color(.systemFill)).frame(height: 6)
-                        Capsule().fill(fillColor)
-                            .frame(width: geo.size.width * CGFloat(percent) / 100, height: 6)
+                Spacer(minLength: Spacing.sm)
+                Text("\(plan.totalCalories) kcal")
+                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
+            if meals.isEmpty {
+                Text("Nothing planned")
+                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
+            }
+            ForEach(Array(meals.enumerated()), id: \.offset) { index, meal in
+                if index > 0 { Divider().overlay(Color.hairline) }
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Label(meal.title, systemImage: meal.sfSymbol)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.labelSecondary)
+                    ForEach(meal.entries) { entry in
+                        Button { recipe = RecipeTarget(name: entry.foodName) } label: {
+                            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                                Text(entry.foodName)
+                                    .font(.subheadline).foregroundStyle(Color.labelPrimary)
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: Spacing.sm)
+                                Text("\(entry.calories) kcal")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(Color.labelSecondary)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color.labelTertiary)
+                                    .accessibilityHidden(true)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Opens the recipe")
                     }
                 }
-                .frame(height: 6)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .background(isToday ? Color.brandPrimary.opacity(0.07) : Color.surface,
-                    in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.tile)
-                .strokeBorder(isToday ? Color.brandPrimary : Color.hairline,
-                              lineWidth: isToday ? 1.5 : 0.7)
-        )
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard(radius: Radius.tile)
+        .sheet(item: $recipe) { RecipeSheet(mealName: $0.name) }
+        .accessibilityIdentifier("mealPlan.weekDay")
     }
 }
 

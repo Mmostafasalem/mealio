@@ -98,7 +98,7 @@ struct FloatingBowlGuide: View {
                 // Large text keeps growing the content while the panel lays out;
                 // anchor to the top so it never opens scrolled down.
                 .defaultScrollAnchor(.top)
-                .frame(maxHeight: max(60, min(typeSize.isAccessibilitySize ? 330 : (tourStep == nil ? 380 : 270), availableHeight - 144)))
+                .frame(maxHeight: max(60, min(typeSize.isAccessibilitySize ? 330 : (tourStep == nil ? 440 : 270), availableHeight - 144)))
                 .task(id: tourStep) {
                     proxy.scrollTo(Self.panelTop, anchor: .top)
                     // Again once the opening transition and text layout have settled.
@@ -183,18 +183,14 @@ struct FloatingBowlGuide: View {
                     .accessibilityIdentifier("guide.title")
                 Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                chatRow
                 pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
                 pathway("Grocery checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
                 pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)
                 Divider().overlay(Color.hairline.opacity(0.3))
-                HStack {
-                    Button("Quick tour", action: startTour).fontWeight(.semibold)
-                        .accessibilityIdentifier("guide.tour")
-                    Spacer()
-                    Button("AI chat") { route(.chat) }
-                        .accessibilityIdentifier("guide.chat")
-                }
-                .font(.footnote).frame(minHeight: 44)
+                Button("Quick tour", action: startTour).fontWeight(.semibold)
+                    .accessibilityIdentifier("guide.tour")
+                    .font(.footnote).frame(minHeight: 44)
             }
         }
         .padding(.bottom, Spacing.sm)
@@ -221,6 +217,29 @@ struct FloatingBowlGuide: View {
         tourStep = i
         selectedTab = tour[i].tab
         tourTitleFocus = i
+    }
+
+    /// Chat leads the list; only its icon tile is pink, so it reads as the main action.
+    private var chatRow: some View {
+        Button { route(.chat) } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: "sparkles").font(.body.weight(.semibold))
+                    .foregroundStyle(Color.onAccent)
+                    .frame(width: 40, height: 40)
+                    .background(Color.progress, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Chat with AI").font(.subheadline.weight(.semibold))
+                    Text("Ask about meals, food or training").font(.caption).foregroundStyle(Color.labelSecondary)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right").font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.progress)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ScalePressStyle())
+        .accessibilityIdentifier("guide.chat")
     }
 
     private func pathway(_ title: String, subtitle: String, symbol: String, action: BowlPathway) -> some View {

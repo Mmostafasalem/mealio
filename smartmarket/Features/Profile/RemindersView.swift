@@ -44,7 +44,7 @@ struct RemindersView: View {
                 ForEach(store.reminders.filter { $0.mealSlot == nil }) { ReminderRow(reminder: $0, store: store) }
             }
             Section {
-                HStack(spacing: Spacing.md) {
+                HStack(spacing: Spacing.sm) {
                     Image(systemName: "bolt.heart")
                         .foregroundStyle(Color.labelPrimary)
                         .frame(width: 26)
@@ -109,7 +109,7 @@ private struct ReminderRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.md) {
+            HStack(spacing: Spacing.sm) {
                 Image(systemName: reminder.symbol)
                     .foregroundStyle(Color.labelPrimary)
                     .frame(width: 26)
