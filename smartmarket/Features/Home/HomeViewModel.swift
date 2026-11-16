@@ -93,7 +93,19 @@ final class HomeViewModel {
     }
 
     /// Catalogue estimates shown on Home. (Named for the location filter it used to apply.)
-    var nearbyDeals: [MarketDeal] { deals }
+    /// The estimates card: the person's favourite foods, each with the catalogue's
+    /// estimated price (or the price they corrected in Shop). The pack size comes from
+    /// the curated list when it has the same food; otherwise none is shown.
+    var nearbyDeals: [MarketDeal] {
+        let sizes = Dictionary(deals.map { ($0.productName.lowercased(), $0.quantity) }, uniquingKeysWith: { first, _ in first })
+        let catalogue = Store(id: ShopStore.catalog.id, chain: "", name: ShopStore.catalog.name, address: "", latitude: 0, longitude: 0)
+        return CatalogItem.all.filter { favoriteFoodIDs.contains($0.id) }.map { item in
+            let price = ShoppingCartService.shared.effectivePrice(for: item, store: .catalog)
+            return MarketDeal(id: "fav_\(item.id)", store: catalogue, productId: item.id, productName: item.name,
+                              originalPrice: price, discountPrice: price, discountPercent: 0, validUntil: .distantFuture,
+                              dealType: .weeklySpecial, quantity: sizes[item.name.lowercased()] ?? "")
+        }
+    }
 
     /// Cheap on purpose: SwiftUI may build and throw away several of these.
     /// Storage reads and observers wait for `activate()`.
@@ -248,7 +260,7 @@ final class HomeViewModel {
                 id: UUID().uuidString,
                 foodId: deal.productId,
                 foodName: deal.productName,
-                quantity: deal.quantity,
+                quantity: deal.quantity.isEmpty ? "1" : deal.quantity,
                 estimatedPrice: deal.discountPrice,
                 storeId: deal.store.id,
                 storeName: deal.store.name,

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Catalog estimates with loading / empty states; branch stock is not verified.
+/// Price estimates for the person's favourite foods; nothing here is a verified shelf price.
 struct HomeDealsSection: View {
     let vm: HomeViewModel
 
@@ -9,10 +9,6 @@ struct HomeDealsSection: View {
             HStack {
                 HomeCardTitle(title: "Grocery estimates", symbol: "basket.fill")
                 Spacer()
-                if vm.isRefreshing {
-                    ProgressView().controlSize(.small)
-                        .accessibilityLabel("Updating catalog estimates")
-                }
                 if !vm.nearbyDeals.isEmpty {
                     Text("\(vm.nearbyDeals.count) items")
                         .font(.caption).fontWeight(.semibold)
@@ -25,14 +21,7 @@ struct HomeDealsSection: View {
             }
             .accessibilityAddTraits(.isHeader)
 
-            if vm.isLoading {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.md) {
-                        ForEach(0..<3, id: \.self) { _ in SkeletonDealCard() }
-                    }
-                    .padding(.horizontal, 1)
-                }
-            } else if vm.nearbyDeals.isEmpty {
+            if vm.nearbyDeals.isEmpty {
                 emptyDeals
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -56,9 +45,9 @@ struct HomeDealsSection: View {
                 .font(.system(size: 32))
                 .foregroundStyle(Color.brandPrimary.opacity(0.35))
             VStack(alignment: .leading, spacing: 3) {
-                Text("No catalog estimates")
+                Text("No favourite foods yet")
                     .font(.subheadline).fontWeight(.semibold)
-                Text("Pull down to refresh.")
+                Text("Choose them in Profile to see their estimated prices here.")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()

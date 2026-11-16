@@ -34,9 +34,11 @@ struct DealCardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(deal.quantity)
-                        .font(.caption2)
-                        .foregroundStyle(Color.labelSecondary)
+                    if !deal.quantity.isEmpty {
+                        Text(deal.quantity)
+                            .font(.caption2)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
