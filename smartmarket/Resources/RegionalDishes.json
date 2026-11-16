@@ -1,0 +1,2885 @@
+{
+ "release": "Nourlo regional dishes, November 2026",
+ "method": "Each value is calculated from a typical recipe: the sum of its ingredients' USDA values (smartmarket/Resources/NutritionCatalog.json) divided by the weight of the finished dish. Recipes are Nourlo's own; home and restaurant versions vary.",
+ "foods": [
+  {
+   "id": "regional:baba-ghanoush",
+   "sourceID": "baba-ghanoush",
+   "name": "Baba ghanoush, roasted eggplant dip with tahini",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 129.7,
+   "protein": 2.97,
+   "carbs": 8.26,
+   "fat": 10.47,
+   "searchNames": [
+    "baba ghanoush",
+    "baba ganoush",
+    "mutabbal",
+    "moutabal",
+    "بابا غنوج",
+    "متبل"
+   ],
+   "summary": "Made with eggplant, tahini, lemon juice, olive oil, garlic. Made from already roasted eggplant: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "2709929",
+     "name": "Eggplant, cooked, no added fat",
+     "grams": 500
+    },
+    {
+     "usda": "170189",
+     "name": "Seeds, sesame butter, tahini, from roasted and toasted kernels (most common type)",
+     "grams": 80
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 40
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 10
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 25
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 5
+    }
+   ],
+   "finishedWeightG": 660
+  },
+  {
+   "id": "regional:balandeliai",
+   "sourceID": "balandeliai",
+   "name": "Balandėliai, cabbage rolls with meat and rice in tomato sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 113.4,
+   "protein": 5.97,
+   "carbs": 8.57,
+   "fat": 6.26,
+   "searchNames": [
+    "balandeliai",
+    "balandėliai",
+    "stuffed cabbage rolls",
+    "cabbage rolls",
+    "golubtsy"
+   ],
+   "summary": "Made with cabbage, tomato sauce, pork, beef, rice, onion, carrot, sour cream. Simmered covered; about a sixth of the weight evaporates. The sauce is included.",
+   "recipe": [
+    {
+     "usda": "169975",
+     "name": "Cabbage, raw",
+     "grams": 800
+    },
+    {
+     "usda": "2514745",
+     "name": "Pork, ground, raw",
+     "grams": 250
+    },
+    {
+     "usda": "2705853",
+     "name": "Beef, ground, raw",
+     "grams": 250
+    },
+    {
+     "usda": "2512381",
+     "name": "Rice, white, long grain, unenriched, raw",
+     "grams": 100
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 100
+    },
+    {
+     "usda": "170393",
+     "name": "Carrots, raw",
+     "grams": 100
+    },
+    {
+     "usda": "169074",
+     "name": "Tomato sauce, canned, no salt added",
+     "grams": 300
+    },
+    {
+     "usda": "2705614",
+     "name": "Sour cream, regular",
+     "grams": 100
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 20
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 300
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 1950
+  },
+  {
+   "id": "regional:balta-misraine",
+   "sourceID": "balta-misraine",
+   "name": "Balta mišrainė, potato salad with peas, egg, sausage and mayonnaise",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 168.6,
+   "protein": 3.93,
+   "carbs": 9.76,
+   "fat": 12.73,
+   "searchNames": [
+    "balta misraine",
+    "balta mišrainė",
+    "mišrainė",
+    "olivier salad",
+    "russian salad",
+    "potato salad lithuanian"
+   ],
+   "summary": "Made with potatoes, carrot, peas, pickles, egg, bologna, mayonnaise. Nothing is cooked after mixing: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "170440",
+     "name": "Potatoes, boiled, cooked without skin, flesh, without salt",
+     "grams": 400
+    },
+    {
+     "usda": "170394",
+     "name": "Carrots, cooked, boiled, drained, without salt",
+     "grams": 150
+    },
+    {
+     "usda": "170104",
+     "name": "Peas, green, canned, no salt added, drained solids",
+     "grams": 150
+    },
+    {
+     "usda": "168558",
+     "name": "Pickles, cucumber, dill or kosher dill",
+     "grams": 150
+    },
+    {
+     "usda": "173424",
+     "name": "Egg, whole, cooked, hard-boiled",
+     "grams": 150
+    },
+    {
+     "usda": "2706176",
+     "name": "Bologna",
+     "grams": 150
+    },
+    {
+     "usda": "171009",
+     "name": "Salad dressing, mayonnaise, regular",
+     "grams": 150
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 4
+    }
+   ],
+   "finishedWeightG": 1300
+  },
+  {
+   "id": "regional:bamia",
+   "sourceID": "bamia",
+   "name": "Bamia, okra and beef stew in tomato sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 107.5,
+   "protein": 6.33,
+   "carbs": 4.7,
+   "fat": 7.37,
+   "searchNames": [
+    "bamia",
+    "bamya",
+    "okra stew",
+    "بامية",
+    "باميه",
+    "بامية باللحم"
+   ],
+   "summary": "Made with okra, beef, tomato sauce, onion, oil, garlic. Simmered about an hour; roughly 15% of the weight evaporates.",
+   "recipe": [
+    {
+     "usda": "169260",
+     "name": "Okra, raw",
+     "grams": 500
+    },
+    {
+     "usda": "2646174",
+     "name": "Beef, chuck, roast, boneless, choice, raw",
+     "grams": 400
+    },
+    {
+     "usda": "169074",
+     "name": "Tomato sauce, canned, no salt added",
+     "grams": 300
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 100
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 10
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 30
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 300
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 10
+    }
+   ],
+   "finishedWeightG": 1400
+  },
+  {
+   "id": "regional:basbousa",
+   "sourceID": "basbousa",
+   "name": "Basbousa, semolina cake with sugar syrup",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 355.2,
+   "protein": 5.01,
+   "carbs": 55.84,
+   "fat": 12.99,
+   "searchNames": [
+    "basbousa",
+    "basbosa",
+    "namoura",
+    "harissa cake",
+    "بسبوسة",
+    "بسبوسه",
+    "نمورة"
+   ],
+   "summary": "Made with semolina, sugar, yogurt, butter, coconut. Baked, losing about an eighth of the batter weight, then soaked with reduced syrup.",
+   "recipe": [
+    {
+     "usda": "168933",
+     "name": "Semolina, unenriched",
+     "grams": 400
+    },
+    {
+     "usda": "169655",
+     "name": "Sugars, granulated",
+     "grams": 400
+    },
+    {
+     "usda": "171284",
+     "name": "Yogurt, plain, whole milk",
+     "grams": 250
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 150
+    },
+    {
+     "usda": "170170",
+     "name": "Nuts, coconut meat, dried (desiccated), not sweetened",
+     "grams": 50
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 250
+    }
+   ],
+   "finishedWeightG": 1280
+  },
+  {
+   "id": "regional:bulviniai-blynai",
+   "sourceID": "bulviniai-blynai",
+   "name": "Bulviniai blynai, fried potato pancakes",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 164.8,
+   "protein": 3.38,
+   "carbs": 22.69,
+   "fat": 7.03,
+   "searchNames": [
+    "bulviniai blynai",
+    "potato pancakes",
+    "tarkainiai",
+    "draniki"
+   ],
+   "summary": "Made with potatoes, onion, oil, egg, flour. About a quarter of the batter weight leaves as steam; 60 g of oil is what the pancakes keep.",
+   "recipe": [
+    {
+     "usda": "170026",
+     "name": "Potatoes, flesh and skin, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 80
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 50
+    },
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 40
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 60
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 940
+  },
+  {
+   "id": "regional:cepelinai-curd",
+   "sourceID": "cepelinai-curd",
+   "name": "Cepelinai, potato dumplings with curd cheese, with sour cream and butter",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 135.8,
+   "protein": 4.66,
+   "carbs": 16.66,
+   "fat": 5.84,
+   "searchNames": [
+    "cepelinai su varške",
+    "varškės cepelinai",
+    "didžkukuliai su varške"
+   ],
+   "summary": "Made with potatoes, curd cheese, sour cream, egg, butter. Grated potato is squeezed, as for the meat version.",
+   "recipe": [
+    {
+     "usda": "170026",
+     "name": "Potatoes, flesh and skin, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "170440",
+     "name": "Potatoes, boiled, cooked without skin, flesh, without salt",
+     "grams": 250
+    },
+    {
+     "usda": "2705749",
+     "name": "Cottage cheese, farmer's",
+     "grams": 300
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 50
+    },
+    {
+     "usda": "2705614",
+     "name": "Sour cream, regular",
+     "grams": 150
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 30
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 1480
+  },
+  {
+   "id": "regional:cepelinai-meat",
+   "sourceID": "cepelinai-meat",
+   "name": "Cepelinai, potato dumplings with meat, with bacon and sour cream sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 155.6,
+   "protein": 7.34,
+   "carbs": 16.15,
+   "fat": 6.9,
+   "searchNames": [
+    "cepelinai",
+    "cepelinai su mėsa",
+    "didžkukuliai",
+    "zeppelins"
+   ],
+   "summary": "Made with potatoes, pork, sour cream, onion, bacon. Grated potato is squeezed (about 300 g of liquid goes, the starch is returned); the pork cooks inside the dumpling.",
+   "recipe": [
+    {
+     "usda": "170026",
+     "name": "Potatoes, flesh and skin, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "170440",
+     "name": "Potatoes, boiled, cooked without skin, flesh, without salt",
+     "grams": 250
+    },
+    {
+     "usda": "2514745",
+     "name": "Pork, ground, raw",
+     "grams": 300
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 100
+    },
+    {
+     "usda": "2705890",
+     "name": "Bacon or side pork, fresh, cooked",
+     "grams": 80
+    },
+    {
+     "usda": "2705614",
+     "name": "Sour cream, regular",
+     "grams": 120
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 1500
+  },
+  {
+   "id": "regional:falafel-wrap",
+   "sourceID": "falafel-wrap",
+   "name": "Falafel wrap, in pita with tahini sauce and salad",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 226.3,
+   "protein": 8.36,
+   "carbs": 27.14,
+   "fat": 9.85,
+   "searchNames": [
+    "falafel wrap",
+    "taameya sandwich",
+    "ساندويتش فلافل",
+    "سندويش فلافل",
+    "ساندويتش طعمية"
+   ],
+   "summary": "Made with falafel, pita, tomato, cucumber, pickles, tahini, lemon juice. One wrap: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "172455",
+     "name": "Falafel, home-prepared",
+     "grams": 150
+    },
+    {
+     "usda": "174915",
+     "name": "Bread, pita, white, enriched",
+     "grams": 80
+    },
+    {
+     "usda": "170189",
+     "name": "Seeds, sesame butter, tahini, from roasted and toasted kernels (most common type)",
+     "grams": 15
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 15
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 5
+    },
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 40
+    },
+    {
+     "usda": "2709784",
+     "name": "Cucumber, raw",
+     "grams": 40
+    },
+    {
+     "usda": "168558",
+     "name": "Pickles, cucumber, dill or kosher dill",
+     "grams": 20
+    }
+   ],
+   "finishedWeightG": 365
+  },
+  {
+   "id": "regional:fatayer-spinach",
+   "sourceID": "fatayer-spinach",
+   "name": "Fatayer, spinach pies",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 235.1,
+   "protein": 6.07,
+   "carbs": 34.96,
+   "fat": 8.1,
+   "searchNames": [
+    "fatayer",
+    "spinach fatayer",
+    "spinach pies",
+    "فطاير سبانخ",
+    "فطائر سبانخ",
+    "فطاير"
+   ],
+   "summary": "Made with spinach, flour, onion, olive oil, lemon juice. Baked: the spinach wilts to about half its weight before filling.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 500
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 290
+    },
+    {
+     "usda": "2710005",
+     "name": "Yeast",
+     "grams": 7
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 90
+    },
+    {
+     "usda": "168462",
+     "name": "Spinach, raw",
+     "grams": 600
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 40
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 1210
+  },
+  {
+   "id": "regional:fattoush",
+   "sourceID": "fattoush",
+   "name": "Fattoush, mixed salad with toasted pita",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 84.7,
+   "protein": 1.58,
+   "carbs": 8.05,
+   "fat": 5.45,
+   "searchNames": [
+    "fattoush",
+    "fatoush",
+    "فتوش"
+   ],
+   "summary": "Made with tomato, cucumber, lettuce, green pepper, pita, olive oil, spring onion, lemon juice. A salad: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 250
+    },
+    {
+     "usda": "2709784",
+     "name": "Cucumber, raw",
+     "grams": 250
+    },
+    {
+     "usda": "169247",
+     "name": "Lettuce, cos or romaine, raw",
+     "grams": 150
+    },
+    {
+     "usda": "170427",
+     "name": "Peppers, sweet, green, raw",
+     "grams": 80
+    },
+    {
+     "usda": "170005",
+     "name": "Onions, spring or scallions (includes tops and bulb), raw",
+     "grams": 40
+    },
+    {
+     "usda": "170416",
+     "name": "Parsley, fresh",
+     "grams": 20
+    },
+    {
+     "usda": "173475",
+     "name": "Spearmint, fresh",
+     "grams": 10
+    },
+    {
+     "usda": "174915",
+     "name": "Bread, pita, white, enriched",
+     "grams": 80
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 50
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 40
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 5
+    }
+   ],
+   "finishedWeightG": 970
+  },
+  {
+   "id": "regional:ful-medames",
+   "sourceID": "ful-medames",
+   "name": "Ful medames, stewed fava beans with olive oil and lemon",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 173.8,
+   "protein": 5.83,
+   "carbs": 15.75,
+   "fat": 10.17,
+   "searchNames": [
+    "ful medames",
+    "ful",
+    "foul",
+    "fava beans egyptian",
+    "فول مدمس",
+    "فول"
+   ],
+   "summary": "Made with fava beans, tomato, olive oil, lemon juice, garlic, parsley. Cooked beans dressed at the table: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "2707367",
+     "name": "Fava beans, cooked",
+     "grams": 500
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 30
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 30
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 10
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 4
+    },
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 60
+    },
+    {
+     "usda": "170416",
+     "name": "Parsley, fresh",
+     "grams": 10
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 5
+    }
+   ],
+   "finishedWeightG": 645
+  },
+  {
+   "id": "regional:grikiu-kose",
+   "sourceID": "grikiu-kose",
+   "name": "Grikių košė, buckwheat porridge with butter",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 121.1,
+   "protein": 3.24,
+   "carbs": 18.89,
+   "fat": 4.43,
+   "searchNames": [
+    "grikiu kose",
+    "grikių košė",
+    "grikiai su sviestu",
+    "buckwheat porridge",
+    "kasha"
+   ],
+   "summary": "Made with buckwheat, butter. Cooked buckwheat with butter stirred in.",
+   "recipe": [
+    {
+     "usda": "170686",
+     "name": "Buckwheat groats, roasted, cooked",
+     "grams": 500
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 25
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 3
+    }
+   ],
+   "finishedWeightG": 528
+  },
+  {
+   "id": "regional:hawawshi",
+   "sourceID": "hawawshi",
+   "name": "Hawawshi, pita baked with spiced minced beef",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 234.2,
+   "protein": 13.64,
+   "carbs": 25.15,
+   "fat": 8.36,
+   "searchNames": [
+    "hawawshi",
+    "hawaoshi",
+    "حواوشي",
+    "حواوشى"
+   ],
+   "summary": "Made with beef, pita, onion, green pepper. Baked: the filling loses about a fifth of its weight, the bread very little.",
+   "recipe": [
+    {
+     "usda": "174915",
+     "name": "Bread, pita, white, enriched",
+     "grams": 400
+    },
+    {
+     "usda": "2705853",
+     "name": "Beef, ground, raw",
+     "grams": 500
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "170427",
+     "name": "Peppers, sweet, green, raw",
+     "grams": 80
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 5
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 10
+    }
+   ],
+   "finishedWeightG": 965
+  },
+  {
+   "id": "regional:kabsa",
+   "sourceID": "kabsa",
+   "name": "Kabsa, spiced rice with chicken",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 154.6,
+   "protein": 8.85,
+   "carbs": 17.24,
+   "fat": 5.32,
+   "searchNames": [
+    "kabsa",
+    "kabsah",
+    "machboos",
+    "كبسة",
+    "كبسه",
+    "كبسة دجاج"
+   ],
+   "summary": "Made with chicken, rice, tomato, onion, carrot, oil. The rice takes up about 1.8 times its weight in water; the chicken keeps about three quarters of its weight.",
+   "recipe": [
+    {
+     "usda": "2646171",
+     "name": "Chicken, thigh, boneless, skinless, raw",
+     "grams": 800
+    },
+    {
+     "usda": "2512381",
+     "name": "Rice, white, long grain, unenriched, raw",
+     "grams": 400
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 200
+    },
+    {
+     "usda": "170393",
+     "name": "Carrots, raw",
+     "grams": 100
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 40
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 900
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 6
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 14
+    }
+   ],
+   "finishedWeightG": 2060
+  },
+  {
+   "id": "regional:kepta-duona",
+   "sourceID": "kepta-duona",
+   "name": "Kepta duona, fried rye bread with garlic",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 370.6,
+   "protein": 7.9,
+   "carbs": 44.73,
+   "fat": 17.9,
+   "searchNames": [
+    "kepta duona",
+    "kepta duona su česnaku",
+    "fried bread",
+    "fried rye bread",
+    "garlic bread lithuanian"
+   ],
+   "summary": "Made with rye bread, oil, garlic. The bread dries a little and keeps about 50 g of oil. A cheese sauce is not included.",
+   "recipe": [
+    {
+     "usda": "172684",
+     "name": "Bread, rye",
+     "grams": 300
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 50
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 15
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 3
+    }
+   ],
+   "finishedWeightG": 335
+  },
+  {
+   "id": "regional:kibbeh",
+   "sourceID": "kibbeh",
+   "name": "Kibbeh, fried bulgur and lamb croquettes",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 267.1,
+   "protein": 10.66,
+   "carbs": 9.6,
+   "fat": 21.0,
+   "searchNames": [
+    "kibbeh",
+    "kubbeh",
+    "kibbe",
+    "كبة",
+    "كبه",
+    "كبة مقلية"
+   ],
+   "summary": "Made with lamb, bulgur, onion, oil, pine nuts. Deep fried: about 15% of the weight is lost and about 60 g of oil is taken up.",
+   "recipe": [
+    {
+     "usda": "170287",
+     "name": "Bulgur, cooked",
+     "grams": 400
+    },
+    {
+     "usda": "174370",
+     "name": "Lamb, ground, raw",
+     "grams": 500
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 120
+    },
+    {
+     "usda": "170591",
+     "name": "Nuts, pine nuts, dried",
+     "grams": 30
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 60
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 4
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 950
+  },
+  {
+   "id": "regional:kibinai",
+   "sourceID": "kibinai",
+   "name": "Kibinai, baked pastries with lamb",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 336.9,
+   "protein": 12.23,
+   "carbs": 27.89,
+   "fat": 19.31,
+   "searchNames": [
+    "kibinai",
+    "kibinas",
+    "karaim pastry",
+    "kybyn"
+   ],
+   "summary": "Made with lamb, flour, butter, sour cream, onion, egg. Baked; about an eighth of the weight leaves as steam.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 500
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 200
+    },
+    {
+     "usda": "2705614",
+     "name": "Sour cream, regular",
+     "grams": 150
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 50
+    },
+    {
+     "usda": "174315",
+     "name": "Lamb, leg, shank half, separable lean and fat, trimmed to 1/4\" fat, choice, raw",
+     "grams": 600
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 1450
+  },
+  {
+   "id": "regional:kofta",
+   "sourceID": "kofta",
+   "name": "Kofta, grilled minced beef and lamb",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 288.3,
+   "protein": 21.67,
+   "carbs": 1.95,
+   "fat": 20.99,
+   "searchNames": [
+    "kofta",
+    "kafta",
+    "kofta kebab",
+    "كفتة",
+    "كفته",
+    "كفتة مشوية"
+   ],
+   "summary": "Made with beef, lamb, onion, parsley. Grilled: the mince loses a little over a quarter of its weight.",
+   "recipe": [
+    {
+     "usda": "2705853",
+     "name": "Beef, ground, raw",
+     "grams": 700
+    },
+    {
+     "usda": "174370",
+     "name": "Lamb, ground, raw",
+     "grams": 300
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 120
+    },
+    {
+     "usda": "170416",
+     "name": "Parsley, fresh",
+     "grams": 40
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 6
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 14
+    }
+   ],
+   "finishedWeightG": 840
+  },
+  {
+   "id": "regional:koldunai",
+   "sourceID": "koldunai",
+   "name": "Koldūnai, boiled dumplings with meat, with butter",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 237.3,
+   "protein": 11.37,
+   "carbs": 26.29,
+   "fat": 9.14,
+   "searchNames": [
+    "koldunai",
+    "koldūnai",
+    "koldūnai su mėsa",
+    "lithuanian dumplings",
+    "pelmeni"
+   ],
+   "summary": "Made with flour, pork, beef, egg, onion, butter. The dough takes up a little cooking water; the meat loses about a fifth.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 300
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 50
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 120
+    },
+    {
+     "usda": "2514745",
+     "name": "Pork, ground, raw",
+     "grams": 200
+    },
+    {
+     "usda": "2705853",
+     "name": "Beef, ground, raw",
+     "grams": 150
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 50
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 20
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 890
+  },
+  {
+   "id": "regional:koshari",
+   "sourceID": "koshari",
+   "name": "Koshari, rice, lentils and pasta with tomato sauce and fried onions",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 130.7,
+   "protein": 4.46,
+   "carbs": 21.27,
+   "fat": 3.26,
+   "searchNames": [
+    "koshari",
+    "kushari",
+    "koshary",
+    "كشري",
+    "كشرى"
+   ],
+   "summary": "Made with rice, tomato sauce, lentils, pasta, onion, chickpeas, oil, garlic. Assembled from cooked parts; the onions lose about half their weight when fried.",
+   "recipe": [
+    {
+     "usda": "2708408",
+     "name": "Rice, white, cooked, no added fat",
+     "grams": 300
+    },
+    {
+     "usda": "172421",
+     "name": "Lentils, mature seeds, cooked, boiled, without salt",
+     "grams": 200
+    },
+    {
+     "usda": "2708357",
+     "name": "Pasta, cooked",
+     "grams": 200
+    },
+    {
+     "usda": "173757",
+     "name": "Chickpeas (garbanzo beans, bengal gram), mature seeds, cooked, boiled, without salt",
+     "grams": 80
+    },
+    {
+     "usda": "169074",
+     "name": "Tomato sauce, canned, no salt added",
+     "grams": 250
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 10
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 30
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 6
+    }
+   ],
+   "finishedWeightG": 1120
+  },
+  {
+   "id": "regional:kotletai",
+   "sourceID": "kotletai",
+   "name": "Kotletai, fried pork patties",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 277.8,
+   "protein": 17.17,
+   "carbs": 5.87,
+   "fat": 20.27,
+   "searchNames": [
+    "kotletai",
+    "kiaulienos kotletai",
+    "meat patties",
+    "cutlets",
+    "maltinukai"
+   ],
+   "summary": "Made with pork, onion, egg, bread, milk, oil. Fried; a little over a fifth of the weight is lost, and about 25 g of oil is kept.",
+   "recipe": [
+    {
+     "usda": "2514745",
+     "name": "Pork, ground, raw",
+     "grams": 500
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 80
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 50
+    },
+    {
+     "usda": "174924",
+     "name": "Bread, white, commercially prepared (includes soft bread crumbs)",
+     "grams": 50
+    },
+    {
+     "usda": "171265",
+     "name": "Milk, whole, 3.25% milkfat, with added vitamin D",
+     "grams": 50
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 25
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 595
+  },
+  {
+   "id": "regional:kugelis",
+   "sourceID": "kugelis",
+   "name": "Kugelis, baked potato pudding with bacon",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 132.6,
+   "protein": 6.38,
+   "carbs": 17.03,
+   "fat": 4.41,
+   "searchNames": [
+    "kugelis",
+    "bulvių plokštainis",
+    "plokštainis",
+    "potato pudding",
+    "potato kugel"
+   ],
+   "summary": "Made with potatoes, milk, bacon, onion, egg. Baked for about 90 minutes; roughly a fifth of the weight leaves as steam.",
+   "recipe": [
+    {
+     "usda": "170026",
+     "name": "Potatoes, flesh and skin, raw",
+     "grams": 1500
+    },
+    {
+     "usda": "2705890",
+     "name": "Bacon or side pork, fresh, cooked",
+     "grams": 150
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 150
+    },
+    {
+     "usda": "171265",
+     "name": "Milk, whole, 3.25% milkfat, with added vitamin D",
+     "grams": 200
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 1700
+  },
+  {
+   "id": "regional:kunafa",
+   "sourceID": "kunafa",
+   "name": "Kunafa, shredded pastry with cheese and sugar syrup",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 388.5,
+   "protein": 9.7,
+   "carbs": 37.59,
+   "fat": 22.45,
+   "searchNames": [
+    "kunafa",
+    "knafeh",
+    "konafa",
+    "kunefe",
+    "كنافة",
+    "كنافه",
+    "كنافة بالجبن"
+   ],
+   "summary": "Made with pastry, mozzarella, sugar, butter. Calculated with phyllo for the kataifi pastry and mozzarella for the usual akkawi or nabulsi cheese; the syrup is reduced before pouring.",
+   "recipe": [
+    {
+     "usda": "172791",
+     "name": "Phyllo dough",
+     "grams": 500
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 250
+    },
+    {
+     "usda": "170845",
+     "name": "Cheese, mozzarella, whole milk",
+     "grams": 500
+    },
+    {
+     "usda": "169655",
+     "name": "Sugars, granulated",
+     "grams": 300
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 200
+    }
+   ],
+   "finishedWeightG": 1530
+  },
+  {
+   "id": "regional:lietiniai-varske",
+   "sourceID": "lietiniai-varske",
+   "name": "Lietiniai su varške, thin pancakes filled with curd cheese",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 234.3,
+   "protein": 9.07,
+   "carbs": 24.87,
+   "fat": 10.86,
+   "searchNames": [
+    "lietiniai su varške",
+    "lietiniai su varske",
+    "curd crepes",
+    "pancakes with curd"
+   ],
+   "summary": "Made with milk, curd cheese, flour, egg, sugar, sour cream, oil, butter. The pancakes as above, plus an uncooked curd filling.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 250
+    },
+    {
+     "usda": "171265",
+     "name": "Milk, whole, 3.25% milkfat, with added vitamin D",
+     "grams": 500
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 150
+    },
+    {
+     "usda": "169655",
+     "name": "Sugars, granulated",
+     "grams": 55
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 30
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 20
+    },
+    {
+     "usda": "2705749",
+     "name": "Cottage cheese, farmer's",
+     "grams": 400
+    },
+    {
+     "usda": "2705614",
+     "name": "Sour cream, regular",
+     "grams": 50
+    }
+   ],
+   "finishedWeightG": 1170
+  },
+  {
+   "id": "regional:lietiniai",
+   "sourceID": "lietiniai",
+   "name": "Lietiniai, thin pancakes, plain",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 278.8,
+   "protein": 8.91,
+   "carbs": 33.95,
+   "fat": 11.65,
+   "searchNames": [
+    "lietiniai",
+    "lietiniai blynai",
+    "thin pancakes",
+    "crepes",
+    "blynai"
+   ],
+   "summary": "Made with milk, flour, egg, oil, butter, sugar. Thin batter loses about 30% of its weight on the pan.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 250
+    },
+    {
+     "usda": "171265",
+     "name": "Milk, whole, 3.25% milkfat, with added vitamin D",
+     "grams": 500
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 150
+    },
+    {
+     "usda": "169655",
+     "name": "Sugars, granulated",
+     "grams": 15
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 30
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 20
+    }
+   ],
+   "finishedWeightG": 680
+  },
+  {
+   "id": "regional:mahshi-zucchini",
+   "sourceID": "mahshi-zucchini",
+   "name": "Mahshi, zucchini stuffed with rice and minced beef in tomato sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 81.4,
+   "protein": 4.03,
+   "carbs": 11.32,
+   "fat": 2.29,
+   "searchNames": [
+    "mahshi",
+    "mahshi kousa",
+    "stuffed zucchini",
+    "kousa mahshi",
+    "محشي",
+    "محشي كوسة",
+    "كوسا محشي"
+   ],
+   "summary": "Made with zucchini, tomato sauce, beef, rice, onion. Simmered covered; the rice takes up the cooking liquid and about a tenth evaporates.",
+   "recipe": [
+    {
+     "usda": "169291",
+     "name": "Squash, summer, zucchini, includes skin, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "2512381",
+     "name": "Rice, white, long grain, unenriched, raw",
+     "grams": 200
+    },
+    {
+     "usda": "2705853",
+     "name": "Beef, ground, raw",
+     "grams": 250
+    },
+    {
+     "usda": "169074",
+     "name": "Tomato sauce, canned, no salt added",
+     "grams": 300
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 80
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 300
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 1900
+  },
+  {
+   "id": "regional:manakish-zaatar",
+   "sourceID": "manakish-zaatar",
+   "name": "Manakish, flatbread with za'atar and olive oil",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 351.0,
+   "protein": 7.48,
+   "carbs": 50.24,
+   "fat": 13.36,
+   "searchNames": [
+    "manakish",
+    "manaeesh",
+    "manakeesh",
+    "zaatar bread",
+    "za'atar manakish",
+    "مناقيش",
+    "مناقيش زعتر",
+    "منقوشة"
+   ],
+   "summary": "Made with flour, olive oil, za'atar thyme, sesame seeds. Baked; about 15% of the weight leaves as steam.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 500
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 300
+    },
+    {
+     "usda": "2710005",
+     "name": "Yeast",
+     "grams": 7
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 90
+    },
+    {
+     "usda": "170938",
+     "name": "Spices, thyme, dried",
+     "grams": 20
+    },
+    {
+     "usda": "170150",
+     "name": "Seeds, sesame seeds, whole, dried",
+     "grams": 20
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 10
+    }
+   ],
+   "finishedWeightG": 800
+  },
+  {
+   "id": "regional:mansaf",
+   "sourceID": "mansaf",
+   "name": "Mansaf, lamb with rice and yogurt sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 197.7,
+   "protein": 10.59,
+   "carbs": 17.32,
+   "fat": 9.23,
+   "searchNames": [
+    "mansaf",
+    "منسف"
+   ],
+   "summary": "Made with lamb, yogurt, rice, pita, butter, almonds, pine nuts. The lamb keeps about 65% of its weight, the rice takes up water and the yogurt sauce reduces a little.",
+   "recipe": [
+    {
+     "usda": "174315",
+     "name": "Lamb, leg, shank half, separable lean and fat, trimmed to 1/4\" fat, choice, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "2512381",
+     "name": "Rice, white, long grain, unenriched, raw",
+     "grams": 400
+    },
+    {
+     "usda": "171284",
+     "name": "Yogurt, plain, whole milk",
+     "grams": 500
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 40
+    },
+    {
+     "usda": "2346393",
+     "name": "Nuts, almonds, whole, raw",
+     "grams": 30
+    },
+    {
+     "usda": "170591",
+     "name": "Nuts, pine nuts, dried",
+     "grams": 20
+    },
+    {
+     "usda": "174915",
+     "name": "Bread, pita, white, enriched",
+     "grams": 100
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 900
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 14
+    }
+   ],
+   "finishedWeightG": 2360
+  },
+  {
+   "id": "regional:maqluba",
+   "sourceID": "maqluba",
+   "name": "Maqluba, upside-down rice with chicken and eggplant",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 152.1,
+   "protein": 7.22,
+   "carbs": 17.84,
+   "fat": 5.6,
+   "searchNames": [
+    "maqluba",
+    "makloubeh",
+    "maqlooba",
+    "مقلوبة",
+    "مقلوبه"
+   ],
+   "summary": "Made with chicken, eggplant, rice, onion, oil. The eggplant is fried first and keeps about 60 g of oil; the rice takes up water.",
+   "recipe": [
+    {
+     "usda": "169228",
+     "name": "Eggplant, raw",
+     "grams": 500
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 60
+    },
+    {
+     "usda": "2646171",
+     "name": "Chicken, thigh, boneless, skinless, raw",
+     "grams": 600
+    },
+    {
+     "usda": "2512381",
+     "name": "Rice, white, long grain, unenriched, raw",
+     "grams": 400
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 100
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 900
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 5
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 14
+    }
+   ],
+   "finishedWeightG": 2030
+  },
+  {
+   "id": "regional:mesaqaa",
+   "sourceID": "mesaqaa",
+   "name": "Mesaqa'a, fried eggplant baked with minced beef and tomato",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 122.7,
+   "protein": 5.03,
+   "carbs": 6.11,
+   "fat": 9.12,
+   "searchNames": [
+    "mesaqaa",
+    "mesaqa'a",
+    "moussaka egyptian",
+    "musaqaa",
+    "مسقعة",
+    "مسقعه"
+   ],
+   "summary": "Made with eggplant, tomato sauce, beef, onion, green pepper, oil, garlic. The eggplant loses about a third when fried and keeps about 80 g of oil; then everything is baked.",
+   "recipe": [
+    {
+     "usda": "169228",
+     "name": "Eggplant, raw",
+     "grams": 800
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 80
+    },
+    {
+     "usda": "2705853",
+     "name": "Beef, ground, raw",
+     "grams": 300
+    },
+    {
+     "usda": "169074",
+     "name": "Tomato sauce, canned, no salt added",
+     "grams": 400
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 100
+    },
+    {
+     "usda": "170427",
+     "name": "Peppers, sweet, green, raw",
+     "grams": 100
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 10
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 10
+    }
+   ],
+   "finishedWeightG": 1400
+  },
+  {
+   "id": "regional:molokhia",
+   "sourceID": "molokhia",
+   "name": "Molokhia, jute leaf soup",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 58.5,
+   "protein": 3.02,
+   "carbs": 5.48,
+   "fat": 3.12,
+   "searchNames": [
+    "molokhia",
+    "mulukhiyah",
+    "molokhiya",
+    "ملوخية",
+    "ملوخيه"
+   ],
+   "summary": "Made with chicken stock, jute leaves, butter, garlic. The soup only: chicken or rice served with it is not included.",
+   "recipe": [
+    {
+     "usda": "168420",
+     "name": "Jute, potherb, cooked, boiled, drained, without salt",
+     "grams": 400
+    },
+    {
+     "usda": "172884",
+     "name": "Soup, stock, chicken, home-prepared",
+     "grams": 600
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 20
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 30
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 6
+    }
+   ],
+   "finishedWeightG": 1040
+  },
+  {
+   "id": "regional:mujaddara",
+   "sourceID": "mujaddara",
+   "name": "Mujaddara, lentils and rice with caramelised onions",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 157.3,
+   "protein": 5.13,
+   "carbs": 22.46,
+   "fat": 5.44,
+   "searchNames": [
+    "mujaddara",
+    "mujadara",
+    "mjadra",
+    "مجدرة",
+    "مجدره"
+   ],
+   "summary": "Made with lentils, rice, onion, olive oil. The onions lose over half their weight as they caramelise.",
+   "recipe": [
+    {
+     "usda": "172421",
+     "name": "Lentils, mature seeds, cooked, boiled, without salt",
+     "grams": 400
+    },
+    {
+     "usda": "2708408",
+     "name": "Rice, white, cooked, no added fat",
+     "grams": 400
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 300
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 50
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 4
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 990
+  },
+  {
+   "id": "regional:sfiha",
+   "sourceID": "sfiha",
+   "name": "Sfiha, open meat pies with lamb",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 275.1,
+   "protein": 10.07,
+   "carbs": 32.45,
+   "fat": 11.37,
+   "searchNames": [
+    "sfiha",
+    "sfeeha",
+    "lahm bi ajeen",
+    "meat pies",
+    "صفيحة",
+    "لحم بعجين"
+   ],
+   "summary": "Made with flour, lamb, tomato, onion, olive oil, pine nuts. Baked: the dough loses about 13% and the topping about 30%.",
+   "recipe": [
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 500
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 290
+    },
+    {
+     "usda": "2710005",
+     "name": "Yeast",
+     "grams": 7
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 30
+    },
+    {
+     "usda": "174370",
+     "name": "Lamb, ground, raw",
+     "grams": 400
+    },
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 200
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 150
+    },
+    {
+     "usda": "170591",
+     "name": "Nuts, pine nuts, dried",
+     "grams": 20
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 1260
+  },
+  {
+   "id": "regional:shakshuka",
+   "sourceID": "shakshuka",
+   "name": "Shakshuka, eggs poached in tomato and pepper sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 90.7,
+   "protein": 4.27,
+   "carbs": 5.12,
+   "fat": 6.21,
+   "searchNames": [
+    "shakshuka",
+    "shakshouka",
+    "شكشوكة",
+    "شكشوكه"
+   ],
+   "summary": "Made with tomato, egg, tomato sauce, green pepper, onion, olive oil, garlic. The sauce simmers down by about a fifth before the eggs go in.",
+   "recipe": [
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 600
+    },
+    {
+     "usda": "169074",
+     "name": "Tomato sauce, canned, no salt added",
+     "grams": 200
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 120
+    },
+    {
+     "usda": "170427",
+     "name": "Peppers, sweet, green, raw",
+     "grams": 150
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 40
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 10
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 300
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 3
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 1150
+  },
+  {
+   "id": "regional:shawarma-chicken-wrap",
+   "sourceID": "shawarma-chicken-wrap",
+   "name": "Shawarma wrap, chicken, in pita with garlic yogurt sauce and pickles",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 197.3,
+   "protein": 14.98,
+   "carbs": 16.22,
+   "fat": 7.88,
+   "searchNames": [
+    "chicken shawarma wrap",
+    "shawarma sandwich",
+    "shawarma wrap",
+    "ساندويتش شاورما",
+    "سندويش شاورما",
+    "شاورما عربي"
+   ],
+   "summary": "Made with chicken, pita, yogurt, pickles, tomato, garlic, olive oil, lemon juice. One wrap: 150 g of roasted chicken, an 80 g pita, sauce and vegetables.",
+   "recipe": [
+    {
+     "usda": "2646171",
+     "name": "Chicken, thigh, boneless, skinless, raw",
+     "grams": 205
+    },
+    {
+     "usda": "171284",
+     "name": "Yogurt, plain, whole milk",
+     "grams": 50
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 6
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 6
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 7
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 2
+    },
+    {
+     "usda": "174915",
+     "name": "Bread, pita, white, enriched",
+     "grams": 80
+    },
+    {
+     "usda": "168558",
+     "name": "Pickles, cucumber, dill or kosher dill",
+     "grams": 30
+    },
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 30
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 3
+    }
+   ],
+   "finishedWeightG": 323
+  },
+  {
+   "id": "regional:shawarma-beef",
+   "sourceID": "shawarma-beef",
+   "name": "Shawarma, beef, meat only",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 231.3,
+   "protein": 31.52,
+   "carbs": 2.1,
+   "fat": 11.03,
+   "searchNames": [
+    "beef shawarma",
+    "meat shawarma",
+    "شاورما لحم",
+    "شاورما لحمة"
+   ],
+   "summary": "Made with beef, olive oil, lemon juice, garlic. Roasted: trimmed beef keeps about two thirds of its raw weight.",
+   "recipe": [
+    {
+     "usda": "171206",
+     "name": "Beef, chuck for stew, separable lean and fat, all grades, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 30
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 30
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 20
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 10
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 700
+  },
+  {
+   "id": "regional:shawarma-chicken",
+   "sourceID": "shawarma-chicken",
+   "name": "Shawarma, chicken, meat only",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 255.4,
+   "protein": 26.03,
+   "carbs": 2.4,
+   "fat": 15.52,
+   "searchNames": [
+    "chicken shawarma",
+    "shawarma",
+    "shawerma",
+    "شاورما دجاج",
+    "شاورما",
+    "شاورما فراخ"
+   ],
+   "summary": "Made with chicken, yogurt, olive oil, lemon juice, garlic. Roasted: chicken thigh keeps about 70% of its raw weight, plus the marinade that clings.",
+   "recipe": [
+    {
+     "usda": "2646171",
+     "name": "Chicken, thigh, boneless, skinless, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "171284",
+     "name": "Yogurt, plain, whole milk",
+     "grams": 100
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 30
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 30
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 20
+    },
+    {
+     "usda": "170923",
+     "name": "Spices, cumin seed",
+     "grams": 10
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 740
+  },
+  {
+   "id": "regional:shish-tawook",
+   "sourceID": "shish-tawook",
+   "name": "Shish tawook, grilled marinated chicken skewers",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 201.7,
+   "protein": 30.59,
+   "carbs": 2.68,
+   "fat": 7.17,
+   "searchNames": [
+    "shish tawook",
+    "shish taouk",
+    "tawook",
+    "شيش طاووق",
+    "شيش طاوق"
+   ],
+   "summary": "Made with chicken, yogurt, lemon juice, olive oil, garlic, tomato paste. Grilled: chicken breast keeps a little over 70% of its raw weight, plus the marinade that clings.",
+   "recipe": [
+    {
+     "usda": "2646170",
+     "name": "Chicken, breast, boneless, skinless, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "171284",
+     "name": "Yogurt, plain, whole milk",
+     "grams": 150
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 30
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 40
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 20
+    },
+    {
+     "usda": "2685580",
+     "name": "Tomato, paste, canned, without salt added",
+     "grams": 20
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 12
+    }
+   ],
+   "finishedWeightG": 760
+  },
+  {
+   "id": "regional:tabbouleh",
+   "sourceID": "tabbouleh",
+   "name": "Tabbouleh, parsley and bulgur salad",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 98.7,
+   "protein": 1.73,
+   "carbs": 7.23,
+   "fat": 7.69,
+   "searchNames": [
+    "tabbouleh",
+    "tabouli",
+    "tabbouli",
+    "تبولة",
+    "تبوله"
+   ],
+   "summary": "Made with tomato, parsley, bulgur, olive oil, lemon juice, spring onion, mint. A salad: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "170416",
+     "name": "Parsley, fresh",
+     "grams": 150
+    },
+    {
+     "usda": "170287",
+     "name": "Bulgur, cooked",
+     "grams": 120
+    },
+    {
+     "usda": "170457",
+     "name": "Tomatoes, red, ripe, raw, year round average",
+     "grams": 250
+    },
+    {
+     "usda": "170005",
+     "name": "Onions, spring or scallions (includes tops and bulb), raw",
+     "grams": 40
+    },
+    {
+     "usda": "173475",
+     "name": "Spearmint, fresh",
+     "grams": 15
+    },
+    {
+     "usda": "171413",
+     "name": "Oil, olive, salad or cooking",
+     "grams": 50
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 50
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 5
+    }
+   ],
+   "finishedWeightG": 680
+  },
+  {
+   "id": "regional:tahini-sauce",
+   "sourceID": "tahini-sauce",
+   "name": "Tahini sauce, tarator",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 246.5,
+   "protein": 7.04,
+   "carbs": 10.32,
+   "fat": 21.73,
+   "searchNames": [
+    "tahini sauce",
+    "tarator",
+    "طحينة",
+    "صلصة طحينة",
+    "طرطور"
+   ],
+   "summary": "Made with tahini, lemon juice, garlic. Stirred together: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "170189",
+     "name": "Seeds, sesame butter, tahini, from roasted and toasted kernels (most common type)",
+     "grams": 100
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 100
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 40
+    },
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 5
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 3
+    }
+   ],
+   "finishedWeightG": 248
+  },
+  {
+   "id": "regional:tinginys",
+   "sourceID": "tinginys",
+   "name": "Tinginys, no-bake cocoa and biscuit cake",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 440.8,
+   "protein": 6.42,
+   "carbs": 52.06,
+   "fat": 24.38,
+   "searchNames": [
+    "tinginys",
+    "lazy cake",
+    "lithuanian lazy cake",
+    "chocolate salami"
+   ],
+   "summary": "Made with butter biscuits, condensed milk, butter, cocoa. Not baked: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "174950",
+     "name": "Cookies, butter, commercially prepared, enriched",
+     "grams": 400
+    },
+    {
+     "usda": "171275",
+     "name": "Milk, canned, condensed, sweetened",
+     "grams": 380
+    },
+    {
+     "usda": "173410",
+     "name": "Butter, salted",
+     "grams": 150
+    },
+    {
+     "usda": "169593",
+     "name": "Cocoa, dry powder, unsweetened",
+     "grams": 30
+    }
+   ],
+   "finishedWeightG": 960
+  },
+  {
+   "id": "regional:toum",
+   "sourceID": "toum",
+   "name": "Toum, garlic sauce",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "middleEastern",
+   "kcal": 653.4,
+   "protein": 1.16,
+   "carbs": 6.57,
+   "fat": 70.79,
+   "searchNames": [
+    "toum",
+    "garlic sauce",
+    "toumeya",
+    "ثوم",
+    "ثومية",
+    "تومية"
+   ],
+   "summary": "Made with oil, garlic, lemon juice. An emulsion: the finished weight is the sum of what goes in.",
+   "recipe": [
+    {
+     "usda": "169230",
+     "name": "Garlic, raw",
+     "grams": 100
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 400
+    },
+    {
+     "usda": "167747",
+     "name": "Lemon juice, raw",
+     "grams": 60
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 6
+    }
+   ],
+   "finishedWeightG": 566
+  },
+  {
+   "id": "regional:troskinti-kopustai",
+   "sourceID": "troskinti-kopustai",
+   "name": "Troškinti kopūstai, braised cabbage",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 62.3,
+   "protein": 1.61,
+   "carbs": 8.3,
+   "fat": 3.16,
+   "searchNames": [
+    "troskinti kopustai",
+    "troškinti kopūstai",
+    "braised cabbage",
+    "stewed cabbage"
+   ],
+   "summary": "Made with cabbage, onion, carrot, oil, tomato paste. Braised until soft; roughly a quarter of the weight evaporates.",
+   "recipe": [
+    {
+     "usda": "169975",
+     "name": "Cabbage, raw",
+     "grams": 1000
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 100
+    },
+    {
+     "usda": "170393",
+     "name": "Carrots, raw",
+     "grams": 100
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 30
+    },
+    {
+     "usda": "2685580",
+     "name": "Tomato, paste, canned, without salt added",
+     "grams": 30
+    },
+    {
+     "usda": "2710707",
+     "name": "Water, tap",
+     "grams": 100
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 10
+    }
+   ],
+   "finishedWeightG": 1000
+  },
+  {
+   "id": "regional:varskes-spurgos",
+   "sourceID": "varskes-spurgos",
+   "name": "Varškės spurgos, fried curd cheese doughnuts",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 306.3,
+   "protein": 10.11,
+   "carbs": 32.98,
+   "fat": 14.83,
+   "searchNames": [
+    "varskes spurgos",
+    "varškės spurgos",
+    "curd doughnuts",
+    "spurgos"
+   ],
+   "summary": "Made with curd cheese, flour, egg, oil, sugar. Deep fried: a little water leaves and about 70 g of oil is taken up.",
+   "recipe": [
+    {
+     "usda": "2705749",
+     "name": "Cottage cheese, farmer's",
+     "grams": 400
+    },
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 250
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 100
+    },
+    {
+     "usda": "169655",
+     "name": "Sugars, granulated",
+     "grams": 60
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 70
+    }
+   ],
+   "finishedWeightG": 815
+  },
+  {
+   "id": "regional:varskeciai",
+   "sourceID": "varskeciai",
+   "name": "Varškėčiai, fried curd cheese pancakes",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 234.4,
+   "protein": 11.15,
+   "carbs": 18.15,
+   "fat": 13.08,
+   "searchNames": [
+    "varskeciai",
+    "varškėčiai",
+    "curd pancakes",
+    "syrniki",
+    "cottage cheese pancakes"
+   ],
+   "summary": "Made with curd cheese, egg, flour, sugar, oil. About a tenth of the batter weight leaves as steam; 30 g of oil is kept.",
+   "recipe": [
+    {
+     "usda": "2705749",
+     "name": "Cottage cheese, farmer's",
+     "grams": 500
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 100
+    },
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 80
+    },
+    {
+     "usda": "169655",
+     "name": "Sugars, granulated",
+     "grams": 40
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 30
+    }
+   ],
+   "finishedWeightG": 680
+  },
+  {
+   "id": "regional:saltibarsciai",
+   "sourceID": "saltibarsciai",
+   "name": "Šaltibarščiai, cold beet soup with kefir",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 51.8,
+   "protein": 3.38,
+   "carbs": 6.97,
+   "fat": 1.29,
+   "searchNames": [
+    "saltibarsciai",
+    "šaltibarščiai",
+    "cold beet soup",
+    "pink soup",
+    "cold borscht",
+    "lithuanian cold soup"
+   ],
+   "summary": "Made with kefir, beets, cucumber, egg, spring onion, dill. Nothing is cooked: the finished weight is the sum of what goes in. Potatoes served alongside are not included.",
+   "recipe": [
+    {
+     "usda": "2705394",
+     "name": "Kefir",
+     "grams": 1000
+    },
+    {
+     "usda": "169146",
+     "name": "Beets, cooked, boiled, drained",
+     "grams": 300
+    },
+    {
+     "usda": "2709784",
+     "name": "Cucumber, raw",
+     "grams": 200
+    },
+    {
+     "usda": "173424",
+     "name": "Egg, whole, cooked, hard-boiled",
+     "grams": 100
+    },
+    {
+     "usda": "170005",
+     "name": "Onions, spring or scallions (includes tops and bulb), raw",
+     "grams": 30
+    },
+    {
+     "usda": "172233",
+     "name": "Dill weed, fresh",
+     "grams": 15
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 6
+    }
+   ],
+   "finishedWeightG": 1650
+  },
+  {
+   "id": "regional:zemaiciu-blynai",
+   "sourceID": "zemaiciu-blynai",
+   "name": "Žemaičių blynai, potato pancakes filled with meat",
+   "brand": null,
+   "basis": "g",
+   "source": "regional",
+   "sourceDate": "2026-11",
+   "dataset": "lithuanian",
+   "kcal": 165.9,
+   "protein": 5.99,
+   "carbs": 18.12,
+   "fat": 7.78,
+   "searchNames": [
+    "zemaiciu blynai",
+    "žemaičių blynai",
+    "samogitian pancakes"
+   ],
+   "summary": "Made with potatoes, pork, onion, flour, egg, oil. Made from boiled potato, so little water is lost; the pork loses about a fifth while it is fried.",
+   "recipe": [
+    {
+     "usda": "170440",
+     "name": "Potatoes, boiled, cooked without skin, flesh, without salt",
+     "grams": 1000
+    },
+    {
+     "usda": "171287",
+     "name": "Egg, whole, raw, fresh",
+     "grams": 50
+    },
+    {
+     "usda": "169761",
+     "name": "Wheat flour, white, all-purpose, unenriched",
+     "grams": 60
+    },
+    {
+     "usda": "2514745",
+     "name": "Pork, ground, raw",
+     "grams": 300
+    },
+    {
+     "usda": "170000",
+     "name": "Onions, raw",
+     "grams": 80
+    },
+    {
+     "usda": "171025",
+     "name": "Oil, sunflower, linoleic, (approx. 65%)",
+     "grams": 50
+    },
+    {
+     "usda": "173468",
+     "name": "Salt, table",
+     "grams": 8
+    }
+   ],
+   "finishedWeightG": 1400
+  }
+ ]
+}

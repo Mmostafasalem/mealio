@@ -6,12 +6,15 @@ import Observation
 final class HomeViewModel {
 
     var deals: [MarketDeal] = []
-    var mealPlan: MealPlan?
+    /// Today's meals from the saved weekly plan. Rebuilt on load, when the
+    /// plan changes, when the app comes back and when the day changes.
+    private(set) var mealPlan: MealPlan?
     var isLoading = false
     var isRefreshing = false  // true while background fetch is running over stale data
     var errorMessage: String?
-    var profile: UserProfile = .load()
-    var groceryList: [GroceryItem] = GroceryStorage.load()
+    /// Starts from the in-memory copy; `activate()` reads storage once.
+    var profile: UserProfile = AppState.shared.userProfile
+    var groceryList: [GroceryItem] = []
     var activeDealBanner: MarketDeal?
     var showLogSheet = false
     var logSheetSlot: MealSlot?          // pre-selects a slot when opening the log sheet
@@ -31,24 +34,35 @@ final class HomeViewModel {
         }
     }
 
-    private let log = FoodLogStore.shared
+    private let log: FoodLogStore
+    static let maxChatHistory = 20
 
-    private var favoriteFoodIDs: Set<String> = {
-        Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
-    }()
+    private var favoriteFoodIDs: Set<String> = []
+
+    /// Home's clock. Today's log, due reminders, the header date and today's
+    /// plan read it, so they move on with it: each minute while Home is on
+    /// screen, when the app comes back and at midnight (see `tick`).
+    private(set) var now = Date()
+    @ObservationIgnored private var mealPlanDay: Date?
+    @ObservationIgnored private var isActivated = false
+    /// Removed in deinit so throwaway instances leave nothing registered.
+    @ObservationIgnored nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
 
     var goal: Int { max(profile.dailyCalorieGoal, 1) }
 
     // MARK: - Logged totals (single source of truth = FoodLogStore)
 
-    var consumed: Int { log.totalCalories }
-    var remaining: Int { max(goal - log.totalCalories, 0) }
-    var proteinCurrent: Double { log.totalProtein }
-    var carbsCurrent: Double { log.totalCarbs }
-    var fatCurrent: Double { log.totalFat }
+    private var todayEntries: [FoodLogEntry] { log.entries(on: now) }
+    var consumed: Int { todayEntries.reduce(0) { $0 + $1.calories } }
+    var remaining: Int { max(goal - consumed, 0) }
+    var proteinCurrent: Double { todayEntries.reduce(0) { $0 + $1.proteinG } }
+    var carbsCurrent: Double { todayEntries.reduce(0) { $0 + $1.carbsG } }
+    var fatCurrent: Double { todayEntries.reduce(0) { $0 + $1.fatG } }
+    /// Meals with at least one entry today; their reminders are done.
+    var loggedSlots: Set<MealSlot> { Set(todayEntries.map(\.slot)) }
 
-    func entries(for slot: MealSlot) -> [FoodLogEntry] { log.entries(for: slot) }
-    func calories(for slot: MealSlot) -> Int { log.calories(for: slot) }
+    func entries(for slot: MealSlot) -> [FoodLogEntry] { todayEntries.filter { $0.slot == slot } }
+    func calories(for slot: MealSlot) -> Int { entries(for: slot).reduce(0) { $0 + $1.calories } }
 
     /// Today's generated plan meals for a slot — for one-tap logging.
     func plannedEntries(for slot: MealSlot) -> [MealEntry] {
@@ -78,41 +92,99 @@ final class HomeViewModel {
         fatGoal     = Double(t.fatG)
     }
 
-    /// Deals filtered to stores within 8 km. Falls back to all deals when location is unavailable.
+    /// Catalogue estimates shown on Home. (Named for the location filter it used to apply.)
+    /// The estimates card: the person's favourite foods, each with the catalogue's
+    /// estimated price (or the price they corrected in Shop). The pack size comes from
+    /// the curated list when it has the same food; otherwise none is shown.
     var nearbyDeals: [MarketDeal] {
-        guard let _ = LocationService.shared.userLocation else { return deals }
-        return deals.filter { LocationService.shared.isNearby($0.store, radius: 8_000) }
+        let sizes = Dictionary(deals.map { ($0.productName.lowercased(), $0.quantity) }, uniquingKeysWith: { first, _ in first })
+        let catalogue = Store(id: ShopStore.catalog.id, chain: "", name: ShopStore.catalog.name, address: "", latitude: 0, longitude: 0)
+        return CatalogItem.all.filter { favoriteFoodIDs.contains($0.id) }.map { item in
+            let price = ShoppingCartService.shared.effectivePrice(for: item, store: .catalog)
+            return MarketDeal(id: "fav_\(item.id)", store: catalogue, productId: item.id, productName: item.name,
+                              originalPrice: price, discountPrice: price, discountPercent: 0, validUntil: .distantFuture,
+                              dealType: .weeklySpecial, quantity: sizes[item.name.lowercased()] ?? "")
+        }
     }
 
-    init() {
-        if let weekly = AppState.shared.weeklyMealPlan { mealPlan = MealPlan.from(weekly: weekly) }
-        refreshMacroTargets()
-        NotificationCenter.default.addObserver(
-            forName: .groceryListDidChange, object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.groceryList = GroceryStorage.load() }
-        }
+    /// Cheap on purpose: SwiftUI may build and throw away several of these.
+    /// Storage reads and observers wait for `activate()`.
+    /// `log` defaults to the shared food log (tests pass their own).
+    init(log: FoodLogStore? = nil) {
+        self.log = log ?? .shared
+        rebuildMealPlan()
+    }
 
-        NotificationCenter.default.addObserver(
-            forName: .mealPlanDidUpdate, object: nil, queue: .main
-        ) { [weak self] _ in
+    deinit {
+        for token in observers { NotificationCenter.default.removeObserver(token) }
+    }
+
+    /// Call when the view using this model appears. The first call reads
+    /// storage and starts observing; every call brings the clock up to date.
+    func activate() {
+        if !isActivated {
+            isActivated = true
+            reloadLocalData()
+            startObserving()
+        }
+        tick()
+    }
+
+    /// Moves Home's clock on. `now` is only republished when the minute
+    /// changes, and today's plan is rebuilt only when the day does.
+    func tick(_ date: Date = Date()) {
+        if Int(date.timeIntervalSince1970 / 60) != Int(now.timeIntervalSince1970 / 60) { now = date }
+        if let day = mealPlanDay, Calendar.current.isDate(day, inSameDayAs: date) { return }
+        rebuildMealPlan(now: date)
+    }
+
+    /// Today's meals from the saved weekly plan (none when there's no plan).
+    func rebuildMealPlan(now date: Date = Date()) {
+        mealPlan = AppState.shared.weeklyMealPlan.flatMap { MealPlan.from(weekly: $0, date: date) }
+        mealPlanDay = date
+    }
+
+    private func reloadLocalData() {
+        profile = .load()
+        groceryList = GroceryStorage.load()
+        favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+        refreshMacroTargets()
+    }
+
+    private func observe(_ name: Notification.Name, _ handler: @escaping @MainActor (HomeViewModel) -> Void) {
+        let token = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in
-                if let weekly = AppState.shared.weeklyMealPlan {
-                    self?.mealPlan = MealPlan.from(weekly: weekly)
-                }
+                guard let self else { return }
+                handler(self)
             }
         }
+        observers.append(token)
+    }
+
+    private func startObserving() {
+        observe(.groceryListDidChange) { $0.groceryList = GroceryStorage.load() }
+        // Profile edits and sync apply change goals/macros in place.
+        observe(.personalDataDidChange) { vm in
+            vm.profile = .load()
+            vm.favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+            vm.refreshMacroTargets()
+        }
+        observe(.mealPlanDidUpdate) { $0.rebuildMealPlan() }
+        // Midnight, a clock or time-zone change, and coming back to the app.
+        observe(.NSCalendarDayChanged) { $0.tick() }
+        observe(UIApplication.significantTimeChangeNotification) { $0.tick() }
+        observe(UIApplication.didBecomeActiveNotification) { $0.tick() }
     }
 
     // MARK: - Loading
 
     func load() async {
         guard !isLoading && !isRefreshing else { return }
+        let firstActivation = !isActivated
+        activate()
         log.reload()                       // daily reset handled by the store
-        if profile.name.isEmpty { profile = .load() }
-        groceryList = GroceryStorage.load()
-        favoriteFoodIDs = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
-        refreshMacroTargets()
+        if !firstActivation { reloadLocalData() }
+        rebuildMealPlan()
         errorMessage = nil
 
         // Stale-while-revalidate: show cached data instantly, fetch fresh in background
@@ -121,19 +193,10 @@ final class HomeViewModel {
                 deals = cached
             }
         }
-        if mealPlan == nil, let weekly = AppState.shared.weeklyMealPlan {
-            mealPlan = MealPlan.from(weekly: weekly)
-        }
-
         isLoading = deals.isEmpty
         isRefreshing = !deals.isEmpty
 
-        async let dealsResult = loadDeals()
-        async let planResult = loadPlan()
-        let (loadedDeals, loadedPlan) = await (dealsResult, planResult)
-
-        deals = loadedDeals
-        if mealPlan == nil { mealPlan = loadedPlan }
+        deals = await loadDeals()
         isLoading = false
         isRefreshing = false
 
@@ -163,15 +226,6 @@ final class HomeViewModel {
         }
     }
 
-    /// Returns the meal plan from AppState if one has been generated; the
-    /// agent loop is responsible for requesting a new plan asynchronously.
-    private func loadPlan() async -> MealPlan? {
-        if let weekly = AppState.shared.weeklyMealPlan {
-            return MealPlan.from(weekly: weekly)
-        }
-        return nil
-    }
-
     private func pickBanner() {
         activeDealBanner = nil
     }
@@ -179,7 +233,7 @@ final class HomeViewModel {
     // MARK: - Food logging (local, optimistic)
 
     func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double) {
-        guard food.isValid, amount.isFinite, amount >= 1, amount <= 5000 else { return }
+        guard food.isValid, amount.isFinite, amount >= food.minimumAmount, amount <= food.maximumAmount else { return }
         NutritionCatalogService.shared.remember(food)
         log.add(FoodLogEntry(nutritionFood: food, slot: slot, amount: amount))
         mascotCelebration = UUID()
@@ -206,7 +260,7 @@ final class HomeViewModel {
                 id: UUID().uuidString,
                 foodId: deal.productId,
                 foodName: deal.productName,
-                quantity: deal.quantity,
+                quantity: deal.quantity.isEmpty ? "1" : deal.quantity,
                 estimatedPrice: deal.discountPrice,
                 storeId: deal.store.id,
                 storeName: deal.store.name,
@@ -225,7 +279,7 @@ final class HomeViewModel {
     // MARK: - Agent Chat Interaction
 
     func sendChatMessage() async {
-        let text = chatInput.trimmingCharacters(in: .whitespaces)
+        let text = chatInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isChatLoading else { return }
 
         chatInput = ""
@@ -237,19 +291,15 @@ final class HomeViewModel {
         defer { isChatLoading = false }
 
         let appState = AppState.shared
-        let goalStr = appState.userProfile.weightGoal.rawValue
-        let target = appState.bmrData?.maintainCalories ?? 2000
         let favNames = ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
 
-        let history = chatMessages.dropLast().map {
+        // Only the most recent turns are needed for context; cap what is sent.
+        let history = chatMessages.dropLast().suffix(Self.maxChatHistory).map {
             AgentChatHistoryItem(role: $0.role, content: $0.content)
         }
-        let context = AgentUserContext(
-            goal: goalStr,
-            targetCalories: target,
-            caloriesConsumed: consumed,
-            favoriteFoods: favNames
-        )
+        log.reload()
+        let context = AgentUserContext.make(profile: .load(), entries: log.entries, stock: StockStore.shared.items,
+                                             preferences: .load(), favoriteFoods: favNames, lang: appState.lang)
         let request = AgentChatRequest(message: text, history: Array(history), userContext: context)
 
         do {

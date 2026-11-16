@@ -30,7 +30,7 @@ struct MacroProgressBarView: View {
 
             ProgressView(value: clampedValue, total: max(goal, 1))
                 .tint(color)
-                .animation(reduceMotion ? .none : .easeOut(duration: 0.8), value: current)
+                .animation(reduceMotion ? .none : .snappyValue, value: current)
 
             Text("\(Int(current))g / \(Int(goal))g")
                 .font(.caption2).fontWeight(.medium)

@@ -1,13 +1,16 @@
-# Host-agnostic image for the Mealio backend (works on Render, Fly, Cloud Run, any VPS).
+# Host-agnostic image for the Nourlo backend (works on Render, Fly, Cloud Run, any VPS).
 FROM python:3.11-slim
 
+# MEALIO_ENV=production makes server.py fail closed on incomplete config
+# (e.g. missing APP_API_KEY) instead of silently running without auth.
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    MEALIO_ENV=production
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.lock .
+RUN pip install --no-cache-dir -r requirements.lock
 
 COPY . .
 

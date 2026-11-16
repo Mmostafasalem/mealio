@@ -12,12 +12,32 @@
 		B2000000000000000000000B = {isa = PBXContainerItemProxy; containerPortal = ADF814842FCA0F6400433335; proxyType = 1; remoteGlobalIDString = ADF8148B2FCA0F6400433335; remoteInfo = smartmarket; };
         B2000000000000000000000A = {isa = PBXTargetDependency; target = ADF8148B2FCA0F6400433335; targetProxy = B2000000000000000000000B; };
 
+		C1000000000000000000000B = {isa = PBXContainerItemProxy; containerPortal = ADF814842FCA0F6400433335; proxyType = 1; remoteGlobalIDString = C10000000000000000000001; remoteInfo = NourloWidgets; };
+        C1000000000000000000000A = {isa = PBXTargetDependency; target = C10000000000000000000001; targetProxy = C1000000000000000000000B; };
+
 /* Begin PBXBuildFile section */
+		C1000000000000000000000E /* NourloWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C10000000000000000000005; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD5609042FCB268F00DBF210 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADMAP0012FCA0F6400433336 /* CoreLocation.framework */; };
 		AD5609072FCB269100DBF210 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADMAP0002FCA0F6400433335 /* MapKit.framework */; };
+		D10000000000000000000003 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000002 /* FluidAudio */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		C1000000000000000000000D /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C1000000000000000000000E /* NourloWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		C10000000000000000000005 /* NourloWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NourloWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		AD5EC0012FCA0F6400433340 /* Build.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = smartmarket/Build.xcconfig; sourceTree = SOURCE_ROOT; };
 		ADF8148C2FCA0F6400433335 /* smartmarket.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = smartmarket.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADMAP0002FCA0F6400433335 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
@@ -59,6 +79,22 @@
 				"smartmarket-backend/requirements.lock",
 				"smartmarket-backend/server.py",
 				"smartmarket-backend/test_app.py",
+				"smartmarket-backend/test_data/provider_week_lithuanian.json",
+			);
+			target = ADF8148B2FCA0F6400433335 /* smartmarket */;
+		};
+		C1000000000000000000000F /* Exceptions for "NourloWidgets" folder in "NourloWidgets" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				NourloWidgets.entitlements,
+			);
+			target = C10000000000000000000001 /* NourloWidgets */;
+		};
+		ADF8149E2FCA0F6600433336 /* Exceptions for "smartmarket" folder in "smartmarket" target (phone-test entitlements) */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				PhoneTest.entitlements,
 			);
 			target = ADF8148B2FCA0F6400433335 /* smartmarket */;
 		};
@@ -69,12 +105,15 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				ADF8149E2FCA0F6600433335 /* Exceptions for "smartmarket" folder in "smartmarket" target */,
+				ADF8149E2FCA0F6600433336 /* Exceptions for "smartmarket" folder in "smartmarket" target (phone-test entitlements) */,
 			);
 			path = smartmarket;
 			sourceTree = "<group>";
 		};
 		B10000000000000000000006 = {isa = PBXFileSystemSynchronizedRootGroup; path = smartmarketTests; sourceTree = "<group>"; };
 		B20000000000000000000006 = {isa = PBXFileSystemSynchronizedRootGroup; path = UITests; sourceTree = "<group>"; };
+		C10000000000000000000006 /* NourloWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C1000000000000000000000F /* Exceptions for "NourloWidgets" folder in "NourloWidgets" target */, ); path = NourloWidgets; sourceTree = "<group>"; };
+		C10000000000000000000010 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,11 +123,13 @@
 			files = (
 				AD5609072FCB269100DBF210 /* MapKit.framework in Frameworks */,
 				AD5609042FCB268F00DBF210 /* CoreLocation.framework in Frameworks */,
+				D10000000000000000000003 /* FluidAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B10000000000000000000003 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		B20000000000000000000003 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000003 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -106,6 +147,8 @@
                 B10000000000000000000006,
                 B20000000000000000000006,
 				ADF8148E2FCA0F6400433335 /* smartmarket */,
+				C10000000000000000000010 /* Shared */,
+				C10000000000000000000006 /* NourloWidgets */,
 				ADMAP0032FCA0F6400433335 /* Frameworks */,
 				ADF8148D2FCA0F6400433335 /* Products */,
 				30A52A0B300B746100ADB000 /* Recovered References */,
@@ -118,6 +161,7 @@
                 B10000000000000000000005,
                 B20000000000000000000005,
 				ADF8148C2FCA0F6400433335 /* smartmarket.app */,
+				C10000000000000000000005 /* NourloWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -141,16 +185,20 @@
 				ADF814882FCA0F6400433335 /* Sources */,
 				ADF814892FCA0F6400433335 /* Frameworks */,
 				ADF8148A2FCA0F6400433335 /* Resources */,
+				C1000000000000000000000D /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C1000000000000000000000A,
 			);
 			fileSystemSynchronizedGroups = (
 				ADF8148E2FCA0F6400433335 /* smartmarket */,
+				C10000000000000000000010 /* Shared */,
 			);
 			name = smartmarket;
 			packageProductDependencies = (
+				D10000000000000000000002 /* FluidAudio */,
 			);
 			productName = smartmarket;
 			productReference = ADF8148C2FCA0F6400433335 /* smartmarket.app */;
@@ -178,6 +226,17 @@
             productReference = B20000000000000000000005;
             productType = "com.apple.product-type.bundle.ui-testing";
         };
+		C10000000000000000000001 /* NourloWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C10000000000000000000007;
+			buildPhases = (C10000000000000000000002, C10000000000000000000003, C10000000000000000000004);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (C10000000000000000000006 /* NourloWidgets */, C10000000000000000000010 /* Shared */);
+			name = NourloWidgets; productName = NourloWidgets;
+			productReference = C10000000000000000000005;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -201,6 +260,9 @@
 				Base,
 			);
 			mainGroup = ADF814832FCA0F6400433335;
+			packageReferences = (
+				D10000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/FluidAudio" */,
+			);
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ADF8148D2FCA0F6400433335 /* Products */;
@@ -210,6 +272,7 @@
                 B20000000000000000000001,
                 B10000000000000000000001,
 				ADF8148B2FCA0F6400433335 /* smartmarket */,
+				C10000000000000000000001 /* NourloWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -224,6 +287,7 @@
 		};
 		B10000000000000000000004 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		B20000000000000000000004 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000004 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -236,6 +300,7 @@
 		};
 		B10000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		B20000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C10000000000000000000002 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
@@ -248,15 +313,20 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CODE_SIGN_ENTITLEMENTS = smartmarket/Mealio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "$(MEALIO_APP_ENTITLEMENTS)";
 				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nourlo uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -265,7 +335,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mostafa.mealio;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -287,15 +357,20 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CODE_SIGN_ENTITLEMENTS = smartmarket/Mealio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "$(MEALIO_APP_ENTITLEMENTS)";
 				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nourlo uses your location to show grocery prices at stores near you.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -304,7 +379,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.mostafa.mealio;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -371,12 +446,12 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				/* No App Intents declarations. Remove this opt-out when adding them. */
-				LM_SKIP_METADATA_EXTRACTION = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				MEALIO_BUNDLE_ID = com.mostafa.mealio;
+				MEALIO_APP_ENTITLEMENTS = smartmarket/Mealio.entitlements;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -430,11 +505,11 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				/* No App Intents declarations. Remove this opt-out when adding them. */
-				LM_SKIP_METADATA_EXTRACTION = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				MEALIO_BUNDLE_ID = com.mostafa.mealio;
+				MEALIO_APP_ENTITLEMENTS = smartmarket/Mealio.entitlements;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -492,6 +567,24 @@
             };
             name = Release;
         };
+		C10000000000000000000008 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+                CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = P36US5XNJ5; CODE_SIGN_ENTITLEMENTS = NourloWidgets/NourloWidgets.entitlements;
+                GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = NourloWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+                IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID).widgets"; PRODUCT_NAME = "$(TARGET_NAME)";
+                SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES;
+                SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0;
+                LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+            }; name = Debug; };
+		C10000000000000000000009 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+                CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = P36US5XNJ5; CODE_SIGN_ENTITLEMENTS = NourloWidgets/NourloWidgets.entitlements;
+                GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = NourloWidgets/Info.plist; INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+                IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID).widgets"; PRODUCT_NAME = "$(TARGET_NAME)";
+                SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES;
+                SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0;
+                LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+            }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -515,7 +608,22 @@
 		};
 		B10000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (B10000000000000000000008, B10000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		B20000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (B20000000000000000000008, B20000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C10000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (C10000000000000000000008, C10000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D10000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/FluidAudio" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/FluidAudio;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D10000000000000000000002 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FluidAudio;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = ADF814842FCA0F6400433335 /* Project object */;
 }

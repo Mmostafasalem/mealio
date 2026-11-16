@@ -1,0 +1,305 @@
+import Foundation
+
+// MARK: - A command made concrete
+//
+// The rule book says what was meant ("log two eggs"); this turns it into the
+// exact thing the app will do (which food from the catalogue, how many grams)
+// so it can be shown for confirmation, carried out and undone.
+
+/// One spoken food matched to a food in Nourlo's on-device nutrition data.
+struct VoiceFoodMatch: Identifiable, Equatable {
+    let id = UUID()
+    let phrase: VoiceFoodPhrase
+    var food: NutritionFood
+    var amount: Double
+    /// Other foods the name could mean, best first (the chosen one included).
+    var alternatives: [NutritionFood]
+    /// The amount was worked out from a typical size ("2 eggs" → 100 g), not said in grams.
+    var estimated: Bool
+
+    var kcal: Int { Int(food.portion(amount).kcal.rounded()) }
+
+    static func == (a: VoiceFoodMatch, b: VoiceFoodMatch) -> Bool {
+        a.id == b.id && a.food.id == b.food.id && a.amount == b.amount
+    }
+}
+
+enum VoicePlan: Equatable {
+    case food(matches: [VoiceFoodMatch], missing: [String], slot: MealSlot)
+    case cart(items: [CatalogItem], missing: [String])
+    case checklist([String])
+    case workout(kind: ExerciseKind?, minutes: Int?)
+    case open(VoiceScreen)
+    case exercise(Exercise)
+    case answer(String)
+    case notUnderstood(String)
+
+    /// Changes saved data, so it is shown for confirmation before it runs.
+    var needsConfirmation: Bool {
+        switch self {
+        case .food, .cart, .checklist: return true
+        case .workout, .open, .exercise, .answer, .notUnderstood: return false
+        }
+    }
+
+    /// Nothing was left unmatched, so it can be saved without the person choosing anything.
+    var isComplete: Bool {
+        switch self {
+        case .food(let matches, let missing, _): return !matches.isEmpty && missing.isEmpty
+        case .cart(let items, let missing): return !items.isEmpty && missing.isEmpty
+        case .checklist(let names): return !names.isEmpty
+        default: return true
+        }
+    }
+
+    static func == (a: VoicePlan, b: VoicePlan) -> Bool {
+        switch (a, b) {
+        case let (.food(m1, x1, s1), .food(m2, x2, s2)): return m1 == m2 && x1 == x2 && s1 == s2
+        case let (.cart(i1, x1), .cart(i2, x2)): return i1 == i2 && x1 == x2
+        case let (.checklist(n1), .checklist(n2)): return n1 == n2
+        case let (.workout(k1, m1), .workout(k2, m2)): return k1 == k2 && m1 == m2
+        case let (.open(s1), .open(s2)): return s1 == s2
+        case let (.exercise(e1), .exercise(e2)): return e1.id == e2.id
+        case let (.answer(t1), .answer(t2)): return t1 == t2
+        case let (.notUnderstood(t1), .notUnderstood(t2)): return t1 == t2
+        default: return false
+        }
+    }
+}
+
+/// Where a finished command sends the app (handled by `MainTabView`).
+enum VoiceNavigation: Equatable {
+    case screen(VoiceScreen)
+    case workout(kind: ExerciseKind?, minutes: Int?)
+    case exercise(String)
+}
+
+/// What happened, in words, with a way back when data was changed.
+struct VoiceOutcome {
+    let message: String
+    var undo: (() -> Void)?
+    var navigation: VoiceNavigation?
+}
+
+// MARK: - Runner
+
+@MainActor
+enum VoiceCommandRunner {
+
+    /// Searches Nourlo's on-device foods (offline list, logged products, own dishes).
+    typealias FoodSearch = (String) -> [NutritionFood]
+
+    static func plan(for command: VoiceCommand, language: VoiceLanguage = .english, now: Date = Date(), search: FoodSearch? = nil) -> VoicePlan {
+        // The catalogue search, re-ordered so the plain, common form of a food comes first.
+        let search = search ?? { VoiceFoodRanker.foods(for: $0) }
+        switch command {
+        case .logFood(let phrases, let slot):
+            return foodPlan(phrases, slot: slot ?? MealSlot.suggested(at: now), search: search)
+        case .addToCart(let names):
+            var items: [CatalogItem] = []
+            var missing: [String] = []
+            for name in names {
+                if let item = IntentSearch.filter(CatalogItem.all, query: name, name: \.name, limit: 1).first {
+                    if !items.contains(item) { items.append(item) }
+                } else {
+                    missing.append(name)
+                }
+            }
+            return .cart(items: items, missing: missing)
+        case .addToChecklist(let names):
+            return .checklist(names.map(displayName))
+        case .startWorkout(let kind, let minutes):
+            return .workout(kind: kind, minutes: minutes.map { min(max($0, 5), 120) })
+        case .open(let screen):
+            return .open(screen)
+        case .showExercise(let name):
+            if let exercise = ExerciseEntityQuery.search(name, limit: 1).first { return .exercise(exercise) }
+            return .notUnderstood("I couldn't find an exercise called \"\(name)\".")
+        case .caloriesLeft:
+            return .answer(CaloriesLeftSummary.current(now: now).dialog())
+        case .unknown(let text):
+            // A bare food name ("banana") is still worth a try before giving up.
+            let phrases = VoiceRuleBook.foodPhrases(text, language.lexicon).filter { !$0.name.isEmpty }
+            if !phrases.isEmpty, phrases.count <= 4,
+               case .food(let matches, let missing, let slot) = foodPlan(phrases, slot: MealSlot.suggested(at: now), search: search),
+               !matches.isEmpty, missing.isEmpty {
+                return .food(matches: matches, missing: [], slot: slot)
+            }
+            return .notUnderstood(text.isEmpty ? "I didn't catch that." : "I'm not sure what to do with \"\(text)\".")
+        }
+    }
+
+    private static func foodPlan(_ phrases: [VoiceFoodPhrase], slot: MealSlot, search: FoodSearch) -> VoicePlan {
+        var matches: [VoiceFoodMatch] = []
+        var missing: [String] = []
+        for phrase in phrases {
+            let found = search(phrase.name).filter(\.isValid)
+            guard let food = found.first else {
+                missing.append(phrase.name)
+                continue
+            }
+            let (amount, estimated) = VoiceAmounts.amount(for: phrase, food: food)
+            matches.append(VoiceFoodMatch(phrase: phrase, food: food, amount: amount, alternatives: found, estimated: estimated))
+        }
+        return .food(matches: matches, missing: missing, slot: slot)
+    }
+
+    /// "olive oil" → "Olive oil".
+    static func displayName(_ name: String) -> String {
+        name.prefix(1).uppercased() + name.dropFirst()
+    }
+
+    // MARK: Carrying it out
+
+    static func perform(_ plan: VoicePlan, now: Date = Date()) -> VoiceOutcome {
+        switch plan {
+        case .food(let matches, _, let slot):
+            var added: [FoodLogEntry] = []
+            for match in matches {
+                guard let entry = try? LogFoodIntent.makeEntry(food: match.food, amount: match.amount, slot: slot, now: now) else { continue }
+                if match.food.source == .openFoodFacts { NutritionCatalogService.shared.remember(match.food) }
+                FoodLogStore.shared.add(entry)
+                added.append(entry)
+            }
+            guard !added.isEmpty else { return VoiceOutcome(message: "Nothing was logged.") }
+            NourloTips.foodLogged()
+            let kcal = added.reduce(0) { $0 + $1.calories }
+            let what = added.count == 1 ? added[0].name : "\(added.count) foods"
+            return VoiceOutcome(message: "Logged \(what) to \(slot.title.lowercased()), \(kcal) kcal.",
+                                undo: { added.forEach(FoodLogStore.shared.remove) })
+
+        case .cart(let items, _):
+            guard !items.isEmpty else { return VoiceOutcome(message: "Nothing was added.") }
+            let cart = ShoppingCartService.shared
+            items.forEach { cart.add($0, store: .catalog) }
+            let what = items.count == 1 ? items[0].name : "\(items.count) items"
+            return VoiceOutcome(message: "Added \(what) to your cart.",
+                                undo: { items.forEach { cart.remove($0.id, store: ShopStore.catalog.name) } })
+
+        case .checklist(let names):
+            var list = GroceryStorage.load()
+            var addedIDs: [String] = []
+            for name in names where !list.contains(where: { $0.foodName.caseInsensitiveCompare(name) == .orderedSame && !$0.isBought }) {
+                let id = "voice_" + UUID().uuidString
+                list.append(GroceryItem(id: id, foodId: id, foodName: name, quantity: "1", estimatedPrice: 0,
+                                        storeId: "unassigned", storeName: "", isBought: false, priceKnown: false))
+                addedIDs.append(id)
+            }
+            guard !addedIDs.isEmpty else { return VoiceOutcome(message: "Already on your checklist.") }
+            GroceryStorage.save(list)
+            NotificationCenter.default.post(name: .groceryListDidChange, object: nil)
+            let what = addedIDs.count == 1 ? names.first ?? "1 item" : "\(addedIDs.count) items"
+            return VoiceOutcome(message: "Added \(what) to your checklist.", undo: {
+                GroceryStorage.save(GroceryStorage.load().filter { !addedIDs.contains($0.id) })
+                NotificationCenter.default.post(name: .groceryListDidChange, object: nil)
+            })
+
+        case .workout(let kind, let minutes):
+            let length = minutes.map { "\($0)-minute " } ?? ""
+            let name = kind.map { $0.title.lowercased() + " " } ?? ""
+            return VoiceOutcome(message: "Opening a \(length)\(name)workout.", navigation: .workout(kind: kind, minutes: minutes))
+
+        case .open(let screen):
+            return VoiceOutcome(message: "Opening \(screen.spokenName).", navigation: .screen(screen))
+
+        case .exercise(let exercise):
+            return VoiceOutcome(message: "Showing \(exercise.name).", navigation: .exercise(exercise.id))
+
+        case .answer(let text), .notUnderstood(let text):
+            return VoiceOutcome(message: text)
+        }
+    }
+}
+
+extension VoiceScreen {
+    var spokenName: String {
+        switch self {
+        case .home: return "Home"
+        case .meals: return "your meal plan"
+        case .shop: return "the shop"
+        case .train: return "Train"
+        case .cart: return "your cart"
+        case .checklist: return "your checklist"
+        case .profile: return "your profile"
+        case .logFood: return "the food logger"
+        case .chat: return "the chat"
+        case .scan: return "the barcode scanner"
+        }
+    }
+}
+
+// MARK: - Amounts
+
+/// Turns a spoken amount into the food's own measure (grams, millilitres or servings).
+enum VoiceAmounts {
+
+    /// Typical weight of one piece, in grams, by a word in the food's name.
+    /// Used for counts ("2 eggs", "a banana"); matched on singular words.
+    static let pieceGrams: [(word: String, grams: Double)] = [
+        ("egg", 50), ("banana", 120), ("apple", 180), ("orange", 130), ("pear", 170), ("peach", 150), ("kiwi", 70),
+        ("mandarin", 75), ("clementine", 75), ("plum", 65), ("apricot", 35), ("fig", 50), ("date", 8), ("strawberry", 12),
+        ("grape", 5), ("cherry", 8), ("avocado", 150), ("tomato", 120), ("potato", 170), ("carrot", 60), ("cucumber", 200),
+        ("onion", 110), ("pepper", 150), ("clove", 3), ("mushroom", 18), ("olive", 4), ("almond", 1.2), ("walnut", 5),
+        ("cashew", 1.5), ("toast", 30), ("bread", 30), ("bagel", 95), ("croissant", 60), ("muffin", 110), ("donut", 60),
+        ("doughnut", 60), ("pancake", 40), ("waffle", 75), ("tortilla", 45), ("wrap", 60), ("pita", 60), ("cookie", 15),
+        ("biscuit", 12), ("cracker", 5), ("sausage", 75), ("nugget", 18), ("meatball", 30), ("patty", 110), ("burger", 110),
+        ("breast", 170), ("thigh", 110), ("drumstick", 75), ("wing", 35), ("fillet", 150), ("steak", 200), ("chop", 150),
+        ("dumpling", 20), ("sushi", 30), ("falafel", 17), ("pizza", 110), ("sandwich", 150), ("bar", 45), ("shrimp", 12), ("prawn", 12),
+    ]
+
+    private static let sliceGrams: [(word: String, grams: Double)] = [
+        ("pizza", 110), ("cheese", 20), ("cake", 80), ("pie", 120), ("ham", 20), ("turkey", 20), ("salami", 8),
+        ("bacon", 12), ("melon", 150), ("watermelon", 280), ("pineapple", 85), ("tomato", 20), ("cucumber", 7), ("lemon", 8),
+    ]
+
+    /// The amount to log, in the food's basis, and whether it was estimated
+    /// from a typical size instead of said outright.
+    static func amount(for phrase: VoiceFoodPhrase, food: NutritionFood) -> (amount: Double, estimated: Bool) {
+        let result = rawAmount(for: phrase, food: food)
+        let clamped = min(max(result.amount, food.minimumAmount), food.maximumAmount)
+        return ((clamped * 100).rounded() / 100, result.estimated || clamped != result.amount)
+    }
+
+    private static func rawAmount(for phrase: VoiceFoodPhrase, food: NutritionFood) -> (amount: Double, estimated: Bool) {
+        let count = phrase.quantity ?? 1
+        // Foods measured in servings (own dishes, menu items) are counted, whatever was said.
+        if food.basis == .serving {
+            let exact = phrase.unit == nil || phrase.unit == .serving || phrase.unit == .piece
+            return (count, !exact)
+        }
+        guard let unit = phrase.unit else {
+            // No amount at all: the usual 100. A bare count: typical pieces.
+            guard phrase.quantity != nil else {
+                if let grams = typical(pieceGrams, in: phrase.name) { return (grams, true) }
+                return (food.defaultAmount, true)
+            }
+            if let grams = typical(pieceGrams, in: phrase.name) { return (count * grams, true) }
+            return (count * food.defaultAmount, true)
+        }
+        switch unit {
+        case .gram: return (count, food.basis != .grams)
+        case .kilogram: return (count * 1000, food.basis != .grams)
+        case .ounce: return (count * 28.35, food.basis != .grams)
+        case .pound: return (count * 453.6, food.basis != .grams)
+        // Volumes of a food measured by weight are taken 1 ml ≈ 1 g: an estimate.
+        case .millilitre: return (count, food.basis != .millilitres)
+        case .litre: return (count * 1000, food.basis != .millilitres)
+        case .cup: return (count * 240, true)
+        case .tablespoon: return (count * 15, true)
+        case .teaspoon: return (count * 5, true)
+        case .glass: return (count * 250, true)
+        case .bowl: return (count * 300, true)
+        case .can: return (count * 330, true)
+        case .bottle: return (count * 500, true)
+        case .handful: return (count * 30, true)
+        case .slice: return (count * (typical(sliceGrams, in: phrase.name) ?? 30), true)
+        case .piece: return (count * (typical(pieceGrams, in: phrase.name) ?? food.defaultAmount), true)
+        case .serving: return (count * food.defaultAmount, true)
+        }
+    }
+
+    private static func typical(_ table: [(word: String, grams: Double)], in name: String) -> Double? {
+        let words = Set(IntentSearch.words(name))
+        return table.first { words.contains($0.word) }?.grams
+    }
+}

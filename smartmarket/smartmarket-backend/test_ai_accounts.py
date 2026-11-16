@@ -165,6 +165,7 @@ def http_app(service, monkeypatch):
         from flask import request
         mode = request.get_json()['mode']
         ai_usage.attempted.set(mode != 'cached')
+        ai_usage.responded.set(mode in ('online', 'unusable'))
         ai_usage.succeeded.set(mode == 'online')
         return jsonify({'reply': mode}), (400 if mode == 'invalid' else 200)
 
@@ -204,7 +205,7 @@ def test_http_failures_do_not_spend_personal_credits(http_app, service, mode):
 def test_disabled_account_service_fails_closed(http_app):
     http_app.config['AI_ACCOUNTS'] = None
     client = http_app.test_client()
-    assert client.get('/api/auth/config').get_json() == {'enabled': False}
+    assert client.get('/api/auth/config').get_json() == {'enabled': False, 'guestEnabled': False, 'appleEnabled': False}
     response = client.post('/api/agent-chat', json={'mode': 'online'})
     assert response.status_code == 503 and response.headers['X-AI-Error'] == 'ai_unavailable'
 
@@ -268,8 +269,9 @@ def test_delete_and_recreate_keeps_same_day_spending(service):
     ('/api/recipe','handle_recipe',{'mealName':'Unique invalid JSON recipe'}),
     ('/api/gap-fillers','handle_gap_fillers',{}),
     ('/api/shopping-advice','handle_shopping_advice',{}),
+    ('/api/workout','handle_workout',{'kind':'gym','minutes':30}),
 ])
-def test_unusable_json_refunds_actual_endpoint(http_app, service, monkeypatch, path, handler, body):
+def test_unusable_json_keeps_only_minimal_charge_on_actual_endpoint(http_app, service, monkeypatch, path, handler, body):
     monkeypatch.setenv("GROQ_API_KEY", "test-not-a-real-key")
     import app as business
     from flask import jsonify, request
@@ -281,7 +283,10 @@ def test_unusable_json_refunds_actual_endpoint(http_app, service, monkeypatch, p
     response = http_app.test_client().post(path, json=body, headers={'Authorization':'Bearer '+signed['token']})
     assert response.status_code == 200
     assert response.headers['X-AI-Result'] == 'fallback'
-    assert service.usage(user)['remaining'] == 10
+    assert response.headers['X-AI-Fallback'] == 'unusable-output'
+    # The provider answered with unusable output: one non-refundable credit,
+    # even for the 5-credit meal plan.
+    assert service.usage(user)['remaining'] == 9
 
 
 @pytest.mark.parametrize('path,handler,body,cost', [
@@ -289,6 +294,7 @@ def test_unusable_json_refunds_actual_endpoint(http_app, service, monkeypatch, p
     ('/api/recipe','handle_recipe',{'mealName':'Valid unique online recipe'},1),
     ('/api/gap-fillers','handle_gap_fillers',{},1),
     ('/api/shopping-advice','handle_shopping_advice',{},1),
+    ('/api/workout','handle_workout',{'kind':'gym','minutes':30},1),
 ])
 def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, path, handler, body, cost):
     import json
@@ -298,6 +304,7 @@ def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, pat
     samples = {
         'handle_meal_plan': business._fallback_meal_plan(2000),
         'handle_recipe': {'prepTime':10,'cookTime':20,'servings':2,'ingredients':[{'name':'rice','amount':'100g'}],'steps':['Cook rice.'],'tip':'Serve warm.'},
+        'handle_workout': {'title':'Gym session','summary':'s','warmup':'w','cooldown':'c','exercises':[{'name':'Squat','sets':3,'reps':'8','minutes':0,'restSeconds':60,'note':''}]},
         'handle_gap_fillers': [{'name':'Rice','calories':100,'protein':2,'carbs':20,'fat':1,'reason':'Energy'}],
         'handle_shopping_advice':[{'produktas':'Rice','priezastis':'Affordable'}],
     }
@@ -370,32 +377,45 @@ def test_idempotency_claim_survives_service_restart(service):
     assert restarted.usage(user)['remaining'] == 9
 
 
-def test_expired_response_replay_never_reruns_provider(http_app, service):
+def test_response_replay_outlives_the_old_three_minute_window(http_app, service):
+    calls=[]
+    original=http_app.view_functions['chat']
+    def counted():
+        calls.append(True)
+        return original()
+    http_app.view_functions['chat']=counted
     signed,user=login(service)
     headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'expire-replay-12345'}
     first=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
     assert first.status_code == 200
-    service.test_clock[0] += 181
+    service.test_clock[0] += 3600
     repeated=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
-    assert repeated.status_code == 409
-    assert repeated.get_json()['code'] == 'ai_request_repeated'
-    assert service.usage(user)['remaining'] == 9
+    assert repeated.status_code == 200 and repeated.get_json() == first.get_json()
+    assert repeated.headers['X-AI-Result'] == 'replayed-online'
+    assert len(calls) == 1 and service.usage(user)['remaining'] == 9
 
 
-def test_replay_cache_is_bounded_without_storing_content_on_disk(http_app, service):
+def test_stored_replays_are_bounded_and_encrypted(http_app, service):
+    from ai_accounts import REPLAY_MAX_PER_ACCOUNT
     signed,user=login(service)
     headers={'Authorization':'Bearer '+signed['token']}
     client=http_app.test_client()
-    for number in range(129):
+    for number in range(REPLAY_MAX_PER_ACCOUNT+1):
+        service.test_clock[0] += 1
         response=client.post('/api/agent-chat',json={'mode':'cached'},headers={
             **headers,'Idempotency-Key':f'bounded-replay-{number:05d}'})
         assert response.status_code == 200
     repeated=client.post('/api/agent-chat',json={'mode':'cached'},headers={
         **headers,'Idempotency-Key':'bounded-replay-00000'})
-    assert repeated.status_code == 409  # evicted response, durable no-rerun claim
+    assert repeated.status_code == 409  # oldest body dropped, durable no-rerun claim kept
+    newest=client.post('/api/agent-chat',json={'mode':'cached'},headers={
+        **headers,'Idempotency-Key':f'bounded-replay-{REPLAY_MAX_PER_ACCOUNT:05d}'})
+    assert newest.status_code == 200 and newest.get_json() == {'reply':'cached'}
     assert service.usage(user)['remaining'] == 10
     with service.transaction() as db:
-        assert {r['name'] for r in db.execute('PRAGMA table_info(ai_requests)')} == {'account','key','fingerprint','created'}
+        stored=[bytes(r['response']) for r in db.execute('SELECT response FROM ai_requests WHERE response IS NOT NULL')]
+    assert len(stored) == REPLAY_MAX_PER_ACCOUNT
+    assert all(b'cached' not in body for body in stored)  # never plaintext on disk
 
 
 def test_late_ai_completion_cannot_restore_deleted_response_or_overwrite_recreated_account(http_app, service):
@@ -503,7 +523,7 @@ def test_verified_recipe_replay_retains_source_and_does_not_charge(recipe_http, 
     assert len(case.calls) == 1 and service.usage(case.user)['remaining'] == 9
 
 
-@pytest.mark.parametrize('mode', ['fallback', 'cached', 'invalid'])
+@pytest.mark.parametrize('mode', ['cached'])
 def test_unverified_replay_never_gains_online_provenance(http_app, service, mode):
     signed, user = login(service)
     headers = {'Authorization':'Bearer '+signed['token'], 'Idempotency-Key':'unverified-replay-123'}
@@ -524,3 +544,292 @@ def test_unknown_recipe_cache_entry_does_not_gain_verified_provenance(recipe_htt
     assert response.headers['X-AI-Result'] == 'cached'
     assert response.get_json() == unknown
     assert not case.calls and service.usage(case.user)['remaining'] == 10
+
+
+def test_guest_recovery_and_quotas_do_not_require_apple(service):
+    service.guest_enabled=True
+    service.apple=None
+    secret='a'*43
+    first=service.guest_login(secret,'192.0.2.1')
+    user=service.authenticate('Bearer '+first['token'])
+    reservation=service.reserve(user,'/api/meal-plan')
+    service.finish(reservation,succeeded=True,attempted=True)
+    service.logout(user)
+    second=service.guest_login(secret,'192.0.2.2')
+    assert first['accountID']==second['accountID'] and first['token']!=second['token']
+    assert second['usage']['remaining']==5
+    service.test_clock[0]+=86401
+    user=service.authenticate('Bearer '+second['token'])
+    assert service.usage(user)['remaining']==10
+    with service.transaction() as db:
+        stored=str([tuple(row) for row in db.execute('SELECT * FROM accounts')])
+        assert secret not in stored
+    service.delete_account(user)
+    with pytest.raises(AccountError): service.authenticate('Bearer '+second['token'])
+
+
+def test_guest_setup_is_opt_in_and_network_bounded(service):
+    with pytest.raises(AccountError): service.guest_login('a'*43,'network')
+    service.guest_enabled=True
+    for bad in [None,'short','a'*129,'a'*42+' ',True]:
+        with pytest.raises(AccountError): service.guest_login(bad,'network')
+    for index in range(5): service.guest_login(str(index)*43,'network')
+    with pytest.raises(AccountError) as error: service.guest_login('x'*43,'network')
+    assert error.value.status==429
+    assert service.guest_login('0'*43,'network')['usage']['remaining']==10
+    service.test_clock[0]+=86401
+    assert service.guest_login('x'*43,'network')['usage']['remaining']==10
+
+
+def test_guest_delete_and_recreate_with_same_device_key_does_not_reset_today(service):
+    service.guest_enabled=True
+    signed=service.guest_login('a'*43,'network')
+    user=service.authenticate('Bearer '+signed['token'])
+    reservation=service.reserve(user,'/api/meal-plan')
+    service.finish(reservation,succeeded=True,attempted=True)
+    service.delete_account(user)
+    assert service.guest_login('a'*43,'network')['usage']['remaining']==5
+
+
+def test_public_guest_bootstrap_does_not_open_protected_routes(service,monkeypatch):
+    import server
+    service.guest_enabled=True
+    monkeypatch.setitem(server.app.config,'AI_ACCOUNTS',service)
+    monkeypatch.setattr(server,'APP_API_KEY','s'*64)
+    monkeypatch.setattr(server,'_is_rate_limited',lambda ip:False)
+    client=server.app.test_client()
+    assert client.get('/api/auth/config').get_json()['guestEnabled'] is True
+    assert client.get('/api/products').status_code==401
+    assert client.post('/api/agent-chat',json={}).status_code==401
+    signed=client.post('/api/auth/guest',json={'deviceSecret':'a'*43})
+    assert signed.status_code==200
+    credentials=signed.get_json()
+    headers={'Authorization':'Bearer '+credentials['token']}
+    assert client.get('/api/ai/usage',headers=headers).status_code==200
+    assert client.get('/api/ai/usage',headers={'Authorization':'Bearer '+'b'*64}).status_code==401
+    assert client.delete('/api/auth/account',headers=headers).status_code==204
+    assert client.get('/api/ai/usage',headers=headers).status_code==401
+
+
+def test_unusable_output_keeps_one_credit_and_shared_attempt(service):
+    _, user = login(service)
+    r = service.reserve(user, '/api/meal-plan')
+    assert service.finish(r, succeeded=False, attempted=True, responded=True)
+    assert service.usage(user)['remaining'] == 9
+    r = service.reserve(user, '/api/agent-chat')
+    assert service.finish(r, succeeded=False, attempted=True, responded=True)
+    assert service.usage(user)['remaining'] == 8
+    # Transport/provider error (no response): full personal refund.
+    r = service.reserve(user, '/api/meal-plan')
+    assert service.finish(r, succeeded=False, attempted=True, responded=False)
+    assert service.usage(user)['remaining'] == 8
+    with service.transaction() as db:
+        assert db.execute('SELECT used FROM global_quota').fetchone()['used'] == 3
+
+
+def test_http_unusable_output_cannot_drain_shared_ceiling_for_free(http_app, service):
+    signed, user = login(service)
+    client = http_app.test_client()
+    headers = {'Authorization': 'Bearer '+signed['token']}
+    statuses = [client.post('/api/agent-chat', headers=headers, json={'mode': 'unusable'}).status_code
+                for _ in range(12)]
+    assert statuses.count(200) == 10 and statuses[-1] == 429
+    assert service.usage(user)['remaining'] == 0
+    with service.transaction() as db:
+        assert db.execute('SELECT used FROM global_quota').fetchone()['used'] == 10
+
+
+@pytest.mark.parametrize('mode', ['fallback', 'unusable', 'invalid'])
+def test_failed_request_releases_idempotency_key_for_retry(http_app, service, mode):
+    calls = []
+    original = http_app.view_functions['chat']
+    def counted():
+        calls.append(True)
+        return original()
+    http_app.view_functions['chat'] = counted
+    signed, user = login(service)
+    headers = {'Authorization': 'Bearer '+signed['token'], 'Idempotency-Key': 'retry-after-failure-123'}
+    client = http_app.test_client()
+    failed = client.post('/api/agent-chat', json={'mode': mode}, headers=headers)
+    assert failed.headers['X-AI-Result'] == 'fallback'
+    # The client can tell the key was released, so a retry is a new, charged request.
+    assert failed.headers['X-AI-Request-Key'] == 'released'
+    retried = client.post('/api/agent-chat', json={'mode': mode}, headers=headers)
+    assert retried.headers['X-AI-Result'] == 'fallback' and len(calls) == 2
+    # The released key can then complete successfully, and is claimed again.
+    done = client.post('/api/agent-chat', json={'mode': mode}, headers=headers)
+    assert done.status_code == failed.status_code and len(calls) == 3
+    http_app.view_functions['chat'] = original
+    online_headers = {**headers, 'Idempotency-Key': 'retry-after-failure-456'}
+    first = client.post('/api/agent-chat', json={'mode': 'fallback'}, headers=online_headers)
+    second = client.post('/api/agent-chat', json={'mode': 'online'}, headers=online_headers)
+    assert first.headers['X-AI-Result'] == 'fallback'
+    assert second.status_code == 200 and second.headers['X-AI-Result'] == 'online'
+    assert 'X-AI-Request-Key' not in second.headers and 'X-AI-Fallback' not in second.headers
+    third = client.post('/api/agent-chat', json={'mode': 'online'}, headers=online_headers)
+    assert third.headers['X-AI-Result'] == 'replayed-online'
+
+
+@pytest.mark.parametrize('mode,reason,remaining', [('unusable', 'unusable-output', 9),
+                                                   ('fallback', 'provider-error', 10)])
+def test_fallback_says_whether_a_credit_was_kept(http_app, service, mode, reason, remaining):
+    signed, user = login(service)
+    client = http_app.test_client()
+    headers = {'Authorization': 'Bearer '+signed['token']}
+    response = client.post('/api/agent-chat', json={'mode': mode}, headers=headers)
+    assert response.status_code == 200
+    assert response.headers['X-AI-Result'] == 'fallback'
+    assert response.headers['X-AI-Fallback'] == reason
+    assert response.headers['X-AI-Remaining'] == str(remaining)
+    assert 'X-AI-Request-Key' not in response.headers, 'no key was sent'
+    keyed = client.post('/api/agent-chat', json={'mode': mode},
+                        headers={**headers, 'Idempotency-Key': f'fallback-reason-{mode}-1'})
+    assert keyed.headers['X-AI-Fallback'] == reason and keyed.headers['X-AI-Request-Key'] == 'released'
+
+
+def test_apple_notification_accepts_millisecond_event_time(http_app, service):
+    signed, user = login(service)
+    event_ms = int(service.clock()*1000)
+    payload = dict(iss='https://appleid.apple.com', aud='com.mostafa.mealio',
+                   iat=int(service.clock()), jti='test-event-ms',
+                   events={'type':'consent-revoked','sub':'person-one','event_time':event_ms})
+    notification = jwt.encode(payload, service.test_private, algorithm='RS256')
+    client = http_app.test_client()
+    assert client.post('/api/auth/apple/notifications', json={'payload': notification}).status_code == 204
+    with pytest.raises(AccountError): service.authenticate('Bearer '+signed['token'])
+    # A millisecond time in the future is still rejected after normalization.
+    payload['events'] = {'type':'consent-revoked','sub':'person-one','event_time':event_ms+120_000}
+    payload['jti'] = 'test-event-ms-future'
+    future = jwt.encode(payload, service.test_private, algorithm='RS256')
+    assert client.post('/api/auth/apple/notifications', json={'payload': future}).status_code == 400
+
+
+def test_cleanup_is_throttled_but_expiry_is_still_enforced(service, monkeypatch):
+    runs = []
+    original = service._cleanup
+    monkeypatch.setattr(service, '_cleanup', lambda db: (runs.append(1), original(db)))
+    signed, user = login(service)
+    for _ in range(5): service.usage(user)
+    assert len(runs) == 1
+    service.test_clock[0] += 61
+    service.usage(user)
+    assert len(runs) == 2
+    # A session past its expiry is rejected even before housekeeping runs again.
+    service.test_clock[0] += 30*86400
+    service._last_cleanup = service.test_clock[0]
+    with pytest.raises(AccountError): service.authenticate('Bearer '+signed['token'])
+
+
+# --- Idempotent retries after a restart or a killed worker ---------------------
+
+def _counted_chat(http_app):
+    calls=[]
+    original=http_app.view_functions['chat']
+    def counted():
+        calls.append(True)
+        return original()
+    http_app.view_functions['chat']=counted
+    return calls
+
+
+def test_retry_after_restart_returns_stored_response_without_charging(http_app, service, monkeypatch):
+    from flask import Flask
+    from ai_account_routes import register_ai_accounts
+    signed,user=login(service)
+    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'restart-replay-12345'}
+    calls=_counted_chat(http_app)
+    first=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
+    assert first.status_code == 200 and len(calls) == 1
+    # A new worker: fresh process memory and a reopened account store.
+    restarted=AccountService(service.path,service.apple,service.cipher,service.subject_secret,
+                             daily_limit=10,global_limit=1000,clock=service.clock)
+    monkeypatch.setattr(AccountService,'from_env',classmethod(lambda cls: restarted))
+    worker=Flask('restarted-worker')
+    register_ai_accounts(worker)
+    reran=[]
+    worker.add_url_rule('/api/agent-chat','chat',lambda: reran.append(True) or ('{}',200),methods=['POST'])
+    retry=worker.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
+    assert retry.status_code == 200 and retry.get_json() == first.get_json()
+    assert retry.headers['X-AI-Result'] == 'replayed-online'
+    assert reran == [] and len(calls) == 1
+    assert restarted.usage(user)['remaining'] == 9 and int(retry.headers['X-AI-Remaining']) == 9
+
+
+def test_killed_worker_claim_is_released_after_reservation_expires(http_app, service):
+    signed,user=login(service)
+    key='killed-worker-12345'
+    fingerprint=service.request_fingerprint('/api/agent-chat',b'{"mode": "online"}')
+    # The worker reserved and claimed, then died before finish().
+    service.reserve(user,'/api/agent-chat',request_key=key,fingerprint=fingerprint)
+    assert service.usage(user)['remaining'] == 9
+    with pytest.raises(AccountError) as busy:
+        service.reserve(user,'/api/agent-chat',request_key=key,fingerprint=fingerprint)
+    assert busy.value.code == 'ai_request_repeated' and busy.value.replay is None  # still in flight
+    service.test_clock[0] += 181
+    calls=_counted_chat(http_app)
+    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':key,'Content-Type':'application/json'}
+    retry=http_app.test_client().post('/api/agent-chat',data=b'{"mode": "online"}',headers=headers)
+    assert retry.status_code == 200 and retry.headers['X-AI-Result'] == 'online'
+    assert len(calls) == 1
+    assert service.usage(user)['remaining'] == 9  # dead attempt refunded, retry charged once
+    again=http_app.test_client().post('/api/agent-chat',data=b'{"mode": "online"}',headers=headers)
+    assert again.headers['X-AI-Result'] == 'replayed-online' and len(calls) == 1
+    assert service.usage(user)['remaining'] == 9
+
+
+def test_expired_claim_release_happens_even_after_cleanup_refund(service):
+    signed,user=login(service)
+    service.reserve(user,'/api/meal-plan',request_key='cleanup-expired-123',fingerprint='f')
+    service.test_clock[0] += 181
+    assert service.usage(user)['remaining'] == 10  # cleanup refunded the dead reservation
+    r=service.reserve(user,'/api/meal-plan',request_key='cleanup-expired-123',fingerprint='f')
+    assert service.usage(user)['remaining'] == 5
+    service.finish(r,succeeded=True,attempted=True)
+    with pytest.raises(AccountError) as done:
+        service.reserve(user,'/api/meal-plan',request_key='cleanup-expired-123',fingerprint='f')
+    assert done.value.code == 'ai_request_repeated'
+    assert service.usage(user)['remaining'] == 5
+
+
+def test_late_finish_of_expired_request_cannot_settle_the_retry(service):
+    _,user=login(service)
+    old=service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
+    service.test_clock[0] += 181
+    new=service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
+    assert service.finish(old,succeeded=True,attempted=True,replay=(b'old',200,'application/json','online')) is False
+    with pytest.raises(AccountError) as running:
+        service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
+    assert running.value.replay is None  # the retry is still in flight
+    assert service.finish(new,succeeded=True,attempted=True,replay=(b'new',200,'application/json','online'))
+    with pytest.raises(AccountError) as done:
+        service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
+    assert done.value.replay == (b'new',200,'application/json','online')
+    assert service.usage(user)['remaining'] == 9
+
+
+def test_old_claim_table_is_migrated(tmp_path):
+    import sqlite3
+    path=str(tmp_path/'old.sqlite')
+    with sqlite3.connect(path) as db:
+        db.execute('CREATE TABLE accounts(id TEXT PRIMARY KEY, refresh BLOB NOT NULL, verified REAL NOT NULL, created REAL NOT NULL, kind TEXT NOT NULL DEFAULT \'apple\')')
+        db.execute('CREATE TABLE ai_requests(account TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE, key TEXT NOT NULL, fingerprint TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(account,key))')
+    s=AccountService(path,None,Fernet(Fernet.generate_key()),b'test-subject-secret-at-least-32-bytes')
+    with s.transaction() as db:
+        columns={r['name'] for r in db.execute('PRAGMA table_info(ai_requests)')}
+    assert {'reservation','response','status','content_type','result'} <= columns
+
+
+def test_deeply_nested_json_on_ai_route_is_400_and_refunded(http_app, service):
+    import server
+    from flask import jsonify
+    http_app.register_error_handler(server.RequestError, server._request_error)
+    http_app.add_url_rule('/api/recipe','deep-recipe',lambda: jsonify(server.handle_recipe(server._body())),methods=['POST'])
+    signed,user=login(service)
+    headers={'Authorization':'Bearer '+signed['token'],'Content-Type':'application/json','Idempotency-Key':'deep-json-key-123'}
+    deep=b'['*100000+b']'*100000
+    response=http_app.test_client().post('/api/recipe',data=deep,headers=headers)
+    assert response.status_code == 400
+    assert service.usage(user)['remaining'] == 10
+    # The failed request released its key: a valid retry with it runs.
+    retry=service.reserve(user,'/api/recipe',request_key='deep-json-key-123',fingerprint='any-new-body')
+    assert service.finish(retry,succeeded=False,attempted=False)

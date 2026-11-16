@@ -2,19 +2,60 @@
 
 Need help with Nourlo? We're happy to assist.
 
-For technical issues in this pre-release build, use the
-[Nourlo issue tracker](https://github.com/Mmostafasalem/mealio/issues).
-The tracker is public: do not post body measurements, food logs, account tokens,
-API keys or other private information. For private help, contact the person who
-provided your build. A dedicated verified contact and hosted support URL still
-need to be supplied before App Store submission; no public mailbox is claimed.
+Email **[nourlo.app.support@gmail.com](mailto:nourlo.app.support@gmail.com)** for
+help, bug reports, privacy questions or data requests. Tell us your iPhone model,
+iOS version and what happened. Please don't send passwords, account tokens or
+more health detail than the question needs. We aim to reply within a few days.
 
 ## FAQ
 
+**Does the catalog include every restaurant dish worldwide?**
+No. Reference datasets include prepared meals and restaurant-style foods, but
+there is no complete, verified current-menu database for every restaurant. A
+restaurant's recipe and serving size can differ substantially. Search its exact
+name and dish where available. Use **Add a recipe or restaurant dish** to save
+published calories/protein/carbohydrate/fat per menu serving, or calculate your
+own recipe from weighed ingredients and final cooked yield. Menu entries are
+labelled entered by you; recipes are labelled calculated estimates.
+
+**Where do dishes like cepelinai, šaltibarščiai, koshari or shawarma come from?**
+About 48 Lithuanian and Middle Eastern dishes are built in. Their nutrition is
+not measured from a particular kitchen: each is calculated from a typical recipe,
+using USDA values for its ingredients and the weight of the finished dish. They
+are labelled "Nourlo recipe estimate", and the detail view lists what the recipe
+is made with. Home and restaurant versions vary, so weigh what you ate, and add
+your own recipe if yours is very different.
+
+**How do regional and multilingual searches work?**
+The offline catalog supports common English, Lithuanian and Arabic ingredient
+terms without changing the source record's original description. Packaged
+products are looked up worldwide a moment after you stop typing, with more result
+pages on request; turn off "Look up products as I type" in the food logger to
+search only when you tap. Products need usable nutrition and clear units, so
+incomplete records may be excluded. Coverage depends on Open Food Facts
+contributions and availability; try another term if your local product is
+missing. New product searches require internet.
+
+**How do voice commands work?**
+Tap the microphone on Home (or **+** then **Speak a command**) and say what you
+ate or want: "two eggs and toast for breakfast", "add milk to my cart", "start a
+30 minute workout", "how many calories do I have left". Listening stops when you
+stop talking. Anything that changes your data is shown first, so you can change
+the food, the amount or the meal; an **Undo** button follows. Amounts said as a
+count ("two eggs") are estimated from typical sizes and marked "estimated"; say
+grams for an exact amount.
+Choose the language in **Profile › Voice**: English, German, Arabic or Lithuanian.
+Speech is turned into text on your iPhone and the sound is never stored or sent.
+Lithuanian needs the optional offline speech model (about 470 MB, downloaded once
+in Profile › Voice) and is less accurate than the other languages. If voice says a
+language isn't available, your iPhone has no on-device model for it yet.
+
+
 **Where does the food logger get nutrition?**
-The iOS logger searches 7,793 imported USDA SR Legacy records offline, including
-separate raw/cooked descriptions. These reference values are the April 2018 release,
-not measurements of your particular food. For packaged foods, submit a name or
+The iOS logger searches 13,588 imported USDA reference records offline, including
+separate raw/cooked descriptions. Sources include SR Legacy April 2018, the Foundation October 2026 download and
+FNDDS 2021–2023 prepared-food references. They are not measurements of your particular
+food or a guarantee of a restaurant's current menu. For packaged foods, submit a name or
 8/12/13/14-digit barcode to search Open Food Facts directly. Product data is
 community-contributed; check the brand and label. Only records with complete,
 nonnegative calories, protein, carbohydrate and fat, and consistent gram/ml metadata are loggable. Missing macros
@@ -26,10 +67,10 @@ Meal-plan totals remain estimates; they cannot be one-tap logged as sourced nutr
 
 
 **How do I use the bowl guide?**
-Tap the floating bowl above navigation on any main screen. It offers shortcuts
+Tap the bowl at the top of Home, next to the bell. It offers shortcuts
 for logging food, your grocery checklist and meals, plus a short, skippable tour.
-The guide itself works locally and never sends an AI request. Hold the bowl to
-move it to either side, replay the tour or hide it. Restore it in Profile under
+The guide itself works locally and never sends an AI request. You can hide the
+bowl, or bring it back, in Profile under
 Your companion. Adding food briefly triggers its celebration. AI chat is a
 separate action and follows your account and sharing settings.
 
@@ -41,13 +82,14 @@ updated app starts. No verified retailer promotion feed is connected.
 **Are grocery prices live?**
 No. Prices are estimates from a curated catalog, not verified promotions,
 live store inventory or guaranteed shelf prices. You can enter a real price in
-the shopping flow. Corrections apply only to the selected store. Older unscoped
-corrections are preserved but need re-entry for a chosen store before they count
-as your entered price. Check the retailer before purchasing.
+the catalogue; it then replaces the estimate everywhere in the app. Nourlo does
+not name or compare shops. Check prices where you buy.
 
-**Why don't I see nearby stores?**
-Make sure location access is enabled (Settings ▸ Nourlo ▸ Location) and you have a
-network connection. Without location, Nourlo uses Vilnius centre.
+**Are the workouts medical advice?**
+No. Workouts and exercise notes are general fitness information. Stop if you
+feel pain, dizziness or chest discomfort, and check with a doctor before
+starting if you have a medical condition or injury. Calorie figures for
+workouts are rough estimates.
 
 **My meal plan didn't update after I changed my cart.**
 You can tap **Regenerate** on the Meals tab. Online AI features require the
@@ -83,6 +125,17 @@ local to each device and must be deleted there.
 Optional shopping sync covers cart, grocery list, budget and price corrections.
 It does not sync body measurements, food logs, dietary restrictions or nutrition
 plans. Use **Sync Now** or reopen the app to check for changes.
+
+**Apple Health isn't working.**
+Turn it on in Profile → **Apple Health** and allow the items iOS asks about.
+If the status says to allow access, open the Health app → Sharing → Apps →
+Nourlo and switch on what you want to share. If it says Apple Health isn't
+available in this build or on this device, everything else in Nourlo still
+works. Foods and workouts from the last seven days are saved; if steps or
+active energy stay at zero, allow them for Nourlo in the Health app. Turning
+Apple Health off, or Delete All Data, stops syncing but keeps what is already
+in Apple Health; delete it in the Health app if you want. Health data is never
+sent to Nourlo's servers or the AI.
 
 **Can I rely on suggestions for allergies?**
 No. Preferences guide suggestions but cannot guarantee allergen safety. Check
