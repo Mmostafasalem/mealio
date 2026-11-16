@@ -276,16 +276,22 @@ struct VoiceCommandSheet: View {
                     .contentTransition(.numericText())
                 stepButton("plus", name: "More", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
                 if match.estimated {
-                    Text("estimated")
+                    // Short and on one line: the full word broke in two beside a long amount.
+                    Text("est.")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.labelSecondary)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Color.surfaceSecondary, in: Capsule())
+                        .accessibilityLabel("Estimated amount")
                 }
                 Spacer(minLength: 0)
                 Text("\(match.kcal) kcal")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
                     .contentTransition(.numericText())
             }
         }
