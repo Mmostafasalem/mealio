@@ -61,13 +61,18 @@ cloud data. Apple processes CloudKit data under its own terms and privacy policy
 
 The iOS food logger includes an offline reference catalog imported from USDA
 FoodData Central (SR Legacy April 2018, Foundation October 2026 download, and
-FNDDS 2021–2023). Searching these foods stays on your device.
-When you explicitly search packaged products or enter a barcode, the app connects
-directly to Open Food Facts and sends that search text or barcode, selected market
-and language and requested result page, along with the
-normal network information such as your IP address. Your name, body measurements,
-food log and AI account token are not included. This lookup works independently of
-AI-sharing consent; the search action explains the transfer before you submit it.
+FNDDS 2021–2023), and Nourlo's own regional dishes, whose values are calculated
+from typical recipes using those USDA ingredient records. Searching these foods
+stays on your device.
+To find packaged products, the food logger looks your search up on Open Food Facts
+a moment after you stop typing (when your search has three letters or more), and
+when you tap the search button or enter a barcode. The app connects directly to
+Open Food Facts and sends that search text or barcode, a language
+and the requested result page, along with the normal network information such as your
+IP address. Your name, body measurements, food log and AI account token are not
+included. This lookup works independently of AI-sharing consent; the food logger
+explains it next to the switch "Look up products as I type", which you can turn
+off so that products are searched only when you tap.
 Selected product records are saved locally for offline reuse. Custom restaurant
 entries and recipes, including entered menu links, ingredient snapshots and cooked
 yields, are stored locally and are not sent to product search or shopping sync. Logged portions retain
@@ -81,6 +86,36 @@ Product lookup sends no location.
 When you scan a barcode, the camera image is processed only on your device; only
 the barcode number is looked up (and only when that product isn't already saved on
 your device), with a generic app identifier and no account or device identifier.
+
+## Voice commands (optional)
+
+When you tap the microphone, Nourlo listens until you stop speaking and turns what
+you said into text on your iPhone. The audio is not recorded, stored or sent to us
+or to anyone else. Depending on the language you choose in Profile › Voice, the
+text comes from Apple's on-device speech recognition or from the optional offline
+speech model described below; voice commands are not offered in a language neither
+can handle on your iPhone. Nourlo asks for microphone access the first time you use
+it; for some languages it also asks for speech recognition access. You can turn
+either off in Settings › Nourlo.
+
+The text is first matched on your device against rules built into the app (for
+example "log two eggs for breakfast") and Nourlo's on-device food list, then shown
+to you before anything is saved. If the rules cannot place a phrase:
+
+- **Apple Intelligence**, when your iPhone supports it and you have turned it on,
+  works the phrase out on your iPhone. Nothing is sent anywhere.
+- **Your own AI key**, only if you are signed in and have added one in Profile ›
+  Voice, is used after that. The text of that one phrase, and nothing else (no
+  audio, profile, food log or identifier from us), is sent directly from your
+  iPhone to the provider you chose, under your key and that provider's terms. The
+  key is stored in your iPhone's keychain and is never sent to us. Remove the key
+  in Profile › Voice to stop this.
+
+**Offline speech model.** If you choose to download it, the model (Parakeet TDT
+v3 by NVIDIA) is fetched once from Hugging Face, which sees the download request
+and your IP address as any website would; we send it no account or device
+identifier. After that it runs entirely on your iPhone. You can delete it in
+Profile › Voice at any time.
 
 ## Siri, Shortcuts, widgets and Spotlight
 

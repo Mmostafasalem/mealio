@@ -16,17 +16,39 @@ restaurant's recipe and serving size can differ substantially. Search its exact
 name and dish where available. Use **Add a recipe or restaurant dish** to save
 published calories/protein/carbohydrate/fat per menu serving, or calculate your
 own recipe from weighed ingredients and final cooked yield. Menu entries are
-labelled entered by you; recipes are labelled calculated estimates. Do not use a
-generic rice entry as the nutrition for an entire koshari or cepelinai recipe.
+labelled entered by you; recipes are labelled calculated estimates.
+
+**Where do dishes like cepelinai, šaltibarščiai, koshari or shawarma come from?**
+About 48 Lithuanian and Middle Eastern dishes are built in. Their nutrition is
+not measured from a particular kitchen: each is calculated from a typical recipe,
+using USDA values for its ingredients and the weight of the finished dish. They
+are labelled "Nourlo recipe estimate", and the detail view lists what the recipe
+is made with. Home and restaurant versions vary, so weigh what you ate, and add
+your own recipe if yours is very different.
 
 **How do regional and multilingual searches work?**
 The offline catalog supports common English, Lithuanian and Arabic ingredient
-terms without changing the source record's original description. Packaged-product
-search offers Worldwide, Lithuania and Egypt filters and additional result pages.
-Products need usable nutrition and clear units, so incomplete records may be
-excluded. Barcode lookups stay worldwide even when a market is selected. Coverage
-depends on Open Food Facts contributions and availability; try another term or
-Worldwide if your local product is missing. New searches require internet.
+terms without changing the source record's original description. Packaged
+products are looked up worldwide a moment after you stop typing, with more result
+pages on request; turn off "Look up products as I type" in the food logger to
+search only when you tap. Products need usable nutrition and clear units, so
+incomplete records may be excluded. Coverage depends on Open Food Facts
+contributions and availability; try another term if your local product is
+missing. New product searches require internet.
+
+**How do voice commands work?**
+Tap the microphone on Home (or **+** then **Speak a command**) and say what you
+ate or want: "two eggs and toast for breakfast", "add milk to my cart", "start a
+30 minute workout", "how many calories do I have left". Listening stops when you
+stop talking. Anything that changes your data is shown first, so you can change
+the food, the amount or the meal; an **Undo** button follows. Amounts said as a
+count ("two eggs") are estimated from typical sizes and marked "estimated"; say
+grams for an exact amount.
+Choose the language in **Profile › Voice**: English, German, Arabic or Lithuanian.
+Speech is turned into text on your iPhone and the sound is never stored or sent.
+Lithuanian needs the optional offline speech model (about 470 MB, downloaded once
+in Profile › Voice) and is less accurate than the other languages. If voice says a
+language isn't available, your iPhone has no on-device model for it yet.
 
 
 **Where does the food logger get nutrition?**

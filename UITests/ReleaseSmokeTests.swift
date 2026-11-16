@@ -166,9 +166,10 @@ final class ReleaseSmokeTests: XCTestCase {
         }
         launchForTesting(app)
         advance("onboarding.start", to: "onboarding.name.continue", in: app)
-        advance("onboarding.name.continue", to: "onboarding.gender.continue", in: app)
-        advance("onboarding.gender.continue", to: "onboarding.age.continue", in: app)
-        advance("onboarding.age.continue", to: "onboarding.height.continue", in: app)
+        // Name, age and gender share the first page; age is a number with minus and plus.
+        XCTAssertTrue(app.textFields["onboarding.age"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["One year older"].exists)
+        advance("onboarding.name.continue", to: "onboarding.height.continue", in: app)
         advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
@@ -357,6 +358,9 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(bar.buttons["Home"].isSelected)
         tap("quickActions.done", in: app)
         waitUntilGone(app.buttons["quickActions.done"])
+        // The sheet also leads to Profile, which has no tab of its own.
+        chooseQuickAction("profile", in: app)
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 8))
         // Shop provides an unobstructed header independent of transient Home banners.
         tap("tab.shop", in: app)
         XCTAssertTrue(bar.buttons["Shop"].isSelected)
@@ -479,6 +483,28 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
     }
 
+    /// A spoken phrase (handed in as text, so no microphone) becomes a review
+    /// card, and confirming it logs the food.
+    func testVoiceCommandLogsFoodAfterConfirming() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
+        launchForTesting(app)
+        // The microphone between My Stock and History opens the same sheet as "+" › Speak a command.
+        tap("home.voice", in: app)
+        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["voice.slot"].exists)
+        XCTAssertFalse(app.staticTexts["voice.missing"].exists)
+        capture("voice-review")
+        tap("voice.confirm", in: app)
+        let result = app.staticTexts["voice.result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        XCTAssertTrue(result.label.hasPrefix("Logged"), result.label)
+        XCTAssertTrue(result.label.contains("breakfast"), result.label)
+        XCTAssertTrue(app.buttons["voice.undo"].exists)
+        capture("voice-done")
+    }
+
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
@@ -515,6 +541,9 @@ final class ReleaseSmokeTests: XCTestCase {
         tap("customFood.ingredient.usda:173944", in: app)
         let yield = app.textFields["customFood.yield"]
         XCTAssertTrue(yield.waitForExistence(timeout: 5))
+        // The ingredient picker is still sliding away for a moment; wait until the field can be tapped.
+        let reachable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: yield)
+        XCTAssertEqual(XCTWaiter.wait(for: [reachable], timeout: 8), .completed, "customFood.yield")
         yield.tap(); yield.typeText("200")
         tap("customFood.save", in: app)
         XCTAssertTrue(app.staticTexts["Your recipe · calculated estimate"].waitForExistence(timeout: 5))
