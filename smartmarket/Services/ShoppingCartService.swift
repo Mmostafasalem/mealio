@@ -8,43 +8,35 @@ struct CartItem: Codable, Identifiable, Hashable {
     let catalogId: String
     let name: String
     let store: String
-    let price: Double          // discounted price (or regular if not on sale)
-    let originalPrice: Double
-    let isOnSale: Bool
+    let price: Double          // single estimated price (or the real price the user entered)
     let category: String
     var quantity: Int
 
     var lineTotal: Double { price * Double(quantity) }
-    var savings: Double { isOnSale ? (originalPrice - price) * Double(quantity) : 0 }
 }
 
 // MARK: - Shopping store definition
 
+// The app no longer names retailers: there is one product catalogue with one
+// estimated price per item. `ShopStore` and the `store` field on cart rows stay
+// only so saved carts, price corrections and sync keep their shape; every row
+// now belongs to `ShopStore.catalog`.
 struct ShopStore: Identifiable {
     let id: String
     let name: String
-    let tagline: String
-    let colorHex: String
     let priceMultiplier: Double
 
-    var color: Color { Color(hex: colorHex) }
-
-    static let all: [ShopStore] = [
-        ShopStore(id: "rimi",   name: "Rimi",   tagline: "Fresh & quality picks",    colorHex: "#DC2626", priceMultiplier: 1.06),
-        ShopStore(id: "maxima", name: "Maxima", tagline: "Everyday low prices",      colorHex: "#1D4ED8", priceMultiplier: 1.00),
-        ShopStore(id: "iki",    name: "Iki",    tagline: "Your neighbourhood store", colorHex: "#7C3AED", priceMultiplier: 1.03),
-        ShopStore(id: "lidl",   name: "Lidl",   tagline: "Best value in Lithuania",  colorHex: "#1E40AF", priceMultiplier: 0.88),
-        ShopStore(id: "norfa",  name: "Norfa",  tagline: "Local & affordable",       colorHex: "#15803D", priceMultiplier: 0.92),
-    ]
+    static let catalog = ShopStore(id: "catalog", name: "Catalogue", priceMultiplier: 1.0)
+    static let all: [ShopStore] = [catalog]
 }
 
 // MARK: - Price helpers for static catalog
 
 extension CatalogItem {
 
-    // Realistic Lithuanian supermarket prices (€) per typical unit/package.
-    // Source: Rimi, Maxima, IKI, Lidl, Norfa shelf prices as of 2024-2025.
-    // These are Maxima baseline prices; other stores apply a multiplier on top.
+    // Hand-curated budget estimates (€) per typical unit/package, not a live
+    // retailer feed or verified current shelf prices. Shoppers can replace an
+    // estimate with the price they actually paid.
     static let itemBasePrices: [String: Double] = [
         // Meat & Poultry
         "chicken-breast": 5.49, "chicken-thighs": 4.29, "chicken-wings": 3.79,
@@ -179,30 +171,14 @@ extension CatalogItem {
         "cornstarch": 0.89, "vanilla-pod": 2.99,
     ]
 
-    func regularPrice(for store: ShopStore) -> Double {
+    /// A single estimated shelf price. There is no real price feed, so nothing is
+    /// ever presented as a "sale" or compared against a fabricated "regular" price.
+    func estimatedPrice(for store: ShopStore) -> Double {
         let base = CatalogItem.itemBasePrices[id] ?? 1.99
         // ±5% variation per item so identical categories aren't identical prices.
         // Uses a STABLE hash so prices don't change between app launches.
         let nudge = 1.0 + (Double(id.stableHash % 10) - 5) / 100.0
         return (base * store.priceMultiplier * nudge).roundedTo2()
-    }
-
-    /// ~20% of items are on sale at any given time (deterministic per item + store)
-    func isOnSale(for store: ShopStore) -> Bool {
-        (id + store.id).stableHash % 5 == 0
-    }
-
-    func salePrice(for store: ShopStore) -> Double {
-        let reg = regularPrice(for: store)
-        let pct = Double(10 + id.stableHash % 26) / 100.0  // 10–35% off
-        return (reg * (1.0 - pct)).roundedTo2()
-    }
-
-    func discountPercent(for store: ShopStore) -> Int {
-        guard isOnSale(for: store) else { return 0 }
-        let reg  = regularPrice(for: store)
-        let sale = salePrice(for: store)
-        return Int(((reg - sale) / reg * 100).rounded())
     }
 }
 
@@ -232,37 +208,47 @@ final class ShoppingCartService {
     var cartItems: [CartItem] = []
     var weeklyBudget: Double = 60.0 { didSet { saveSettings() } }
 
-    // User-entered real prices override the estimates
-    private(set) var priceOverrides: [String: Double] = [:]  // catalogId → real price
+    /// Sensible bounds for user-entered amounts; anything outside is rejected
+    /// with an inline message instead of corrupting totals.
+    nonisolated static let budgetRange: ClosedRange<Double> = 5...2000
+    nonisolated static let priceRange: ClosedRange<Double> = 0.01...500
 
-    func setRealPrice(_ price: Double, for catalogId: String) {
-        priceOverrides[catalogId] = price
+    // Store-scoped corrections use cartRowId keys in the existing Sync dictionary.
+    // Legacy catalog-only entries are retained for compatibility, but cannot
+    // verify any store or supply new estimates. Re-enter them for a chosen store.
+    private(set) var priceOverrides: [String: Double] = [:]
+
+    func setRealPrice(_ price: Double, for catalogId: String, store: String) {
+        guard price.isFinite, Self.priceRange.contains(price) else { return }
+        priceOverrides[Self.cartRowId(catalogId: catalogId, store: store)] = price
         savePriceOverrides()
         // Update any matching cart items immediately
-        for i in cartItems.indices where cartItems[i].catalogId == catalogId {
+        for i in cartItems.indices where cartItems[i].catalogId == catalogId && cartItems[i].store == store {
             cartItems[i] = CartItem(
                 id: cartItems[i].id, catalogId: catalogId,
                 name: cartItems[i].name, store: cartItems[i].store,
-                price: price, originalPrice: price,
-                isOnSale: false, category: cartItems[i].category,
+                price: price, category: cartItems[i].category,
                 quantity: cartItems[i].quantity
             )
         }
         save()
     }
 
-    func isEstimated(_ catalogId: String) -> Bool {
-        priceOverrides[catalogId] == nil
+    func isEstimated(_ catalogId: String, store: String) -> Bool {
+        correctedPrice(for: catalogId, store: store) == nil
+    }
+
+    private func correctedPrice(for catalogId: String, store: String) -> Double? {
+        guard let price = priceOverrides[Self.cartRowId(catalogId: catalogId, store: store)],
+              price.isFinite, price > 0 else { return nil }
+        return price
     }
 
     func effectivePrice(for item: CatalogItem, store: ShopStore) -> Double {
-        priceOverrides[item.id] ?? (item.isOnSale(for: store)
-            ? item.salePrice(for: store)
-            : item.regularPrice(for: store))
+        correctedPrice(for: item.id, store: store.name) ?? item.estimatedPrice(for: store)
     }
 
     var total: Double { cartItems.reduce(0) { $0 + $1.lineTotal } }
-    var totalSavings: Double { cartItems.reduce(0) { $0 + $1.savings } }
     var itemCount: Int { cartItems.reduce(0) { $0 + $1.quantity } }
     var budgetRemaining: Double { weeklyBudget - total }
     var budgetFraction: Double { min(total / max(weeklyBudget, 1), 1) }
@@ -282,17 +268,13 @@ final class ShoppingCartService {
     }
 
     func add(_ item: CatalogItem, store: ShopStore) {
-        let hasOverride = priceOverrides[item.id] != nil
-        let onSale = !hasOverride && item.isOnSale(for: store)
-        let price  = effectivePrice(for: item, store: store)
-        let orig   = hasOverride ? price : item.regularPrice(for: store)
+        let price = effectivePrice(for: item, store: store)
         if let idx = cartItems.firstIndex(where: { $0.catalogId == item.id && $0.store == store.name }) {
             cartItems[idx].quantity += 1
         } else {
             cartItems.append(CartItem(
                 id: UUID(), catalogId: item.id, name: item.name, store: store.name,
-                price: price, originalPrice: orig, isOnSale: onSale,
-                category: item.category.rawValue, quantity: 1
+                price: price, category: item.category.rawValue, quantity: 1
             ))
         }
         save()
@@ -309,7 +291,33 @@ final class ShoppingCartService {
         save()
     }
 
+    /// Undo merges removed quantities with current edits; never overwrite a newer cart.
+    func restoreRemovedLines(_ lines: [CartItem]) {
+        guard !lines.isEmpty else { return }
+        for line in lines {
+            if let index = cartItems.firstIndex(where: { $0.catalogId == line.catalogId && $0.store == line.store }) {
+                cartItems[index].quantity += line.quantity
+            } else {
+                cartItems.append(CartItem(id: line.id, catalogId: line.catalogId, name: line.name,
+                    store: line.store, price: correctedPrice(for: line.catalogId, store: line.store) ?? line.price,
+                    category: line.category, quantity: line.quantity))
+            }
+        }
+        save()
+    }
+
     func clear() { cartItems = []; save() }
+
+    func resetAll() {
+        cartItems = []
+        priceOverrides = [:]
+        weeklyBudget = 60.0
+        UserDefaults.standard.removeObject(forKey: cartKey)
+        UserDefaults.standard.removeObject(forKey: budgetKey)
+        UserDefaults.standard.removeObject(forKey: overridesKey)
+        UserDefaults.standard.removeObject(forKey: Self.tickedQuantitiesKey)
+        NotificationCenter.default.post(name: .cartDidChange, object: nil)
+    }
 
     // MARK: - Persistence
 
@@ -329,24 +337,82 @@ final class ShoppingCartService {
     /// wholesale on every change (one-way sync — the cart is the source of truth).
     private func syncToGroceryList() {
         let existing = GroceryStorage.load()
-        // Preserve "bought" state on cart-sourced rows across re-syncs.
-        let boughtIds = Set(existing.filter { $0.id.hasPrefix("cart_") && $0.isBought }.map(\.id))
+        let previous = Self.previousCartRows(existing)
         var list = existing.filter { !$0.id.hasPrefix("cart_") }
+        let ticked = Self.loadTickedQuantities()
+        var stillTicked: [String: Int] = [:]
         for ci in cartItems {
-            let id = "cart_\(ci.catalogId)_\(ci.store)"
+            let id = Self.cartRowId(catalogId: ci.catalogId, store: ci.store)
+            // Keep the "bought" tick across re-syncs while it still covers every
+            // unit: going above the amount that was ticked un-ticks it, so
+            // removing one and adding it back keeps the tick.
+            var isBought = false
+            if let row = previous[id], row.allBought {
+                let covered = max(ticked[id] ?? 0, row.quantity)
+                isBought = ci.quantity <= covered
+                if isBought { stillTicked[id] = covered }
+            }
             list.append(GroceryItem(
                 id: id,
                 foodId: ci.catalogId,
                 foodName: ci.name,
                 quantity: String(ci.quantity),
                 estimatedPrice: ci.lineTotal,
-                storeId: ci.store.lowercased(),
-                storeName: ci.store,
-                isBought: boughtIds.contains(id)
+                storeId: ShopStore.catalog.id,
+                storeName: "",
+                isBought: isBought
             ))
         }
         GroceryStorage.save(list)
+        if stillTicked != ticked { Self.saveTickedQuantities(stillTicked) }
         NotificationCenter.default.post(name: .groceryListDidChange, object: nil)
+    }
+
+    // MARK: Bought ticks
+
+    /// How many units each bought cart row covered when it was ticked, so a
+    /// net-zero quantity edit keeps the tick. Kept on this device only.
+    nonisolated static let tickedQuantitiesKey = "cartTickedQuantities_v1"
+
+    private static func loadTickedQuantities() -> [String: Int] {
+        UserDefaults.standard.dictionary(forKey: tickedQuantitiesKey) as? [String: Int] ?? [:]
+    }
+
+    private static func saveTickedQuantities(_ ticked: [String: Int]) {
+        if ticked.isEmpty {
+            UserDefaults.standard.removeObject(forKey: tickedQuantitiesKey)
+        } else {
+            UserDefaults.standard.set(ticked, forKey: tickedQuantitiesKey)
+        }
+    }
+
+    /// The Groceries tab ticked or un-ticked a cart row: remember how many
+    /// units the tick covers (the row's quantity right now).
+    static func noteBoughtTick(rowId: String, quantity: String, isBought: Bool) {
+        guard parseCartRowId(rowId) != nil else { return }
+        var ticked = loadTickedQuantities()
+        if isBought, let units = Int(quantity.trimmingCharacters(in: .whitespaces)) {
+            ticked[rowId] = units
+        } else {
+            ticked[rowId] = nil
+        }
+        saveTickedQuantities(ticked)
+    }
+
+    /// Existing cart-sourced grocery rows keyed by their catalogue row id.
+    /// Rows saved under a retailer name (`cart_<id>_<Retailer>`) fold into the
+    /// catalogue id they migrate to; the product counts as bought only when
+    /// every folded row was bought, with their quantities added up.
+    static func previousCartRows(_ rows: [GroceryItem]) -> [String: (allBought: Bool, quantity: Int)] {
+        var result: [String: (allBought: Bool, quantity: Int)] = [:]
+        for row in rows {
+            guard let parsed = parseCartRowId(row.id) else { continue }
+            let key = cartRowId(catalogId: parsed.catalogId, store: ShopStore.catalog.name)
+            let quantity = Int(row.quantity.trimmingCharacters(in: .whitespaces)) ?? 0
+            let current = result[key] ?? (allBought: true, quantity: 0)
+            result[key] = (current.allBought && row.isBought, current.quantity + quantity)
+        }
+        return result
     }
 
     /// Removes an entire cart line (all quantities) — used when the Groceries tab
@@ -356,6 +422,26 @@ final class ShoppingCartService {
         save()
     }
 
+    /// The grocery-row id format for cart-sourced rows (see `syncToGroceryList`).
+    nonisolated static func cartRowId(catalogId: String, store: String) -> String {
+        "cart_\(catalogId)_\(store)"
+    }
+
+    /// Parses a `cart_<catalogId>_<store>` grocery-row id back into its cart
+    /// coordinates so a Groceries-tab removal can round-trip to the cart. Store
+    /// names contain no underscore and catalog ids use dashes, so the LAST
+    /// underscore is the separator. Returns nil for non-cart ids.
+    nonisolated static func parseCartRowId(_ id: String) -> (catalogId: String, store: String)? {
+        let prefix = "cart_"
+        guard id.hasPrefix(prefix) else { return nil }
+        let body = id.dropFirst(prefix.count)
+        guard let sep = body.lastIndex(of: "_") else { return nil }
+        let catalogId = String(body[..<sep])
+        let store = String(body[body.index(after: sep)...])
+        guard !catalogId.isEmpty, !store.isEmpty else { return nil }
+        return (catalogId, store)
+    }
+
     /// The cart expressed as `[Deal]` for the meal-plan request, so the *online*
     /// AI plan also prioritises what the user is buying (offline already does).
     func planDeals() -> [Deal] {
@@ -363,9 +449,8 @@ final class ShoppingCartService {
             Deal(
                 id: ci.catalogId.stableHash % 1_000_000,
                 name: ci.name, brand: "", emoji: "🛒", store: ci.store,
-                originalPrice: ci.originalPrice, discountedPrice: ci.price,
-                discount: ci.isOnSale && ci.originalPrice > 0
-                    ? Int(((ci.originalPrice - ci.price) / ci.originalPrice * 100).rounded()) : 0,
+                originalPrice: ci.price, discountedPrice: ci.price,
+                discount: 0,
                 category: ci.category, kcalPer100g: 0, proteinPer100g: 0,
                 carbsPer100g: 0, fatPer100g: 0, weeklyQty: ci.quantity, unit: "",
                 expiresIn: "7 days", allergens: [], latitude: nil, longitude: nil
@@ -383,16 +468,138 @@ final class ShoppingCartService {
     }
 
     private func load() {
-        if let data = UserDefaults.standard.data(forKey: cartKey),
-           let items = try? JSONDecoder().decode([CartItem].self, from: data) {
-            cartItems = items
-        }
+        cartItems = ResilientStorage.loadArray(CartItem.self, key: cartKey)
         let saved = UserDefaults.standard.double(forKey: budgetKey)
-        weeklyBudget = saved > 0 ? saved : 60.0
+        let budget = saved.isFinite && saved > 0 ? min(max(saved, Self.budgetRange.lowerBound), Self.budgetRange.upperBound) : 60.0
+        if budget != weeklyBudget { weeklyBudget = budget }
         if let data = UserDefaults.standard.data(forKey: overridesKey),
-           let overrides = try? JSONDecoder().decode([String: Double].self, from: data) {
+           let overrides = ResilientStorage.decode([String: Double].self, from: data, key: overridesKey) {
             priceOverrides = overrides
         }
+        migrateToSingleCatalogue()
+        applyPriceOverrides()
         syncToGroceryList()   // ensure the Groceries tab reflects the cart on launch
+    }
+
+    /// A correction can arrive without the cart (e.g. pulled by sync), so every
+    /// load puts the current corrected price on the matching cart lines.
+    private func applyPriceOverrides() {
+        var changed = false
+        for i in cartItems.indices {
+            let line = cartItems[i]
+            guard let price = correctedPrice(for: line.catalogId, store: line.store), price != line.price else { continue }
+            cartItems[i] = CartItem(id: line.id, catalogId: line.catalogId, name: line.name, store: line.store,
+                                    price: price, category: line.category, quantity: line.quantity)
+            changed = true
+        }
+        if changed, let data = try? JSONEncoder().encode(cartItems) { UserDefaults.standard.set(data, forKey: cartKey) }
+    }
+
+    /// Carts and price corrections saved while the app still listed retailers
+    /// carry a retailer name. Fold them into the single catalogue: lines for the
+    /// same product merge (quantities add up, the first line's price is kept),
+    /// and a correction made for any retailer becomes the product's price.
+    private func migrateToSingleCatalogue() {
+        let catalogue = ShopStore.catalog.name
+        var changed = false
+
+        var overrides = priceOverrides
+        for (key, price) in priceOverrides.sorted(by: { $0.key < $1.key }) {
+            guard let row = Self.parseCartRowId(key), row.store != catalogue else { continue }
+            let target = Self.cartRowId(catalogId: row.catalogId, store: catalogue)
+            if overrides[target] == nil { overrides[target] = price }
+            overrides[key] = nil
+            changed = true
+        }
+        if changed {
+            priceOverrides = overrides
+            savePriceOverrides()
+        }
+
+        guard cartItems.contains(where: { $0.store != catalogue }) else { return }
+        var merged: [CartItem] = []
+        for line in cartItems {
+            if let index = merged.firstIndex(where: { $0.catalogId == line.catalogId }) {
+                merged[index].quantity += line.quantity
+            } else {
+                merged.append(CartItem(id: line.id, catalogId: line.catalogId, name: line.name, store: catalogue,
+                                       price: correctedPrice(for: line.catalogId, store: catalogue) ?? line.price,
+                                       category: line.category, quantity: line.quantity))
+            }
+        }
+        cartItems = merged
+        if let data = try? JSONEncoder().encode(cartItems) { UserDefaults.standard.set(data, forKey: cartKey) }
+    }
+
+    func reloadFromStorage() {
+        cartItems = []
+        priceOverrides = [:]
+        load()
+    }
+}
+
+// MARK: - Amount input
+
+/// Parses and checks euro amounts typed by the user ("2", "2.50", "2,50", "€2").
+enum EuroInput {
+    enum Problem: Error, Equatable {
+        case unreadable, outOfRange(ClosedRange<Double>)
+    }
+
+    /// Digits with at most one separator; a leading or trailing "€" and spaces
+    /// are allowed. A comma or dot followed by 1–2 digits is a decimal point
+    /// ("2,50", "2.5"). Followed by exactly 3 digits, with 1–3 digits before it,
+    /// it separates thousands ("2,000", "1.000"; not "0,500"). Anything else is rejected:
+    /// exponents, signs, several separators ("1,234.50") or other digit counts.
+    static func parse(_ text: String) -> Double? {
+        var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if body.hasPrefix("€") { body.removeFirst() }
+        if body.hasSuffix("€") { body.removeLast() }
+        body = body.trimmingCharacters(in: .whitespaces)
+        func isDigit(_ c: Character) -> Bool { c.isASCII && c.isNumber }
+        guard !body.isEmpty, body.allSatisfy({ isDigit($0) || $0 == "." || $0 == "," }) else { return nil }
+        let separator: Character = body.contains(where: { $0 == "," }) ? "," : "."
+        let parts = body.split(separator: separator, maxSplits: Int.max, omittingEmptySubsequences: false)
+        let normalized: String
+        switch parts.count {
+        case 1:
+            normalized = body
+        case 2:
+            let whole = parts[0], fraction = parts[1]
+            guard whole.allSatisfy(isDigit), fraction.allSatisfy(isDigit) else { return nil }
+            if fraction.count == 3, (1...3).contains(whole.count), whole.first != "0" {
+                normalized = String(whole) + String(fraction)      // thousands separator
+            } else if (1...2).contains(fraction.count) {
+                normalized = (whole.isEmpty ? "0" : String(whole)) + "." + String(fraction)
+            } else {
+                return nil
+            }
+        default:
+            return nil
+        }
+        guard normalized.contains(where: isDigit), let value = Double(normalized), value.isFinite else { return nil }
+        return (value * 100).rounded() / 100
+    }
+
+    static func validate(_ text: String, in range: ClosedRange<Double>) -> Result<Double, Problem> {
+        guard let value = parse(text) else { return .failure(.unreadable) }
+        guard range.contains(value) else { return .failure(.outOfRange(range)) }
+        return .success(value)
+    }
+
+    /// Short message for an inline error under the field.
+    static func message(for problem: Problem, example: String) -> String {
+        switch problem {
+        case .unreadable:
+            return "Enter an amount like \(example)."
+        case .outOfRange(let range):
+            return "Enter an amount from \(format(range.lowerBound)) to \(format(range.upperBound))."
+        }
+    }
+
+    /// "€5", "€2000", "€0.01": whole euros without decimals, otherwise cents.
+    /// No thousands separators, so the text reads back the same through `parse`.
+    static func format(_ value: Double) -> String {
+        value == value.rounded() ? String(format: "€%.0f", value) : String(format: "€%.2f", value)
     }
 }

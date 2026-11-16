@@ -53,23 +53,22 @@ struct EditFavoriteFoodsView: View {
 
     // MARK: - List
 
+    private func favoriteRow(_ item: CatalogItem) -> some View {
+        ItemRow(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+    }
+
     private var itemList: some View {
         List {
             if displayItems.isEmpty {
                 Text("No items match your search.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.labelSecondary)
                     .listRowBackground(Color.clear)
             } else if selectedCategory == nil && query.isEmpty {
                 ForEach(CatalogCategory.allCases) { cat in
                     let items = CatalogItem.all.filter { $0.category == cat }
                     if !items.isEmpty {
                         Section {
-                            ForEach(items) { item in
-                                ItemRow(item: item,
-                                        isSelected: vm.favoriteFoodIDs.contains(item.id)) {
-                                    vm.toggleFavorite(item)
-                                }
-                            }
+                            ForEach(items, content: favoriteRow)
                         } header: {
                             SectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
                         }
@@ -115,12 +114,14 @@ private struct CategoryChip: View {
             Text(label)
                 .font(.subheadline)
                 .padding(.horizontal, 14).padding(.vertical, 6)
-                .background(isSelected ? Color.brandPrimary : Color(.tertiarySystemFill))
-                .foregroundStyle(isSelected ? .white : .primary)
+                .background(isSelected ? Color.dullPink : Color(.tertiarySystemFill))
+                .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(.spring(duration: 0.2), value: isSelected)
+        // Colour-only change, so it stays animated under Reduce Motion.
+        .animation(.snappyValue, value: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -132,16 +133,16 @@ private struct SectionHeader: View {
     }
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: category.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(category.color)
+            Image(systemName: category.symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.labelPrimary)
             Text(category.displayName)
             Spacer()
             if count > 0 {
-                Text("\(count)").font(.caption2).fontWeight(.bold).foregroundStyle(.white)
+                Text("\(count)").font(.caption2).fontWeight(.bold).foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color.brandPrimary, in: Capsule())
+                    .background(Color.dullPink, in: Capsule())
             }
         }
-        .font(.footnote).fontWeight(.semibold).foregroundStyle(.secondary).textCase(nil)
+        .font(.footnote).fontWeight(.semibold).foregroundStyle(Color.labelSecondary).textCase(nil)
     }
 }
 
@@ -149,24 +150,27 @@ private struct ItemRow: View {
     let item: CatalogItem
     let isSelected: Bool
     let onTap: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
                 Circle()
-                    .fill(item.category.color.opacity(0.18))
+                    .fill(Color.labelPrimary.opacity(0.18))
                     .frame(width: 32, height: 32)
-                    .overlay(Image(systemName: item.category.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(item.category.color))
-                Text(item.name).font(.body).foregroundStyle(.primary)
+                    .overlay(Image(systemName: item.category.symbol).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.labelPrimary))
+                Text(item.name).font(.body).foregroundStyle(Color.labelPrimary)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundStyle(isSelected ? Color.brandPrimary : Color(.tertiaryLabel))
-                    .animation(.spring(duration: 0.2, bounce: 0.4), value: isSelected)
+                    .foregroundStyle(isSelected ? Color.dullPink : Color(.tertiaryLabel))
+                    .contentTransition(.symbolEffect(.replace))
+                    .animation(reduceMotion ? .none : .snappyValue, value: isSelected)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

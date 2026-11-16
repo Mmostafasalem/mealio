@@ -4,13 +4,18 @@ struct GroceryListView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var vm = GroceryListViewModel()
-    @State private var showClearAlert = false
+    @State private var actionsMenu = DynamicMenuModel()
+    @State private var confirmClearBought = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
             Group {
                 if vm.items.isEmpty {
-                    EmptyGroceryView { dismiss() }
+                    EmptyStateView(icon: "cart",
+                                   title: "Your grocery list is empty",
+                                   message: "Add items from the Shop tab to build your shopping list.",
+                                   actionTitle: "Browse groceries") { dismiss() }
                 } else {
                     listContent
                 }
@@ -18,67 +23,113 @@ struct GroceryListView: View {
             .background(Color.surfaceGrouped.ignoresSafeArea())
             .navigationTitle("Groceries")
             .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.accessibilityIdentifier("groceries.done")
+                }
                 if !vm.items.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
-                        ShareLink(item: vm.shareText()) {
-                            Image(systemName: "square.and.arrow.up")
-                        }
-                        .accessibilityLabel("Share list")
-                    }
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Clear bought") { showClearAlert = true }
-                            .disabled(!vm.items.contains { $0.isBought })
+                        DynamicMenuToggle(model: actionsMenu, items: listActions, label: "List actions")
+                            .accessibilityIdentifier("groceries.actions")
                     }
                 }
             }
-            .alert("Clear bought items?", isPresented: $showClearAlert) {
-                Button("Clear", role: .destructive) { vm.clearBought() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This removes all checked items from your list.")
+            .overlay(alignment: .topTrailing) {
+                if !vm.items.isEmpty {
+                    DynamicMenuPanel(model: actionsMenu, items: listActions)
+                }
+            }
+            .onChange(of: vm.items.isEmpty) { _, empty in
+                if empty && actionsMenu.isOpen { actionsMenu.set(false, count: listActions.count) }
+            }
+
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let message = vm.undoMessage {
+                UndoToast(message: message) { vm.undoDelete() }
+                    .padding(.vertical, Spacing.sm)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(reduceMotion ? .none : .snappyValue, value: vm.undoMessage)
         .onAppear { vm.loadItems() }
+        .confirmationDialog(clearBoughtTitle, isPresented: $confirmClearBought, titleVisibility: .visible) {
+            Button("Remove", role: .destructive) { vm.clearBought() }
+                .accessibilityIdentifier("groceries.clearBought.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(clearBoughtMessage)
+        }
+    }
+
+    private var clearBoughtTitle: String {
+        let count = vm.boughtItems.count, cartCount = vm.boughtCartCount
+        let noun = count == 1 ? "item" : "items"
+        return cartCount == count
+            ? "Remove \(count) bought \(noun) from your cart?"
+            : "Remove \(count) bought \(noun)?"
+    }
+
+    private var clearBoughtMessage: String {
+        let cartCount = vm.boughtCartCount
+        guard cartCount > 0 else { return "They're removed from your grocery list." }
+        let noun = cartCount == 1 ? "item" : "items"
+        return "\(cartCount) \(noun) also leave your cart, so they no longer count toward your weekly budget."
+    }
+
+    /// Share and Clear bought, in the toolbar's springy menu.
+    private var listActions: [DynamicMenuItem] {
+        [
+            DynamicMenuItem("Share list", systemImage: "square.and.arrow.up",
+                            id: "groceries.share", share: vm.shareText()),
+            DynamicMenuItem("Clear bought", systemImage: "checkmark.circle",
+                            id: "groceries.clearBought",
+                            isDisabled: !vm.items.contains { $0.isBought }) { confirmClearBought = true },
+        ]
+    }
+
+    // A typed View closure keeps ForEach's result builder unambiguous on
+    // older supported Swift compilers.
+    private func groceryRow(_ item: GroceryItem) -> some View {
+        GroceryRow(item: item) { vm.toggleBought(item) }
+            .swipeActions(edge: .trailing) {
+                Button(role: .destructive) { vm.deleteItem(item) } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
     }
 
     private var listContent: some View {
         VStack(spacing: 0) {
             List {
-                ForEach(vm.sortedStores, id: \.self) { store in
-                    Section {
-                        ForEach(vm.groupedByStore[store] ?? []) { item in
-                            GroceryRow(item: item) { vm.toggleBought(item) }
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        vm.deleteItem(item)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
-                        }
-                    } header: {
-                        StoreHeaderView(
-                            store: store,
-                            count: (vm.groupedByStore[store] ?? []).count,
-                            cost: vm.estimatedCost(for: store)
-                        )
-                    }
+                Section {
+                    GrocerySummaryRow(
+                        bought: vm.items.filter(\.isBought).count,
+                        total: vm.items.count,
+                        copyText: copyText
+                    )
+                }
+                Section {
+                    ForEach(vm.items, content: groceryRow)
                 }
             }
             .listStyle(.insetGrouped)
 
-            FooterBar(total: vm.totalEstimatedCost, count: vm.items.count)
+            FooterBar(total: vm.totalEstimatedCost, count: vm.items.count, hasUnknownPrices: vm.items.contains { $0.priceKnown == false })
         }
-        .overlay(alignment: .bottom) {
-            if let deleted = vm.recentlyDeletedItem {
-                UndoToast(message: "\(deleted.foodName) removed") {
-                    vm.undoDelete()
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .padding(.bottom, 90)
+
+    }
+
+    /// Unbought items as plain lines for the pasteboard: "• Milk × 2".
+    private var copyText: String {
+        vm.items
+            .filter { !$0.isBought }
+            .map { item in
+                let q = item.quantity.trimmingCharacters(in: .whitespaces)
+                // Cart rows store a bare count ("2"); show it as "× 2".
+                let amount = q.isEmpty ? "" : (Int(q) != nil ? " × \(q)" : " \(q)")
+                return "• \(item.foodName)\(amount)"
             }
-        }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: vm.recentlyDeletedItem?.id)
+            .joined(separator: "\n")
     }
 }
 
@@ -88,27 +139,22 @@ private struct GroceryRow: View {
     let item: GroceryItem
     let onToggle: () -> Void
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onToggle) {
-                Image(systemName: item.isBought ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(item.isBought ? Color.brandPrimary : Color.labelSecondary)
-            }
-            .buttonStyle(.plain)
-            .sensoryFeedback(.selection, trigger: item.isBought)
-            .accessibilityLabel(item.isBought ? "Mark \(item.foodName) as not bought" : "Mark \(item.foodName) as bought")
+    private var priceText: String {
+        item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice)
+    }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.foodName)
-                    .font(.subheadline).fontWeight(.medium)
-                    .strikethrough(item.isBought)
-                    .foregroundStyle(item.isBought ? .secondary : .primary)
-                Text(item.quantity)
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text(String(format: "€%.2f", item.estimatedPrice))
+    var body: some View {
+        AnimatedCheckRow(
+            title: item.foodName,
+            isOn: item.isBought,
+            action: onToggle,
+            stateLabels: ("Bought", "Not bought"),
+            accessibilityDetail: [item.quantity, priceText].filter { !$0.isEmpty }.joined(separator: ", ")
+        ) {
+            Text(item.quantity)
+                .font(.caption).foregroundStyle(Color.labelSecondary)
+        } trailing: {
+            Text(priceText)
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(item.isBought ? .tertiary : .secondary)
         }
@@ -116,35 +162,33 @@ private struct GroceryRow: View {
     }
 }
 
-// MARK: - Store header
+// MARK: - List summary
 
-private struct StoreHeaderView: View {
-    let store: String
-    let count: Int
-    let cost: Double
-
-    private var storeColor: Color {
-        switch store.lowercased() {
-        case let s where s.contains("rimi"):   return Color(hex: "#DC2626")
-        case let s where s.contains("maxima"): return Color(hex: "#0055A5")
-        case let s where s.contains("lidl"):   return Color(hex: "#0050AA")
-        case let s where s.contains("iki"):    return Color(hex: "#8B5CF6")
-        default:                               return Color.brandPrimary
-        }
-    }
+/// "N of M bought" rolling count and the Copy list button, above the list.
+private struct GrocerySummaryRow: View {
+    let bought: Int
+    let total: Int
+    let copyText: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(storeColor)
-                .frame(width: 8, height: 8)
-            Text(store)
-                .fontWeight(.semibold)
-            Spacer()
-            Text("\(count) item\(count == 1 ? "" : "s") · ~€\(cost, specifier: "%.2f")")
+        HStack(spacing: Spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                RollingNumber(value: bought)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.labelPrimary)
+                Text("of \(total) bought")
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            .font(.subheadline)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(bought) of \(total) bought")
+            .accessibilityIdentifier("groceries.boughtCount")
+            Spacer(minLength: Spacing.sm)
+            CopyButton(title: "Copy list", doneTitle: "Copied", announcement: "Shopping list copied") { copyText }
+                .disabled(copyText.isEmpty)
+                .accessibilityHint(copyText.isEmpty ? "Everything is bought" : "Copies the items still to buy")
+                .accessibilityIdentifier("groceries.copy")
         }
-        .font(.caption)
-        .textCase(nil)
     }
 }
 
@@ -153,55 +197,34 @@ private struct StoreHeaderView: View {
 private struct FooterBar: View {
     let total: Double
     let count: Int
+    let hasUnknownPrices: Bool
 
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Estimated total")
-                    .font(.caption).foregroundStyle(.secondary)
+                Text(hasUnknownPrices ? "Known estimates only" : "Estimated total")
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
                 Text(String(format: "€%.2f", total))
                     .font(.title2).fontWeight(.bold)
                     .foregroundStyle(Color.brandPrimary)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text("Items")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
                 Text("\(count)")
                     .font(.title2).fontWeight(.bold)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.horizontal, Spacing.xl)
+        .padding(.vertical, Spacing.lg)
         .background(.ultraThinMaterial)
         .overlay(Divider(), alignment: .top)
-    }
-}
-
-// MARK: - Empty state
-
-private struct EmptyGroceryView: View {
-    let onBrowse: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "cart")
-                .font(.system(size: 44))
-                .foregroundStyle(Color.brandPrimary.opacity(0.5))
-            Text("Your grocery list is empty")
-                .font(.headline)
-            Button(action: onBrowse) { // goes back to shop
-                Text("Browse deals")
-                    .font(.subheadline).fontWeight(.semibold)
-                    .padding(.horizontal, 20).padding(.vertical, 10)
-                    .foregroundStyle(.white)
-                    .background(Color.brandPrimary)
-                    .clipShape(Capsule())
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.snappyValue, value: total)
     }
 }
 

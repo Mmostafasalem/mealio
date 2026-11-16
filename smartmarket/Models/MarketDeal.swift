@@ -33,6 +33,10 @@ struct Store: Codable, Identifiable, Hashable {
 }
 
 // MARK: - Market deal
+// HONESTY CONSTRAINT: the discount* fields below are legacy plumbing and are
+// intentionally NOT rendered as price comparisons anywhere in the UI (there is no
+// real price feed). Every price shown to the user is a single "est. price". Do not
+// wire discountPercent/savings/originalPrice into a view without re-checking this.
 struct MarketDeal: Codable, Identifiable, Hashable {
     let id: String
     let store: Store
@@ -55,13 +59,7 @@ struct MarketDeal: Codable, Identifiable, Hashable {
         case bulkDeal       = "bulk_deal"
 
         var displayName: String {
-            switch self {
-            case .weeklySpecial: return "Weekly Deal"
-            case .dailyFresh:    return "Fresh Today"
-            case .loyaltyCard:   return "Member Price"
-            case .clearance:     return "Clearance"
-            case .bulkDeal:      return "Bulk Deal"
-            }
+            "Estimated price"
         }
     }
 

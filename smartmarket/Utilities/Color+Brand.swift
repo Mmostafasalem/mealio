@@ -18,75 +18,51 @@ private extension UIColor {
 
 extension Color {
 
-    // MARK: - Brand palette
-    //
-    // Base hue: #4b5760  (H 206 · S 12 · L 34) — cool blue-gray slate
-    //
-    // Light-mode colours are dark enough to work on white.
-    // Dark-mode colours are light enough to work on near-black.
-
-    /// Primary interactive colour — buttons, rings, active tab, links.
-    /// Vibrant green for a premium "on black" feel.
-    static let brandPrimary = Color(light: "#1A9E48", dark: "#1ED760")
-
-    /// Darker pressed / gradient shade.
-    static let brandDark = Color(light: "#15803D", dark: "#17B84F")
-
-    /// Lighter secondary accent — icons, sub-headings.
-    static let brandMid = Color(light: "#6b7d87", dark: "#a8bfc7")
-
-    /// Soft tint — chip backgrounds, subtle row fills.
-    static let brandLight = Color(light: "#e2e8ec", dark: "#2a3840")
-
-    /// Hero header gradient — deepest dark (start).
-    static let brandHeader = Color(light: "#1a2127", dark: "#0d1519")
-
-    /// Hero header gradient — mid-point.
-    static let brandHeaderMid = Color(light: "#2c3a42", dark: "#192430")
-
-    // MARK: - Functional colours (unchanged — they carry semantic meaning)
-
-    /// Amber — discount badges, warnings, "good but not there yet".
-    static let brandAmber = Color(light: "#d97706", dark: "#f5a623")
-
-    /// Soft amber fill — badge backgrounds.
-    static let brandAmberLight = Color(light: "#fef3c7", dark: "#3d2d10")
-
-    /// Red — over-limit calories, errors, destructive actions.
-    static let brandDanger = Color(light: "#dc2626", dark: "#ff6b6b")
-
-    /// Soft red fill.
-    static let brandDangerLight = Color(light: "#fee2e2", dark: "#3d1010")
-
-    // MARK: - Semantic nutrition tokens (calorie + macros)
-    //
-    // Distinct, accessible hues so Protein / Carbs / Fat are instantly
-    // distinguishable on the dashboard, tuned for both light and dark mode.
-
-    /// Energetic green — calories / remaining energy.
-    static let calorieAccent = Color(light: "#16a34a", dark: "#4ade80")
-
-    /// Vibrant orange — protein.
-    static let proteinAccent = Color(light: "#ea580c", dark: "#fb923c")
-
-    /// Amber — carbohydrates.
-    static let carbsAccent = Color(light: "#d97706", dark: "#fbbf24")
-
-    /// Violet — fat.
-    static let fatAccent = Color(light: "#7c3aed", dark: "#a78bfa")
-
-    // MARK: - Neutral text (resolved by the system — always correct)
-
-    static let labelPrimary   = Color(.label)
-    static let labelSecondary = Color(.secondaryLabel)
-    static let labelTertiary  = Color(.tertiaryLabel)
-
-    // MARK: - Surfaces (resolved by the system — always correct)
-
-    static let surface          = Color(.systemBackground)
-    static let surfaceGrouped   = Color(.systemGroupedBackground)
-    static let surfaceElevated  = Color(.secondarySystemBackground)
-    static let surfaceSecondary = Color(.secondarySystemBackground)
+    // Owner's supplied palette: Almond, Dull Pink, Rhino. "Quiet pantry" direction
+    // (2026-11-13): Rhino ink carries text and the main button, Dull Pink marks
+    // progress only, Almond tints the canvas. No gradients behind content.
+    // Surface/text shades derive from these three anchors for accessible contrast.
+    static let almond = Color(hex: "#F4DAD4")
+    static let dullPink = Color(hex: "#DD8C96")
+    static let rhino = Color(hex: "#1C1C1E")
+    // Near-black ink on Dull Pink (the owner replaced the navy with black on 16 Nov 2026).
+    static let onAccent = Color(hex: "#111111")
+    // Pink on almond is only 1.91:1: links use Rhino, not pink text.
+    static let brandPrimary = Color(light: "#111111", dark: "#F4ECE9")
+    static let brandDark = Color(light: "#111111", dark: "#F4ECE9")
+    static let brandMid = Color(light: "#5C5C61", dark: "#C9C0BF")
+    static let brandLight = Color(light: "#F6E1E3", dark: "#3A2830")
+    static let brandHeader = rhino
+    static let brandHeaderMid = rhino
+    // Warnings retain labels/icons; pink alone never communicates severity.
+    static let brandAmber = brandPrimary
+    static let brandAmberLight = brandLight
+    static let brandDanger = Color(light: "#B4535F", dark: "#F0A0AA")
+    static let brandDangerLight = brandLight
+    static let calorieAccent = progress
+    /// Dull Pink is reserved for things filling up: rings, budget bars, ticks.
+    static let progress = Color(light: "#DD8C96", dark: "#E89DA6")
+    /// Track behind a progress bar or ring.
+    static let progressTrack = Color(light: "#EFE8E6", dark: "#2C2C2E")
+    // The Home rings: pink with cool tones (mint, sky, violet), picked by the owner on 16 Nov 2026.
+    static let ringCalories = progress
+    static let ringProtein = Color(light: "#1FA98C", dark: "#6FE0C8")
+    static let ringCarbs = Color(light: "#2F8DE4", dark: "#6FB7FF")
+    static let ringFat = Color(light: "#9A6BE0", dark: "#C9A2FF")
+    static let proteinAccent = labelPrimary
+    static let carbsAccent = labelPrimary
+    static let fatAccent = labelPrimary
+    static let labelPrimary = Color(light: "#111111", dark: "#F4ECE9")
+    static let labelSecondary = Color(light: "#6E6E73", dark: "#A1A1A6")
+    static let labelTertiary = Color(light: "#808085", dark: "#86868B")
+    static let surface = Color(light: "#FFFFFF", dark: "#151516")
+    // Almond is a brand accent; its lighter tint leaves content room to breathe.
+    static let surfaceGrouped = Color(light: "#F8F4F2", dark: "#000000")
+    static let surfaceElevated = Color(light: "#FFFFFF", dark: "#1C1C1E")
+    static let surfaceSecondary = Color(light: "#EFE8E6", dark: "#2C2C2E")
+    static let hairline = Color(light: "#ECE5E2", dark: "#303033")
+    // Decorative wash only; text and interactive color roles stay separate.
+    static let grainBlue = Color(light: "#CFCFD4", dark: "#6E6E73")
 
     // MARK: - Adaptive convenience initialiser
 

@@ -3,6 +3,11 @@
 *.env
 smartmarket/smartmarket-backend/.env
 
+# iOS build secrets — the real API key is injected via this xcconfig at build
+# time and must never be committed (see Secrets.xcconfig.example / SETUP.md).
+Secrets.xcconfig
+*.secrets.xcconfig
+
 # Xcode
 *.xcworkspace/xcuserdata
 *.xcodeproj/xcuserdata
@@ -33,5 +38,10 @@ smartmarket/smartmarket-backend/off_cache.json
 # Pytest
 .pytest_cache/
 
-# CI workflow — add later via GitHub web UI or a workflow-scoped token
-.github/
+# Swift package verification artifacts
+.build/
+.swiftpm/
+
+
+# Local release binaries and screenshot candidates (never source-control credentials).
+/release-artifacts/

@@ -6,9 +6,29 @@ struct RecipeSheet: View {
 
     let mealName: String
     @State private var recipe: Recipe?
-    @State private var isLoading = false
+    @State private var isLoading: Bool
     @State private var failed = false
+    /// Why the last load failed: the error screen says so, instead of always blaming the connection.
+    @State private var failure = Failure.connection
+    @State private var speaker = ReadAlongSpeaker()
+    @State private var ratings = RecipeRatingStore.shared
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// `recipe` shows a recipe without loading it (previews).
+    init(mealName: String, recipe: Recipe? = nil) {
+        self.mealName = mealName
+        _recipe = State(initialValue: recipe)
+        _isLoading = State(initialValue: recipe == nil)
+    }
+
+    private var language: String { AppState.shared.lang }
+
+    private var rating: Binding<Int> {
+        Binding(get: { ratings.rating(for: mealName) },
+                set: { ratings.setRating($0, for: mealName) })
+    }
 
     var body: some View {
         NavigationStack {
@@ -21,6 +41,7 @@ struct RecipeSheet: View {
                     errorView
                 }
             }
+            .animation(reduceMotion ? .none : .easeOut(duration: 0.2), value: isLoading)
             .navigationTitle(mealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -30,36 +51,43 @@ struct RecipeSheet: View {
                 }
             }
         }
-        .task { await loadRecipe() }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Radius.sheet)
+        .task { if recipe == nil { await loadRecipe() } }
+        // Speech never outlives the sheet.
+        .onDisappear { speaker.stop() }
     }
 
     // MARK: - Loading
 
     private var loadingView: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.4)
-                .tint(.brandPrimary)
-            Text("Generating recipe…")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.xl) {
+                RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).frame(height: 72)
+                ForEach(0..<2) { _ in
+                    RoundedRectangle(cornerRadius: 6, style: .continuous).frame(width: 130, height: 20)
+                    VStack(spacing: Spacing.md) {
+                        ForEach(0..<4) { _ in
+                            RoundedRectangle(cornerRadius: 6, style: .continuous).frame(height: 24)
+                        }
+                    }
+                }
+            }
+            .foregroundStyle(Color.labelTertiary.opacity(0.15))
+            .padding(Spacing.lg)
+            .shimmer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading recipe")
+        .accessibilityIdentifier("recipe.loading")
     }
 
     // MARK: - Error
 
     private var errorView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.brandAmber)
-            Text("Couldn't load recipe")
-                .font(.headline)
-            Button("Try Again") { Task { await loadRecipe() } }
-                .buttonStyle(.borderedProminent)
-                .tint(.brandPrimary)
-        }
+        ErrorStateView(title: failure.title, message: failure.message) { Task { await loadRecipe() } }
+            .accessibilityIdentifier("recipe.error")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -71,17 +99,20 @@ struct RecipeSheet: View {
             VStack(alignment: .leading, spacing: 24) {
 
                 // Time + servings strip
-                HStack(spacing: 0) {
+                let statsLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: Spacing.lg))
+                    : AnyLayout(HStackLayout(spacing: 0))
+                statsLayout {
                     statPill(icon: "clock",        label: "Prep",     value: "\(r.prepTime)m")
-                    Divider().frame(height: 32)
+                    if !dynamicTypeSize.isAccessibilitySize { Divider().frame(height: 32) }
                     statPill(icon: "flame",        label: "Cook",     value: "\(r.cookTime)m")
-                    Divider().frame(height: 32)
+                    if !dynamicTypeSize.isAccessibilitySize { Divider().frame(height: 32) }
                     statPill(icon: "person.2",     label: "Serves",   value: "\(r.servings)")
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(Color.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 // Ingredients
                 sectionHeader(icon: "cart.fill", title: "Ingredients")
@@ -96,7 +127,7 @@ struct RecipeSheet: View {
                             Spacer()
                             Text(ing.amount)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.labelSecondary)
                         }
                         .padding(.vertical, 10)
                         .padding(.horizontal, 14)
@@ -106,29 +137,33 @@ struct RecipeSheet: View {
                     }
                 }
                 .background(Color.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 // Steps
-                sectionHeader(icon: "list.number", title: "Instructions")
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                    sectionHeader(icon: "list.number", title: "Instructions")
+                    Spacer(minLength: Spacing.sm)
+                    if !r.steps.isEmpty { readAloudButton(r) }
+                }
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(r.steps.enumerated()), id: \.offset) { idx, step in
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(idx + 1)")
                                 .font(.caption).fontWeight(.bold)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.onAccent)
                                 .frame(width: 26, height: 26)
-                                .background(Color.brandPrimary)
+                                .background(Color.dullPink)
                                 .clipShape(Circle())
-                            Text(step)
-                                .font(.body)
-                                .fixedSize(horizontal: false, vertical: true)
+                            ReadAlongText(speaker: speaker, paragraph: idx, text: step, language: language)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
+                .onAppear { speaker.load(r.steps) }
 
                 // Tip
                 if let tip = r.tip, !tip.isEmpty {
@@ -137,13 +172,21 @@ struct RecipeSheet: View {
                             .foregroundStyle(Color.brandAmber)
                         Text(tip)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.labelSecondary)
                     }
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.brandAmber.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
+
+                // Rating (stored on this device only)
+                StarRating(rating: rating)
+                    .padding(.vertical, Spacing.lg)
+                    .padding(.horizontal, 14)
+                    .background(Color.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .accessibilityIdentifier("recipe.rating")
             }
             .padding(16)
         }
@@ -151,6 +194,28 @@ struct RecipeSheet: View {
     }
 
     // MARK: - Helpers
+
+    private func readAloudButton(_ r: Recipe) -> some View {
+        Button {
+            if speaker.isSpeaking { speaker.stop() } else {
+                speaker.load(r.steps)
+                speaker.start(language: language)
+            }
+        } label: {
+            Label(speaker.isSpeaking ? "Stop" : "Read steps aloud",
+                  systemImage: speaker.isSpeaking ? "stop.fill" : "speaker.wave.2.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.labelPrimary)
+                .padding(.horizontal, Spacing.md)
+                .frame(minHeight: 36)
+                .background(Color.surfaceSecondary, in: Capsule())
+                .contentShape(Capsule())
+                .contentTransition(.opacity)
+        }
+        .buttonStyle(ScalePressStyle())
+        .accessibilityHint(speaker.isSpeaking ? "Stops reading" : "Reads the recipe steps aloud")
+        .accessibilityIdentifier("recipe.readAloud")
+    }
 
     private func statPill(icon: String, label: String, value: String) -> some View {
         VStack(spacing: 4) {
@@ -161,7 +226,7 @@ struct RecipeSheet: View {
                 .font(.subheadline).fontWeight(.semibold)
             Text(label)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.labelSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -169,7 +234,7 @@ struct RecipeSheet: View {
     private func sectionHeader(icon: String, title: String) -> some View {
         Label(title, systemImage: icon)
             .font(.headline)
-            .foregroundStyle(.primary)
+            .foregroundStyle(Color.labelPrimary)
     }
 
     // MARK: - Data
@@ -180,8 +245,62 @@ struct RecipeSheet: View {
         do {
             recipe = try await APIService.shared.fetchRecipe(mealName: mealName)
         } catch {
+            failure = Failure(error)
             failed = true
         }
         isLoading = false
     }
+
+    /// Recipes are written by the online AI, so most failures are about AI not
+    /// being set up or available, not about the connection.
+    enum Failure: Equatable {
+        case aiOff, aiBusy(String), connection
+
+        init(_ error: Error) {
+            switch error {
+            case APIError.aiConsentRequired, AIAccountError.signInRequired:
+                self = .aiOff
+            case let account as AIAccountError:
+                self = .aiBusy(account.errorDescription ?? "Nourlo AI isn't available right now. Please try again later.")
+            case APIError.unverifiedAIResponse:
+                self = .aiBusy("Nourlo AI isn't available right now. Please try again later.")
+            default:
+                self = .connection
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .aiOff: return "Recipes need Nourlo AI"
+            case .aiBusy: return "AI recipes aren't available"
+            case .connection: return "Couldn't load recipe"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .aiOff:
+                return "Step-by-step recipes are written by Nourlo AI, which isn't turned on yet. Turn it on in Profile, then try again. Everything else works without it."
+            case .aiBusy(let text):
+                return text
+            case .connection:
+                return "Recipes are written by Nourlo AI, and we couldn't reach it. Check your connection and try again."
+            }
+        }
+    }
+}
+
+#Preview("Recipe") {
+    Color.surfaceGrouped
+        .sheet(isPresented: .constant(true)) {
+            RecipeSheet(mealName: "Buckwheat with chicken", recipe: Recipe(
+                mealName: "Buckwheat with chicken", prepTime: 10, cookTime: 20, servings: 2,
+                ingredients: [RecipeIngredient(name: "buckwheat", amount: "150 g"),
+                              RecipeIngredient(name: "chicken breast", amount: "300 g"),
+                              RecipeIngredient(name: "cucumber", amount: "1")],
+                steps: ["Rinse the buckwheat and simmer it in salted water for 15 minutes.",
+                        "Slice the chicken, season it and fry for 6 minutes on each side.",
+                        "Serve with sliced cucumber."],
+                tip: "Toast the buckwheat in a dry pan first for a nuttier taste."))
+        }
 }

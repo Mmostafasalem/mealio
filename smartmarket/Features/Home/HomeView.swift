@@ -2,809 +2,239 @@ import SwiftUI
 
 struct HomeView: View {
 
+    /// Profile opens from the avatar in the header (and from quick actions).
+    @State private var showProfile = false
+    @State private var showReminders = false
+    @State private var reminders = ReminderStore.shared
+    @State private var loop = DailyLoopStore.shared
+    @State private var showStock = false
+
     @State private var vm = HomeViewModel()
-    @State private var showCalorieDetail = false
-    @Environment(AppState.self) private var appState
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Shown for a moment after the connection comes back.
+    @State private var showBackOnline = false
+
+    /// Today's reminders whose time has come, as a pile of cards. Tap to fan
+    /// them out, tap one to act on it, swipe one away to dismiss it. Meals
+    /// already logged today have nothing left to remind about.
+    @ViewBuilder
+    private var dueReminders: some View {
+        let loggedSlots = vm.loggedSlots
+        let due = reminders.due(now: vm.now, loggedSlots: loggedSlots)
+        if !due.isEmpty {
+            NotificationStack(
+                notices: due.map { StackNotice(id: $0.id, symbol: $0.symbol, title: $0.title, body: $0.message, detail: $0.timeText) },
+                title: "Reminders",
+                onOpen: { notice in
+                    guard let reminder = due.first(where: { $0.id == notice.id }) else { return }
+                    reminders.dismiss(reminder)
+                    if reminder.kind == .workout {
+                        NotificationCenter.default.post(name: .openTrain, object: nil)
+                    } else {
+                        vm.openLog(slot: reminder.mealSlot)
+                    }
+                },
+                onDismiss: { notice in
+                    if let reminder = due.first(where: { $0.id == notice.id }) { reminders.dismiss(reminder) }
+                },
+                onClearAll: { reminders.dismissAllDue(now: vm.now, loggedSlots: loggedSlots) })
+            .accessibilityIdentifier("home.dueReminders")
+        }
+    }
+
+    private func openQuest(_ destination: QuestDestination) {
+        switch destination {
+        case .logFood: vm.openLog()
+        case .train: NotificationCenter.default.post(name: .openTrain, object: nil)
+        case .shop: NotificationCenter.default.post(name: .openShop, object: nil)
+        case .stock: showStock = true
+        }
+    }
+
+    private func shortcut(_ title: String, symbol: String) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: symbol)
+            Text(title).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Color.labelPrimary)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(Color.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
+        .contentShape(Capsule())
+    }
 
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                Color.surfaceGrouped.ignoresSafeArea()
+                GrainyGradient().ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        headerBanner
-                        VStack(spacing: 16) {
-                            calorieCard
-                            mealSectionsCard
-                            agentCard
-                            dealsSection
-                            mealPlanPreview
+                // Custom goo pull-to-refresh (replaces the system `.refreshable`);
+                // the island floats above the list for Home's transient notices.
+                GooPullRefresh(action: { await vm.refresh() }) {
+                    MorphIsland(item: notice, style: \.islandStyle) { notice in
+                        noticeView(notice)
+                    }
+                } content: {
+                    VStack(spacing: Spacing.md) {
+                        HomeHeaderView(vm: vm, onProfile: { showProfile = true }, onReminders: { showReminders = true })
+                        VStack(spacing: Spacing.lg) {
+                            dueReminders
+                            // Two matching pills with the microphone between them.
+                            HStack(spacing: Spacing.md) {
+                                NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
+                                    .accessibilityIdentifier("home.stock")
+                                // One tap to speak a command (the same sheet as "+" › Speak a command).
+                                Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
+                                    Image(systemName: "mic.fill")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Color.onAccent)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.dullPink, in: Circle())
+                                        .contentShape(Circle())
+                                }
+                                .accessibilityLabel("Speak a command")
+                                .accessibilityIdentifier("home.voice")
+                                // The same small "i" as the macros, centred just above the microphone,
+                                // in the gap under the header, so the row stays symmetrical.
+                                .overlay {
+                                    InfoTooltip(text: "Tap the microphone and say what you ate or want, like \u{201C}two eggs for breakfast\u{201D}, \u{201C}add milk to my cart\u{201D} or \u{201C}start a 30 minute workout\u{201D}. It listens on this iPhone and shows what it understood before saving.")
+                                        .offset(y: -34)
+                                }
+                                NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
+                            }
+                            .buttonStyle(ScalePressStyle())
+                            CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
+                            DailyQuestCard(state: loop.state, onOpen: openQuest)
+                            // Only while Apple Health is on; refreshes itself when shown.
+                            ActivityCard()
+                            // Above the cards below it: its goo menu pours out over them.
+                            TodaysLogCard(vm: vm).zIndex(1)
+                            HomeDealsSection(vm: vm)
+                            MealPlanPreviewCard(vm: vm)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 32)
+                        .padding(.horizontal, Spacing.lg)
+                        .padding(.bottom, Spacing.xxl)
                     }
                 }
-                .refreshable { await vm.refresh() }
-
-                // Deal banner drops from top
-                if let deal = vm.activeDealBanner {
-                    DealNotificationBanner(
-                        deal: deal,
-                        onBuy:  { Task { await vm.respondToDeal(deal, bought: true) } },
-                        onSkip: { Task { await vm.respondToDeal(deal, bought: false) } }
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(10)
-                }
             }
-            .overlay(alignment: .bottomTrailing) { quickLogButton }
-            .animation(reduceMotion ? .none : .spring(response: 0.45, dampingFraction: 0.8),
-                       value: vm.activeDealBanner?.id)
+            // Content scrolling up no longer shows through the clock and battery.
+            .overlay(alignment: .top) {
+                Color.clear.frame(height: 0)
+                    .background(Color.surfaceGrouped.opacity(0.94), ignoresSafeAreaEdges: .top)
+                    .allowsHitTesting(false)
+            }
             .navigationBarHidden(true)
+            .navigationDestination(isPresented: $showReminders) { RemindersView() }
+            .navigationDestination(isPresented: $showProfile) {
+                ProfileView().navigationBarHidden(false)
+            }
+            .navigationDestination(isPresented: $showStock) { StockView() }
+            .onReceive(NotificationCenter.default.publisher(for: .openProfile)) { _ in showProfile = true }
         }
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
         .task { await vm.load() }
-        .onAppear { LocationService.shared.startUpdating() }
+        // Keeps the date, today's log and due reminders current while Home is
+        // on screen: one cheap tick at each minute boundary.
+        .task {
+            while !Task.isCancelled {
+                let seconds = 60 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 60)
+                try? await Task.sleep(for: .seconds(seconds + 0.05))
+                guard !Task.isCancelled else { return }
+                vm.tick()
+            }
+        }
+        .onAppear {
+            vm.activate()
+            loop.refresh()
+        }
+        // A new day: today's quest starts over.
+        .onChange(of: Calendar.current.startOfDay(for: vm.now)) { _, _ in loop.refresh() }
+        .onChange(of: FoodLogStore.shared.revision) { _, _ in loop.refresh() }
+        .onChange(of: StockStore.shared.logs.count) { _, _ in loop.refresh() }
+        // The newest session's id changes even once the history is capped at 200.
+        .onChange(of: WorkoutStore.shared.completed.first?.id) { _, _ in loop.refresh() }
+        .onChange(of: WorkoutStore.shared.completed.count) { _, _ in loop.refresh() }
+        .onChange(of: AppState.shared.userProfile.dailyCalorieGoal) { _, _ in loop.refresh() }
+        .task(id: loop.pendingMilestone) {
+            guard loop.pendingMilestone != nil else { return }
+            try? await Task.sleep(for: .seconds(3.5))
+            if !Task.isCancelled { loop.consumeMilestone() }
+        }
+        .onChange(of: NetworkMonitor.shared.isOnline) { _, online in
+            showBackOnline = online
+            AccessibilityNotification.Announcement(online ? "Back online" : "Offline, using saved data").post()
+        }
+        .task(id: showBackOnline) {
+            guard showBackOnline else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            if !Task.isCancelled { showBackOnline = false }
+        }
     }
 
-    // MARK: - Header banner
+    // MARK: Island notices
 
-    private var headerBanner: some View {
-        ZStack(alignment: .bottom) {
-            LinearGradient(
-                colors: [Color.brandHeader, Color.brandHeaderMid],
-                startPoint: .top, endPoint: .bottom
+    /// The deal the person tapped wins over connection status.
+    private var notice: HomeNotice? {
+        if let deal = vm.activeDealBanner { return .deal(deal) }
+        if let days = loop.pendingMilestone { return .milestone(days) }
+        if !NetworkMonitor.shared.isOnline { return .offline }
+        if showBackOnline { return .backOnline }
+        return nil
+    }
+
+    @ViewBuilder private func noticeView(_ notice: HomeNotice) -> some View {
+        switch notice {
+        case .offline:
+            statusPill("Offline · using saved data", systemImage: "wifi.slash")
+                .accessibilityLabel("Offline, using saved data")
+        case .backOnline:
+            statusPill("Back online", systemImage: "wifi")
+        case .milestone(let days):
+            statusPill("\(days)-day streak! Nourlo is proud of you.", systemImage: "sparkles")
+        case .deal(let deal):
+            DealNotificationBanner(
+                deal: deal,
+                onBuy:  { Task { await vm.respondToDeal(deal, bought: true) } },
+                onSkip: { Task { await vm.respondToDeal(deal, bought: false) } }
             )
-            .ignoresSafeArea(edges: .top)
-
-            // Decorative circle
-            Circle()
-                .fill(.white.opacity(0.05))
-                .frame(width: 200, height: 200)
-                .offset(x: 140, y: -30)
-                .blur(radius: 20)
-
-            VStack(spacing: 0) {
-                HStack(alignment: .center, spacing: 14) {
-                    // Avatar
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.2))
-                            .frame(width: 48, height: 48)
-                        Text(profileName.prefix(1).uppercased())
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                    }
-                    .overlay(Circle().strokeBorder(.white.opacity(0.4), lineWidth: 1.5))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(greeting)
-                            .font(.caption).fontWeight(.medium)
-                            .foregroundStyle(.white.opacity(0.7))
-                        Text(profileName.isEmpty ? "Welcome!" : profileName)
-                            .font(.title3).fontWeight(.bold)
-                            .foregroundStyle(.white)
-                    }
-
-                    Spacer()
-
-                    // Date pill
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(Date(), format: .dateTime.weekday(.abbreviated))
-                            .font(.caption2).foregroundStyle(.white.opacity(0.6))
-                            .textCase(.uppercase)
-                        Text(Date(), format: .dateTime.day().month(.abbreviated))
-                            .font(.subheadline).fontWeight(.semibold).foregroundStyle(.white)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 58)
-                .padding(.bottom, 20)
-
-                // Quick stats strip
-                HStack(spacing: 0) {
-                    quickStat(label: "Today", value: "\(Int(vm.consumed)) kcal", icon: "flame.fill", color: .brandAmber)
-                    Divider().frame(height: 30).overlay(Color.white.opacity(0.2))
-                    quickStat(label: "Goal", value: "\(Int(vm.goal)) kcal", icon: "target", color: .white)
-                    Divider().frame(height: 30).overlay(Color.white.opacity(0.2))
-                    quickStat(label: "Deals", value: "\(vm.nearbyDeals.count) near you", icon: "tag.fill", color: Color(hex: "#86EFAC"), isRefreshing: vm.isRefreshing)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 18)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        // Gradient fade into the grouped background so cards appear to emerge from the header
-        .overlay(alignment: .bottom) {
-            LinearGradient(
-                colors: [.clear, Color.surfaceGrouped],
-                startPoint: .top, endPoint: .bottom
-            )
-            .frame(height: 22)
-            .allowsHitTesting(false)
         }
     }
 
-    private func quickStat(label: String, value: String, icon: String, color: Color, isRefreshing: Bool = false) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.caption).foregroundStyle(color)
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text(value)
-                        .font(.caption).fontWeight(.semibold).foregroundStyle(.white)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                    if isRefreshing {
-                        ProgressView()
-                            .scaleEffect(0.45)
-                            .tint(.white.opacity(0.7))
-                    }
-                }
-                Text(label)
-                    .font(.caption2).foregroundStyle(.white.opacity(0.55))
-            }
+    private func statusPill(_ text: String, systemImage: String) -> some View {
+        HStack(spacing: Spacing.xs + 2) {
+            Image(systemName: systemImage).accessibilityHidden(true)
+            Text(text)
         }
-        .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Calorie card
-
-    private var calorieCard: some View {
-        VStack(spacing: 0) {
-            // Top: ring + calorie text side by side
-            HStack(spacing: 20) {
-                CalorieRingView(consumed: vm.consumed, goal: vm.goal, size: 120)
-                    .frame(width: 120, height: 120)
-                    .onTapGesture { showCalorieDetail.toggle() }
-                    .popover(isPresented: $showCalorieDetail, attachmentAnchor: .point(.center), arrowEdge: .trailing) {
-                        calorieDetailPopover
-                    }
-                    .accessibilityHint("Tap for calorie breakdown")
-
-                VStack(alignment: .leading, spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Calories Today")
-                            .font(.caption).fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                        HStack(alignment: .firstTextBaseline, spacing: 3) {
-                            Text("\(Int(vm.consumed))")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary)
-                                .monospacedDigit()
-                                .minimumScaleFactor(0.6)
-                                .lineLimit(1)
-                            Text("/ \(Int(vm.goal))")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
-                                .minimumScaleFactor(0.7)
-                                .lineLimit(1)
-                            Text("kcal")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Button { vm.openLog() } label: {
-                        Label("Log Food", systemImage: "plus.circle.fill")
-                            .font(.caption).fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(Color.brandPrimary, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(18)
-
-            Divider().padding(.horizontal, 18)
-
-            // Bottom: macro row
-            HStack(spacing: 0) {
-                macroTile(label: "Protein", symbol: "bolt.fill",
-                          current: vm.proteinCurrent, goal: vm.proteinGoal,
-                          color: .proteinAccent,
-                          tooltip: "Protein builds and repairs muscle. Your target is \(Int(vm.proteinGoal))g/day based on your weight and goal.")
-                macroSeparator
-                macroTile(label: "Carbs", symbol: "leaf.fill",
-                          current: vm.carbsCurrent, goal: vm.carbsGoal,
-                          color: .carbsAccent,
-                          tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
-                macroSeparator
-                macroTile(label: "Fat", symbol: "drop.fill",
-                          current: vm.fatCurrent, goal: vm.fatGoal,
-                          color: .fatAccent,
-                          tooltip: "Healthy fats support hormones and brain function. Include olive oil, nuts, and fatty fish.")
-            }
-            .padding(.vertical, 14)
-        }
-        .premiumCard()
-    }
-
-    private func macroTile(label: String, symbol: String,
-                           current: Double, goal: Double, color: Color, tooltip: String) -> some View {
-        VStack(spacing: 5) {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(color)
-                    .frame(width: 28, height: 28)
-                    .background(color.opacity(0.12), in: Circle())
-                InfoTooltip(text: tooltip)
-                    .offset(x: 10, y: -8)
-            }
-            .frame(width: 38, height: 36)
-            Text("\(Int(current))g")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .monospacedDigit()
-            Text("of \(Int(goal))g")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(label)
-                .font(.caption2).fontWeight(.semibold)
-                .foregroundStyle(color)
-            ProgressView(value: min(max(current, 0), goal), total: max(goal, 1))
-                .tint(color)
-                .frame(width: 44)
-                .padding(.top, 1)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var calorieDetailPopover: some View {
-        let remaining = max(vm.goal - Int(vm.consumed), 0)
-        let over = max(Int(vm.consumed) - vm.goal, 0)
-        let pct = vm.goal > 0 ? min(Int(Double(vm.consumed) / Double(vm.goal) * 100), 100) : 0
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Calorie Summary")
-                .font(.headline)
-            Divider()
-            calorieRow("Consumed", value: "\(Int(vm.consumed)) kcal", color: .primary)
-            calorieRow("Daily Goal", value: "\(vm.goal) kcal", color: .secondary)
-            calorieRow(over > 0 ? "Over by" : "Remaining",
-                       value: "\(over > 0 ? over : remaining) kcal",
-                       color: over > 0 ? .brandDanger : .brandPrimary)
-            Divider()
-            Text("\(pct)% of daily goal")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .font(.subheadline)
-        .padding(16)
-        .frame(minWidth: 210)
-        .presentationCompactAdaptation(.popover)
-    }
-
-    private func calorieRow(_ label: String, value: String, color: Color) -> some View {
-        HStack {
-            Text(label).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).bold().foregroundStyle(color)
-        }
-    }
-
-    private var macroSeparator: some View {
-        Rectangle()
-            .fill(Color(.separator).opacity(0.4))
-            .frame(width: 0.5, height: 64)
-    }
-
-    // MARK: - Agent card
-
-    private var agentCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                ZStack {
-                    LinearGradient(colors: [Color.brandPrimary, Color.brandDark],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                        .clipShape(Circle())
-                        .frame(width: 36, height: 36)
-                    Text("SM")
-                        .font(.caption).fontWeight(.bold)
-                        .foregroundStyle(.white)
-                }
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Mealio Agent")
-                        .font(.subheadline).fontWeight(.semibold)
-                    Text("AI-powered meal & deal assistant")
-                        .font(.caption2).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if appState.isGeneratingMealPlan {
-                    HStack(spacing: 4) {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .tint(Color.brandPrimary)
-                        Text("Thinking…")
-                            .font(.caption2).foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            AgentMessageCardView(
-                message: vm.mealPlan?.agentNotes,
-                isLoading: vm.isLoading || appState.isGeneratingMealPlan
-            )
-
-            Button {
-                vm.showAgentChat = true
-            } label: {
-                HStack {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                    Text("Ask Agent")
-                        .fontWeight(.semibold)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption).fontWeight(.semibold)
-                        .opacity(0.7)
-                }
-                .font(.subheadline)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 11)
-                .background(
-                    LinearGradient(colors: [Color.brandPrimary, Color.brandDark],
-                                   startPoint: .leading, endPoint: .trailing),
-                    in: RoundedRectangle(cornerRadius: 12)
-                )
-            }
-        }
-        .padding(16)
-        .premiumCard()
-    }
-
-    // MARK: - Deals section
-
-    private var dealsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "tag.fill")
-                        .foregroundStyle(Color.brandPrimary)
-                    Text("Deals Near You")
-                        .font(.headline)
-                }
-                Spacer()
-                if !vm.nearbyDeals.isEmpty {
-                    Text("\(vm.nearbyDeals.count) deals")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.brandPrimary, in: Capsule())
-                }
-            }
-
-            if vm.isLoading {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(0..<3, id: \.self) { _ in SkeletonDealCard() }
-                    }
-                    .padding(.horizontal, 1)
-                }
-            } else if vm.nearbyDeals.isEmpty {
-                emptyDealsRow
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(vm.nearbyDeals) { deal in
-                            DealCardView(deal: deal) { vm.activeDealBanner = deal }
-                        }
-                    }
-                    .padding(.horizontal, 1)
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-        .padding(16)
-        .premiumCard()
-    }
-
-    private var emptyDealsRow: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "location.magnifyingglass")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.brandPrimary.opacity(0.35))
-            VStack(alignment: .leading, spacing: 3) {
-                Text("No nearby deals found")
-                    .font(.subheadline).fontWeight(.semibold)
-                Text("Make sure the backend is running and pull to refresh")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.vertical, 10)
-    }
-
-    // MARK: - Meal plan preview
-
-    private var mealPlanPreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Today's Meals", systemImage: "fork.knife.circle.fill")
-                    .font(.headline)
-                Spacer()
-                NavigationLink {
-                    MealPlanView()
-                } label: {
-                    Text("Full Plan")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(Color.brandPrimary)
-                }
-            }
-
-            if vm.isLoading {
-                ForEach(0..<4, id: \.self) { _ in
-                    Rectangle()
-                        .fill(Color(.systemFill))
-                        .frame(height: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .shimmer(active: !reduceMotion)
-                }
-            } else if let plan = vm.mealPlan {
-                ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { idx, meal in
-                    MealPreviewRow(
-                        icon: meal.sfSymbol,
-                        title: meal.title,
-                        calories: meal.entries.reduce(0) { $0 + $1.calories },
-                        accent: mealAccent(idx)
-                    )
-                    if idx < plan.allMeals.count - 1 {
-                        Divider().padding(.leading, 36)
-                    }
-                }
-            } else {
-                HStack(spacing: 10) {
-                    Image(systemName: "wand.and.stars")
-                        .foregroundStyle(Color.brandPrimary.opacity(0.5))
-                    Text("Pull to refresh and generate today's plan")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-            }
-        }
-        .padding(16)
-        .premiumCard()
-    }
-
-    // MARK: - Meal sections (today's log)
-
-    private var mealSectionsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Today's Log", systemImage: "list.bullet.clipboard.fill")
-                    .font(.headline)
-                Spacer()
-                Text("\(vm.remaining) kcal left")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(Color.calorieAccent)
-                    .contentTransition(.numericText())
-            }
-            ForEach(Array(MealSlot.allCases.enumerated()), id: \.element) { idx, slot in
-                MealSlotRow(
-                    slot: slot,
-                    entries: vm.entries(for: slot),
-                    onAdd: { vm.openLog(slot: slot) },
-                    onDelete: { vm.removeLog($0) }
-                )
-                if idx < MealSlot.allCases.count - 1 {
-                    Divider().padding(.leading, 40)
-                }
-            }
-        }
-        .padding(16)
-        .premiumCard()
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: vm.consumed)
-    }
-
-    private var quickLogButton: some View {
-        Button { vm.openLog() } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 58, height: 58)
-                .background(
-                    LinearGradient(colors: [Color.calorieAccent, Color.calorieAccent.opacity(0.82)],
-                                   startPoint: .top, endPoint: .bottom),
-                    in: Circle()
-                )
-                .shadow(color: Color.calorieAccent.opacity(0.45), radius: 12, x: 0, y: 5)
-        }
-        .padding(.trailing, 20)
-        .padding(.bottom, 28)
-        .accessibilityLabel("Log food")
-    }
-
-    // MARK: - Helpers
-
-    private var greeting: String {
-        let h = Calendar.current.component(.hour, from: Date())
-        switch h {
-        case 5..<12: return "Good morning"
-        case 12..<17: return "Good afternoon"
-        default:      return "Good evening"
-        }
-    }
-
-    private var profileName: String {
-        let name = AppState.shared.userProfile.name
-        return name.isEmpty ? "there" : name
-    }
-
-    private func mealAccent(_ idx: Int) -> Color {
-        [Color.brandPrimary, Color.brandAmber, Color(hex: "#0EA5E9"), Color(hex: "#8B5CF6")][idx % 4]
-    }
-}
-
-// MARK: - Sub-views
-
-private struct MealPreviewRow: View {
-    let icon: String
-    let title: String
-    let calories: Int
-    let accent: Color
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(accent)
-                .frame(width: 28, height: 28)
-                .background(accent.opacity(0.12))
-                .clipShape(Circle())
-
-            Text(title)
-                .font(.subheadline).fontWeight(.medium)
-                .lineLimit(1)
-            Spacer()
-            Text("\(calories) kcal")
-                .font(.caption).fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-        }
-        .padding(.vertical, 2)
-    }
-}
-
-private struct SkeletonDealCard: View {
-    @State private var phase: CGFloat = -1
-
-    var body: some View {
-        RoundedRectangle(cornerRadius: 14)
-            .fill(Color(.systemFill))
-            .frame(width: 160, height: 100)
-            .shimmer(active: true)
-    }
-}
-
-
-// MARK: - Meal slot row (one meal's logged items)
-
-private struct MealSlotRow: View {
-    let slot: MealSlot
-    let entries: [FoodLogEntry]
-    let onAdd: () -> Void
-    let onDelete: (FoodLogEntry) -> Void
-
-    private var kcal: Int { entries.reduce(0) { $0 + $1.calories } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Image(systemName: slot.sfSymbol)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(slot.accent)
-                    .frame(width: 30, height: 30)
-                    .background(slot.accent.opacity(0.12), in: Circle())
-
-                Text(slot.title)
-                    .font(.subheadline).fontWeight(.semibold)
-
-                Spacer()
-
-                if kcal > 0 {
-                    Text("\(kcal) kcal")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(.secondary).monospacedDigit()
-                }
-
-                Button(action: onAdd) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(slot.accent)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Add to \(slot.title)")
-            }
-
-            ForEach(entries) { entry in
-                HStack(spacing: 8) {
-                    Text(entry.name)
-                        .font(.caption).foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Spacer()
-                    Text("\(entry.servingG)g")
-                        .font(.caption2).foregroundStyle(.secondary)
-                    Text("\(entry.calories)")
-                        .font(.caption2).fontWeight(.semibold)
-                        .foregroundStyle(.secondary).monospacedDigit()
-                    Button { onDelete(entry) } label: {
-                        Image(systemName: "minus.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color.brandDanger.opacity(0.7))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, 40)
-            }
-        }
-    }
-}
-
-#Preview { HomeView() }
-
-// MARK: - Agent Chat Sheet (FIXED CRASH)
-
-struct AgentChatSheet: View {
-    @Bindable var vm: HomeViewModel
-    @Environment(\.dismiss) private var dismiss
-    @FocusState private var inputFocused: Bool
-    
-    // FIX 1: Purely local @State string strictly isolates keystrokes from background model tasks
-    @State private var localInput: String = ""
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            if vm.chatMessages.isEmpty {
-                                VStack(spacing: 8) {
-                                    Image(systemName: "brain.head.profile")
-                                        .font(.system(size: 44))
-                                        .foregroundStyle(Color.brandPrimary)
-                                    Text("Ask me anything about your meals, deals, or nutrition goals.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .padding(.top, 60)
-                                .padding(.horizontal, 32)
-                            }
-                            ForEach(vm.chatMessages) { msg in
-                                ChatBubble(message: msg)
-                                    .id(msg.id.uuidString)
-                            }
-                            if vm.isChatLoading {
-                                HStack {
-                                    TypingIndicator()
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 16)
-                                .id("typing")
-                            }
-                        }
-                        .padding(.vertical, 16)
-                    }
-                    .onChange(of: vm.chatMessages.count) {
-                        withAnimation {
-                            proxy.scrollTo(vm.chatMessages.last?.id.uuidString ?? "typing", anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: vm.isChatLoading) {
-                        if vm.isChatLoading {
-                            withAnimation { proxy.scrollTo("typing", anchor: .bottom) }
-                        }
-                    }
-                }
-
-                Divider()
-
-                HStack(spacing: 10) {
-                    // FIX 2: Bind safely to local buffer state variable
-                    TextField("Ask about meals, deals, nutrition…", text: $localInput)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.sentences)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20))
-                        .focused($inputFocused)
-                        .submitLabel(.send)
-                        .onSubmit {
-                            let cleaned = localInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                            guard !cleaned.isEmpty else { return }
-                            
-                            // Commit payload to VM main actor sequence securely on button fire/return
-                            vm.chatInput = cleaned
-                            localInput = ""
-                            Task { await vm.sendChatMessage() }
-                        }
-
-                    Button {
-                        let cleaned = localInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                        vm.chatInput = cleaned
-                        localInput = ""
-                        Task { await vm.sendChatMessage() }
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(localInput.trimmingCharacters(in: .whitespaces).isEmpty || vm.isChatLoading
-                                ? Color.secondary : Color.brandPrimary)
-                    }
-                    .disabled(localInput.trimmingCharacters(in: .whitespaces).isEmpty || vm.isChatLoading)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-            }
-            .navigationTitle("Mealio Agent")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        .onAppear { }
-    }
-}
-
-// MARK: - Chat Bubble
-
-private struct ChatBubble: View {
-    let message: ChatMessage
-
-    var isUser: Bool { message.role == "user" }
-
-    var body: some View {
-        HStack {
-            if isUser { Spacer(minLength: 60) }
-            Text(message.content)
-                .font(.subheadline)
-                .foregroundStyle(isUser ? .white : .primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    isUser ? Color.brandPrimary : Color(.secondarySystemBackground),
-                    in: RoundedRectangle(cornerRadius: 18)
-                )
-            if !isUser { Spacer(minLength: 60) }
-        }
-        .padding(.horizontal, 16)
-    }
-}
-
-// MARK: - Typing Indicator
-
-private struct TypingIndicator: View {
-    @State private var animating = false
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { i in
-                Circle()
-                    .fill(Color.secondary)
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(animating ? 1.3 : 0.8)
-                    .opacity(animating ? 1.0 : 0.4)
-                    .animation(
-                        .easeInOut(duration: 0.5).repeatForever(autoreverses: true).delay(Double(i) * 0.18),
-                        value: animating
-                    )
-            }
-        }
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(Color.labelPrimary)
+        .lineLimit(1)
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
-        .onAppear { animating = true }
+        .padding(.vertical, 9)
+        .accessibilityElement(children: .combine)
     }
 }
+
+/// What Home's MorphIsland can show.
+enum HomeNotice: Identifiable, Equatable {
+    case offline
+    case backOnline
+    case deal(MarketDeal)
+    case milestone(Int)
+
+    var id: String {
+        switch self {
+        case .offline: return "offline"
+        case .backOnline: return "backOnline"
+        case .deal(let deal): return "deal-\(deal.id)"
+        case .milestone(let days): return "milestone-\(days)"
+        }
+    }
+
+    var islandStyle: MorphIslandStyle {
+        if case .deal = self { return .expanded }
+        return .compact
+    }
+}
+
+#Preview { HomeView().environment(AppState.shared) }

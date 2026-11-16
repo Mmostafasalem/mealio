@@ -6,22 +6,31 @@ struct UndoToast: View {
     let onUndo: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Spacing.md) {
             Image(systemName: "trash.fill")
                 .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(Color.almond.opacity(0.7))
+                .accessibilityHidden(true)
             Text(message)
                 .font(.subheadline)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.almond)
             Spacer()
-            Button("Undo", action: onUndo)
+            Button(action: onUndo) {
+                Text("Undo").font(.subheadline.bold())
+                    .foregroundStyle(Color.dullPink)
+                    .minTapTarget()
+                    .contentShape(Rectangle())
+            }
+                .accessibilityIdentifier("undoToast.undo")
+                .accessibilityLabel("Undo: \(message)")
                 .font(.subheadline.bold())
-                .foregroundStyle(Color.brandAmber)
+                .foregroundStyle(Color.dullPink)
+                .buttonStyle(ScalePressStyle())
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 13)
-        .background(.black.opacity(0.85), in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 4)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.md)
+        .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .elevation(Elevation.high)
+        .padding(.horizontal, Spacing.lg)
     }
 }

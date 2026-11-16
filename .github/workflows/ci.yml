@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Cancel superseded runs on the same ref so pushes don't pile up macOS minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smartmarket/smartmarket-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: smartmarket/smartmarket-backend/requirements.lock
+      - name: Install dependencies
+        run: pip install -r requirements.lock pytest pip-audit
+      - name: Audit pinned production dependencies
+        run: pip-audit -r requirements.lock
+      - name: Run tests
+        run: pytest -q
+      - name: Release bundle, privacy and nutrition catalog regressions
+        working-directory: .
+        run: python3 -m unittest discover -s scripts -p 'test*.py' -v
+
+  web:
+    name: Public policy pages and web checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Verify canonical legal mirrors
+        working-directory: .
+        run: |
+          python3 scripts/sync-legal-docs.py
+          git diff --exit-code -- smartmarket/Resources/Privacy.md smartmarket/Resources/Support.md web/content/legal.json
+      - run: npm ci
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  ios-build:
+    name: iOS tests and release build
+    # The app needs Xcode 26 (iOS 26 SDK: Liquid Glass, Swift 6.2 isolation
+    # features, default MainActor isolation); the macos-26 image ships it.
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ] && xcodebuild -version | grep -q "^Xcode 26"; then XCODE=$(dirname "$(dirname "$(xcode-select -p)")"); fi
+          [ -n "$XCODE" ] || { echo "No Xcode 26 on this runner:"; ls /Applications | grep -i xcode; exit 1; }
+          echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Sync merge regression tests
+        run: swift test --disable-sandbox
+      - name: Select available iPhone simulator
+        run: |
+          IOS_SIMULATOR_ID=$(xcrun simctl list devices available -j | python3 -c 'import sys,json; devices=json.load(sys.stdin)["devices"]; print(next(d["udid"] for group in devices.values() for d in group if d["name"].startswith("iPhone")))')
+          printf 'IOS_SIMULATOR_ID=%s\n' "$IOS_SIMULATOR_ID" >> "$GITHUB_ENV"
+      - name: Native unit and UI tests
+        run: |
+          xcodebuild \
+            -project smartmarket.xcodeproj \
+            -scheme smartmarket \
+            -destination "platform=iOS Simulator,id=$IOS_SIMULATOR_ID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath TestResults.xcresult \
+            test CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-
+      - name: Release compile check
+        run: |
+          xcodebuild \
+            -project smartmarket.xcodeproj \
+            -scheme smartmarket \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/MealioReleaseBuild" \
+            build CODE_SIGNING_ALLOWED=NO
+      - name: Verify app resource boundary
+        run: python3 scripts/check-ios-bundle.py "$RUNNER_TEMP/MealioReleaseBuild/Build/Products/Release-iphonesimulator/smartmarket.app"
+      - name: Preserve test results and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: TestResults.xcresult
+          if-no-files-found: ignore

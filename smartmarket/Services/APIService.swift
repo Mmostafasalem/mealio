@@ -4,7 +4,28 @@ import Foundation
 final class APIService {
 
     static let shared = APIService()
-    private init() {}
+    private let session: URLSession
+    private let authorization: @MainActor () throws -> String
+    private let ownerConfiguration: OwnerAITestConfiguration?
+    private let ownerSession: URLSession
+    private var sharingConsentKey: String {
+        ownerConfiguration == nil ? "aiSharingConsent_v1" : "ownerAISharingConsent_v1"
+    }
+    /// Whether the person allowed online AI sharing (every AI call needs it).
+    var hasAIConsent: Bool { UserDefaults.standard.bool(forKey: sharingConsentKey) }
+    init(session: URLSession = .shared,
+         authorization: (@MainActor () throws -> String)? = nil,
+         ownerConfiguration: OwnerAITestConfiguration? = nil) {
+        self.session = session
+        let selected = ownerConfiguration ?? (authorization == nil ? .current : nil)
+        self.ownerConfiguration = selected
+        if let selected, selected.certificateDER != nil {
+            self.ownerSession = selected.makeSession()
+        } else {
+            self.ownerSession = session
+        }
+        self.authorization = authorization ?? { try AIAccountService.shared.authorization() }
+    }
 
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -15,142 +36,174 @@ final class APIService {
     // MARK: - Product catalog (all markets, with/without discount)
 
     func fetchProducts(store: String? = nil, category: String? = nil, query: String? = nil) async throws -> [Product] {
-        var path = Constants.API.Endpoint.products
-        var params: [String] = []
-        if let store    = store,    !store.isEmpty    { params.append("store=\(store)") }
-        if let category = category, !category.isEmpty { params.append("category=\(category)") }
-        if let query    = query,    !query.isEmpty    { params.append("q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)") }
-        if !params.isEmpty { path += "?" + params.joined(separator: "&") }
-        let req = try get(path)
-        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let url = Self.productsURL(baseURL: Constants.API.baseURL, store: store,
+                                         category: category, query: query) else {
+            throw APIError.invalidURL
+        }
+        let req = request(for: url)
+        let (data, response) = try await session.data(for: req)
         try validateResponse(response)
         return try decoder.decode([Product].self, from: data)
+    }
+
+    /// Products URL with every filter percent-encoded as a query item.
+    static func productsURL(baseURL: String, store: String? = nil,
+                            category: String? = nil, query: String? = nil) -> URL? {
+        guard var components = URLComponents(string: baseURL + Constants.API.Endpoint.products) else { return nil }
+        var items: [URLQueryItem] = []
+        if let store, !store.isEmpty       { items.append(URLQueryItem(name: "store", value: store)) }
+        if let category, !category.isEmpty { items.append(URLQueryItem(name: "category", value: category)) }
+        if let query, !query.isEmpty       { items.append(URLQueryItem(name: "q", value: query)) }
+        if !items.isEmpty {
+            components.queryItems = items
+            // URLQueryItem encodes "&", "=" and spaces but leaves "+", which the
+            // server would read as a space.
+            components.percentEncodedQuery = components.percentEncodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+        }
+        return components.url
     }
 
     // MARK: - Health
 
     func checkHealth() async throws -> Bool {
         let req = try get(Constants.API.Endpoint.health)
-        let (_, response) = try await URLSession.shared.data(for: req)
+        let (_, response) = try await session.data(for: req)
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
     // MARK: - Deals
 
-    func getDeals() async throws -> [Deal] {
+    /// Deals together with whether they are the bundled offline list, so each
+    /// caller gets the status of its own request.
+    struct DealsResult {
+        let deals: [Deal]
+        let isFallback: Bool
+    }
+
+    /// No location is sent: distance filtering happens on-device
+    /// (`HomeViewModel.nearbyDeals`).
+    func fetchDeals() async -> DealsResult {
         do {
             let req = try get(Constants.API.Endpoint.deals)
-            let (data, response) = try await URLSession.shared.data(for: req)
+            let (data, response) = try await session.data(for: req)
             try validateResponse(response)
-            let deals = try decoder.decode([Deal].self, from: data)
-            return deals.isEmpty ? FallbackData.deals : deals
+            let deals = try Self.decodeDeals(data)
+            return deals.isEmpty ? DealsResult(deals: FallbackData.deals, isFallback: true)
+                                 : DealsResult(deals: deals, isFallback: false)
         } catch {
             appLog("[API] getDeals failed — using offline fallback:", error)
-            return FallbackData.deals
+            return DealsResult(deals: FallbackData.deals, isFallback: true)
         }
     }
 
-    /// Fetches deals pre-filtered by proximity on the backend.
-    func getDeals(near lat: Double, lon: Double, radiusKm: Double = 8) async throws -> [Deal] {
-        do {
-            let path = Constants.API.Endpoint.deals + "?lat=\(lat)&lon=\(lon)&radius=\(radiusKm)"
-            let req = try get(path)
-            let (data, response) = try await URLSession.shared.data(for: req)
-            try validateResponse(response)
-            let deals = try decoder.decode([Deal].self, from: data)
-            return deals.isEmpty ? FallbackData.deals : deals
-        } catch {
-            appLog("[API] getDeals(near:) failed — using offline fallback:", error)
-            return FallbackData.deals
-        }
+    /// Deals only; falls back to the bundled list like `fetchDeals()`.
+    func getDeals() async throws -> [Deal] {
+        await fetchDeals().deals
     }
 
-    // MARK: - BMR
-
-    func calculateBMR(_ request: BMRRequest) async throws -> BMRResponse {
-        do {
-            let req = try post(Constants.API.Endpoint.bmr, body: request, timeout: 15)
-            let (data, response) = try await URLSession.shared.data(for: req)
-            try validateResponse(response)
-            return try decoder.decode(BMRResponse.self, from: data)
-        } catch {
-            appLog("[API] calculateBMR failed — using local Mifflin-St Jeor fallback:", error)
-            return FallbackData.bmr(for: request)
-        }
+    /// Decodes a deals array, skipping malformed entries instead of failing all.
+    static func decodeDeals(_ data: Data) throws -> [Deal] {
+        try JSONDecoder().decode([ResilientStorage.Lossy<Deal>].self, from: data).compactMap(\.value)
     }
 
     // MARK: - Meal Plan (AI — allow up to 60s)
 
     func generateMealPlan(_ request: MealPlanRequest) async throws -> WeeklyMealPlan {
+        var request = request
+        // Group batches of the same food without changing its g/ml/serving basis.
+        request.stock = PlanningFood.grouped(StockStore.shared.items)
+        let gaps = MealPlanViewModel().computeNutritionalGaps()
+        request.remainingToday = PlanningTargets(calories: gaps.caloriesNeeded, protein: gaps.proteinNeeded,
+                                                 carbs: gaps.carbsNeeded, fat: gaps.fatNeeded)
         do {
-            let req = try post(Constants.API.Endpoint.mealPlan, body: request, timeout: 60)
-            let (data, response) = try await URLSession.shared.data(for: req)
-            try validateResponse(response)
-            return try decoder.decode(WeeklyMealPlan.self, from: data)
-        } catch {
-            appLog("[API] generateMealPlan failed — using offline fallback:", error)
-            let target: Int
-            switch request.goal {
-            case "lose": target = request.bmrData.loseCalories
-            case "gain": target = request.bmrData.gainCalories
-            default:     target = request.bmrData.maintainCalories
+            let req = try post(Constants.API.Endpoint.mealPlan, body: request, timeout: ownerConfiguration == nil ? 60 : 150)
+            let (data, response) = try await ownerSession.data(for: req)
+            try validateResponse(response, requireAI: true)
+            var plan = try decoder.decode(WeeklyMealPlan.self, from: data)
+            plan = MealPlanGrounding.resolve(plan, foods: request.stock?.map(\.food) ?? [])
+            let target = request.bmrData.calories(forGoal: request.goal)
+            guard plan.isOnTarget(target) else {
+                // Off-target AI output is a failed refresh, handled like any other below.
+                appLog("[API] online meal plan ignored: days far from \(target) kcal")
+                throw APIError.unverifiedAIResponse
             }
-            return FallbackData.mealPlan(targetKcal: target, pantry: request.groceryList)
+            plan.generationSource = "online"
+            return plan
+        } catch {
+            appLog("[API] generateMealPlan failed:", error)
+            return try Self.fallbackMealPlan(after: error, hasSavedPlan: AppState.shared.weeklyMealPlan != nil,
+                                             target: request.bmrData.calories(forGoal: request.goal))
         }
     }
 
-    // MARK: - Gap Fillers (AI)
-
-    func getGapFillers(_ request: GapFillerRequest) async throws -> [GapFiller] {
-        let req = try post(Constants.API.Endpoint.gapFillers, body: request, timeout: 30)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
-        return try decoder.decode([GapFiller].self, from: data)
+    /// What a failed or unusable online plan leaves: a saved plan is kept (the
+    /// error is rethrown); with nothing saved, an on-device plan marked "local",
+    /// which callers must not count as a fresh AI plan.
+    static func fallbackMealPlan(after error: Error, hasSavedPlan: Bool, target: Int) throws -> WeeklyMealPlan {
+        if hasSavedPlan { throw error }
+        var plan = FallbackData.mealPlan(targetKcal: target, pantry: [])
+        plan.generationSource = "local"
+        return plan
     }
 
     // MARK: - Shopping Advice (AI)
 
     func getShoppingAdvice(_ request: ShoppingAdviceRequest) async throws -> [ShoppingAdvice] {
         let req = try post(Constants.API.Endpoint.shoppingAdvice, body: request, timeout: 30)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
+        let (data, response) = try await ownerSession.data(for: req)
+        try validateResponse(response, requireAI: true)
         return try decoder.decode([ShoppingAdvice].self, from: data)
     }
 
     func agentChat(_ request: AgentChatRequest) async throws -> AgentChatResponse {
-        let req = try post(Constants.API.Endpoint.agentChat, body: request, timeout: 30)
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try validateResponse(response)
-        return try decoder.decode(AgentChatResponse.self, from: data)
+        let req = try post(Constants.API.Endpoint.agentChat, body: request, timeout: 75)
+        let (data, response) = try await ownerSession.data(for: req)
+        try validateResponse(response, requireAI: true)
+        let answer = try decoder.decode(AgentChatResponse.self, from: data)
+        guard !answer.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw APIError.unverifiedAIResponse
+        }
+        return answer
     }
 
     func fetchRecipe(mealName: String) async throws -> Recipe {
-        do {
-            let req = try post(Constants.API.Endpoint.recipe,
-                               body: RecipeRequest(mealName: mealName), timeout: 30)
-            let (data, response) = try await URLSession.shared.data(for: req)
-            try validateResponse(response)
-            return try decoder.decode(Recipe.self, from: data)
-        } catch {
-            appLog("[API] fetchRecipe failed — using offline fallback:", error)
-            return Recipe(
-                mealName: mealName, prepTime: 10, cookTime: 20, servings: 2,
-                ingredients: [RecipeIngredient(name: mealName, amount: "1 serving")],
-                steps: ["Prep your ingredients.", "Cook until done.", "Season to taste and serve."],
-                tip: "Connect to the internet for an AI-tailored recipe."
-            )
+        guard UserDefaults.standard.bool(forKey: sharingConsentKey) else { throw APIError.aiConsentRequired }
+        let req = try post(Constants.API.Endpoint.recipe,
+                           body: RecipeRequest(mealName: mealName), timeout: 75)
+        let (data, response) = try await ownerSession.data(for: req)
+        try validateResponse(response, requireAI: true)
+        return try decoder.decode(Recipe.self, from: data)
+    }
+
+    // MARK: - Workout (AI)
+
+    /// A session written by the online service for this person and request.
+    /// Throws when AI sharing is off, the account can't be used or the reply
+    /// isn't a verified AI result; the caller then builds one on device.
+    func generateWorkout(_ request: WorkoutRequest) async throws -> Workout {
+        guard UserDefaults.standard.bool(forKey: sharingConsentKey) else { throw APIError.aiConsentRequired }
+        let req = try post(Constants.API.Endpoint.workout, body: request, timeout: 75)
+        let (data, response) = try await ownerSession.data(for: req)
+        try validateResponse(response, requireAI: true)
+        guard let workout = try decoder.decode(WorkoutResponse.self, from: data).workout(source: "ai") else {
+            throw APIError.unverifiedAIResponse
         }
+        return workout
     }
 
     // MARK: - Legacy shims (used by HomeViewModel / GroceryListViewModel)
 
-    // Vilnius store coordinates keyed by lowercased chain name.
+    // Vilnius store coordinates keyed by lowercased chain name. Used only as a
+    // fallback when the backend omits per-product lat/lon. The five real chains
+    // are kept in sync with the backend's STORES table (app.py) so the map pins
+    // agree whichever source supplies them.
     static let storeCoordinates: [String: (lat: Double, lon: Double)] = [
-        "maxima":     (54.7154, 25.2539),
-        "iki":        (54.6891, 25.2012),
-        "rimi":       (54.6634, 25.2897),
-        "lidl":       (54.7032, 25.2205),
-        "norfa":      (54.7021, 25.3221),
+        "maxima":     (54.6872, 25.2797),
+        "rimi":       (54.6989, 25.2730),
+        "iki":        (54.6750, 25.2800),
+        "lidl":       (54.6680, 25.2750),
+        "norfa":      (54.7100, 25.2600),
         "barbora":    (54.6872, 25.2797),
         "senukai":    (54.6960, 25.2690),
         "prisma":     (54.6920, 25.2750),
@@ -200,6 +253,11 @@ final class APIService {
         guard let url = URL(string: Constants.API.baseURL + path) else {
             throw APIError.invalidURL
         }
+        return request(for: url)
+    }
+
+    /// GET request for a full URL with API key header.
+    private func request(for url: URL) -> URLRequest {
         var req = URLRequest(url: url)
         req.timeoutInterval = 15
         if !Constants.API.appKey.isEmpty {
@@ -210,17 +268,29 @@ final class APIService {
 
     /// POST request with JSON body, timeout, and API key header.
     private func post<T: Encodable>(_ path: String, body: T, timeout: TimeInterval) throws -> URLRequest {
-        guard let url = URL(string: Constants.API.baseURL + path) else {
+        // Every POST carries personal data to the AI backend, so all require consent.
+        guard UserDefaults.standard.bool(forKey: sharingConsentKey) else {
+            throw APIError.aiConsentRequired
+        }
+        let owner = ownerConfiguration
+        let baseURL = owner?.baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? Constants.API.baseURL
+        guard let url = URL(string: baseURL + path) else {
             throw APIError.invalidURL
         }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !Constants.API.appKey.isEmpty {
+        if owner == nil && !Constants.API.appKey.isEmpty {
             req.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key")
         }
+        req.setValue(UUID().uuidString, forHTTPHeaderField: "Idempotency-Key")
+        if let owner {
+            req.setValue(owner.token, forHTTPHeaderField: "X-Owner-AI-Token")
+        } else {
+            req.setValue(try authorization(), forHTTPHeaderField: "Authorization")
+        }
         req.httpBody = try JSONEncoder().encode(body)
-        req.timeoutInterval = timeout
+        req.timeoutInterval = owner == nil ? max(timeout, 90) : timeout
         return req
     }
 
@@ -229,10 +299,25 @@ final class APIService {
         storeCoordinates[storeName.lowercased()] ?? (54.6872, 25.2797)
     }
 
-    private func validateResponse(_ response: URLResponse) throws {
+    private func validateResponse(_ response: URLResponse, requireAI: Bool = false) throws {
         guard let http = response as? HTTPURLResponse else { throw APIError.noResponse }
+        AIAccountService.shared.acceptHeaders(http)
+        switch http.value(forHTTPHeaderField: "X-AI-Error") {
+        case "ai_sign_in_required": throw AIAccountError.signInRequired
+        case "ai_quota_exceeded": throw AIAccountError.quota(http.value(forHTTPHeaderField: "X-AI-Reset"))
+        case "ai_shared_capacity": throw AIAccountError.sharedCapacity
+        case "ai_unavailable": throw AIAccountError.unavailable
+        case "ai_request_invalidated": throw AIAccountError.message("This request is no longer available. No extra credits were used.")
+        case "ai_request_repeated": throw AIAccountError.message("That request is already processing or completed. No extra credits were used.")
+        case "ai_request_conflict": throw AIAccountError.message("This request could not be repeated. Please start a new request.")
+        default: break
+        }
         guard (200..<300).contains(http.statusCode) else {
             throw APIError.httpError(http.statusCode)
+        }
+        let verifiedSources = ["online", "cached-online", "replayed-online"]
+        if requireAI && !verifiedSources.contains(http.value(forHTTPHeaderField: "X-AI-Result") ?? "") {
+            throw APIError.unverifiedAIResponse
         }
     }
 }
@@ -240,12 +325,16 @@ final class APIService {
 // MARK: - Errors
 
 enum APIError: LocalizedError {
+    case unverifiedAIResponse
+    case aiConsentRequired
     case invalidURL
     case noResponse
     case httpError(Int)
 
     var errorDescription: String? {
         switch self {
+        case .unverifiedAIResponse: return "The AI service did not return a verified AI response. Local suggestions are still available; please retry when the service is ready."
+        case .aiConsentRequired: return "Online AI sharing is off. You can enable it in Profile after reviewing the Privacy Policy."
         case .invalidURL:       return "Invalid API URL."
         case .noResponse:       return "No response from server."
         case .httpError(let c): return "Server error \(c)."

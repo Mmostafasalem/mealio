@@ -23,7 +23,6 @@ final class OnboardingViewModel {
 
     // MARK: - Step 3: Dietary preferences
     var selectedPreferences: Set<DietaryPreference> = []
-    var otherAllergies: String = ""
 
     // MARK: - Step 4: Favorite foods (static catalog, no network required)
     var favoriteFoodIDs: Set<String> = []
@@ -34,41 +33,42 @@ final class OnboardingViewModel {
     private(set) var filteredItems: [CatalogItem] = CatalogItem.all
     @ObservationIgnored private var filterTask: Task<Void, Never>?
 
-    // MARK: - Backend BMR (fetched after user fills in stats)
-    var bmrResponse: BMRResponse?
-    var isCalculatingBMR = false
-    var bmrError: String?
-
-    // MARK: - Live computed values (fall back to local calc if backend not called yet)
-    var liveBMR: Int {
-        bmrResponse?.bmr ?? Int(BMRCalculator.bmr(
-            weight: weight, height: height, age: age, gender: gender
-        ).rounded())
+    // MARK: - Live computed values (local Mifflin-St Jeor; no network)
+    // The same calculation `finish()` saves, so the number shown is the one saved.
+    func liveTargets(goal: WeightGoal? = nil, pace: LossPace? = nil) -> BMRCalculator.Targets {
+        BMRCalculator.targets(weight: weight, height: height, age: age, gender: gender,
+                              activityLevel: activityLevel, goal: goal ?? weightGoal, pace: pace ?? lossPace)
     }
 
-    var liveTDEE: Int {
-        bmrResponse?.tdee ?? Int(BMRCalculator.tdee(
-            bmr: Double(liveBMR), activityLevel: activityLevel
-        ).rounded())
+    var liveBMR: Int { Int(liveTargets().bmr.rounded()) }
+
+    var liveTDEE: Int { Int(liveTargets().tdee.rounded()) }
+
+    var liveDailyGoal: Int { liveTargets().dailyGoal }
+
+    /// Under-18s are offered maintain or gain only.
+    var allowsWeightLoss: Bool { BMRCalculator.allowsWeightLoss(age: age) }
+
+    var availableGoals: [WeightGoal] {
+        allowsWeightLoss ? WeightGoal.allCases : WeightGoal.allCases.filter { $0 != .lose }
     }
 
-    var liveDailyGoal: Int {
-        switch weightGoal {
-        case .lose:     return bmrResponse?.loseCalories     ?? BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .lose,     pace: lossPace, gender: gender)
-        case .maintain: return bmrResponse?.maintainCalories ?? liveTDEE
-        case .gain:     return bmrResponse?.gainCalories     ?? BMRCalculator.dailyGoal(tdee: Double(liveTDEE), goal: .gain,     pace: lossPace, gender: gender)
-        }
+    /// Moves a weight-loss goal to maintain when the age no longer allows it.
+    func normalizeGoalForAge() {
+        weightGoal = BMRCalculator.effectiveGoal(weightGoal, age: age)
     }
 
-    var isBelowSafeFloor: Bool {
-        let floor: Int
-        switch gender {
-        case .male:   floor = Constants.Calories.minimumMale
-        case .female: floor = Constants.Calories.minimumFemale
-        case .other:  floor = Constants.Calories.minimumOther
-        }
-        return liveDailyGoal <= floor
+    /// The deficit a pace will actually apply, after the safety floor.
+    func effectiveDeficit(for pace: LossPace) -> Int {
+        BMRCalculator.effectiveDeficit(tdee: liveTargets().tdee, pace: pace, gender: gender, age: age)
     }
+
+    func isCappedBySafetyFloor(_ pace: LossPace) -> Bool {
+        BMRCalculator.isCappedBySafetyFloor(tdee: liveTargets().tdee, pace: pace, gender: gender, age: age)
+    }
+
+    /// The selected pace is limited by the minimum safe calories.
+    var isBelowSafeFloor: Bool { weightGoal == .lose && isCappedBySafetyFloor(lossPace) }
 
     // MARK: - Catalog filtering (synchronous — catalog is static)
 
@@ -103,60 +103,23 @@ final class OnboardingViewModel {
         else { selectedPreferences.insert(pref) }
     }
 
-    func advance(to step: OnboardingStep) { path.append(step) }
-
-    // MARK: - Fetch BMR from backend
-    @MainActor
-    func fetchBMR() async {
-        isCalculatingBMR = true
-        bmrError = nil
-        defer { isCalculatingBMR = false }
-
-        let activityRaw: String = {
-            switch activityLevel {
-            case .sedentary:        return "sedentary"
-            case .lightlyActive:    return "lightly_active"
-            case .moderatelyActive: return "moderately_active"
-            case .veryActive:       return "very_active"
-            case .superActive:      return "very_active"
-            }
-        }()
-
-        let request = BMRRequest(
-            weight:        weight,
-            height:        height,
-            age:           age,
-            gender:        gender == .male ? "male" : "female",
-            activityLevel: activityRaw
-        )
-
-        do {
-            let response = try await APIService.shared.calculateBMR(request)
-            bmrResponse = response
-            AppState.shared.saveBMR(response)
-        } catch {
-            bmrError = error.localizedDescription
-        }
+    /// Pushes `step` unless it is already on the stack or isn't ahead of the
+    /// current screen, so a double tap on Next (or a tap on the previous
+    /// screen while the push animates) can't push the same step twice.
+    func advance(to step: OnboardingStep) {
+        let current = path.last ?? .name
+        guard step.rawValue > current.rawValue, !path.contains(step) else { return }
+        path.append(step)
     }
 
     // MARK: - Finish onboarding
     @MainActor
     func finish() {
-        var profile = UserProfile()
-        let fullName = [firstName.trimmingCharacters(in: .whitespaces),
-                        lastName.trimmingCharacters(in: .whitespaces)]
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-        profile.name          = fullName.isEmpty ? "Mealio User" : fullName
-        profile.weight        = weight
-        profile.height        = height
-        profile.age           = age
-        profile.gender        = gender
-        profile.activityLevel = activityLevel
-        profile.weightGoal    = weightGoal
-        profile.lossPace      = lossPace
-        BMRCalculator.populate(profile: &profile)
+        let profile = makeProfile()
         profile.save()
+        UserProfile.markTargetsCurrent()
+        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
+                                                       isKeto: selectedPreferences.contains(.keto)))
 
         selectedPreferences.save()
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
@@ -164,5 +127,24 @@ final class OnboardingViewModel {
         AppState.shared.userProfile = profile
         AppState.shared.completeOnboarding()
         AppState.shared.agentLoop.start(appState: AppState.shared)
+    }
+
+    /// The profile `finish()` saves, with its targets. Pure (no storage).
+    func makeProfile() -> UserProfile {
+        var profile = UserProfile()
+        let fullName = [firstName.trimmingCharacters(in: .whitespaces),
+                        lastName.trimmingCharacters(in: .whitespaces)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        profile.name          = fullName.isEmpty ? "Nourlo User" : fullName
+        profile.weight        = weight
+        profile.height        = height
+        profile.age           = age
+        profile.gender        = gender
+        profile.activityLevel = activityLevel
+        profile.weightGoal    = BMRCalculator.effectiveGoal(weightGoal, age: age)
+        profile.lossPace      = lossPace
+        BMRCalculator.populate(profile: &profile)
+        return profile
     }
 }

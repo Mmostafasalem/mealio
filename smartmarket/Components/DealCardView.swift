@@ -5,33 +5,25 @@ struct DealCardView: View {
     let deal: MarketDeal
     let onTap: () -> Void
 
-    private var storeColor: Color { Color(hex: deal.store.chainColor) }
+    private var storeColor: Color { Color.labelPrimary }
 
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
 
-                // ── Header: store stripe + discount badge ──────────────────
-                HStack(spacing: 0) {
-                    Rectangle()
+                // ── Header ─────────────────────────────────────────────────
+                HStack(spacing: 6) {
+                    Circle()
                         .fill(storeColor)
-                        .frame(width: 3)
-
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(storeColor)
-                            .frame(width: 6, height: 6)
-                        Text(deal.store.chain.uppercased())
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(storeColor)
-                            .kerning(0.8)
-                        Spacer()
-                        discountBadge
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(storeColor.opacity(0.07))
+                        .frame(width: 6, height: 6)
+                    Text("ESTIMATE")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.labelSecondary)
+                        .kerning(0.8)
+                    Spacer()
                 }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
 
                 // ── Product name ───────────────────────────────────────────
                 VStack(alignment: .leading, spacing: 4) {
@@ -42,86 +34,45 @@ struct DealCardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(deal.quantity)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if !deal.quantity.isEmpty {
+                        Text(deal.quantity)
+                            .font(.caption2)
+                            .foregroundStyle(Color.labelSecondary)
+                    }
                 }
                 .padding(.horizontal, 12)
-                .padding(.top, 10)
+                .padding(.top, 8)
 
                 Spacer(minLength: 6)
 
-                // ── Price row ──────────────────────────────────────────────
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(String(format: "€%.2f", deal.discountPrice))
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.brandPrimary)
-                        Text(String(format: "€%.2f", deal.originalPrice))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .strikethrough(true, color: Color(.tertiaryLabel))
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.down")
-                            .font(.system(size: 9, weight: .bold))
-                        Text(String(format: "Save €%.2f", deal.savings))
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(Color.brandPrimary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.brandPrimary.opacity(0.10), in: Capsule())
+                // ── Price row (estimated) ─────────────────────────────────
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: "€%.2f", deal.discountPrice))
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.brandPrimary)
+                    Text("est. price")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 14)
             }
             .frame(width: 178, height: 178, alignment: .topLeading)
-            .background(
-                // Subtle store-color wash at the top
-                LinearGradient(
-                    colors: [storeColor.opacity(0.06), Color.surface],
-                    startPoint: .top, endPoint: .center
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .shadow(color: storeColor.opacity(0.10), radius: 4, x: 0, y: 2)
-            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 5)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.55), Color(.separator).opacity(0.15)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            )
+            .premiumCard(radius: Radius.tile)
         }
         .buttonStyle(PressableButtonStyle())
-        .accessibilityLabel("\(deal.productName) at \(deal.store.chain), \(deal.discountPercent) percent off, now \(String(format: "%.2f", deal.discountPrice)) euros")
-    }
-
-    private var discountBadge: some View {
-        Text("−\(deal.discountPercent)%")
-            .font(.system(size: 11, weight: .black, design: .rounded))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                deal.discountPercent >= 30 ? Color.brandDanger : Color.brandAmber,
-                in: Capsule()
-            )
+        .accessibilityLabel("\(deal.productName), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
     }
 }
 
 // MARK: - Pressable button style (shared via ViewModifiers.swift)
 
 private struct PressableButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
+            .animation(reduceMotion ? .none : .snappyValue, value: configuration.isPressed)
     }
 }
 

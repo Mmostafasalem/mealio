@@ -2,6 +2,10 @@ import Foundation
 
 // MARK: - Product (from GET /api/products — full market catalog, on sale or not)
 
+// HONESTY CONSTRAINT: discount/discountedPrice/isOnSale are decoded for wire
+// compatibility but are intentionally NOT rendered as price comparisons in the UI
+// (no real price feed exists). The user only ever sees a single "est. price". Do
+// not surface these as "was €X / −Y%" without re-checking the honesty constraint.
 struct Product: Codable, Identifiable, Hashable {
     let id: String           // store-prefixed e.g. "rimi_12345", "maxima_67890"
     let name: String         // primary name (usually Lithuanian)
@@ -121,16 +125,6 @@ struct Deal: Codable, Identifiable, Hashable {
     let longitude: Double?
 }
 
-// MARK: - BMR (POST /api/bmr request)
-
-struct BMRRequest: Codable {
-    let weight: Double
-    let height: Double
-    let age: Int
-    let gender: String       // "male" | "female"
-    let activityLevel: String
-}
-
 // MARK: - BMR Response
 
 struct BMRResponse: Codable {
@@ -146,16 +140,72 @@ struct BMRResponse: Codable {
         let carbs: Int
         let fat: Int
     }
+
+    /// Daily calorie target for a "lose" | "maintain" | "gain" goal string.
+    func calories(forGoal goal: String) -> Int {
+        switch goal {
+        case "lose": return loseCalories
+        case "gain": return gainCalories
+        default:     return maintainCalories
+        }
+    }
 }
 
 // MARK: - Meal Plan (POST /api/meal-plan)
 
-struct MealPlanRequest: Codable {
+struct MealPlanRequest: Encodable {
+    var stock: [PlanningFood]? = nil
+    var remainingToday: PlanningTargets? = nil
     let user: MealPlanUser
     let bmrData: BMRResponse
     let groceryList: [Deal]
     let goal: String   // "lose" | "maintain" | "gain"
     let lang: String   // "en" | "lt"
+}
+
+extension MealPlanRequest {
+    /// Single builder for every meal-plan request (planner screen and agent
+    /// loop): exact body stats, binary gender for the BMR formula, the stored
+    /// dietary options/allergies, and the Shop cart in preference to the
+    /// legacy agent list.
+    @MainActor static func current(profile: UserProfile, bmr: BMRResponse?) -> MealPlanRequest {
+        let appState = AppState.shared
+        let dietaryPrefs = Set<DietaryPreference>.load()
+        let cartDeals = ShoppingCartService.shared.planDeals()
+        let goal = profile.weightGoal.rawValue
+        return MealPlanRequest(
+            user: MealPlanUser(
+                name:           "",
+                age:            profile.age,
+                gender:         profile.gender == .male ? "male" : "female",
+                weight:         profile.weight,
+                height:         profile.height,
+                goal:           goal,
+                activityLevel:  profile.activityLevel.rawValue,
+                dietaryOptions: dietaryPrefs.filter { !$0.isAllergy }.map(\.rawValue).sorted(),
+                allergies:      dietaryPrefs.filter { $0.isAllergy }.map(\.rawValue).sorted(),
+                favoriteFoods:  ProductCatalogService.shared.nameFor(ids: appState.favoriteFoodIDs)
+            ),
+            bmrData: bmr ?? BMRResponse(
+                bmr:              Int(profile.bmr),
+                tdee:             Int(profile.tdee),
+                loseCalories:     max(Int(profile.tdee) - 350, 1200),
+                maintainCalories: Int(profile.tdee),
+                gainCalories:     Int(profile.tdee) + 350,
+                macros: BMRResponse.MacroTargets(protein: 150, carbs: 200, fat: 60)
+            ),
+            groceryList: cartDeals.isEmpty ? appState.groceryList : cartDeals,
+            goal: goal,
+            lang: appState.lang
+        )
+    }
+}
+
+struct PlanningTargets: Codable {
+    let calories: Int
+    let protein: Double
+    let carbs: Double
+    let fat: Double
 }
 
 struct MealPlanUser: Codable {
@@ -173,6 +223,8 @@ struct MealPlanUser: Codable {
 
 /// Full 7-day plan. Keys are always Lithuanian day names.
 struct WeeklyMealPlan: Codable, Equatable {
+    /// Set by the client from verified response metadata, not model-generated claims.
+    var generationSource: String? = nil
     let agentMessage: String?
     let pirmadienis: DayPlan?
     let antradienis: DayPlan?
@@ -196,6 +248,24 @@ struct WeeklyMealPlan: Codable, Equatable {
     }
 }
 
+extension WeeklyMealPlan {
+    /// Every day within 25 % of the target, and not one copied number for every
+    /// meal (an online plan once gave every meal the prompt's example 500 kcal).
+    func isOnTarget(_ target: Int) -> Bool {
+        guard target > 0 else { return true }
+        let days = allDays.map(\.plan)
+        guard days.count == 7 else { return false }
+        var mealKcal: [Int] = []
+        for day in days {
+            let meals = [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].compactMap { $0?.kcal }
+            mealKcal += meals
+            let total = meals.reduce(0, +)
+            if Double(total) < 0.75 * Double(target) || Double(total) > 1.25 * Double(target) { return false }
+        }
+        return Set(mealKcal).count > 1
+    }
+}
+
 struct DayPlan: Codable, Equatable {
     let pusryciai: MealItem?   // breakfast
     let pietus: MealItem?      // lunch
@@ -213,27 +283,11 @@ struct DayPlan: Codable, Equatable {
 }
 
 struct MealItem: Codable, Equatable {
+    var portions: [PlannedPortion]? = nil
+    var nutritionIngredients: [NutritionIngredient]? = nil
     let pavadinimas: String    // name
     let ingredientai: [String] // ingredients
     let kcal: Int
-}
-
-// MARK: - Gap Fillers (POST /api/gap-fillers)
-
-struct GapFillerRequest: Codable {
-    let targetCalories: Int
-    let macros: BMRResponse.MacroTargets
-    let lang: String
-}
-
-struct GapFiller: Codable, Identifiable {
-    var id: String { pavadinimas }
-    let pavadinimas: String     // name
-    let aprasymas: String       // description
-    let kcal: Int
-    let baltymai: Int           // protein
-    let angliavandeniai: Int    // carbs
-    let riebalai: Int           // fat
 }
 
 // MARK: - Nutritional gaps (computed locally, passed to shopping advice)
@@ -277,7 +331,7 @@ struct ChatMessage: Identifiable, Equatable {
     }
 }
 
-struct AgentChatRequest: Codable {
+struct AgentChatRequest: Encodable {
     let message: String
     let history: [AgentChatHistoryItem]
     let userContext: AgentUserContext
@@ -288,11 +342,32 @@ struct AgentChatHistoryItem: Codable {
     let content: String
 }
 
-struct AgentUserContext: Codable {
+struct AgentUserContext: Encodable {
     let goal: String
     let targetCalories: Int
     let caloriesConsumed: Int
     let favoriteFoods: [String]
+    var stock: [PlanningFood] = []
+    var remainingToday: PlanningTargets? = nil
+    var dietaryOptions: [String] = []
+    var allergies: [String] = []
+    var lang: String = "en"
+
+    static func make(profile: UserProfile, entries: [FoodLogEntry], stock: [StockItem],
+                     preferences: Set<DietaryPreference>, favoriteFoods: [String], lang: String) -> AgentUserContext {
+        let target = max(profile.dailyCalorieGoal, 1)
+        let macros = BMRCalculator.macroTargets(calories: target, isKeto: preferences.contains(.keto))
+        let consumed = entries.reduce(0) { $0 + $1.calories }
+        return AgentUserContext(goal: profile.weightGoal.rawValue, targetCalories: target,
+                                caloriesConsumed: consumed, favoriteFoods: favoriteFoods,
+                                stock: PlanningFood.grouped(stock),
+                                remainingToday: PlanningTargets(calories: max(target - consumed, 0),
+                                    protein: max(Double(macros.proteinG) - entries.reduce(0) { $0 + $1.proteinG }, 0),
+                                    carbs: max(Double(macros.carbsG) - entries.reduce(0) { $0 + $1.carbsG }, 0),
+                                    fat: max(Double(macros.fatG) - entries.reduce(0) { $0 + $1.fatG }, 0)),
+                                dietaryOptions: preferences.filter { !$0.isAllergy }.map(\.rawValue).sorted(),
+                                allergies: preferences.filter(\.isAllergy).map(\.rawValue).sorted(), lang: lang)
+    }
 }
 
 struct AgentChatResponse: Codable {

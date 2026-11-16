@@ -1,0 +1,360 @@
+{
+  "pirmadienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų pusryčiai",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos su ryžiais, brokoliais ir alyva",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais, brokoliais vakare",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių užkandis",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "antradienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų omletas",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos ir ryžių salotos su brokoliais",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais ir brokoliais ant keptuvės",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių skrebučiai",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "trečiadienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų rytinis sumaišas",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos, ryžių ir brokolių dubenėlis",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais ir brokoliais vakarienei",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių užkandis su alyva",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "ketvirtadienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų šviežios salotos",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos, ryžių ir brokolių patiekalas",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais ir brokoliais po vakarą",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių užkandis su šlakeliu aliejaus",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "penktadienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų pusryčių dubuo",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos ir ryžių patiekalas su brokoliais",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais ir brokoliais vakare",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių užkandis su šiek tiek aliejaus",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "šeštadienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų šviežias pusrytis",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos, ryžių ir brokolių patiekalas",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais ir brokoliais vėlyvą vakarą",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių lengvas užkandis",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "sekmadienis": {
+    "pusryčiai": {
+      "pavadinimas": "Kiaušinių ir bananų pusryčių mišinys",
+      "kalorijų": 288.5,
+      "baltymai": 14.215,
+      "angliavandeniai": 35.38,
+      "riebalai": 11.105,
+      "porcija": [
+        {"foodID":"usda:173424","amount":100},
+        {"foodID":"usda:173944","amount":150}
+      ]
+    },
+    "pietūs": {
+      "pavadinimas": "Vištienos, ryžių ir brokolių patiekalas su aliejumi",
+      "kalorijų": 631.0,
+      "baltymai": 54.295,
+      "angliavandeniai": 63.52,
+      "riebalai": 16.335,
+      "porcija": [
+        {"foodID":"usda:171477","amount":150},
+        {"foodID":"usda:168878","amount":200},
+        {"foodID":"usda:169967","amount":100},
+        {"foodID":"usda:171413","amount":10}
+      ]
+    },
+    "vakarienė": {
+      "pavadinimas": "Vištienos su ryžiais ir brokoliais nakties patiekalas",
+      "kalorijų": 489.7,
+      "baltymai": 44.825,
+      "angliavandeniai": 53.025,
+      "riebalai": 9.319,
+      "porcija": [
+        {"foodID":"usda:171477","amount":120},
+        {"foodID":"usda:168878","amount":150},
+        {"foodID":"usda:169967","amount":150},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    },
+    "užkandis": {
+      "pavadinimas": "Banano ir ryžių užkandis su šlakeliu aliejaus",
+      "kalorijų": 287.2,
+      "baltymai": 3.525,
+      "angliavandeniai": 59.765,
+      "riebalai": 5.8,
+      "porcija": [
+        {"foodID":"usda:173944","amount":200},
+        {"foodID":"usda:168878","amount":50},
+        {"foodID":"usda:171413","amount":5}
+      ]
+    }
+  },
+  "agentMessage": "Visos dienos atitinka 2000 kcal tikslą ir naudoja jūsų turimą maisto atsargas."
+}

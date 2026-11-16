@@ -3,96 +3,50 @@ import SwiftUI
 struct DietaryPreferencesView: View {
 
     @Bindable var vm: OnboardingViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-
-                OnboardingProgressBar(currentStep: 4)
-                    .padding(.top, 8)
-
-                // Header
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("What do you eat?")
-                        .font(.largeTitle).fontWeight(.bold)
-                    Text("Select everything that applies. We'll never suggest food that conflicts with your choices.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+        OnboardingScaffold(vm: vm, step: .diet, title: "What do you eat?",
+                           subtitle: "Pick any that apply. Suggestions can contain mistakes; always check ingredients and allergens before eating.") {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                ViewThatFits(in: .vertical) {
+                    chips
+                    ScrollView { chips }.scrollIndicators(.hidden)
                 }
-                .padding(.horizontal, 24)
+                note
+                    .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedPreferences.count)
+            }
+        } footer: {
+            // No minimum required — dietary preferences are optional.
+            OnboardingNextButton(vm: vm, next: .favorites, identifier: "onboarding.diet.continue")
+        }
+    }
 
-                // Chip grid
-                FlowLayout(spacing: 10) {
-                    ForEach(DietaryPreference.allCases) { pref in
-                        DietChipView(
-                            preference: pref,
-                            isSelected: vm.selectedPreferences.contains(pref)
-                        ) {
-                            vm.togglePreference(pref)
-                        }
-                    }
+    private var chips: some View {
+        FlowLayout(spacing: 10) {
+            ForEach(DietaryPreference.allCases) { pref in
+                DietChipView(preference: pref, isSelected: vm.selectedPreferences.contains(pref)) {
+                    vm.togglePreference(pref)
                 }
-                .padding(.horizontal, 24)
-
-                // Other allergies
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Other allergies or restrictions", systemImage: "square.and.pencil")
-                        .font(.subheadline).fontWeight(.medium)
-                    TextField("e.g. sesame, mustard, sulfites...", text: $vm.otherAllergies)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .padding(12)
-                        .background(Color.surfaceSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .padding(.horizontal, 24)
-
-                // Info note
-                if vm.selectedPreferences.isEmpty {
-                    HStack(spacing: 8) {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.secondary)
-                        Text("No restrictions selected — we'll include all food types.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 24)
-                } else {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.shield.fill")
-                            .foregroundStyle(Color.brandPrimary)
-                        Text("\(vm.selectedPreferences.count) restriction\(vm.selectedPreferences.count == 1 ? "" : "s") selected. We've got you covered.")
-                            .font(.caption)
-                            .foregroundStyle(Color.brandPrimary)
-                    }
-                    .padding(.horizontal, 24)
-                    .transition(.opacity)
-                    .animation(.easeIn, value: vm.selectedPreferences.count)
-                }
-
-                // Continue — no minimum required, dietary prefs are optional
-                NavigationLink(value: OnboardingStep.notifications) {
-                    Label("Next", systemImage: "arrow.right")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.brandPrimary)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
             }
         }
-        .navigationBarHidden(true)
-        .background(Color.surfaceGrouped.ignoresSafeArea())
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var note: some View {
+        let count = vm.selectedPreferences.count
+        return HStack(spacing: Spacing.sm) {
+            Image(systemName: count == 0 ? "info.circle" : "checkmark.shield.fill")
+            Text(count == 0
+                 ? "Nothing selected — we'll include all food types."
+                 : "\(count) selected. Check every suggestion against your dietary needs.")
+                .contentTransition(.numericText())
+        }
+        .font(.footnote)
+        .foregroundStyle(count == 0 ? Color.labelSecondary : Color.labelPrimary)
     }
 }
 
-
 #Preview {
-    NavigationStack {
-        DietaryPreferencesView(vm: OnboardingViewModel())
-    }
+    NavigationStack { DietaryPreferencesView(vm: OnboardingViewModel()) }
 }

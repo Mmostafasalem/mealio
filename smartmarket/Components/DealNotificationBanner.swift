@@ -1,113 +1,75 @@
 import SwiftUI
 
-/// Top-of-screen banner announcing a deal on a favorited food.
-/// Auto-dismisses (as a skip) after 8 seconds.
+/// The card shown when the person taps a grocery estimate on Home (it lives inside
+/// Home's MorphIsland). Catalog prices have no retailer verification, so this is
+/// never an unsolicited alert: it shows one "est. price", no savings, no countdown,
+/// and "Add to list" only adds the item to the grocery list.
 struct DealNotificationBanner: View {
-
     let deal: MarketDeal
     let onBuy: () -> Void
     let onSkip: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private let duration: TimeInterval = 8
-    @State private var startDate: Date = .now
-    @State private var buyTrigger = false
-    @State private var skipTrigger = false
-
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "tag.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.white)
-                    .frame(width: 46, height: 46)
-                    .background(Color.brandPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                Image(systemName: "basket.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.labelPrimary)
+                    .frame(width: 40, height: 40)
+                    .background(Color.brandLight, in: Circle())
                     .accessibilityHidden(true)
-
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Deal on \(deal.productName)")
-                        .font(.subheadline).fontWeight(.semibold)
-                        .lineLimit(1)
-                    Text("\(deal.store.chain) · \(deal.quantity)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
-                        Text(String(format: "€%.2f", deal.discountPrice))
-                            .font(.subheadline).fontWeight(.bold)
-                            .foregroundStyle(Color.brandPrimary)
-                        Text(String(format: "€%.2f", deal.originalPrice))
-                            .font(.caption).foregroundStyle(.secondary)
-                            .strikethrough()
-                        Text("−\(deal.discountPercent)%")
-                            .font(.caption2).fontWeight(.bold)
-                            .foregroundStyle(Color.brandAmber)
-                    }
+                    Text(deal.productName)
+                        .font(.headline)
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(2)
+                    Text(deal.quantity)
+                        .font(.footnote)
+                        .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(2)
                 }
                 Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text(String(format: "€%.2f", deal.discountPrice))
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(Color.labelPrimary)
+                    Text("est. price")
+                        .font(.caption2)
+                        .foregroundStyle(Color.labelSecondary)
+                }
             }
+            .accessibilityElement(children: .combine)
 
-            HStack(spacing: 10) {
-                Button {
-                    skipTrigger.toggle()
-                    onSkip()
-                } label: {
+            HStack(spacing: Spacing.sm) {
+                Button(action: onSkip) {
                     Text("Skip")
-                        .font(.subheadline).fontWeight(.medium)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(.primary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Color(.separator), lineWidth: 1)
-                        )
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(Color.labelPrimary)
+                        .background(Color.surfaceSecondary, in: Capsule())
+                        .contentShape(Capsule())
                 }
-                .sensoryFeedback(.warning, trigger: skipTrigger)
-
-                Button {
-                    buyTrigger.toggle()
-                    onBuy()
-                } label: {
-                    Label("Buy it", systemImage: "cart.badge.plus")
-                        .font(.subheadline).fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(.white)
-                        .background(Color.brandPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                Button(action: onBuy) {
+                    Label("Add to list", systemImage: "plus")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(Color.surface)
+                        .background(Color.labelPrimary, in: Capsule())
+                        .contentShape(Capsule())
                 }
-                .sensoryFeedback(.success, trigger: buyTrigger)
             }
-
-            if !reduceMotion {
-                // Updates once per second — not 60fps
-                TimelineView(.periodic(from: startDate, by: 1)) { context in
-                    let elapsed = context.date.timeIntervalSince(startDate)
-                    let fraction = max(0, 1 - elapsed / duration)
-                    ProgressView(value: fraction, total: 1.0)
-                        .tint(Color.brandPrimary.opacity(0.5))
-                        .scaleEffect(x: 1, y: 0.6, anchor: .center)
-                }
-                .accessibilityHidden(true)
-            }
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(ScalePressStyle())
         }
-        .padding(16)
-        .background(Color.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
-        .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
-        .padding(.horizontal, 16)
-        .onAppear { startDate = .now }
-        .task {
-            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            onSkip()
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Deal alert for \(deal.productName)")
+        // No auto-dismiss: this card opens only when the person taps an estimate,
+        // so it stays until they choose Skip or Add to list.
+        .padding(Spacing.lg)
     }
 }
 
-#Preview {
-    DealNotificationBanner(deal: MarketDeal.mocked[0], onBuy: {}, onSkip: {})
+#Preview("Deal card") {
+    if let deal = MarketDeal.mocked.first {
+        DealNotificationBanner(deal: deal, onBuy: {}, onSkip: {})
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .padding()
+            .background(Color.surfaceGrouped)
+    }
 }

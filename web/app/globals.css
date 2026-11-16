@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/*
+  Nourlo web design system.
+  Palette: neutral zinc base + ONE calibrated green accent (no teal tint, no
+  purple/blue "AI glow"). Depth from soft tinted shadows, not gradients.
+*/
+
+:root {
+  --background: #fafafa;
+  --surface: #ffffff;
+  --surface-elevated: #f4f4f5; /* zinc-100 */
+  --foreground: #18181b;       /* zinc-900 */
+  --muted: #71717a;            /* zinc-500 */
+  --hairline: rgba(0, 0, 0, 0.06);
+
+  --brand: #16a34a;            /* green-600 */
+  --brand-dark: #15803d;       /* green-700 */
+  --brand-amber: #d97706;
+  --brand-danger: #dc2626;
+
+  --calorie: #16a34a;
+  --protein: #ea580c;
+  --carbs: #d97706;
+  --fat: #7c3aed;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;        /* zinc-950 */
+    --surface: #161619;
+    --surface-elevated: #202024;
+    --foreground: #fafafa;
+    --muted: #a1a1aa;            /* zinc-400 */
+    --hairline: rgba(255, 255, 255, 0.08);
+
+    --brand: #22c55e;            /* green-500 */
+    --brand-dark: #16a34a;
+    --brand-amber: #f59e0b;
+    --brand-danger: #ef4444;
+
+    --calorie: #22c55e;
+    --protein: #fb923c;
+    --carbs: #fbbf24;
+    --fat: #a78bfa;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-amber: var(--brand-amber);
+  --color-brand-danger: var(--brand-danger);
+
+  --color-calorie: var(--calorie);
+  --color-protein: var(--protein);
+  --color-carbs: var(--carbs);
+  --color-fat: var(--fat);
+
+  --radius-card: 20px;
+  --radius-tile: 14px;
+  --radius-chip: 10px;
+}
+
+body {
+  color: var(--foreground);
+  font-family: var(--font-geist), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.011em;
+  /* Subtle graph-paper dot grid over a flat neutral — texture without slop. */
+  background-color: var(--background);
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklab, var(--foreground) 6%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 24px 24px;
+  background-attachment: fixed;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Motion ---- */
+:root {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.press {
+  transition: transform 0.12s var(--ease-out-soft);
+}
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Soft, hue-tinted ambient shadow — floating, not a harsh drop. */
+.soft-shadow {
+  box-shadow:
+    0 1px 2px rgba(24, 24, 27, 0.04),
+    0 14px 36px -20px rgba(24, 24, 27, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  .soft-shadow {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 16px 40px -22px rgba(0, 0, 0, 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
