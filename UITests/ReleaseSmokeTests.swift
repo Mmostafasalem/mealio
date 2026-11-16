@@ -174,8 +174,21 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
         advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
+        // Narrow the ~340 chips to a handful first: on a slow machine, reading the
+        // whole chip grid for every query can time out.
+        let search = app.textFields.element(matching: NSPredicate(format: "placeholderValue BEGINSWITH 'Search'"))
+        if search.waitForExistence(timeout: 5) {
+            search.tap()
+            search.typeText("chicken\n")
+        }
+        // The short filtered list can rest a row under the category strip; start from its top.
+        let list = app.scrollViews["favorites.list"]
+        if list.exists { list.swipeDown(velocity: .slow) }
         for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {
-            tap("favorite.item." + id, in: app)
+            let chip = app.buttons["favorite.item." + id].firstMatch
+            XCTAssertTrue(chip.waitForExistence(timeout: 5), id)
+            if !chip.isHittable, list.exists { list.swipeDown(velocity: .slow) }
+            chip.tap()
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
             XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
         }
