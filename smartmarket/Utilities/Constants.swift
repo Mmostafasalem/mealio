@@ -14,6 +14,8 @@ extension Notification.Name {
     static let openShop             = Notification.Name("openShop")
     /// The bowl in Home's header was tapped: open or close its guide.
     static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
+    /// Home's microphone button: `MainTabView` shows the voice sheet.
+    static let openVoice            = Notification.Name("openVoice")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
     /// Logged food changed (added, removed, cleared, or logged from stock). Listeners
     /// (Apple Health, widgets) re-read `FoodLogStore.allEntries` and sync the difference.

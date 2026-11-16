@@ -91,6 +91,7 @@ struct TrainView: View {
     /// Applies a workout kind Siri or Shortcuts asked for (once).
     private func applyRequestedKind() {
         if let kind = AppRouter.shared.consumeWorkoutKind() { vm.kind = kind }
+        if let minutes = AppRouter.shared.consumeWorkoutMinutes() { vm.minutes = Double(minutes) }
     }
 
     // MARK: Exercise browser

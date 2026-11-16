@@ -79,10 +79,27 @@ struct HomeView: View {
                         HomeHeaderView(vm: vm, onProfile: { showProfile = true }, onReminders: { showReminders = true })
                         VStack(spacing: Spacing.lg) {
                             dueReminders
-                            // Two matching pills, side by side, each half the width.
+                            // Two matching pills with the microphone between them.
                             HStack(spacing: Spacing.md) {
                                 NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
                                     .accessibilityIdentifier("home.stock")
+                                // One tap to speak a command (the same sheet as "+" › Speak a command).
+                                Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
+                                    Image(systemName: "mic.fill")
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(Color.onAccent)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.dullPink, in: Circle())
+                                        .contentShape(Circle())
+                                }
+                                .accessibilityLabel("Speak a command")
+                                .accessibilityIdentifier("home.voice")
+                                // The same small "i" as the macros, centred just above the microphone,
+                                // in the gap under the header, so the row stays symmetrical.
+                                .overlay {
+                                    InfoTooltip(text: "Tap the microphone and say what you ate or want, like \u{201C}two eggs for breakfast\u{201D}, \u{201C}add milk to my cart\u{201D} or \u{201C}start a 30 minute workout\u{201D}. It listens on this iPhone and shows what it understood before saving.")
+                                        .offset(y: -34)
+                                }
                                 NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
                             }
                             .buttonStyle(ScalePressStyle())

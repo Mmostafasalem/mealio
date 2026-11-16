@@ -19,6 +19,7 @@
 		C1000000000000000000000E /* NourloWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C10000000000000000000005; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AD5609042FCB268F00DBF210 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADMAP0012FCA0F6400433336 /* CoreLocation.framework */; };
 		AD5609072FCB269100DBF210 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADMAP0002FCA0F6400433335 /* MapKit.framework */; };
+		D10000000000000000000003 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = D10000000000000000000002 /* FluidAudio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -122,6 +123,7 @@
 			files = (
 				AD5609072FCB269100DBF210 /* MapKit.framework in Frameworks */,
 				AD5609042FCB268F00DBF210 /* CoreLocation.framework in Frameworks */,
+				D10000000000000000000003 /* FluidAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -196,6 +198,7 @@
 			);
 			name = smartmarket;
 			packageProductDependencies = (
+				D10000000000000000000002 /* FluidAudio */,
 			);
 			productName = smartmarket;
 			productReference = ADF8148C2FCA0F6400433335 /* smartmarket.app */;
@@ -257,6 +260,9 @@
 				Base,
 			);
 			mainGroup = ADF814832FCA0F6400433335;
+			packageReferences = (
+				D10000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/FluidAudio" */,
+			);
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = ADF8148D2FCA0F6400433335 /* Products */;
@@ -319,6 +325,8 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -361,6 +369,8 @@
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -600,6 +610,20 @@
 		B20000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (B20000000000000000000008, B20000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		C10000000000000000000007 = {isa = XCConfigurationList; buildConfigurations = (C10000000000000000000008, C10000000000000000000009); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D10000000000000000000001 /* XCLocalSwiftPackageReference "Vendor/FluidAudio" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/FluidAudio;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D10000000000000000000002 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FluidAudio;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = ADF814842FCA0F6400433335 /* Project object */;
 }

@@ -33,6 +33,7 @@ struct ProfileView: View {
                     Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
                 }
                 AIAccountSection()
+                voiceSection
                 healthSection
                 syncSection
                 privacySection
@@ -186,6 +187,25 @@ struct ProfileView: View {
     /// What the "Delete Data" confirmation runs; the hold button calls the same.
     private func deleteAllData() {
         Task { await vm.resetOnboarding() }
+    }
+
+    private var voiceSection: some View {
+        Section {
+            NavigationLink {
+                VoiceSettingsView()
+            } label: {
+                HStack {
+                    Label("Voice", systemImage: "mic")
+                    Spacer(minLength: Spacing.sm)
+                    Text(VoiceLanguage.current.name)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityValue(VoiceLanguage.current.name)
+            .accessibilityIdentifier("profile.voice")
+        }
     }
 
     private var healthSection: some View {

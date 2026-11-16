@@ -72,9 +72,13 @@ final class AppRouter {
     /// `consumeWorkoutKind()` to preselect the builder.
     private(set) var workoutKind: ExerciseKind?
 
-    /// Opens Train, remembering the kind (if any) for the builder.
-    func startWorkout(kind: ExerciseKind?) {
+    /// A workout length a voice command asked for; Train reads it with `consumeWorkoutMinutes()`.
+    private(set) var workoutMinutes: Int?
+
+    /// Opens Train, remembering the kind and length (if any) for the builder.
+    func startWorkout(kind: ExerciseKind?, minutes: Int? = nil) {
         workoutKind = kind
+        workoutMinutes = minutes
         NourloLinkInbox.post(.train)
     }
 
@@ -82,6 +86,12 @@ final class AppRouter {
     func consumeWorkoutKind() -> ExerciseKind? {
         defer { workoutKind = nil }
         return workoutKind
+    }
+
+    /// The requested workout length, cleared so it's applied once.
+    func consumeWorkoutMinutes() -> Int? {
+        defer { workoutMinutes = nil }
+        return workoutMinutes
     }
 
     func showExercise(id: String) {

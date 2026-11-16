@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat, quickActions
+    case logFood, cart, groceries, chat, quickActions, voice
     case exercise(String)
 
     var id: String {
@@ -15,6 +15,7 @@ enum MainSheet: Identifiable, Equatable {
         case .groceries: return "groceries"
         case .chat: return "chat"
         case .quickActions: return "quickActions"
+        case .voice: return "voice"
         case .exercise(let id): return "exercise:" + id
         }
     }
@@ -84,6 +85,7 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
+        .onReceive(NotificationCenter.default.publisher(for: .openVoice)) { _ in present(.voice) }
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
         // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
@@ -114,10 +116,13 @@ struct MainTabView: View {
                     .presentationDetents([.large])
             case .chat:
                 AgentChatSheet(vm: quickLog)
+            case .voice:
+                VoiceCommandSheet(close: { self.sheet = nil }, navigate: openFromVoice)
             case .quickActions:
                 QuickActionsMenu(close: { self.sheet = nil }) { choice in
                     switch choice {
                     case .chat: present(.chat)
+                    case .voice: present(.voice)
                     case .action(let action): chooseQuickAction(action)
                     }
                 }
@@ -196,6 +201,8 @@ struct MainTabView: View {
 
     private func chooseQuickAction(_ action: MealioQuickAction) {
         if action == .profile {
+            // Chosen from the "+" sheet: close it, then show Profile on Home.
+            present(nil)
             openProfile()
         } else if let tab = action.tab {
             selection = tab
@@ -206,6 +213,29 @@ struct MainTabView: View {
             case .groceries: present(.groceries)
             default: break
             }
+        }
+    }
+
+    /// Where a spoken command leads; the voice sheet is replaced by its destination.
+    private func openFromVoice(_ navigation: VoiceNavigation) {
+        switch navigation {
+        case .screen(let screen):
+            switch screen {
+            case .home: present(nil); selection = 0
+            case .meals: present(nil); selection = 1
+            case .shop: present(nil); selection = 2
+            case .train: present(nil); selection = 3
+            case .cart: present(.cart)
+            case .checklist: present(.groceries)
+            case .logFood: present(.logFood)
+            case .chat: present(.chat)
+            case .scan: AppRouter.shared.open(.scan)
+            case .profile: present(nil); openProfile()
+            }
+        case .workout(let kind, let minutes):
+            AppRouter.shared.startWorkout(kind: kind, minutes: minutes)
+        case .exercise(let id):
+            AppRouter.shared.showExercise(id: id)
         }
     }
 
@@ -285,16 +315,18 @@ private struct TabBarInsetKey: PreferenceKey {
 
 /// What the "+" tab offers, as a native sheet.
 private struct QuickActionsMenu: View {
-    enum Choice { case action(MealioQuickAction), chat }
+    enum Choice { case action(MealioQuickAction), chat, voice }
     /// Closes the sheet through `MainTabView`'s own state (its single sheet path).
     let close: () -> Void
     let choose: (Choice) -> Void
 
     private let rows: [(id: String, title: String, symbol: String, choice: Choice)] = [
+        ("voice", "Speak a command", "mic.fill", .voice),
         (MealioQuickAction.logFood.rawValue, "Log food", "fork.knife", .action(.logFood)),
         (MealioQuickAction.cart.rawValue, "Cart", "cart", .action(.cart)),
         (MealioQuickAction.groceries.rawValue, "Checklist", "checklist", .action(.groceries)),
         ("chat", "Ask Nourlo", "bubble.left.and.text.bubble.right", .chat),
+        (MealioQuickAction.profile.rawValue, "Profile", "person.crop.circle", .action(.profile)),
     ]
 
     var body: some View {
@@ -314,7 +346,7 @@ private struct QuickActionsMenu: View {
                 }
             }
         }
-        .presentationDetents([.height(300), .medium])
+        .presentationDetents([.height(400), .medium])
         .presentationDragIndicator(.visible)
     }
 }
