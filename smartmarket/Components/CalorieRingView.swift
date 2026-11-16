@@ -5,6 +5,11 @@ struct CalorieRingView: View {
     let consumed: Int
     let goal: Int
     var size: CGFloat = 160
+    /// Compact form: a thinner ring that fills its frame, with the percentage inside.
+    var showsPercent = false
+
+    private var lineWidth: CGFloat { showsPercent ? (size < 70 ? 6 : 10) : 12 }
+    private var diameter: CGFloat { showsPercent ? size - lineWidth : size - 18 }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animatedProgress: Double = 0
@@ -18,13 +23,23 @@ struct CalorieRingView: View {
         ZStack {
             // Background track
             Circle()
-                .stroke(Color.surfaceSecondary, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                .frame(width: size - 18, height: size - 18)
+                .stroke(Color.surfaceSecondary, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .frame(width: diameter, height: diameter)
 
             ProgressArc(progress: animatedProgress)
-                .stroke(Color.dullPink, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                .frame(width: size - 18, height: size - 18)
+                .stroke(Color.dullPink, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .frame(width: diameter, height: diameter)
 
+            if showsPercent {
+                Text("\(Int((rawFraction * 100).rounded()))%")
+                    .font(.system(size: size * 0.24, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.labelPrimary)
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .padding(.horizontal, lineWidth + 3)
+                    .contentTransition(.numericText())
+            } else {
             // Center text
             VStack(spacing: 2) {
                 Text("\(consumed)")
@@ -40,6 +55,7 @@ struct CalorieRingView: View {
                     .foregroundStyle(Color.labelSecondary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
+            }
             }
         }
         .frame(width: size, height: size)

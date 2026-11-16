@@ -1,90 +1,68 @@
-# Personal AI accounts — activation checklist
+# Nourlo AI accounts and deployment
 
-Implementation is local; this document does not mean the feature is live.
-Never paste secrets into chat, commit them, or include Apple server keys in iOS.
+Guest AI is active on the existing Render service with persistent Neon Postgres storage. No paid hosting upgrade or persistent Render disk was selected. Never paste credentials into chat, commit them, or include provider/Apple server keys in iOS.
 
-## Behavior
-- Optional native Sign in with Apple in Profile, with no name/email scopes.
-- Local shopping, tracking and offline plans need no account.
-- Online AI separately requires sharing consent and a verified session.
-- Default 30 credits/person/day: meal plans cost 5, other AI requests cost 1.
-  Automatic online plan updates count. Reset is midnight UTC, displayed locally.
-- Failed provider requests and cached responses refund personal credits.
-- Personal allowances still share provider capacity and a global attempt ceiling.
-- State survives app devices and server restarts on durable storage.
-- Delete All Data revokes the Apple grant and purges the account before clearing
-  local data. It requires a connection and valid sign-in. Sign-out is not deletion.
-  A device marker makes deletion require sign-in even after sign-out. A keyed
-  subject hash and today's spending survive account deletion until the daily
-  reset to prevent recreation abuse; expired rows are cleaned on service activity.
+## Current deployment
 
-## Owner setup before real-device testing
-1. Enable Sign in with Apple for explicit App ID `com.mostafa.mealio` in Apple
-   Developer. Select the correct primary/group configuration and regenerate
-   development/distribution profiles. The entitlement is already in the project;
-   simulator compilation does not activate Apple sign-in.
-2. Create a Sign in with Apple server key for this App ID. Keep the .p8 private.
-   Set server-only `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (PEM;
-   escaped newlines are accepted) and `APPLE_APP_ID=com.mostafa.mealio`.
-3. Provision durable storage. Render's free ephemeral filesystem does not qualify.
-   Use ONE service instance with a shared writable SQLite volume mounted at
-   `/var/data`. Set `AI_STATE_DB=/var/data/mealio-ai.sqlite` and
-   `AI_STATE_PERSISTENT=1`. No paid resources have been provisioned automatically.
-   Migrate to a shared transactional database before horizontal scaling.
-4. Generate stable `AI_SUBJECT_SECRET` (at least 32 random bytes encoded as text)
-   and `AI_TOKEN_ENCRYPTION_KEY` (Fernet key) locally. Put them only in server
-   secret settings. Losing or rotating them requires deliberate account migration.
-5. Optional limits: `AI_DAILY_CREDITS=30`, `AI_GLOBAL_DAILY_ATTEMPTS=900`.
-   Tune the global limit to actual provider capacity, not the number of users.
-   Keep APP_API_KEY configured consistently in the backend and signed iOS build.
-6. Set Apple's server notification URL to
-   `https://YOUR_BACKEND/api/auth/apple/notifications`. This route accepts signed
-   Apple payloads without Mealio's shared key; forged notifications are rejected.
-7. Enable `AI_ACCOUNTS_ENABLED=1` only after the prerequisites are ready. Missing
-   account configuration fails closed for AI; catalog and BMR remain available.
-8. Verify the provider model independently. The earlier live Groq test returned
-   fallback text. This change does not change the model or certify live inference.
-9. Do not deploy enforcement to the public web client yet. It needs equivalent
-   Apple authentication and bearer forwarding; the shared-key proxy is insufficient.
+- Backend: https://mealio-backend-d7aa.onrender.com
+- Render service: `srv-dbnh60rrjlhs738q8fn0`, Free compute, auto-deploying `codex/stock-and-goals`.
+- Neon: `nourlo-accounts`, project `dawn-river-72271199`, `free_v3`, pdx1. Its Vercel connection is development-only; Render receives its private connection through server environment settings.
+- Guest access is enabled. Apple access remains disabled until the Apple capabilities and server signing credentials are configured.
+- Provider model: existing Groq `openai/gpt-oss-120b`; existing provider and legacy app keys were preserved.
+- Default personal allowance: 30 credits/device/day. Weekly plans cost 5; chat, recipes and other suggestions cost 1. Failed/fallback responses do not spend personal credits.
+- Current overall limit: 30 provider attempts/day across the service. This is a conservative request cap, not a dollar budget or a public capacity guarantee.
+- Free hosting can sleep; account and AI requests allow additional wake time. Free database/provider allowances remain limited. No automatic paid upgrade was selected.
 
-## Staging verification
-- Config endpoint returns enabled=true with the app key.
-- AI with only the shared key returns 401 without calling the provider.
-- On a provisioned device, sign in, enable AI sharing separately, and generate
-  one real response. Check remaining credits and the local reset time.
-- A second device with the same Apple account sees the same allowance; a second
-  person has a separate allowance.
-- Exhaust the allowance: 429 includes the reset and Retry-After.
-- Simulate provider failure: fallback consumes no personal credits.
-- Restart/redeploy: personal allowance is retained.
-- Sign out on one device: that session is rejected while other sessions work.
-- Delete All Data: revoke Apple grant, reject other sessions, erase local profile
-  and log, request private shopping deletion.
-- Revoke Apple access and verify the signed notification invalidates sessions.
-- Offline account deletion reports failure rather than claiming completion.
-- Logs contain no JWTs, authorization codes, sessions, keys, refresh grants or
-  health/chat bodies. App Privacy includes linked User ID and Product Interaction
-  for functionality, with no tracking.
-- Document secure volume access, backups, deletion handling and retention before
-  launch. The account database is private data despite containing no health bodies.
+Server settings:
 
-Sessions expire after 30 days. Apple grants are revalidated after 24 hours of
-account activity. Remote sign-out is best effort if offline: a copied session
-may remain valid until expiry/revocation. Protect tokens as secrets. The app has
-no offline-only erasure override for a saved AI account; reconnect/sign in to
-complete Delete All Data. Routine cleanup is activity-driven.
+```text
+AI_ACCOUNTS_ENABLED=1
+AI_GUEST_ENABLED=1
+AI_APPLE_ENABLED=0
+AI_DATABASE_URL=<private Postgres connection>
+AI_SUBJECT_SECRET=<stable private secret>
+AI_TOKEN_ENCRYPTION_KEY=<stable private Fernet key>
+AI_DAILY_CREDITS=30
+AI_GLOBAL_DAILY_ATTEMPTS=30
+```
 
+The imported private settings file is `/Users/mmostafasalem/.config/nourlo/guest-free-activation.env` (0600). Do not import the older disk-based activation file. Database connections verify TLS certificates and hostnames. Quota mutations use a transaction-scoped advisory lock across workers; malformed database configuration fails closed. SQLite remains supported for a single instance with an explicitly configured persistent volume, but is not used by this deployment.
 
-## Duplicate-request safeguards
-The iOS app gives each AI request an Idempotency-Key. The authenticated person,
-request path and exact body are bound to the key. Concurrent repeats do not call
-the provider or reserve credits again; changed input with the same key returns
-409. Metadata is retained 24 hours, capped at 2048 keys/person, and purged with
-the account. It contains only hashes, an HMAC fingerprint and creation time.
-A bounded per-process in-memory cache replays up to 128 small responses for a
-three-minute window. Expired entries are cleared on replay activity or eviction;
-no response bodies go into SQLite/backups. Account deletion clears this process's
-replays. Other processes still authenticate before any replay. After expiry,
-eviction or restart, an existing key returns 409 rather than rerunning AI.
-This protects transport retries carrying the same key; a deliberately new action
-has a new key and may use credits. There is no payment/checkout flow in Mealio.
+## Verified live behavior — 2026-11-08
+
+- Public auth config reports guest enabled; guest login works without the legacy shared app key.
+- Authenticated chat returns HTTP 200 with `X-AI-Result: online`; its personal allowance is charged once. Unauthenticated AI is rejected with 401.
+- The existing synthetic guest session and exact credit balance survived backend redeployment.
+- Deleting the synthetic account returns 204; its former session subsequently returns 401.
+- Weekly planning returns 28 online meals with valid ingredient portion IDs referencing the submitted synthetic USDA foods. A separate real provider check also verified that the aggregate amounts stayed within the supplied stock. This does not guarantee every future model response or dietary suitability.
+- Real Postgres integration contracts passed in an isolated disposable schema, including concurrent reservations, persistence and failure refunds/deletion.
+
+Physical-device and App Store release verification are separate requirements. A Personal Team test installation is not production distribution.
+
+## Account and privacy behavior
+
+Guests use a 256-bit random device-only Keychain secret. The server stores a keyed identity hash and hashed bearer sessions, not the raw device secret. Recovery retains the same account and allowance; new guest setup is capped at five per network/UTC day. Sessions expire after 30 days.
+
+Signing in does not enable AI sharing. The app separately requires consent before sending relevant food, goal and chat context through the backend to Groq. Account storage contains identity/session/quota records, not body measurements, food logs or chat bodies. Local tracking and offline suggestions work without an account.
+
+Delete All Data deletes retained online accounts before clearing local data; it requires a connection and valid sign-in. Guest/Apple switching must not orphan earlier accounts. Sign-out alone keeps the online account. Today's keyed spending survives deletion until the daily reset to limit recreation abuse; expired rows are cleaned during activity. A copied offline session may remain valid until remote sign-out, expiry or deletion. Protect tokens as secrets.
+
+## Adding Apple sign-in
+
+1. Use an Apple Developer account that supports Sign in with Apple and the production App ID `com.mostafa.mealio`. Regenerate the appropriate provisioning profiles.
+2. Create the Apple server signing key and set server-only `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` and `APPLE_APP_ID=com.mostafa.mealio`. Never put the .p8 in iOS or Git.
+3. Set Apple's signed notification URL to `https://mealio-backend-d7aa.onrender.com/api/auth/apple/notifications`.
+4. Enable `AI_APPLE_ENABLED=1` after verifying the configuration; guest access can remain enabled.
+5. Verify real device authorization, cross-device allowance, revocation notification, grant revalidation and deletion before claiming Apple sign-in works.
+
+## Duplicate requests and operations
+
+Each iOS AI action has an Idempotency-Key bound to account, route and exact body. Concurrent repeats do not call the provider or reserve credits again. Changed input under the same key returns 409. Metadata contains only hashes, an HMAC fingerprint and timestamps; it is retained for 24 hours and capped at 2048 keys/person.
+
+A bounded process-memory cache replays up to 128 small responses for three minutes. No response bodies enter the persistent account database. Account deletion clears this process's responses; every worker still authenticates before replay. After expiry/eviction/restart, an existing key returns 409 instead of repeating AI.
+
+## Release checks still required
+
+Verify actual device journeys and production signing, Apple-specific behavior when enabled, backup/restore and deletion procedures, service capacity and provider billing, privacy disclosures and operational monitoring. Catalogue product records do not prove current branch stock/prices. Do not call the entire app production ready based only on successful AI activation.
+
+Live UI verification is opt-in: select `ReleaseSmokeTests/testLiveGuestSignInChatAndAccountDeletion` with `TEST_RUNNER_NOURLO_LIVE_GUEST_UI=1` only on a fresh simulator named `Nourlo Guest AI Verification`. It uses synthetic onboarding data, performs a real AI request and deletes its test account/local data.

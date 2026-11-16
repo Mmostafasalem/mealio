@@ -41,7 +41,7 @@ enum MealSlot: String, Codable, CaseIterable, Identifiable {
 
 struct FoodLogEntry: Codable, Identifiable, Hashable {
     let id: String
-    let foodId: String?      // links back to Food.catalog when logged from it
+    let foodId: String?      // source-qualified nutrition ID; old catalog IDs remain readable
     let name: String
     let slot: MealSlot
     let servingG: Int
@@ -50,10 +50,15 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
     let carbsG: Double
     let fatG: Double
     let loggedAt: Date
+    let portionAmount: Double?
+    let nutritionFood: NutritionFood? // immutable source snapshot; absent in legacy/estimated entries
+
+    var amount: Double { portionAmount ?? Double(servingG) }
+    var amountUnit: String { nutritionFood?.basis.rawValue ?? "g" }
 
     init(id: String = UUID().uuidString, foodId: String? = nil, name: String,
          slot: MealSlot, servingG: Int, calories: Int,
-         proteinG: Double, carbsG: Double, fatG: Double, loggedAt: Date = Date()) {
+         proteinG: Double, carbsG: Double, fatG: Double, loggedAt: Date = Date(), nutritionFood: NutritionFood? = nil, portionAmount: Double? = nil) {
         self.id = id
         self.foodId = foodId
         self.name = name
@@ -64,14 +69,20 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
         self.carbsG = carbsG
         self.fatG = fatG
         self.loggedAt = loggedAt
+        self.portionAmount = portionAmount
+        self.nutritionFood = nutritionFood
+    }
+    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double) {
+        let p = food.portion(amount)
+        self.init(foodId: food.id, name: food.name, slot: slot, servingG: Int(amount.rounded()),
+                  calories: Int(p.kcal.rounded()), proteinG: p.protein, carbsG: p.carbs, fatG: p.fat,
+                  nutritionFood: food, portionAmount: amount)
     }
 }
 
-// MARK: - Food log store (local, daily-resetting)
+// MARK: - Food log store (local history, daily totals)
 
-/// Single source of truth for today's logged foods. Persists to UserDefaults and
-/// auto-resets each day by keeping only entries logged today — fixing the old
-/// "calories never reset at midnight" bug.
+/// Preserves recorded history while deriving today’s totals from the current date.
 @MainActor
 @Observable
 final class FoodLogStore {
@@ -81,22 +92,33 @@ final class FoodLogStore {
     private let key = "foodLogEntries"
     private let recentsKey = "recentFoodIDs"
 
-    private(set) var entries: [FoodLogEntry] = []
+    private var history: [FoodLogEntry] = [] { didSet { revision &+= 1 } }
+    /// Bumps on every change to the log; a cheap thing for views to watch.
+    private(set) var revision = 0
+    private let defaults: UserDefaults
+    private let stock: StockStore
+    var allEntries: [FoodLogEntry] { (history + stock.logs).sorted { $0.loggedAt < $1.loggedAt } }
+    var entries: [FoodLogEntry] { entries(on: Date()) }
+    /// The entries logged on `date`'s calendar day. Views that stay on screen
+    /// pass their own clock so they move to the new day at midnight.
+    func entries(on date: Date) -> [FoodLogEntry] {
+        let calendar = Calendar.current
+        return allEntries.filter { calendar.isDate($0.loggedAt, inSameDayAs: date) }
+    }
     private(set) var recentFoodIDs: [String] = []
 
-    private init() {
-        recentFoodIDs = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
+    init(defaults: UserDefaults = .standard, stock: StockStore? = nil) {
+        self.defaults = defaults
+        self.stock = stock ?? .shared
+        recentFoodIDs = defaults.stringArray(forKey: recentsKey) ?? []
         reload()
     }
 
-    /// Reloads today's entries from disk, pruning any from previous days.
+    /// Reads legacy logs without discarding previous days.
     func reload() {
-        recentFoodIDs = UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
-        let stored = UserDefaults.standard.data(forKey: key)
-            .flatMap { try? JSONDecoder().decode([FoodLogEntry].self, from: $0) } ?? []
-        let today = stored.filter { Calendar.current.isDateInToday($0.loggedAt) }
-        entries = today.sorted { $0.loggedAt < $1.loggedAt }
-        if today.count != stored.count { persist() }   // drop stale days from disk
+        recentFoodIDs = defaults.stringArray(forKey: recentsKey) ?? []
+        // One bad entry must not wipe the log; unreadable bytes are backed up.
+        history = ResilientStorage.loadArray(FoodLogEntry.self, key: key, defaults: defaults)
     }
 
     // MARK: Totals
@@ -112,33 +134,39 @@ final class FoodLogStore {
     // MARK: Mutations (optimistic — UI updates instantly)
 
     func add(_ entry: FoodLogEntry) {
-        entries.append(entry)
-        entries.sort { $0.loggedAt < $1.loggedAt }
+        history.append(entry)
+        history.sort { $0.loggedAt < $1.loggedAt }
         persist()
         if let fid = entry.foodId { noteRecent(foodId: fid) }
     }
 
     func remove(_ entry: FoodLogEntry) {
-        entries.removeAll { $0.id == entry.id }
+        history.removeAll { $0.id == entry.id }
+        stock.removeLog(id: entry.id)
         persist()
     }
 
     func clearToday() {
-        entries.removeAll()
+        history.removeAll { Calendar.current.isDateInToday($0.loggedAt) }
+        stock.clearLogs(on: Date())
         persist()
     }
 
     func clearAll() {
-        entries.removeAll()
+        history.removeAll()
+        stock.clear()
         recentFoodIDs.removeAll()
-        UserDefaults.standard.removeObject(forKey: key)
-        UserDefaults.standard.removeObject(forKey: recentsKey)
+        NutritionCatalogService.shared.clear()
+        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: recentsKey)
+        NotificationCenter.default.post(name: .foodLogDidChange, object: nil)
     }
 
     private func persist() {
-        if let data = try? JSONEncoder().encode(entries) {
-            UserDefaults.standard.set(data, forKey: key)
+        if let data = try? JSONEncoder().encode(history) {
+            defaults.set(data, forKey: key)
         }
+        NotificationCenter.default.post(name: .foodLogDidChange, object: nil)
     }
 
     // MARK: Recents
@@ -147,6 +175,6 @@ final class FoodLogStore {
         var list = recentFoodIDs.filter { $0 != foodId }
         list.insert(foodId, at: 0)
         recentFoodIDs = Array(list.prefix(12))
-        UserDefaults.standard.set(recentFoodIDs, forKey: recentsKey)
+        defaults.set(recentFoodIDs, forKey: recentsKey)
     }
 }

@@ -69,7 +69,7 @@ vercel env add APP_API_KEY production
 #   → paste the key at the prompt
 
 # BACKEND_URL is only needed if you ever move off the default Render URL:
-# vercel env add BACKEND_URL production   # value: https://mealio-backend-17qg.onrender.com
+# vercel env add BACKEND_URL production   # value: https://mealio-backend-d7aa.onrender.com
 
 # env vars only take effect on a new deployment:
 vercel --prod --yes

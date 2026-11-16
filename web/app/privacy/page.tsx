@@ -3,8 +3,8 @@ import { LegalPage } from "@/components/LegalPage";
 import legal from "@/content/legal.json";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Mealio",
-  description: "Mealio privacy policy: data use, retention, and your choices.",
+  title: "Privacy Policy — Nourlo",
+  description: "Nourlo privacy policy: data use, retention, and your choices.",
 };
 
 export default function PrivacyPage() {

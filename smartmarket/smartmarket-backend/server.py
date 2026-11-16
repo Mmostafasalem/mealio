@@ -1,5 +1,5 @@
 """
-Mealio backend — production WSGI app.
+Nourlo backend — production WSGI app.
 
 This is a thin Flask layer over the business logic in app.py. Every endpoint
 reuses the existing `handle_*` functions unchanged — we only swap the dev-grade
@@ -15,7 +15,12 @@ Production (Render / any WSGI host):
 import hmac
 import os
 
+import logging
+
 from flask import Flask, request, jsonify
+from werkzeug.exceptions import HTTPException
+from ai_accounts import AI_PATHS
+from ai_account_routes import _INVALID_JSON, parse_json_body
 
 from app import (
     APP_API_KEY,
@@ -29,6 +34,7 @@ from app import (
     handle_meal_plan,
     handle_products,
     handle_recipe,
+    handle_workout,
     handle_shopping_advice,
 )
 
@@ -47,6 +53,8 @@ app.config["MAX_CONTENT_LENGTH"] = 256 * 1024  # 256 KB
 # client IP is the entry our OWN trusted proxy appended to X-Forwarded-For — i.e.
 # counting from the RIGHT. Anything further left is attacker-controlled and must
 # never be trusted, otherwise rate limiting can be bypassed by spoofing XFF.
+# NOTE: the default of 1 is an assumption about Render's proxy chain. Verify it
+# against a real Render request (see DEPLOY.md) before relying on per-IP limits.
 _TRUSTED_PROXIES = max(1, int(os.environ.get("TRUSTED_PROXY_COUNT", "1")))
 
 
@@ -72,9 +80,18 @@ def _gate():
     # Auth is enforced only when APP_API_KEY is configured on the server.
     # Constant-time compare avoids leaking the key via timing.
     public_liveness = request.path == "/healthz" and request.method == "GET"
-    if APP_API_KEY and request.path != "/api/auth/apple/notifications" and not public_liveness:
+    # Bootstrap routes issue bounded sessions. Every protected AI/account route
+    # still validates a Bearer session; no shared app-wide secret is required.
+    session_route = (request.method, request.path) in {
+        ("GET", "/api/auth/config"), ("GET", "/api/auth/apple/challenge"),
+        ("POST", "/api/auth/apple"), ("POST", "/api/auth/guest"), ("GET", "/api/ai/usage"),
+        ("POST", "/api/auth/logout"), ("DELETE", "/api/auth/account")}
+    session_route = session_route or (request.method == "POST" and request.path in AI_PATHS)
+    if APP_API_KEY and request.path != "/api/auth/apple/notifications" and not public_liveness and not session_route:
         provided = request.headers.get("X-API-Key", "")
-        if not hmac.compare_digest(provided, APP_API_KEY):
+        # Compare bytes: compare_digest raises TypeError for non-ASCII str.
+        if not hmac.compare_digest(provided.encode("utf-8", "surrogatepass"),
+                                   APP_API_KEY.encode("utf-8", "surrogatepass")):
             return jsonify({"error": "Unauthorized"}), 401
 
 
@@ -105,8 +122,9 @@ def _body() -> dict:
     # No body at all → treat as empty object (handlers apply their own defaults).
     if not request.data:
         return {}
-    data = request.get_json(force=True, silent=True)
-    if data is None:
+    # Safe parse: deep nesting (RecursionError) or bad UTF-8 is a 400, not a 500.
+    data = parse_json_body(request.get_data(cache=True))
+    if data is _INVALID_JSON or data is None:
         raise RequestError("Invalid JSON body")
     if not isinstance(data, dict):
         raise RequestError("Request body must be a JSON object")
@@ -162,6 +180,11 @@ def recipe():
     return jsonify(handle_recipe(_body()))
 
 
+@app.post("/api/workout")
+def workout():
+    return jsonify(handle_workout(_body()))
+
+
 # ---------------------------------------------------------------------------
 # Error handling — RequestError carries a user-safe message + status.
 # Anything else becomes a generic 500 (details stay in server logs).
@@ -179,13 +202,23 @@ def _not_found(_):
 
 @app.errorhandler(Exception)
 def _unhandled(err: Exception):
+    # HTTP errors (405, 404, 400, ...) keep their status and headers (e.g. Allow)
+    # in the same JSON error shape; only real crashes become a 500.
+    if isinstance(err, HTTPException):
+        response = jsonify({"error": (err.name or "error").lower()})
+        response.status_code = err.code or 500
+        for header in ("Allow", "Retry-After"):
+            value = err.get_response().headers.get(header)
+            if value:
+                response.headers[header] = value
+        return response
     app.logger.exception("Unhandled error: %s", err)
     return jsonify({"error": "Internal server error"}), 500
 
 
 from ai_account_routes import register_ai_accounts
 from release_config import production_errors
-register_ai_accounts(app)
+register_ai_accounts(app, client_ip=_client_ip)
 
 
 @app.get('/healthz')
@@ -207,10 +240,16 @@ def readiness():
                     'onlineAIEnabled':os.environ.get('AI_ACCOUNTS_ENABLED') == '1'}), (503 if errors else 200)
 
 
+# The Dockerfile, Procfile and render.yaml all set MEALIO_ENV=production, so a
+# deployed server fails closed on incomplete config (including a missing
+# APP_API_KEY). Local dev and tests leave it unset.
 if os.environ.get('MEALIO_ENV') == 'production':
     errors = production_errors(os.environ, accounts_ready=app.config.get('AI_ACCOUNTS') is not None)
     if errors:
         raise RuntimeError('Production configuration incomplete: '+', '.join(errors))
+elif not APP_API_KEY:
+    logging.warning('APP_API_KEY is not set and MEALIO_ENV is not production: '
+                    'X-API-Key auth is DISABLED. Use this only for local development.')
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ struct ProfileView: View {
 
     @State private var vm = ProfileViewModel()
     @State private var sync = PrivateSyncService.shared
+    @State private var health = HealthService.shared
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("dealAlertsEnabled") private var dealAlertsEnabled = true
@@ -11,6 +12,9 @@ struct ProfileView: View {
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
     @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
+    @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
+    @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -18,31 +22,41 @@ struct ProfileView: View {
                 headerSection
                 statsSection
                 editSection
-                notificationSection
+                appearanceSection
                 Section {
-                    Toggle("Floating bowl guide", isOn: $bowlGuideVisible)
+                    Toggle("Bowl guide", isOn: $bowlGuideVisible)
+                        .toggleStyle(.spring)
                         .accessibilityIdentifier("profile.bowlGuide")
                 } header: {
                     Text("Your companion")
                 } footer: {
-                    Text("Local tips and a quick tour, available on every main screen. Hold the bowl to move it or replay the tour.")
+                    Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
                 }
                 AIAccountSection()
+                voiceSection
+                healthSection
                 syncSection
                 privacySection
                 dangerSection
             }
             .scrollContentBackground(.hidden)
-            .background(Color.surfaceGrouped)
+            .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Profile")
-            .alert("Delete all Mealio data?", isPresented: $vm.showResetAlert) {
+            .alert("Delete all Nourlo data?", isPresented: $vm.showResetAlert) {
                 Button("Delete Data", role: .destructive) {
-                    Task { await vm.resetOnboarding() }
+                    deleteAllData()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in. If offline, iCloud deletion will finish when you reconnect to the same Apple Account.")
+                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in; if that fails you can still erase this iPhone. If offline, iCloud deletion will finish when you reconnect to the same Apple Account. Apple Health syncing is turned off; data already in Apple Health stays there and can be deleted in the Health app.")
             }
+            .alert("Online AI account not deleted", isPresented: Binding(get: { vm.serverDeletionFailure != nil }, set: { if !$0 { vm.serverDeletionFailure = nil } })) {
+                Button("Erase This iPhone Only", role: .destructive) {
+                    vm.serverDeletionFailure = nil
+                    Task { await vm.resetOnboarding(localOnly: true) }
+                }
+                Button("Cancel", role: .cancel) { vm.serverDeletionFailure = nil }
+            } message: { Text(vm.serverDeletionFailure ?? "") }
             .alert("Deletion could not start", isPresented: Binding(get: { vm.deletionError != nil }, set: { if !$0 { vm.deletionError = nil } })) {
                 Button("OK", role: .cancel) { vm.deletionError = nil }
             } message: { Text(vm.deletionError ?? "Please try again.") }
@@ -50,6 +64,7 @@ struct ProfileView: View {
         .onAppear {
             vm.load()
         }
+        .task { await health.refreshReads() }
     }
 
     private var headerSection: some View {
@@ -69,15 +84,10 @@ struct ProfileView: View {
 
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(vm.profile.name.isEmpty ? "Mealio User" : vm.profile.name)
+                    Text(vm.profile.name.isEmpty ? "Nourlo User" : vm.profile.name)
                         .font(.headline)
-                    HStack(spacing: 4) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.brandPrimary)
-                        Text(vm.profile.email.isEmpty ? "Vilnius, Lithuania" : vm.profile.email)
-                            .font(.caption).foregroundStyle(Color.labelSecondary)
-                    }
+                    Text(vm.profile.email.isEmpty ? vm.profile.weightGoal.displayName : vm.profile.email)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
             }
             .padding(.vertical, 6)
@@ -103,33 +113,130 @@ struct ProfileView: View {
             } label: { Label("Body Stats", systemImage: "figure") }
 
             NavigationLink {
+                EditGoalView(vm: vm)
+            } label: { Label("Goal", systemImage: "target") }
+            .accessibilityIdentifier("profile.goal")
+
+            NavigationLink {
                 EditDietaryPrefsView(vm: vm)
             } label: { Label("Dietary Preferences", systemImage: "leaf") }
 
             NavigationLink {
                 EditFavoriteFoodsView(vm: vm)
             } label: { Label("Favorite Foods", systemImage: "heart") }
+
+            NavigationLink {
+                RemindersView()
+            } label: { Label("Reminders", systemImage: "bell") }
+            .accessibilityIdentifier("profile.reminders")
         }
     }
 
-    private var notificationSection: some View {
-        Section("Notifications") {
-            Label("Retail alerts are off", systemImage: "bell.slash")
-            Text("Prices in the catalog are estimates, so Mealio does not send discount, stock or expiry alerts. Meal and food-log reminders are not available yet.")
-                .font(.footnote).foregroundStyle(Color.labelSecondary)
+    /// Light when overridden to light, or when following an iPhone that is in light mode.
+    private var lightAppearance: Binding<Bool> {
+        Binding(
+            get: { appearanceOverride == "light" || (appearanceOverride.isEmpty && colorScheme == .light) },
+            set: { appearanceOverride = $0 ? "light" : "dark" }
+        )
+    }
+
+    private var appearanceSection: some View {
+        Section("Appearance") {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                PullCordToggle(isOn: lightAppearance)
+                    .frame(height: 240)
+                    .frame(maxWidth: .infinity)
+                    .premiumCard()
+                    .accessibilityIdentifier("profile.appearanceCord")
+                Text("Pull the cord to switch between light and dark. Nourlo follows your iPhone setting until you pull it.")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !appearanceOverride.isEmpty {
+                    Button("Follow iPhone setting") { appearanceOverride = "" }
+                        .font(.footnote.weight(.semibold))
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("profile.followSystemAppearance")
+                }
+            }
+            .padding(.vertical, Spacing.xs)
         }
-        .tint(.brandPrimary)
     }
 
     private var dangerSection: some View {
         Section {
-            Button(role: .destructive) {
-                vm.showResetAlert = true
-            } label: {
-                Label("Delete All Data", systemImage: "trash")
+            // Hold to delete; a tap, VoiceOver or Switch Control opens the confirmation alert instead.
+            HoldToConfirmButton(
+                title: "Hold to delete all data",
+                holdingTitle: "Keep holding to delete",
+                doneTitle: "Deleting all data",
+                tint: .brandDanger,
+                systemImage: "trash",
+                accessibilityName: "Delete All Data",
+                accessibilityActionName: "Delete all data",
+                fallback: { vm.showResetAlert = true }
+            ) {
+                deleteAllData()
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: Spacing.xs, leading: 0, bottom: Spacing.xs, trailing: 0))
         } footer: {
-            Text("Deletes your online AI account, clears local data and requests deletion of your Mealio iCloud data, then restarts setup.")
+            Text("Deletes your online AI account, clears local data and requests deletion of your Nourlo iCloud data, then restarts setup. Data already saved to Apple Health stays there; manage it in the Health app.")
+        }
+    }
+
+    /// What the "Delete Data" confirmation runs; the hold button calls the same.
+    private func deleteAllData() {
+        Task { await vm.resetOnboarding() }
+    }
+
+    private var voiceSection: some View {
+        Section {
+            NavigationLink {
+                VoiceSettingsView()
+            } label: {
+                HStack {
+                    Label("Voice", systemImage: "mic")
+                    Spacer(minLength: Spacing.sm)
+                    Text(VoiceLanguage.current.name)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityValue(VoiceLanguage.current.name)
+            .accessibilityIdentifier("profile.voice")
+        }
+    }
+
+    private var healthSection: some View {
+        Section {
+            NavigationLink {
+                HealthSettingsView(vm: vm)
+            } label: {
+                HStack {
+                    Label("Apple Health", systemImage: "heart.text.square")
+                    Spacer(minLength: Spacing.sm)
+                    Text(health.shortStatus)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.labelSecondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityValue(health.shortStatus)
+            .accessibilityIdentifier("profile.appleHealth")
+            if health.isEnabled, let kg = health.weightSuggestion(profileKg: vm.profile.weight) {
+                NavigationLink {
+                    HealthSettingsView(vm: vm)
+                } label: {
+                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))", systemImage: "scalemass")
+                        .font(.subheadline)
+                }
+                .accessibilityHint("Review it before it replaces your profile weight")
+            }
+        } header: {
+            Text("Apple Health")
+        } footer: {
+            Text("Optional. Saves food and tracked workouts to Apple Health and reads weight, steps and active energy. Health data stays on this iPhone and isn't sent anywhere.")
         }
     }
 
@@ -139,6 +246,7 @@ struct ProfileView: View {
                 get: { sync.isEnabled },
                 set: { enabled in Task { await sync.setEnabled(enabled) } }
             ))
+            .toggleStyle(.spring)
             .disabled(sync.isSyncing || !sync.isAvailable)
             .accessibilityIdentifier("profile.icloudSync")
             Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
@@ -159,13 +267,14 @@ struct ProfileView: View {
         } header: {
             Text("Data & iCloud")
         } footer: {
-            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Mealio account is needed for shopping sync. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
+            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Nourlo account is needed for shopping sync. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
         }
     }
 
     private var privacySection: some View {
         Section {
             Toggle("Allow online AI suggestions", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
+                .toggleStyle(.spring)
                 .accessibilityIdentifier("profile.aiConsent")
             NavigationLink {
                 LegalDocumentView(resource: "Privacy", title: "Privacy Policy")
@@ -175,13 +284,22 @@ struct ProfileView: View {
                 LegalDocumentView(resource: "Support", title: "Help & Support")
             } label: { Label("Help & Support", systemImage: "questionmark.circle") }
             .accessibilityIdentifier("profile.support")
+            Link(destination: Constants.Support.mailURL) {
+                Label("Email Support", systemImage: "envelope")
+            }
+            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)")
+            .accessibilityIdentifier("profile.emailSupport")
+            MorphPopover(footnote: "Opens Mail to \(Constants.Support.email). Nothing is sent until you tap Send there.") { message in
+                await SupportMail.send(message)
+            }
+            .listRowInsets(EdgeInsets(top: Spacing.sm, leading: Spacing.md, bottom: Spacing.sm, trailing: Spacing.md))
         } header: {
             Text("Privacy & Help")
         } footer: {
             if OwnerAITestConfiguration.current != nil {
-                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
+                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
             } else {
-                Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
+                Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
             }
         }
     }

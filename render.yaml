@@ -1,4 +1,4 @@
-# Render blueprint for the Mealio backend.
+# Render blueprint for the Nourlo backend.
 # Deploy: push to GitHub, then in Render → "New +" → "Blueprint" → pick this repo.
 # Render reads this file and provisions the service automatically.
 services:
