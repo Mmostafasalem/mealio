@@ -225,15 +225,21 @@ final class ReminderStore {
         }
     }
 
-    /// One repeating request per chosen weekday, or a single daily one.
-    static func requests(for reminder: Reminder) -> [UNNotificationRequest] {
-        let content = UNMutableNotificationContent()
-        content.title = reminder.title
-        content.body = reminder.message
-        content.sound = .default
-        content.userInfo = ["reminder": reminder.kind.rawValue]
-        let days: [Int?] = reminder.weekdays.isEmpty ? [nil] : reminder.weekdays.sorted().map { $0 }
+    /// One repeating request per chosen weekday, or a single daily one. The
+    /// workout reminder carries a line of encouragement instead of a fixed text:
+    /// it always gets one request per day, so each training day has its own
+    /// line, and the lines move on each week (the app replans them when it opens).
+    static func requests(for reminder: Reminder, now: Date = Date(), calendar: Calendar = .current) -> [UNNotificationRequest] {
+        let isWorkout = reminder.kind == .workout
+        let week = calendar.component(.weekOfYear, from: now)
+        let everyDay: [Int?] = isWorkout ? (1...7).map { $0 } : [nil]
+        let days: [Int?] = reminder.weekdays.isEmpty ? everyDay : reminder.weekdays.sorted().map { $0 }
         return days.map { weekday in
+            let content = UNMutableNotificationContent()
+            content.title = isWorkout ? "Time to train" : reminder.title
+            content.body = isWorkout ? TrainingMotivation.line(week: week, weekday: weekday ?? 1) : reminder.message
+            content.sound = .default
+            content.userInfo = ["reminder": reminder.kind.rawValue]
             var when = DateComponents()
             when.hour = reminder.hour
             when.minute = reminder.minute
@@ -287,5 +293,47 @@ final class ReminderStore {
     private static func dayKey(_ date: Date) -> String {
         let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+}
+
+// MARK: - Training motivation
+
+/// Short lines of encouragement for the workout reminder. Written for Nourlo,
+/// not quoted from anyone, and free of promises about results.
+enum TrainingMotivation {
+    static let lines = [
+        "You never regret the session you showed up for.",
+        "Start small. Ten minutes still counts.",
+        "Today's effort is tomorrow's easier day.",
+        "You don't have to feel ready. You just have to start.",
+        "One more session, one step closer.",
+        "Strong is built on ordinary days like this one.",
+        "Your future self is cheering for you right now.",
+        "Show up for yourself. The rest follows.",
+        "Progress is quiet. Keep going.",
+        "The hardest part is the first five minutes.",
+        "A little today beats a lot someday.",
+        "Move your body, clear your head.",
+        "You've done hard things before. This is one more.",
+        "Consistency beats intensity. Just begin.",
+        "This hour is yours. Use it well.",
+        "Every rep is a vote for the person you're becoming.",
+        "Tired is a feeling. Proud lasts longer.",
+        "Shoes on. That's the whole plan for the next minute.",
+        "Do it for the energy you'll have afterwards.",
+        "Small steps, repeated, move mountains.",
+        "You're stronger than the excuse.",
+        "Not perfect, just present. Let's go.",
+        "The work you do today stays with you.",
+        "Make this session the best part of your day.",
+        "Keep the promise you made to yourself.",
+        "Slow progress is still progress.",
+        "Your body can do it. Bring your mind along.",
+        "Warm up, breathe, begin.",
+    ]
+
+    /// A different line for each training day, moving on every week.
+    static func line(week: Int, weekday: Int) -> String {
+        lines[abs(week * 7 + weekday) % lines.count]
     }
 }

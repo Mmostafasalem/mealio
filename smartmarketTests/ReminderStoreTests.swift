@@ -55,6 +55,28 @@ final class ReminderStoreTests: XCTestCase {
         XCTAssertNil(lunch?.dateComponents.weekday)
     }
 
+    func testWorkoutReminderCarriesADifferentLineEachDayAndEachWeek() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let everyDay = Reminder(kind: .workout, hour: 18, minute: 30, isOn: true)
+        let requests = ReminderStore.requests(for: everyDay, now: now, calendar: calendar)
+        // No days chosen means every day: one request per weekday, at the set time.
+        XCTAssertEqual(requests.map(\.identifier), (1...7).map { "reminder_workout_\($0)" })
+        XCTAssertEqual(Set(requests.map(\.content.body)).count, 7)
+        for request in requests {
+            XCTAssertTrue(TrainingMotivation.lines.contains(request.content.body))
+            let when = (request.trigger as? UNCalendarNotificationTrigger)?.dateComponents
+            XCTAssertEqual(when?.hour, 18)
+            XCTAssertEqual(when?.minute, 30)
+        }
+        let nextWeek = ReminderStore.requests(for: everyDay, now: now.addingTimeInterval(7 * 86_400), calendar: calendar)
+        XCTAssertNotEqual(nextWeek.map(\.content.body), requests.map(\.content.body))
+        // Other reminders keep their own text.
+        let lunch = Reminder(kind: .lunch, hour: 13, minute: 0, isOn: true)
+        XCTAssertEqual(ReminderStore.requests(for: lunch).map(\.content.body), [lunch.message])
+    }
+
     func testDeniedPermissionLeavesRemindersOffAndSaysWhy() async {
         let scheduler = FakeScheduler()
         scheduler.grants = false

@@ -70,6 +70,8 @@ struct SmartMarketAgentApp: App {
                 ExerciseDrawings.preload()
                 SpotlightIndexer.shared.indexIfNeeded()
                 ReminderStore.shared.streakState = { DailyLoopStore.shared.state }
+                // A new week brings new lines to the workout reminder.
+                Task { await ReminderStore.shared.reschedule() }
                 DailyLoopStore.shared.startObservingCart()
                 DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }
                 await PrivateSyncService.shared.start()
