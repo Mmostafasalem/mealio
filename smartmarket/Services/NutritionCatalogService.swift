@@ -22,6 +22,8 @@ final class NutritionCatalogService {
         let hasMore: Bool
     }
     private(set) var foods: [NutritionFood] = []
+    /// Nourlo's regional dishes; searched with the USDA foods and listed before them.
+    private(set) var regionalDishes: [NutritionFood] = []
     private(set) var loadError: String?
     private(set) var savedProducts: [NutritionFood] = []
     private(set) var customFoods: [NutritionFood] = []
@@ -46,6 +48,7 @@ final class NutritionCatalogService {
         self.session = session ?? URLSession(configuration: configuration)
         do { foods = try NutritionDatabase.load() }
         catch { loadError = "The offline food database could not be opened. Product search is still available." }
+        regionalDishes = NutritionDatabase.loadRegional()
         reloadSaved()
     }
     func reloadSaved() {
@@ -58,7 +61,7 @@ final class NutritionCatalogService {
         rebuildIndex()
     }
     private func rebuildIndex() {
-        index = NutritionSearchIndex(foods: customFoods + savedProducts + foods)
+        index = NutritionSearchIndex(foods: customFoods + savedProducts + regionalDishes + foods)
         ingredientIndex = NutritionSearchIndex(foods: savedProducts + foods)
     }
     func searchIngredients(_ query: String) -> [NutritionFood] { ingredientIndex.search(query) }
@@ -95,7 +98,10 @@ final class NutritionCatalogService {
         rebuildIndex()
         if let data = try? JSONEncoder().encode(savedProducts) { defaults.set(data, forKey: Self.cacheKey) }
     }
-    func find(_ id: String) -> NutritionFood? { customFoods.first { $0.id == id } ?? savedProducts.first { $0.id == id } ?? foods.first { $0.id == id } }
+    func find(_ id: String) -> NutritionFood? {
+        customFoods.first { $0.id == id } ?? savedProducts.first { $0.id == id }
+            ?? regionalDishes.first { $0.id == id } ?? foods.first { $0.id == id }
+    }
     func searchLocal(_ query: String) -> [NutritionFood] { index.search(query) }
 
     enum LookupError: LocalizedError {
@@ -109,6 +115,14 @@ final class NutritionCatalogService {
             }
         }
     }
+    /// Open Food Facts allows about ten text searches a minute, so searches are
+    /// spaced out. Seconds until the next one may be sent (0 when it may go now).
+    var secondsUntilNextSearch: TimeInterval {
+        guard let lastSearch else { return 0 }
+        return max(0, Self.searchSpacing - now().timeIntervalSince(lastSearch))
+    }
+    static let searchSpacing: TimeInterval = 6.1
+
     func searchProducts(_ input: String, market: Market = .worldwide, page: Int = 1) async throws -> [NutritionFood] {
         try await fetchProducts(input, market: market, page: page).foods
     }
@@ -124,9 +138,10 @@ final class NutritionCatalogService {
         let keyPrefix = "retailer:" + (storeTag ?? "") + ":"
         let key = keyPrefix + (isBarcode ? "barcode:" + market.language + ":" + query : market.rawValue + ":" + String(page) + ":" + query.lowercased())
         if let cached = queryCache[key] { return cached }
-        // OFF limits text searches to 10/min/IP. Only explicit submissions make requests.
+        // OFF limits text searches to 10/min/IP. The food logger waits for a pause in typing
+        // and for this spacing before it searches by itself.
         let timestamp = now()
-        if let lastSearch, timestamp.timeIntervalSince(lastSearch) < 6.1 { throw LookupError.rateLimited }
+        if let lastSearch, timestamp.timeIntervalSince(lastSearch) < Self.searchSpacing { throw LookupError.rateLimited }
         lastSearch = timestamp
         let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,nutriments,product_quantity_unit,serving_quantity_unit,nutrition_data_per,stores_tags,countries_tags"
         var parts = URLComponents(string: "https://world.openfoodfacts.org")!

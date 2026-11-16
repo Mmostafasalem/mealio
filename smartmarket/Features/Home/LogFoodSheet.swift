@@ -14,7 +14,8 @@ struct LogFoodSheet: View {
     @State private var addedToast: String?
     @State private var detailFood: NutritionFood?
     @State private var catalog = NutritionCatalogService.shared
-    @State private var market: NutritionCatalogService.Market = .worldwide
+    /// Products are searched worldwide (the market switch was removed on 16 Nov 2026).
+    private let market: NutritionCatalogService.Market = .worldwide
     @State private var productPage = 0
     @State private var hasMoreProducts = false
     @State private var showCustomCreator = false
@@ -23,6 +24,9 @@ struct LogFoodSheet: View {
     @State private var productNotice: String?
     @State private var isSearching = false
     @State private var lookupTask: Task<Void, Never>?
+    /// Looks up packaged products a moment after typing stops (on unless turned off here).
+    @AppStorage("autoProductSearch_v1") private var autoProductSearch = true
+    @State private var autoSearchTask: Task<Void, Never>?
     @State private var toastDismissTask: Task<Void, Never>?
     @State private var showScanner = false
     @State private var scanned: ScannedBarcode?
@@ -53,13 +57,6 @@ struct LogFoodSheet: View {
             VStack(spacing: 0) {
                 if onSelect == nil { slotPicker }
                 searchField
-                Picker("Product market", selection: $market) {
-                    ForEach(NutritionCatalogService.Market.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .accessibilityIdentifier("logFood.market")
-
                 List {
                     if let error = catalog.loadError { Text(error).foregroundStyle(Color.brandDanger) }
                     if scanState != .idle { scanSection }
@@ -83,11 +80,6 @@ struct LogFoodSheet: View {
                                 ForEach(vm.recentNutritionFoods) { food in row(food) }
                             }
                         }
-                        Section("Food database") {
-                            Text("Search \(catalog.foods.count.formatted()) reference foods offline, including prepared and restaurant-style dishes. Look up packaged products worldwide or by market.")
-                            Text("Choose the description that matches what you weighed: raw, cooked, drained or prepared.")
-                                .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        }
                         if onSelect == nil && !vm.plannedEntries(for: slot).isEmpty {
                             Section("From today's plan") {
                                 ForEach(vm.plannedEntries(for: slot)) { entry in
@@ -108,12 +100,17 @@ struct LogFoodSheet: View {
                             }
                         }
                         Section("Packaged products") {
+                            Toggle("Look up products as I type", isOn: $autoProductSearch)
+                                .toggleStyle(.spring)
+                                .accessibilityIdentifier("logFood.autoProducts")
                             Button { searchProducts() } label: {
-                                Label(isSearching ? "Searching products…" : "Search Open Food Facts", systemImage: "magnifyingglass")
+                                Label(isSearching ? "Searching products…" : "Search Open Food Facts now", systemImage: "magnifyingglass")
                             }
                             .disabled(isSearching || query.trimmingCharacters(in: .whitespacesAndNewlines).count < 2)
                             .accessibilityIdentifier("logFood.searchProducts")
-                            Text("Sends only your search or barcode to Open Food Facts. Search runs when you tap; your profile and food log are not sent.")
+                            Text(autoProductSearch
+                                 ? "A moment after you stop typing, your search text (and nothing else) is sent to Open Food Facts to find packaged products. Your profile and food log are never sent. Turn this off to search only when you tap."
+                                 : "Sends only your search or barcode to Open Food Facts, and only when you tap. Your profile and food log are not sent.")
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                             if isSearching { ProgressView() }
                             if let notice = productNotice { Text(notice).font(.footnote) }
@@ -182,13 +179,10 @@ struct LogFoodSheet: View {
                 isSearching = false
                 productPage = 0
                 hasMoreProducts = false
+                scheduleAutoProductSearch()
             }
-            .onChange(of: market) {
-                lookupTask?.cancel()
-                products = []; productNotice = nil; isSearching = false
-                productPage = 0; hasMoreProducts = false
-            }
-            .onDisappear { lookupTask?.cancel(); scanTask?.cancel(); scanOpenTask?.cancel() }
+            .onChange(of: autoProductSearch) { scheduleAutoProductSearch() }
+            .onDisappear { lookupTask?.cancel(); autoSearchTask?.cancel(); scanTask?.cancel(); scanOpenTask?.cancel() }
             .onAppear {
                 // Brings "From today's plan" to today if the day has changed.
                 vm.activate()
@@ -438,8 +432,39 @@ struct LogFoodSheet: View {
         }
     }
 
+    /// How long typing must pause before products are looked up.
+    static let autoSearchPause: TimeInterval = 1.2
+
+    /// Whether a query is worth sending by itself: three letters or more, and
+    /// not a half-typed barcode (those are looked up when complete, on a tap or a scan).
+    static func isAutoSearchable(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 3, trimmed.count <= 100 else { return false }
+        return !trimmed.allSatisfy { $0.isNumber || $0.isWhitespace }
+    }
+
+    /// Looks up packaged products once typing has paused, never faster than
+    /// Open Food Facts allows. A newer keystroke replaces the pending search.
+    private func scheduleAutoProductSearch() {
+        autoSearchTask?.cancel()
+        // UI tests stay offline and deterministic.
+        guard autoProductSearch, !NourloTips.isUITesting(), Self.isAutoSearchable(query) else { return }
+        let submitted = query
+        let submittedMarket = market
+        autoSearchTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(Self.autoSearchPause))
+            // Wait out the spacing between searches instead of failing with "please wait".
+            while !Task.isCancelled, catalog.secondsUntilNextSearch > 0 {
+                try? await Task.sleep(for: .seconds(min(catalog.secondsUntilNextSearch + 0.05, 1)))
+            }
+            guard !Task.isCancelled, submitted == query, submittedMarket == market, products.isEmpty, !isSearching else { return }
+            searchProducts()
+        }
+    }
+
     private func searchProducts(loadMore: Bool = false) {
         guard !isSearching else { return }
+        autoSearchTask?.cancel()
         let submitted = query
         let submittedMarket = market
         let nextPage = loadMore ? productPage + 1 : 1

@@ -31,4 +31,30 @@ class NutritionImportTests(unittest.TestCase):
         self.assertTrue(any('restaurant' in f['name'].lower() for f in survey))
         self.assertEqual(len(data['sources']), 3)
 
+    def test_regional_dishes_are_calculated_not_typed_in(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('regional', ROOT / 'scripts/build-regional-dishes.py')
+        regional = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(regional)
+        path = ROOT / 'smartmarket/Resources/RegionalDishes.json'
+        committed = json.loads(path.read_text())
+        # The committed file is exactly what the script builds from the recipes and the USDA catalogue.
+        self.assertEqual(regional.build(), committed['foods'])
+        catalog = {f['sourceID']: f for f in json.loads((ROOT / 'smartmarket/Resources/NutritionCatalog.json').read_text())['foods']}
+        self.assertGreaterEqual(len(committed['foods']), 40)
+        self.assertEqual(len({f['id'] for f in committed['foods']}), len(committed['foods']))
+        for f in committed['foods']:
+            self.assertEqual(f['source'], 'regional')
+            self.assertEqual(f['id'], 'regional:' + f['sourceID'])
+            self.assertIn(f['dataset'], {'lithuanian', 'middleEastern'})
+            self.assertTrue(f['searchNames'])
+            self.assertTrue(f['summary'].startswith('Made with '))
+            # Recompute from the recipe written beside the values.
+            for nutrient in ['kcal', 'protein', 'carbs', 'fat']:
+                total = sum(catalog[i['usda']][nutrient] * i['grams'] / 100 for i in f['recipe'])
+                self.assertAlmostEqual(f[nutrient], total * 100 / f['finishedWeightG'], delta=0.06)
+        names = ' '.join(f['name'].lower() for f in committed['foods'])
+        for dish in ['cepelinai', 'šaltibarščiai', 'kugelis', 'shawarma', 'koshari', 'ful medames', 'kunafa']:
+            self.assertIn(dish, names)
+
 if __name__ == '__main__': unittest.main()
