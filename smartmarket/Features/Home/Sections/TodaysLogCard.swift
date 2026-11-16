@@ -7,16 +7,24 @@ struct TodaysLogCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                Label("Today's Log", systemImage: "list.bullet.clipboard.fill")
-                    .font(.sectionTitle)
-                Spacer()
-                Text("\(vm.remaining) kcal left")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(Color.calorieAccent)
-                    .contentTransition(.numericText())
+            HStack(spacing: Spacing.md) {
+                // Title on one line, the remaining calories under it.
+                VStack(alignment: .leading, spacing: 2) {
+                    HomeCardTitle(title: "Today's Log", symbol: "list.bullet.clipboard.fill")
+                    Text("\(vm.remaining) kcal left")
+                        .font(.footnote.weight(.medium))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.labelSecondary)
+                        .contentTransition(.numericText())
+                        .padding(.leading, HomeGrid.textInset)
+                }
+                Spacer(minLength: Spacing.sm)
+                GooMenu(items: Self.quickAddItems, accessibilityLabel: "Add food to a meal") { item in
+                    if let slot = MealSlot(rawValue: item.id) { vm.openLog(slot: slot) }
+                }
             }
-            .accessibilityAddTraits(.isHeader)
+            // The menu's bubbles pour down over the rows below.
+            .zIndex(1)
 
             ForEach(Array(MealSlot.allCases.enumerated()), id: \.element) { idx, slot in
                 MealSlotRow(
@@ -26,7 +34,7 @@ struct TodaysLogCard: View {
                     onDelete: { vm.removeLog($0) }
                 )
                 if idx < MealSlot.allCases.count - 1 {
-                    Divider().padding(.leading, 40)
+                    Divider().padding(.leading, HomeGrid.textInset)
                 }
             }
         }
@@ -34,6 +42,14 @@ struct TodaysLogCard: View {
         .premiumCard()
         .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
     }
+
+    /// Goo menu bubbles, one per meal slot (ids are `MealSlot` raw values).
+    static let quickAddItems: [GooMenuItem] = [
+        GooMenuItem(id: MealSlot.breakfast.rawValue, title: MealSlot.breakfast.title, systemImage: "sunrise"),
+        GooMenuItem(id: MealSlot.lunch.rawValue, title: MealSlot.lunch.title, systemImage: "sun.max"),
+        GooMenuItem(id: MealSlot.dinner.rawValue, title: MealSlot.dinner.title, systemImage: "moon"),
+        GooMenuItem(id: MealSlot.snack.rawValue, title: MealSlot.snack.title, systemImage: "sparkles"),
+    ]
 }
 
 /// One meal slot with its logged entries.
@@ -47,18 +63,18 @@ struct MealSlotRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.sm) {
+            HStack(spacing: HomeGrid.gap) {
                 Image(systemName: slot.sfSymbol)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(slot.accent)
-                    .frame(width: 30, height: 30)
+                    .frame(width: HomeGrid.icon, height: HomeGrid.icon)
                     .background(slot.accent.opacity(0.12), in: Circle())
 
                 Text(slot.title).font(.subheadline).fontWeight(.semibold)
                 Spacer()
                 if kcal > 0 {
                     Text("\(kcal) kcal")
-                        .font(.caption).fontWeight(.semibold)
+                        .font(.footnote).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                         .contentTransition(.numericText())
                 }
@@ -68,29 +84,37 @@ struct MealSlotRow: View {
                         .foregroundStyle(slot.accent)
                 }
                 .buttonStyle(.plain)
-                .minTapTarget()
+                // 44pt target, with the glyph on the card's right edge.
+                .frame(width: 44, height: 44, alignment: .trailing)
+                .contentShape(Rectangle())
                 .accessibilityLabel("Add to \(slot.title)")
             }
 
             ForEach(entries) { entry in
                 HStack(spacing: Spacing.sm) {
-                    Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(1)
-                    Spacer()
-                    Text("\(entry.servingG)g").font(.caption2).foregroundStyle(Color.labelSecondary)
-                    Text("\(entry.calories)")
-                        .font(.caption2).fontWeight(.semibold)
-                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
+                    // The row's text reads as one element; the button stays a
+                    // separate control for VoiceOver, Voice Control and Switch Control.
+                    HStack(spacing: Spacing.sm) {
+                        // Name only: where the numbers come from is shown in the food's own detail view.
+                        Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
+                        Spacer()
+                        Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
+                        Text("\(entry.calories)")
+                            .font(.caption2).fontWeight(.semibold)
+                            .foregroundStyle(Color.labelSecondary).monospacedDigit()
+                    }
+                    .accessibilityElement(children: .combine)
                     Button { onDelete(entry) } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 16))
                             .foregroundStyle(Color.brandDanger.opacity(0.7))
                     }
                     .buttonStyle(.plain)
-                .minTapTarget()
+                    .frame(width: 44, height: 44, alignment: .trailing)
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Remove \(entry.name)")
                 }
-                .padding(.leading, 40)
-                .accessibilityElement(children: .combine)
+                .padding(.leading, HomeGrid.textInset)
             }
         }
     }

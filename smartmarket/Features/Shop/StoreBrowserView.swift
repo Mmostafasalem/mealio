@@ -1,17 +1,23 @@
 import SwiftUI
+import TipKit
 
 struct StoreBrowserView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var cart = ShoppingCartService.shared
     @State private var showBudgetEditor = false
     @State private var budgetInput = ""
+    @State private var budgetError: String?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private let budgetTip = WeeklyBudgetTip()
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
                     budgetCard
+                    // Inline under the card, so it never covers the Edit button.
+                    TipView(budgetTip, arrowEdge: .top)
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
                 }
@@ -20,7 +26,7 @@ struct StoreBrowserView: View {
                 .padding(.bottom, Spacing.xxl)
                 .animation(.snappyValue, value: cart.itemCount)
             }
-            .background(Color.surfaceGrouped.ignoresSafeArea())
+            .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Shop")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -34,6 +40,9 @@ struct StoreBrowserView: View {
             }
         }
         .sheet(isPresented: $showBudgetEditor) { budgetSheet }
+        .task(id: cart.weeklyBudget) {
+            WeeklyBudgetTip.hasCustomBudget = cart.weeklyBudget != 60  // ShoppingCartService's default budget
+        }
     }
 
     // MARK: - Budget card
@@ -59,7 +68,7 @@ struct StoreBrowserView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                             .contentTransition(.numericText())
-                        Text("/ \(String(format: "€%.0f", cart.weeklyBudget))")
+                        Text("/ \(String(format: "€%.2f", cart.weeklyBudget))")
                             .font(.subheadline).foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -67,7 +76,9 @@ struct StoreBrowserView: View {
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Button {
-                    budgetInput = String(format: "%.0f", cart.weeklyBudget)
+                    budgetInput = cart.weeklyBudget == cart.weeklyBudget.rounded()
+                        ? String(format: "%.0f", cart.weeklyBudget) : String(format: "%.2f", cart.weeklyBudget)
+                    budgetError = nil
                     showBudgetEditor = true
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
@@ -86,10 +97,13 @@ struct StoreBrowserView: View {
                     Capsule()
                         .fill(Color.dullPink)
                         .frame(width: geo.size.width * cart.budgetFraction, height: 8)
-                        .animation(.spring(duration: 0.5), value: cart.budgetFraction)
+                        .animation(reduceMotion ? .none : .snappyValue, value: cart.budgetFraction)
                 }
             }
             .frame(height: 8)
+            .accessibilityElement()
+            .accessibilityLabel("Weekly budget")
+            .accessibilityValue(String(format: "€%.2f of €%.2f spent", cart.total, cart.weeklyBudget))
 
             HStack {
                 Spacer()
@@ -101,28 +115,27 @@ struct StoreBrowserView: View {
         .premiumCard()
     }
 
-    // MARK: - Store grid
+    // MARK: - Catalogue and stock
 
     private var storeGrid: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Stores")
-                .font(.headline)
-
-            Text("\(CatalogItem.all.count) catalog items · estimated prices, verify in-store")
-                .font(.footnote)
-                .foregroundStyle(Color.labelSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-            LazyVStack(spacing: Spacing.sm) {
-                ForEach(ShopStore.all) { store in
-                    NavigationLink {
-                        StoreProductsView(store: store)
-                    } label: {
-                        StoreCard(store: store)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("shop.store." + store.id)
-                }
+        VStack(spacing: Spacing.sm) {
+            NavigationLink {
+                StoreProductsView(store: .catalog)
+            } label: {
+                ShopLinkCard(symbol: "basket.fill", title: "Product catalogue",
+                             detail: "\(CatalogItem.all.count) items · estimated prices")
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("shop.catalog")
+
+            NavigationLink {
+                StockView()
+            } label: {
+                ShopLinkCard(symbol: "cabinet.fill", title: "My stock",
+                             detail: "Food you have at home · add your own")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("shop.stock")
         }
     }
 
@@ -144,14 +157,11 @@ struct StoreBrowserView: View {
                         .fill(Color.labelPrimary.opacity(0.12))
                         .frame(width: 36, height: 36)
                         .overlay(
-                            Text(item.store.prefix(1))
-                                .font(.system(size: 14, weight: .bold))
+                            Image(systemName: (CatalogCategory(rawValue: item.category) ?? .snacks).symbol)
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundStyle(Color.labelPrimary)
                         )
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
-                        Text(item.store).font(.caption2).foregroundStyle(Color.labelSecondary)
-                    }
+                    Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
                     Spacer()
                     Text("×\(item.quantity)")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
@@ -171,14 +181,43 @@ struct StoreBrowserView: View {
 
     // MARK: - Budget sheet
 
+    /// The ruler and the text field share `budgetInput`: dragging rewrites the text,
+    /// a valid typed amount glides the ruler there. The ruler covers the whole
+    /// allowed budget range, and only a drag to another tick writes, so opening
+    /// or touching it never changes a typed amount like €7 or €500.
+    private var budgetSliderValue: Binding<Double> {
+        Binding(
+            get: {
+                let range = ShoppingCartService.budgetRange
+                let typed = EuroInput.parse(budgetInput)
+                return min(max(typed ?? cart.weeklyBudget, range.lowerBound), range.upperBound)
+            },
+            set: { budgetInput = String(format: "%.0f", $0) }
+        )
+    }
+
     private var budgetSheet: some View {
         NavigationStack {
             Form {
                 Section("Weekly grocery budget") {
+                    RulerPicker(value: budgetSliderValue, range: ShoppingCartService.budgetRange, step: 5,
+                                majorEvery: 10, midEvery: 2, spacing: 12,
+                                tickLabel: { "€\(Int($0))" },
+                                accessibilityName: "Weekly budget")
+                        .frame(height: 96)
+                        .padding(.vertical, Spacing.xs)
                     HStack {
                         Text("€")
                         TextField("60", text: $budgetInput)
                             .keyboardType(.decimalPad)
+                            .accessibilityLabel("Weekly budget in euros")
+                            .accessibilityIdentifier("shop.budgetInput")
+                            .onChange(of: budgetInput) { _, _ in budgetError = nil }
+                    }
+                    if let budgetError {
+                        Text(budgetError)
+                            .font(.footnote).foregroundStyle(Color.brandDanger)
+                            .accessibilityIdentifier("shop.budgetError")
                     }
                 }
                 Section {
@@ -191,13 +230,16 @@ struct StoreBrowserView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        if let val = Double(budgetInput.replacingOccurrences(of: ",", with: ".")), val > 0 {
-                            cart.weeklyBudget = val
+                        switch EuroInput.validate(budgetInput, in: ShoppingCartService.budgetRange) {
+                        case .success(let value):
+                            cart.weeklyBudget = value
+                            budgetTip.invalidate(reason: .actionPerformed)
+                            showBudgetEditor = false
+                        case .failure(let problem):
+                            budgetError = EuroInput.message(for: problem, example: "60")
+                            UIAccessibility.post(notification: .announcement, argument: budgetError)
                         }
-                        showBudgetEditor = false
                     }
-                    .keyboardShortcut("s", modifiers: .command)
-                    .help("Save (⌘S)")
                 }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { showBudgetEditor = false }
@@ -209,24 +251,26 @@ struct StoreBrowserView: View {
     }
 }
 
-// MARK: - Store card
+// MARK: - Link card
 
-private struct StoreCard: View {
-    let store: ShopStore
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+private struct ShopLinkCard: View {
+    let symbol: String
+    let title: String
+    let detail: String
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            Text(store.name.prefix(1))
-                .font(.title3.weight(.bold))
+            Image(systemName: symbol)
+                .font(.title3)
                 .foregroundStyle(Color.almond)
                 .frame(width: 44, height: 44)
                 .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.chip))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(store.name).font(.headline)
-                Text("Browse catalog")
+                Text(title).font(.headline).foregroundStyle(Color.labelPrimary)
+                Text(detail)
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: Spacing.sm)
             Image(systemName: "chevron.right")
@@ -266,7 +310,9 @@ struct CartBadge: View {
 
 struct CartView: View {
     @State private var cart = ShoppingCartService.shared
-    @State private var undo = GroceryListViewModel()
+    /// Created once on appear: a `@State` initial value would be rebuilt (storage
+    /// load and a notification task) every time the parent re-renders.
+    @State private var undo: GroceryListViewModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -275,14 +321,12 @@ struct CartView: View {
                 ContentUnavailableView(
                     "Your cart is empty",
                     systemImage: "cart",
-                    description: Text("Browse stores and add items to get started.")
+                    description: Text("Browse the catalogue and add items to get started.")
                 )
                 .listRowBackground(Color.clear)
             } else {
-                ForEach(GroupedStore.group(cart.cartItems), id: \.store) { group in
-                    Section(group.store) {
-                        ForEach(group.items, content: CartItemRow.init)
-                    }
+                Section {
+                    ForEach(cart.cartItems, content: CartItemRow.init)
                 }
 
                 Section {
@@ -309,20 +353,27 @@ struct CartView: View {
         .toolbar {
             if !cart.cartItems.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Clear", role: .destructive) { undo.clearCart() }
+                    Button("Clear", role: .destructive) { undoModel.clearCart() }
                         .accessibilityIdentifier("cart.clear")
                 }
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if let message = undo.undoMessage {
-                UndoToast(message: message) { undo.undoDelete() }
+            if let message = undo?.undoMessage {
+                UndoToast(message: message) { undo?.undoDelete() }
                     .padding(.vertical, Spacing.sm)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(reduceMotion ? .none : .snappyValue, value: undo.undoMessage)
+        .animation(reduceMotion ? .none : .snappyValue, value: undo?.undoMessage)
+        .onAppear { if undo == nil { undo = GroceryListViewModel() } }
+    }
 
+    private var undoModel: GroceryListViewModel {
+        if let undo { return undo }
+        let model = GroceryListViewModel()
+        undo = model
+        return model
     }
 }
 
@@ -337,30 +388,14 @@ private struct CartItemRow: View {
                 Text(String(format: cart.isEstimated(item.catalogId, store: item.store) ? "est. €%.2f" : "your price €%.2f", item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
-            QuantityStepper(quantity: item.quantity,
+            QuantityStepper(quantity: item.quantity, name: item.name,
                             onAdd:    { cart.add(CatalogItem(id: item.catalogId, name: item.name, category: CatalogCategory(rawValue: item.category) ?? .snacks),
-                                                 store: ShopStore.all.first { $0.name == item.store } ?? ShopStore.all[0]) },
+                                                 store: .catalog) },
                             onRemove: { cart.remove(item.catalogId, store: item.store) })
             Text(String(format: "€%.2f", item.lineTotal))
                 .font(.subheadline).fontWeight(.semibold).monospacedDigit()
                 .frame(width: 52, alignment: .trailing)
         }
-    }
-}
-
-private struct GroupedStore {
-    let store: String
-    let items: [CartItem]
-
-    static func group(_ items: [CartItem]) -> [GroupedStore] {
-        let stores = items.map(\.store).removingDuplicates()
-        return stores.map { s in GroupedStore(store: s, items: items.filter { $0.store == s }) }
-    }
-}
-
-private extension Array where Element: Equatable {
-    func removingDuplicates() -> [Element] {
-        reduce([]) { $0.contains($1) ? $0 : $0 + [$1] }
     }
 }
 

@@ -5,16 +5,29 @@ extension Notification.Name {
     static let mealPlanDidUpdate    = Notification.Name("mealPlanDidUpdate")
     static let groceryListDidChange = Notification.Name("groceryListDidChange")
     static let cartDidChange        = Notification.Name("cartDidChange")
+    /// Ask Home to show Profile (it lives behind the avatar, not in the tab bar).
+    static let openProfile          = Notification.Name("openProfile")
+    /// Ask the tab bar to show Train (from a workout reminder).
+    static let openTrain            = Notification.Name("openTrain")
+    /// Ask the tab bar to show Home / Shop (streak nudge, quest rows).
+    static let openHome             = Notification.Name("openHome")
+    static let openShop             = Notification.Name("openShop")
+    /// The bowl in Home's header was tapped: open or close its guide.
+    static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
+    /// Home's microphone button: `MainTabView` shows the voice sheet.
+    static let openVoice            = Notification.Name("openVoice")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
+    /// Logged food changed (added, removed, cleared, or logged from stock). Listeners
+    /// (Apple Health, widgets) re-read `FoodLogStore.allEntries` and sync the difference.
+    static let foodLogDidChange     = Notification.Name("foodLogDidChange")
+    /// Completed workouts changed. Listeners re-read `WorkoutStore.completed`.
+    static let workoutsDidChange    = Notification.Name("workoutsDidChange")
 }
 
 // MARK: - Grocery list persistence (used by AppDelegate, ViewModels, and Views)
 enum GroceryStorage {
     static func load() -> [GroceryItem] {
-        guard let data = UserDefaults.standard.data(forKey: Constants.Storage.groceryList),
-              let items = try? JSONDecoder().decode([GroceryItem].self, from: data)
-        else { return [] }
-        return items
+        ResilientStorage.loadArray(GroceryItem.self, key: Constants.Storage.groceryList)
     }
 
     static func save(_ items: [GroceryItem]) {
@@ -33,6 +46,12 @@ enum GroceryStorage {
 
 enum Constants {
 
+    // MARK: - Support
+    enum Support {
+        static let email = "nourlo.app.support@gmail.com"
+        static let mailURL = URL(string: "mailto:nourlo.app.support@gmail.com?subject=Nourlo%20support")!
+    }
+
     // MARK: - API
     enum API {
         /// Base URL of the backend.
@@ -47,7 +66,7 @@ enum Constants {
         #if DEBUG
         private static let defaultBaseURL = "http://localhost:5000"
         #else
-        private static let defaultBaseURL = "https://mealio-backend-17qg.onrender.com"
+        private static let defaultBaseURL = "https://mealio-backend-d7aa.onrender.com"
         #endif
 
         /// Shared secret that must match the backend's `APP_API_KEY` env var.
@@ -67,12 +86,11 @@ enum Constants {
             static let health           = "/api/health"
             static let products         = "/api/products"
             static let deals            = "/api/deals"
-            static let bmr              = "/api/bmr"
             static let mealPlan         = "/api/meal-plan"
-            static let gapFillers       = "/api/gap-fillers"
             static let shoppingAdvice   = "/api/shopping-advice"
             static let agentChat        = "/api/agent-chat"
             static let recipe           = "/api/recipe"
+            static let workout          = "/api/workout"
         }
     }
 
@@ -90,6 +108,14 @@ enum Constants {
         static let currentMealPlan          = "currentMealPlan"
         static let notifiedDealIds          = "notifiedDealIds"
         static let lang                     = "lang"
+        /// "" follows the iPhone setting, otherwise "light" or "dark" (set by the pull cord in Profile).
+        static let appearanceOverride       = "appearanceOverride_v1"
+        /// "kg" or "lb" — display only; weight is always stored in kg.
+        static let weightUnit               = "weightUnit_v1"
+        /// "cm" or "ft" — display only; height is always stored in cm.
+        static let heightUnit               = "heightUnit_v1"
+        /// Version of the calorie-target maths the saved profile was computed with.
+        static let targetsVersion           = "targetsVersion"
     }
 
     // MARK: - BMR safety floors
@@ -97,10 +123,16 @@ enum Constants {
         static let minimumFemale: Int = 1200
         static let minimumMale: Int   = 1500
         static let minimumOther: Int  = 1200
+        /// Below this age no weight-loss deficit is ever applied.
+        static let adultAge: Int      = 18
+        /// Daily surplus for "gain weight" (lean bulk).
+        static let gainSurplus: Int   = 300
     }
 
     // MARK: - Onboarding limits
     enum Onboarding {
         static let minimumFavorites = 5
+        static let minimumAge = 13
+        static let maximumAge = 100
     }
 }

@@ -1,5 +1,14 @@
 # Bowl mascot app icon
 
+> **Current icon (16 Nov 2026):** the flat bowl drawn by `docs/brand/app-icon.swift`, pink on an
+> almond background, with banana, three blueberries and two strawberries. The owner chose it from
+> nine options after the app moved from navy to black; the navy background is retired. The app
+> icon is a close-up: the bowl peeks up from the bottom edge and "nourlo" sits above it in
+> Comfortaa Bold (`docs/brand/Comfortaa.ttf`, SIL Open Font License), one colour a letter. The
+> 288 px `brand-logo.png` used inside the app stays the whole bowl without the name. Run the
+> script from the repo root to regenerate both.
+> The notes below describe the earlier clay-mascot icon and are kept for history.
+
 The owner approved the almond breakfast-bowl mascot with banana and strawberries,
 then requested a finished app logo and its application to the iOS app.
 
