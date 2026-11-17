@@ -144,6 +144,8 @@ struct CookWithWhatIHaveView: View {
 
 struct CookbookRecipeView: View {
     let recipe: CookbookRecipe
+    /// The meal "I cooked this" logs to first (the one chosen where the recipe was opened).
+    var slot: MealSlot? = nil
     @State private var stock = StockStore.shared
     @State private var showCooked = false
     @State private var addedToCart = false
@@ -233,7 +235,7 @@ struct CookbookRecipeView: View {
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle(recipe.title)
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showCooked) { CookedRecipeSheet(recipe: recipe) }
+        .sheet(isPresented: $showCooked) { CookedRecipeSheet(recipe: recipe, slot: slot ?? .suggested()) }
     }
 
     private var subtitle: String {
@@ -271,7 +273,12 @@ struct CookedRecipeSheet: View {
     let recipe: CookbookRecipe
     @Environment(\.dismiss) private var dismiss
     @State private var eaten = 1.0
-    @State private var slot = MealSlot.suggested()
+    @State private var slot: MealSlot
+
+    init(recipe: CookbookRecipe, slot: MealSlot) {
+        self.recipe = recipe
+        _slot = State(initialValue: slot)
+    }
     @State private var useStock = true
     @State private var done: String?
 
@@ -338,6 +345,86 @@ enum CookbookCooking {
             }
         }
         return used
+    }
+}
+
+// MARK: - Browse every recipe (from Add Food)
+
+struct CookbookBrowserView: View {
+    var slot: MealSlot? = nil
+    @State private var all: [CookbookRecipe] = []
+    @State private var course: CookbookRecipe.Course?
+    @State private var query = ""
+
+    private var shown: [CookbookRecipe] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return all.filter { (course == nil || $0.course == course) && (q.isEmpty || $0.title.localizedStandardContains(q)) }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.xs) {
+                        CourseChip(title: "All", selected: course == nil) { course = nil }
+                        ForEach(CookbookRecipe.Course.allCases, id: \.self) { c in
+                            CourseChip(title: c.title, selected: course == c) { course = course == c ? nil : c }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                if all.isEmpty { ProgressView().frame(maxWidth: .infinity) }
+                ForEach(shown.prefix(200)) { recipe in
+                    NavigationLink {
+                        CookbookRecipeView(recipe: recipe, slot: slot)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(recipe.title).font(.subheadline.weight(.semibold))
+                            Text([recipe.course.title, recipe.minutes.map { "\($0) min" }, "\(Int(recipe.perServing.kcal)) kcal a serving"]
+                                .compactMap { $0 }.joined(separator: " · "))
+                                .font(.footnote).foregroundStyle(Color.labelSecondary)
+                        }
+                    }
+                    .accessibilityIdentifier("cookbook.recipe.\(recipe.id)")
+                }
+            } footer: {
+                if shown.count > 200 { Text("Showing 200 of \(shown.count). Search to find a recipe.") }
+            }
+            Section { CookbookCredit(recipe: nil) }
+                .listRowBackground(Color.clear)
+        }
+        .navigationTitle("Recipes")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $query, prompt: "Search recipes")
+        .task {
+            guard all.isEmpty else { return }
+            let prefs = Set<DietaryPreference>.load()
+            all = await Task.detached(priority: .userInitiated) {
+                CookbookLibrary.recipes.filter { $0.fits(prefs) }.sorted { $0.title < $1.title }
+            }.value
+        }
+    }
+}
+
+struct CourseChip: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(selected ? Color.surfaceGrouped : Color.labelPrimary)
+                .padding(.horizontal, 14).frame(minHeight: 36)
+                .background(selected ? Color.labelPrimary : Color.surfaceElevated, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

@@ -44,4 +44,37 @@ final class CookbookUITests: XCTestCase {
         log.tap()
         XCTAssertFalse(log.waitForExistence(timeout: 2))
     }
+
+    /// Add Food finds Wikibooks recipes by name and logs a serving; the browse list opens recipes.
+    func testAddFoodOffersWikibooksRecipes() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloUITesting", "YES"]
+        app.launch()
+        let plus = app.tabBars.buttons["Quick actions"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 10))
+        let logFood = app.buttons["quickActions.logFood"].firstMatch
+        for _ in 0..<3 where !logFood.exists { plus.tap(); _ = logFood.waitForExistence(timeout: 3) }
+        logFood.tap()
+
+        let browse = app.buttons["logFood.browseRecipes"]
+        XCTAssertTrue(browse.waitForExistence(timeout: 10))
+        shot("logfood-recipes-entry")
+
+        let search = app.textFields["logFood.search"]
+        search.tap()
+        search.typeText("omelette")
+        let recipe = app.buttons["logFood.food.cookbook:cheese-omelette"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10), "recipes show up in the food search")
+        shot("logfood-recipe-search")
+        recipe.tap()
+        let add = app.buttons["logFood.addServing"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        shot("logfood-recipe-serving")
+        add.tap()
+        // The button shows "Added" for a moment, then the sheet closes.
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: add)
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 10), .completed, "the serving is logged and the sheet closes")
+    }
 }

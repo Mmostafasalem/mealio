@@ -45,6 +45,13 @@ struct LogFoodSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var results: [NutritionFood] { catalog.searchLocal(query) }
+    /// Wikibooks recipes, read in the background when the sheet opens.
+    @State private var cookbook: [CookbookRecipe] = []
+    private var recipeResults: [CookbookRecipe] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard onSelect == nil, q.count >= 2 else { return [] }
+        return Array(cookbook.filter { $0.title.localizedStandardContains(q) }.prefix(8))
+    }
 
     /// The first offline match whose name starts with what was typed, offered as ghost text.
     private var suggestion: String? {
@@ -66,6 +73,18 @@ struct LogFoodSheet: View {
                             .listRowBackground(Color.clear)
                     }
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if onSelect == nil {
+                            Section {
+                                NavigationLink {
+                                    CookbookBrowserView(slot: slot)
+                                } label: {
+                                    Label("Browse Wikibooks recipes", systemImage: "book")
+                                }
+                                .accessibilityIdentifier("logFood.browseRecipes")
+                            } footer: {
+                                Text("\(cookbook.isEmpty ? "About 1,500" : "\(cookbook.count)") recipes, logged per serving. Nutrition is estimated from USDA values for the ingredients.")
+                            }
+                        }
                         if !catalog.customFoods.isEmpty {
                             Section("Your dishes and restaurant entries") {
                                 ForEach(catalog.customFoods) { food in
@@ -90,6 +109,11 @@ struct LogFoodSheet: View {
                             }
                         }
                     } else {
+                        if !recipeResults.isEmpty {
+                            Section("Wikibooks recipes") {
+                                ForEach(recipeResults) { recipe in row(recipe.servingFood) }
+                            }
+                        }
                         if !results.isEmpty {
                             Section("Offline foods and saved products") {
                                 ForEach(results) { food in row(food) }
@@ -150,6 +174,11 @@ struct LogFoodSheet: View {
                         dismiss()
                     }
                 }
+            }
+            .task {
+                guard onSelect == nil, cookbook.isEmpty else { return }
+                let prefs = Set<DietaryPreference>.load()
+                cookbook = await Task.detached(priority: .utility) { CookbookLibrary.recipes.filter { $0.fits(prefs) } }.value
             }
             .navigationTitle(onSelect == nil ? "Add Food" : "Add to Stock")
             .navigationBarTitleDisplayMode(.inline)
@@ -531,7 +560,9 @@ struct ServingDetailView: View {
         food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres")
     }
     private func formatAmount(_ amount: Double) -> String {
-        "\(amount.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)"
+        let number = amount.formatted(.number.precision(.fractionLength(0...2)))
+        // Servings say "1×" so the number fits beside the stepper ("1 serving" didn't).
+        return food.basis == .serving ? "\(number)×" : "\(number) \(food.basis.rawValue)"
     }
     private var kcal: Int { Int((food.kcal * factor).rounded()) }
 
@@ -589,8 +620,10 @@ struct ServingDetailView: View {
                         .frame(height: 96)
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
-                            Button("\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
+                            Button(food.basis == .serving ? "\(preset)×" : "\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
+                                .accessibilityLabel(food.basis == .serving ? "\(preset) serving\(preset == 1 ? "" : "s")" : "\(preset) \(food.basis.rawValue)")
                                 .font(.caption).fontWeight(.semibold)
+                                .lineLimit(1)
                                 .padding(.horizontal, 12).padding(.vertical, 6)
                                 .background(Color.surfaceElevated, in: Capsule())
                         }
@@ -613,7 +646,7 @@ struct ServingDetailView: View {
                     }
                     Text("\(food.referenceLabel): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted()) g · Carbs \(food.carbs.formatted()) g · Fat \(food.fat.formatted()) g")
                         .font(.footnote)
-                    if let url = food.sourceURL { Link("View original nutrition record", destination: url) }
+                    if let url = food.sourceURL { Link(food.source == .cookbook ? "Open the recipe on Wikibooks (CC BY-SA 4.0)" : "View original nutrition record", destination: url) }
                     if let recipe = food.recipeDetails {
                         Text("Final weighed yield: \(recipe.cookedYieldG.formatted()) g").font(.footnote)
                         ForEach(recipe.ingredients) { ingredient in
