@@ -23,7 +23,7 @@ struct TypeNumberButton: View {
 
     var body: some View {
         Button {
-            text = current
+            text = ""
             showing = true
         } label: {
             Label("Type", systemImage: "keyboard")
@@ -38,11 +38,12 @@ struct TypeNumberButton: View {
         .accessibilityLabel("Type \(title.lowercased())")
         .accessibilityIdentifier(identifier)
         .alert(title, isPresented: $showing) {
-            TextField(unit, text: $text)
+            // Empty, with the current value as the hint, so typing replaces it.
+            TextField(current.isEmpty ? unit : current, text: $text)
                 .keyboardType(keyboard)
                 .accessibilityIdentifier(identifier + ".field")
             Button("Cancel", role: .cancel) {}
-            Button("Set") { apply(text) }
+            Button("Set") { if !text.isEmpty { apply(text) } }
                 .accessibilityIdentifier(identifier + ".set")
         } message: {
             Text(hint ?? "Enter a number in \(unit).")

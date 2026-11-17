@@ -11,7 +11,7 @@ final class WorkoutModeUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-NourloUITesting", "YES", "-workoutModeDraft_v1", ""]
+                               "-NourloUITesting", "YES", "-workoutModeDraft_v1", "", "-completedWorkouts_v1", ""]
         app.launch()
         app.tabBars.buttons["Train"].tap()
         let gym = app.buttons["train.kind.gym"]
@@ -45,5 +45,18 @@ final class WorkoutModeUITests: XCTestCase {
         shot("workout-summary")
         app.buttons["workoutSummary.done"].tap()
         XCTAssertTrue(app.buttons["workout.done"].waitForExistence(timeout: 10))
+
+        // Progress lists the workout and the exercise.
+        app.navigationBars.buttons.firstMatch.tap()
+        let progress = app.buttons["train.progress"]
+        for _ in 0..<8 where !progress.isHittable { app.swipeUp() }
+        progress.tap()
+        XCTAssertTrue(app.staticTexts["Weight lifted per week"].waitForExistence(timeout: 10))
+        shot("progress")
+        let exercise = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'progress.exercise.'")).firstMatch
+        XCTAssertTrue(exercise.waitForExistence(timeout: 5))
+        exercise.tap()
+        XCTAssertTrue(app.staticTexts["Every time"].waitForExistence(timeout: 5))
+        shot("exercise-progress")
     }
 }

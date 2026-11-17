@@ -419,11 +419,12 @@ private struct EditField: View {
     @State private var text = ""
 
     var body: some View {
-        TextField("", text: $text)
+        // Starts empty with the current value as the hint, so typing replaces it.
+        TextField(initial, text: $text)
             .keyboardType(keyboard)
-            .onAppear { text = initial }
+            .accessibilityIdentifier("workoutMode.valueField")
         Button("Cancel", role: .cancel) {}
-        Button("Set") { apply(text) }
+        Button("Set") { if !text.isEmpty { apply(text) } }
     }
 }
 
@@ -438,7 +439,7 @@ struct WorkoutSummaryView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: Spacing.xl) {
-                    MascotGuideView(mood: workout.records.isEmpty ? .happy : .celebrate, size: 150, trigger: 1, hint: "Well done.")
+                    MascotGuideView(mood: .flex, size: 170, trigger: 1, hint: "Flexing for you.")
                         .padding(.top, Spacing.xl)
                     VStack(spacing: 6) {
                         Text("Workout done").font(.system(.largeTitle, design: .rounded).weight(.bold))

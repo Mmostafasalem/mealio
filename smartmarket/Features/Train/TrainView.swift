@@ -61,6 +61,12 @@ struct TrainView: View {
                     builderCard
                     if !store.saved.isEmpty { savedSection }
                     exerciseBrowser
+                    NavigationLink { TrainingProgressView() } label: {
+                        TrainLinkRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
+                                     detail: progressDetail)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("train.progress")
                     if !store.completed.isEmpty {
                         NavigationLink { WorkoutHistoryView() } label: {
                             TrainLinkRow(symbol: "clock.fill", title: "History",
@@ -86,6 +92,14 @@ struct TrainView: View {
         // "Start a cardio workout" from Siri or Shortcuts preselects that kind.
         .onAppear { applyRequestedKind() }
         .onChange(of: AppRouter.shared.workoutKind) { _, _ in applyRequestedKind() }
+    }
+
+    /// "12 workouts · 3 records", or what Progress will show once there's something.
+    private var progressDetail: String {
+        let log = TrainingLogStore.shared
+        guard !log.workouts.isEmpty else { return "Sets, weights and records from workout mode" }
+        let records = log.workouts.reduce(0) { $0 + $1.records.count }
+        return "\(log.workouts.count) workout\(log.workouts.count == 1 ? "" : "s") logged" + (records > 0 ? " · \(records) record\(records == 1 ? "" : "s")" : "")
     }
 
     /// Applies a workout kind Siri or Shortcuts asked for (once).
