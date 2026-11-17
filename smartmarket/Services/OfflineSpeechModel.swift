@@ -82,9 +82,11 @@ final class OfflineSpeechModel {
                 var values = URLResourceValues()
                 values.isExcludedFromBackup = true
                 try? folder.setResourceValues(values)
+                // Progress arrives off the main actor; hop back with a fresh weak reference.
+                let owner = WeakOfflineModel(self)
                 _ = try await AsrModels.download(to: Self.directory, version: .v3) { progress in
-                    Task { @MainActor [weak self] in
-                        guard let self, case .downloading = self.state else { return }
+                    Task { @MainActor in
+                        guard let self = owner.value, case .downloading = self.state else { return }
                         self.state = .downloading(min(max(progress.fractionCompleted, 0), 1))
                     }
                 }
@@ -216,3 +218,9 @@ nonisolated final class ParakeetSpeechEngine: SpeechEngine, @unchecked Sendable 
 }
 
 #endif
+
+/// A weak reference that can cross into the download's progress callback.
+private final class WeakOfflineModel: @unchecked Sendable {
+    weak var value: OfflineSpeechModel?
+    init(_ value: OfflineSpeechModel?) { self.value = value }
+}

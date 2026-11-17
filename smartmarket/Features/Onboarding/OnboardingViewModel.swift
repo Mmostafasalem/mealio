@@ -126,7 +126,8 @@ final class OnboardingViewModel {
 
         AppState.shared.userProfile = profile
         AppState.shared.completeOnboarding()
-        AppState.shared.agentLoop.start(appState: AppState.shared)
+        // The app's start-up task (SmartMarketAgentApp) starts the agent loop once the screen
+        // swap has finished, so the change to the app stays smooth.
     }
 
     /// The profile `finish()` saves, with its targets. Pure (no storage).

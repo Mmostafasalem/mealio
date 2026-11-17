@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Combine
 
 @MainActor
@@ -128,7 +129,8 @@ final class AppState {
     }
 
     func completeOnboarding() {
-        isOnboarded = true
+        // The screen swap to the app uses the same slow, even curve as the rest of the root changes.
+        withAnimation(SmartMarketAgentApp.rootTransition) { isOnboarded = true }
         UserDefaults.standard.set(true, forKey: Constants.Storage.hasCompletedOnboarding)
     }
 

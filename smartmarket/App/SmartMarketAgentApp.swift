@@ -20,23 +20,37 @@ struct SmartMarketAgentApp: App {
     }
 
     /// One curve for every root swap; a short fade under Reduce Motion.
-    private var rootTransition: Animation? {
-        UIAccessibility.isReduceMotionEnabled ? .reducedFade : .smoothCard
+    static var rootTransition: Animation { UIAccessibility.isReduceMotionEnabled ? .reducedFade : .rootSwap }
+    private var rootTransition: Animation? { Self.rootTransition }
+
+    /// How a whole screen leaves and arrives: the old one grows a touch as it fades
+    /// (as if we pass through it), the new one settles in from slightly smaller.
+    private func rootSwap(leavingScale: CGFloat) -> AnyTransition {
+        guard !UIAccessibility.isReduceMotionEnabled else { return .opacity }
+        return .asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                           removal: .opacity.combined(with: .scale(scale: leavingScale)))
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
+            ZStack {
+                // A shared floor, so a cross-fade never shows the window behind it.
+                Color.surfaceGrouped.ignoresSafeArea()
                 if !appState.hasSeenWelcome {
                     WelcomeView {
-                        // The Group's implicit animation drives this transition.
-                        appState.hasSeenWelcome = true
+                        withAnimation(Self.rootTransition) { appState.hasSeenWelcome = true }
                         UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
                     }
+                    .transition(rootSwap(leavingScale: 1.08))
+                    .zIndex(2)
                 } else if appState.isOnboarded {
                     MainTabView()
+                        .transition(rootSwap(leavingScale: 1.04))
+                        .zIndex(1)
                 } else {
                     OnboardingFlow()
+                        .transition(rootSwap(leavingScale: 1.04))
+                        .zIndex(appState.isOnboarded ? 0 : 1.5)
                 }
             }
             .animation(rootTransition, value: appState.isOnboarded)
@@ -66,6 +80,8 @@ struct SmartMarketAgentApp: App {
                 if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.stateForNudge()) }
             }
             .task(id: appState.isOnboarded) {
+                // Let the screen swap finish before the start-up work begins, so it stays smooth.
+                try? await Task.sleep(for: .milliseconds(800))
                 // Reads Train's exercise drawings on a background queue so they're ready when Train opens.
                 ExerciseDrawings.preload()
                 SpotlightIndexer.shared.indexIfNeeded()
