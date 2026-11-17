@@ -1,0 +1,198 @@
+{
+ "id": "pov",
+ "dur": 18.549,
+ "bpm": 86,
+ "music": {
+  "style": "lofi",
+  "bars": [
+   "Dm9",
+   "G9",
+   "Cmaj7",
+   "Am7",
+   "Dm9",
+   "G9",
+   "Cmaj7",
+   "Cmaj7"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 7
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "POV: it's Sunday and the fridge is empty",
+   "mark": [
+    "empty"
+   ],
+   "titleSize": 100,
+   "titleTop": 260
+  },
+  {
+   "kind": "groceries",
+   "at": 4.186,
+   "cut": "slide",
+   "label": "Nourlo writes the list",
+   "mark": [
+    "list"
+   ]
+  },
+  {
+   "kind": "plan",
+   "at": 8.372,
+   "cut": "slide",
+   "label": "and the whole week",
+   "mark": [
+    "week"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 12.558,
+   "cut": "rise",
+   "label": "Monday you is grateful",
+   "mark": [
+    "grateful"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 15.949,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 3.986,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 4.586,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 7.972,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 8.972,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "walk"
+  },
+  {
+   "t": 12.358,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 13.058,
+   "x": 540,
+   "y": 1360,
+   "size": 640,
+   "move": "jump",
+   "arc": 220
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood worried"
+  ],
+  [
+   0,
+   "look 0 -1"
+  ],
+  [
+   2.2,
+   "mood happy"
+  ],
+  [
+   2.2,
+   "look none"
+  ],
+  [
+   9.572,
+   "hop"
+  ],
+  [
+   13.058,
+   "mood love"
+  ]
+ ],
+ "sfx": [
+  [
+   1.6,
+   "pop"
+  ],
+  [
+   4.536,
+   "coin"
+  ],
+  [
+   4.756,
+   "coin"
+  ],
+  [
+   4.976,
+   "coin"
+  ],
+  [
+   5.196,
+   "coin"
+  ],
+  [
+   5.416,
+   "coin"
+  ],
+  [
+   8.522,
+   "type",
+   22,
+   30
+  ],
+  [
+   9.372,
+   "click"
+  ],
+  [
+   13.558,
+   "pop"
+  ]
+ ],
+ "theme": "white",
+ "overlays": [
+  {
+   "kind": "bubble",
+   "at": 1.6,
+   "until": 3.986,
+   "text": "I got you 🫡",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 13.558,
+   "until": 15.749,
+   "text": "You're welcome 💕",
+   "side": "left"
+  }
+ ]
+}

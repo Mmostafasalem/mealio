@@ -1,0 +1,144 @@
+{
+ "id": "wake",
+ "dur": 13.667,
+ "bpm": 90,
+ "music": {
+  "style": "lofi",
+  "bars": [
+   "Ebmaj7",
+   "Cm7",
+   "Fm9",
+   "Bb9",
+   "Ebmaj7",
+   "Cm7",
+   "Fm9",
+   "Ebmaj7"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 7
+ },
+ "scenes": [
+  {
+   "kind": "notifs",
+   "at": 0,
+   "cut": "dissolve",
+   "items": [
+    [
+     "Breakfast?",
+     "Two taps and it's logged.",
+     "🍳"
+    ],
+    [
+     "Leg day",
+     "30 min, your stats, ready to go.",
+     "🦵"
+    ],
+    [
+     "€6.40 left",
+     "Enough for Friday's dinner.",
+     "💸"
+    ],
+    [
+     "New record!",
+     "Bench press, 62.5 kg.",
+     "🏆"
+    ]
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 8.0,
+   "cut": "rise",
+   "label": "Nourlo keeps you on track",
+   "mark": [
+    "track"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 11.067,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 860,
+   "y": 2150,
+   "size": 520
+  },
+  {
+   "t": 1.0,
+   "x": 860,
+   "y": 2150,
+   "size": 520
+  },
+  {
+   "t": 1.8,
+   "x": 860,
+   "y": 1720,
+   "size": 520
+  },
+  {
+   "t": 7.8,
+   "x": 860,
+   "y": 1720,
+   "size": 520
+  },
+  {
+   "t": 8.5,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood sleepy"
+  ],
+  [
+   1.8,
+   "mood happy"
+  ],
+  [
+   1.8,
+   "look -0.5 -1"
+  ],
+  [
+   2.5,
+   "mood flex"
+  ],
+  [
+   8.5,
+   "mood love"
+  ],
+  [
+   10.667,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   0.5,
+   "beep"
+  ],
+  [
+   1.1,
+   "beep"
+  ],
+  [
+   1.7,
+   "beep"
+  ],
+  [
+   2.3,
+   "beep"
+  ]
+ ],
+ "theme": "white",
+ "overlays": []
+}

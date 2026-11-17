@@ -396,7 +396,8 @@ final class ReleaseSmokeTests: XCTestCase {
 
     func testOptionalAppleAccountDoesNotBlockLocalTabs() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        // The AI section shows only when online AI is offered; this checks its layout.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-onlineAIOffered_v1", "YES"]
         launchForTesting(app)
         openProfile(in: app)
         let signIn = app.buttons["profile.appleSignIn"]

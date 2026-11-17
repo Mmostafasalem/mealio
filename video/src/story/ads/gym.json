@@ -274,5 +274,7 @@
    12.6,
    "sparkle"
   ]
- ]
+ ],
+ "theme": "white",
+ "overlays": []
 }

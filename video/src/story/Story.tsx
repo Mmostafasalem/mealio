@@ -1,7 +1,8 @@
 import React from "react";
 import { AbsoluteFill, Easing, Img, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { FPS, Rings, grey, ink, line, pink, ring, sf, soft } from "../ads/kit";
-import { Budget, Panel, Plan, Scan, Stock, Title, Train, Voice } from "../ads/Combo";
+import { Budget, Panel, Plan, Scan, Stock, Train, Voice } from "../ads/Combo";
+import { Backdrop, Bubble, Countdown, Float, Headline, Kinetic, Listicle, Notifs, Phone, Quiz, Rain, Split as Versus, Theme, ThemeCtx, Track, dress, useTheme } from "./Styles";
 import { Key, place } from "./path";
 
 // A scripted advert (src/story/ads/<id>.json): scenes that change on the music's bar lines, and Nourlo,
@@ -13,7 +14,8 @@ export type Scene = {
   kind: string; at: number; label?: string; mark?: string[]; titleTop?: number; titleSize?: number;
   cut?: "slide" | "dissolve" | "zoom" | "rise" | "none"; [k: string]: unknown;
 };
-export type Script = { id: string; dur: number; bpm: number; scenes: Scene[]; path: Key[]; frames?: number };
+export type Overlay = { kind: "bubble" | "rain" | "float"; at: number; until?: number; [k: string]: unknown };
+export type Script = { id: string; dur: number; bpm: number; scenes: Scene[]; path: Key[]; frames?: number; theme?: Theme; overlays?: Overlay[] };
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 const ease = Easing.bezier(0.22, 1, 0.36, 1);
@@ -214,11 +216,20 @@ const PIECES: Record<string, React.FC<{ a: number; s: Scene }>> = {
   stock: ({ a }) => <Stock a={a} />, timer: ({ a }) => <Train a={a} />, workout: ({ a }) => <Workout a={a} />, progress: ({ a }) => <Progress a={a} />,
   groceries: ({ a }) => <Groceries a={a} />, day: ({ a }) => <Day a={a} />, recipe: ({ a }) => <Recipe a={a} />, split: ({ a }) => <Split a={a} />,
   shuffle: ({ a }) => <Shuffle a={a} />, lines: ({ a, s }) => <Lines a={a} items={(s.items as string[]) ?? []} />, title: () => null, end: () => null,
+  kinetic: ({ a, s }) => <Kinetic a={a} words={s.words as string[]} every={s.every as number} colors={s.colors as string[] | undefined} />,
+  listicle: ({ a, s }) => <Listicle a={a} items={s.items as [string, string][]} every={s.every as number} />,
+  phone: ({ a, s }) => <Phone a={a} from={s.from as number} top={s.top as number | undefined} scale={s.scale as number | undefined} tilt={s.tilt as number | undefined} />,
+  notifs: ({ a, s }) => <Notifs a={a} items={s.items as [string, string, string][]} />,
+  quiz: ({ a, s }) => <Quiz a={a} options={s.options as [string, string][]} pick={s.pick as number} at={s.pickAt as number} />,
+  versus: ({ a, s }) => <Versus a={a} left={s.left as string[]} right={s.right as string[]} />,
+  track: ({ a, s }) => <Track a={a} until={s.until as number} items={s.items as string[]} speed={s.speed as number} y={s.y as number} />,
+  countdown: ({ a, s }) => <Countdown a={a} every={s.every as number} then={s.then as string | undefined} />,
 };
 
 /** A scene on screen from its start to the next one's, entering and leaving with its cut. */
-const SceneLayer: React.FC<{ s: Scene; next?: Scene; until: number }> = ({ s, next, until }) => {
+const SceneLayer: React.FC<{ s: Scene; next?: Scene; until: number; index: number }> = ({ s, next, until, index }) => {
   const t = useT();
+  const { theme } = useTheme();
   const a = s.at, b = until;
   if (t < a - 0.6 || t > b + 0.6) return null;
   const inCut = s.cut ?? "dissolve", outCut = next?.cut ?? "dissolve";
@@ -242,8 +253,9 @@ const SceneLayer: React.FC<{ s: Scene; next?: Scene; until: number }> = ({ s, ne
   if (!Piece) throw new Error("unknown scene " + s.kind);
   return (
     <AbsoluteFill style={{ alignItems: "center", opacity: op, filter: blur > 0.2 ? `blur(${blur}px)` : undefined, transform: `translate(${x}px, ${y}px) scale(${sc})` }}>
-      {s.label && <Title text={s.label} at={a + 0.05} top={s.titleTop ?? (s.kind === "title" ? 300 : 210)} size={s.titleSize ?? (s.kind === "title" ? 120 : 92)} mark={s.mark ?? []} />}
-      <Piece a={a} s={s} />
+      {s.kind === "notifs" && <AbsoluteFill style={{ background: "linear-gradient(170deg, #2C5BD8 0%, #3E8FD8 38%, #6FC1D6 70%, #A9E0D8 100%)" }} />}
+      {s.label && <Headline text={s.label} at={a + 0.05} top={s.titleTop ?? (s.kind === "title" ? 300 : 200)} size={s.titleSize ?? (s.kind === "title" ? 120 : 92)} mark={s.mark ?? []} />}
+      <AbsoluteFill style={{ alignItems: "center", ...dress(theme, index) }}><Piece a={a} s={s} /></AbsoluteFill>
     </AbsoluteFill>
   );
 };
@@ -272,18 +284,25 @@ const Nourlo: React.FC<{ id: string; path: Key[]; frames: number; endAt: number 
 export const Story: React.FC<{ script: Script }> = ({ script }) => {
   const t = useT();
   const { scenes, path, id, dur } = script;
+  const overlays = script.overlays ?? [];
   const end = scenes.find(s => s.kind === "end");
   const behind = place(path, t).key?.behind;
   const frames = Math.round((dur + 0.5) * FPS);
   const nourlo = <Nourlo id={id} path={path} frames={frames} endAt={end ? end.at + 0.35 : dur + 1} />;
   return (
-    <AbsoluteFill style={{ background: "#fff", fontFamily: sf, color: ink }}>
-      {behind && nourlo}
-      {scenes.filter(s => s.kind !== "end").map((s, i, list) => (
-        <SceneLayer key={i} s={s} next={list[i + 1] ?? end} until={(list[i + 1] ?? end)?.at ?? dur + 1} />
-      ))}
-      {!behind && nourlo}
-      {end && <End a={end.at} />}
-    </AbsoluteFill>
+    <ThemeCtx.Provider value={{ theme: script.theme ?? "white", path }}>
+      <AbsoluteFill style={{ fontFamily: sf, color: ink }}>
+        <Backdrop />
+        {overlays.filter(o => o.kind === "float").map((o, i) => <Float key={i} items={o.items as string[]} />)}
+        {behind && nourlo}
+        {scenes.filter(s => s.kind !== "end").map((s, i, list) => (
+          <SceneLayer key={i} index={i} s={s} next={list[i + 1] ?? end} until={(list[i + 1] ?? end)?.at ?? dur + 1} />
+        ))}
+        {!behind && nourlo}
+        {overlays.filter(o => o.kind === "rain").map((o, i) => <Rain key={i} a={o.at} items={o.items as string[]} every={o.every as number} />)}
+        {overlays.filter(o => o.kind === "bubble").map((o, i) => <Bubble key={i} a={o.at} until={o.until ?? o.at + 2} text={o.text as string} side={o.side as "left" | "right" | undefined} />)}
+        {end && <End a={end.at} />}
+      </AbsoluteFill>
+    </ThemeCtx.Provider>
   );
 };

@@ -7,7 +7,7 @@ FF=node_modules/ffmpeg-static/ffmpeg
 IDS="$*"; [ -z "$IDS" ] && IDS=$(ls src/story/ads/*.json | xargs -n1 basename | sed 's/\.json$//')
 rm -rf /tmp/mealio-run/stories && mkdir -p /tmp/mealio-run/stories
 for id in $IDS; do cp src/story/ads/$id.json /tmp/mealio-run/stories/; done
-( cd .. && TEST_RUNNER_NOURLO_MASCOT_CLIPS=1 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project smartmarket.xcodeproj -scheme smartmarket \
+[ -z "$SKIP_RIG" ] && ( cd .. && TEST_RUNNER_NOURLO_MASCOT_CLIPS=1 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project smartmarket.xcodeproj -scheme smartmarket \
   -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' test -only-testing:smartmarketTests/MascotSnapshotTests/testRenderStories \
   CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- 2>&1 | grep -E "error:|\*\* TEST" | tail -3 )
 mkdir -p ~/Desktop/nourlo-ads out

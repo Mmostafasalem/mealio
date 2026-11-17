@@ -183,5 +183,7 @@
    11.667,
    "click"
   ]
- ]
+ ],
+ "theme": "white",
+ "overlays": []
 }

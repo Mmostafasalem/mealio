@@ -1,0 +1,258 @@
+{
+ "id": "runner",
+ "dur": 16.225,
+ "bpm": 128,
+ "music": {
+  "style": "disco",
+  "bars": [
+   "Fm9",
+   "Bbm9",
+   "Eb9",
+   "Abmaj7",
+   "Fm9",
+   "Bbm9",
+   "Eb9",
+   "Abmaj7",
+   "Fm9"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 8
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "Nourlo's on a roll",
+   "mark": [
+    "roll"
+   ],
+   "titleSize": 120
+  },
+  {
+   "kind": "track",
+   "at": 1.2,
+   "cut": "dissolve",
+   "label": "Breakfast, lunch, snack…",
+   "mark": [
+    "snack"
+   ],
+   "items": [
+    "🥚",
+    "🍌",
+    "🥦",
+    "🍗",
+    "🍚",
+    "🥑",
+    "🍓",
+    "🥛",
+    "🍎",
+    "🧀"
+   ],
+   "speed": 360,
+   "y": 1300,
+   "until": 7.5
+  },
+  {
+   "kind": "workout",
+   "at": 7.5,
+   "cut": "slide",
+   "label": "Then hits a PR",
+   "mark": [
+    "pr"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 11.25,
+   "cut": "zoom",
+   "label": "Unstoppable. Like you.",
+   "mark": [
+    "unstoppable"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 13.625,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": -380,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 0.1,
+   "x": -380,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 1.2,
+   "x": 400,
+   "y": 1500,
+   "size": 460,
+   "move": "walk"
+  },
+  {
+   "t": 2.817,
+   "x": 400,
+   "y": 1500,
+   "size": 460
+  },
+  {
+   "t": 3.317,
+   "x": 400,
+   "y": 1153.2,
+   "size": 380,
+   "move": "jump",
+   "arc": 260
+  },
+  {
+   "t": 3.667,
+   "x": 400,
+   "y": 1153.2,
+   "size": 380
+  },
+  {
+   "t": 4.247,
+   "x": 408,
+   "y": 1153.2,
+   "size": 380,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 4.667,
+   "x": 408,
+   "y": 1153.2,
+   "size": 380
+  },
+  {
+   "t": 5.247,
+   "x": 392,
+   "y": 1153.2,
+   "size": 380,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 5.667,
+   "x": 392,
+   "y": 1153.2,
+   "size": 380
+  },
+  {
+   "t": 6.247,
+   "x": 408,
+   "y": 1153.2,
+   "size": 380,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 7.3,
+   "x": 408,
+   "y": 1153.2,
+   "size": 380
+  },
+  {
+   "t": 7.9,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 260
+  },
+  {
+   "t": 8.95,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 9.35,
+   "x": 800,
+   "y": 1300,
+   "size": 440,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 11.05,
+   "x": 800,
+   "y": 1300,
+   "size": 440
+  },
+  {
+   "t": 11.75,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood happy"
+  ],
+  [
+   4.267,
+   "mood happy"
+  ],
+  [
+   6.267,
+   "mood celebrate"
+  ],
+  [
+   9.25,
+   "mood flex"
+  ],
+  [
+   11.85,
+   "resize 0.9"
+  ],
+  [
+   12.85,
+   "hop"
+  ],
+  [
+   13.325,
+   "mood love"
+  ],
+  [
+   13.325,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   3.317,
+   "pop"
+  ],
+  [
+   8.05,
+   "tap"
+  ],
+  [
+   8.45,
+   "tap"
+  ],
+  [
+   8.85,
+   "tap"
+  ],
+  [
+   9.25,
+   "sparkle"
+  ]
+ ],
+ "theme": "dark",
+ "overlays": []
+}
