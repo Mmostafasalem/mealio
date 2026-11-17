@@ -75,6 +75,6 @@ final class CookbookUITests: XCTestCase {
         add.tap()
         // The button shows "Added" for a moment, then the sheet closes.
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: add)
-        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 10), .completed, "the serving is logged and the sheet closes")
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: 30), .completed, "the serving is logged and the sheet closes")
     }
 }

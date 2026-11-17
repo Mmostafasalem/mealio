@@ -5,6 +5,9 @@ import Observation
 @MainActor @Observable
 final class NutritionCatalogService {
     static let shared = NutritionCatalogService()
+    /// Whether the shared catalogue has been read (the meal plan only matches foods once it has,
+    /// so building a plan never forces the read on the main thread).
+    private(set) static var isLoaded = false
     static let cacheKey = "nutritionProducts_v1"
     static let customKey = "nutritionCustomFoods_v1"
     enum Market: String, CaseIterable, Identifiable {
@@ -50,6 +53,7 @@ final class NutritionCatalogService {
         catch { loadError = "The offline food database could not be opened. Product search is still available." }
         regionalDishes = NutritionDatabase.loadRegional()
         reloadSaved()
+        if defaults === UserDefaults.standard { Self.isLoaded = true }
     }
     func reloadSaved() {
         savedProducts = (defaults.data(forKey: Self.cacheKey)

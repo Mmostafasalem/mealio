@@ -33,6 +33,24 @@ final class ReviewFixesTests: XCTestCase {
         XCTAssertFalse(Set<DietaryPreference>([.vegan]).allows(name: "Milk 2.5%", category: "dairy"))
     }
 
+    func testPlannedMealsCarryTheirFoodsOnceTheCatalogueIsRead() throws {
+        _ = NutritionCatalogService.shared
+        StockStore.shared.clearItems()
+        let cart = [CartItem(id: UUID(), catalogId: "chicken-breast", name: "Chicken Breast", store: "Catalogue", price: 5, category: "meat", quantity: 1),
+                    CartItem(id: UUID(), catalogId: "brown-rice", name: "Brown Rice", store: "Catalogue", price: 2, category: "grains", quantity: 1),
+                    CartItem(id: UUID(), catalogId: "broccoli", name: "Broccoli", store: "Catalogue", price: 2, category: "vegetables", quantity: 1)]
+        UserDefaults.standard.set(try JSONEncoder().encode(cart), forKey: "shoppingCart_v1")
+        defer { UserDefaults.standard.removeObject(forKey: "shoppingCart_v1") }
+        let plan = FallbackData.mealPlan(targetKcal: 2000, preferences: [], variation: 0)
+        let lunch = try XCTUnwrap(plan.allDays.first?.plan.pietus)
+        let foods = try XCTUnwrap(lunch.nutritionIngredients, "every food on the plate is matched to a record")
+        XCTAssertEqual(foods.count, 3)
+        XCTAssertEqual(lunch.portions?.count, 3)
+        let today = try XCTUnwrap(MealPlan.from(weekly: plan)?.lunch.first)
+        XCTAssertTrue(today.macrosAvailable, "the meal shows protein, carbs and fat and can be logged")
+        XCTAssertGreaterThan(today.proteinG, 10)
+    }
+
     // MARK: Workout mode
 
     func testIntervalRoundsShareTheirBlock() {

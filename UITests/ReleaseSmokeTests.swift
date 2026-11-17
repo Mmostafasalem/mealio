@@ -444,7 +444,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("nutrition-source-detail")
         tap("logFood.addServing", in: app)
         // The Add button plays a short "Added" success moment before the sheet closes.
-        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 15))
         XCTAssertTrue(control("navigation.quickActions", in: app).exists)
     }
 

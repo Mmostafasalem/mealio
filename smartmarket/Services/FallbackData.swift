@@ -69,6 +69,8 @@ enum FallbackData {
         var owned = true
         /// The catalogue item to add when it isn't owned.
         var catalogId: String? = nil
+        /// The food record behind it (stock's own, or the cart's match), for macros and logging.
+        var nutrition: NutritionFood? = nil
 
         func isAllowed(by prefs: Set<DietaryPreference>) -> Bool {
             prefs.allows(name: name, category: category, allergens: allergens)
@@ -77,7 +79,7 @@ enum FallbackData {
 
     /// The catalogue foods used when nothing owned fills a role, in order of preference.
     private static func suggested(_ name: String, _ category: String, _ kcal: Int, _ id: String?) -> StockFood {
-        StockFood(name: name, category: category, kcal100: kcal, owned: false, catalogId: id)
+        StockFood(name: name, category: category, kcal100: kcal, owned: false, catalogId: id, nutrition: id.flatMap { catalogNutrition($0) })
     }
 
     /// How many times the person asked for another plan. Each step pairs the foods
@@ -130,14 +132,21 @@ enum FallbackData {
             let factor = baseKcal > 0 ? Double(target) / Double(baseKcal) : 1
             var total = 0
             var ings: [String] = []
+            var records: [NutritionIngredient] = []
             for c in comps {
                 let g = min(max(Int(Double(c.base) * factor), 20), Int(Double(c.maxG) * capScale))
                 total += g * c.food.kcal100 / 100
                 ings.append("\(c.food.name) · \(c.label) (\(g)g)")
+                if let food = c.food.nutrition { records.append(NutritionIngredient(food: food, amount: Double(g))) }
             }
             let foods = comps.map(\.food)
             let missing = foods.filter { !$0.owned }
             var item = MealItem(pavadinimas: title?(foods) ?? Self.title(foods), ingredientai: ings, kcal: total)
+            // Every food matched to a record: the meal shows its macros and can be logged in one go.
+            if records.count == comps.count {
+                item.nutritionIngredients = records
+                item.portions = records.map { PlannedPortion(foodID: $0.food.id, amount: $0.amount) }
+            }
             if !missing.isEmpty {
                 item.missing = missing.map(\.name)
                 item.missingCatalogIds = missing.compactMap(\.catalogId)
@@ -197,6 +206,14 @@ enum FallbackData {
                               pentadienis: days[4], sestadienis: days[5], sekmadienis: days[6])
     }
 
+    /// The food record for a catalogue item: the same match the cart uses for My Stock, so
+    /// "Review and log" finds it there. Nothing until the catalogue has been read.
+    private static func catalogNutrition(_ catalogId: String) -> NutritionFood? {
+        guard NutritionCatalogService.isLoaded, let item = CatalogItem.all.first(where: { $0.id == catalogId }),
+              let food = CartStockLink.food(for: item), food.basis != .serving else { return nil }
+        return food
+    }
+
     /// "Oats, banana & greek yogurt" from the meal's component names.
     private static func title(_ foods: [StockFood]) -> String {
         let names = foods.enumerated().map { $0.offset == 0 ? $0.element.name : $0.element.name.lowercased() }
@@ -214,7 +231,8 @@ enum FallbackData {
         func add(_ f: StockFood) { if seen.insert(f.name.lowercased()).inserted { foods.append(f) } }
         for item in ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1") {
             guard let role = planRole(name: item.name, category: item.category.lowercased()) else { continue }
-            add(StockFood(name: item.name, category: role, kcal100: itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150, catalogId: item.catalogId))
+            add(StockFood(name: item.name, category: role, kcal100: itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150, catalogId: item.catalogId,
+                          nutrition: catalogNutrition(item.catalogId)))
         }
         let fromCart = Set((UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]).values)
         for item in StockStore.shared.items where !fromCart.contains(item.id.uuidString) && item.amount > 0 && !item.isExpired() {
@@ -232,7 +250,7 @@ enum FallbackData {
         let short = food.name.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? food.name
         guard let role = planRole(name: food.name, category: "") else { return nil }
         let kcal100 = food.basis == .grams ? max(Int(food.kcal.rounded()), 1) : (categoryKcal[role] ?? 150)
-        return StockFood(name: short.capitalized, category: role, kcal100: kcal100)
+        return StockFood(name: short.capitalized, category: role, kcal100: kcal100, nutrition: food)
     }
 
     /// The part of the plan a food can play, from whole words of its name (then its shop

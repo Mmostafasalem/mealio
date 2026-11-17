@@ -55,12 +55,15 @@ final class MealPlanViewModel {
         if selectedTab == .week { await loadWeekPlans() }
     }
 
-    /// The meals of a plan, without its message, to tell whether a new one differs.
+    /// What a plan shows (each meal's name and portions), to tell whether a new one differs.
     static func fingerprint(_ plan: WeeklyMealPlan?) -> Data? {
         guard let plan else { return nil }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .sortedKeys
-        return try? encoder.encode(plan.allDays.map(\.plan))
+        let text = plan.allDays.map(\.plan).flatMap { day in
+            [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].map { meal in
+                meal.map { $0.pavadinimas + ":" + $0.ingredientai.joined(separator: ",") } ?? "-"
+            }
+        }.joined(separator: "|")
+        return Data(text.utf8)
     }
 
     static let offlinePlanNotice = "Couldn't reach the planner. Showing an offline plan."

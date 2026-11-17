@@ -99,6 +99,8 @@ struct SmartMarketAgentApp: App {
                 // the first Log Food or cart tap (it is a few megabytes of JSON).
                 try? await Task.sleep(for: .milliseconds(1500))
                 _ = NutritionCatalogService.shared
+                // The plan can now carry each meal's foods (macros, "Review and log").
+                NotificationCenter.default.post(name: .cartDidChange, object: nil)
             }
         }
     }

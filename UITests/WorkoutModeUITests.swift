@@ -23,6 +23,9 @@ final class WorkoutModeUITests: XCTestCase {
         let start = app.buttons["workout.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 20))
         start.tap()
+        // A workout left running by an earlier test: start this one instead.
+        let replace = app.buttons["Start this one instead"]
+        if replace.waitForExistence(timeout: 2) { replace.tap() }
 
         let complete = app.buttons["workoutMode.completeSet"]
         XCTAssertTrue(complete.waitForExistence(timeout: 10))
@@ -100,6 +103,8 @@ final class WorkoutModeUITests: XCTestCase {
         let start = app.buttons["workout.start"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         start.tap()
+        let replace = app.buttons["Start this one instead"]
+        if replace.waitForExistence(timeout: 2) { replace.tap() }
         XCTAssertTrue(app.buttons["workoutMode.completeSet"].waitForExistence(timeout: 10))
         shot("custom-workout-mode")
     }
