@@ -89,4 +89,12 @@ final class CookbookTests: XCTestCase {
         let entry = FoodLogEntry(nutritionFood: food, slot: .lunch, amount: 1.5)
         XCTAssertEqual(entry.calories, 600)
     }
+
+    func testAcknowledgementsNameEveryLicensedSource() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "Acknowledgements", withExtension: "md"))
+        let text = try String(contentsOf: url, encoding: .utf8)
+        for source in ["USDA", "Open Food Facts", "Wikibooks", "CC BY-SA 4.0", "Everkinetic", "CMU", "100STYLE", "Parakeet", "FluidAudio"] {
+            XCTAssertTrue(text.contains(source), source)
+        }
+    }
 }

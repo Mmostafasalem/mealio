@@ -10,8 +10,8 @@ Nourlo
 Meals, calories & groceries
 
 ## Promotional text
-Plan meals, log food and organise your grocery shop. Use estimated prices to
-plan your budget, with optional online AI suggestions and private shopping sync.
+Plan meals around what's in your kitchen, cook from 1,500 recipes, log food,
+shop to a weekly budget and track your workouts. Optional online AI chat.
 
 ## Description
 Nourlo brings meal planning, food logging and grocery budgeting into one app.
@@ -20,20 +20,32 @@ Track your day
 Log foods and see estimated calories and macros alongside your personal targets.
 
 Plan your meals
-Use local suggestions, or choose to enable online AI for personalised meal plans,
-recipes and chat. Online AI uses Groq through our backend and requires your
-sharing permission and optional Sign in with Apple in Profile. Personal AI
-credits reset daily; overall service capacity can still limit availability.
+Your week's meal plan is built on your phone from the food in your cart and
+stock, split across the day the way you choose. Foods you don't have yet are
+marked, and one tap adds them to your cart.
+
+Cook with what you have
+About 1,500 recipes from the Wikibooks Cookbook, matched to the food in your
+stock, with nutrition per serving estimated from USDA data. Log what you cooked
+in one tap. Works offline.
+
+Optional online AI
+Chat with Nourlo and ask for new recipes with online AI. It uses Groq through
+our backend and requires your sharing permission and Sign in with Apple in
+Profile. Personal AI credits reset daily; overall service capacity can still
+limit availability.
 
 Organise your shop
+Get a week of groceries fitted to your budget, built from the foods you like.
 Build a cart and grocery list, set a budget and enter prices you find in-store.
 Catalog prices are estimates; they are not live shelf prices, verified
 promotions or guaranteed availability.
 
 Train
 Build a workout for the gym, home, cardio or mobility, sized to your time and
-level, with animated how-to figures. Optional online AI writes sessions around
-your stats and request. General fitness information, not medical advice.
+level, with how-to drawings and motion demos, or build your own. Workout mode
+times your rest and logs every set, weight and personal record, with progress
+charts. General fitness information, not medical advice.
 
 Choose how your data is handled
 Local tracking and shopping need no Nourlo account. Online AI requires Sign in
@@ -47,15 +59,18 @@ ingredients and allergens yourself and consult a qualified professional about
 your individual dietary needs.
 
 ## Suggested keywords
-meal planner,food log,calories,macros,grocery,budget,Vilnius,recipes
+meal planner,food log,calories,macros,grocery,budget,recipes,workout,gym log
 
 ## Review notes draft
 Local features need no login. Online AI is optional and disabled by default.
 Sign in with Apple is in Profile → AI allowance; separate sharing consent is in
 Profile → Privacy & Help. Shopping sync is also optional.
-Default AI allowance is 30 credits per person per UTC day, shared across devices:
-meal plans use 5 credits and other requests use 1. Failed provider results and
-cached results do not use personal credits. Provider capacity remains shared.
+Online AI is used only for chat and AI recipes; meal plans, groceries, workouts
+and the recipe library work on the device without it. Default AI allowance is
+30 credits per person per UTC day, shared across devices. Failed provider results
+and cached results do not use personal credits. Provider capacity remains shared.
+Third-party content and licences are listed in Profile → Acknowledgements
+(Wikibooks recipes and exercise drawings are CC BY-SA 4.0, credited under each).
 Delete All Data revokes the online account before clearing local data and needs
 a connection/valid sign-in if an account is retained, including after sign-out.
 Today's minimal spent-credit count remains until its reset to prevent abuse.
@@ -70,13 +85,13 @@ nourlo.app.support@gmail.com.
 
 ## Screenshots to prepare from the verified build
 1. Home with a realistic synthetic profile and logged foods.
-2. Meals with the local/online state correctly labelled.
+2. Meals with a week's plan, and Cook with what I have.
 3. Shop with estimated prices and a representative budget.
 4. Grocery list with bought/unbought items.
-5. Train with a generated workout and its exercise demos.
+5. Train: workout mode logging sets, and the Progress charts.
 6. Profile privacy controls and optional shopping sync.
 
 Automated simulator screenshots are QA evidence. Select/re-capture final marketing
 screens after account-side services and the sample content have been verified.
-The app icon is final: a flat, smiling bowl of oats with banana and strawberry in
-Dull Pink on Rhino navy (2026-11-13).
+The app icon is final: the Nourlo mascot (the bowl character from the app), with
+no name, built by docs/brand/app-icon.py.

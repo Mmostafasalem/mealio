@@ -307,6 +307,10 @@ struct ProfileView: View {
                 LegalDocumentView(resource: "Support", title: "Help & Support")
             } label: { Label("Help & Support", systemImage: "questionmark.circle") }
             .accessibilityIdentifier("profile.support")
+            NavigationLink {
+                LegalDocumentView(resource: "Acknowledgements", title: "Acknowledgements")
+            } label: { Label("Acknowledgements", systemImage: "heart.text.square") }
+            .accessibilityIdentifier("profile.acknowledgements")
             Link(destination: Constants.Support.mailURL) {
                 Label("Email Support", systemImage: "envelope")
             }
