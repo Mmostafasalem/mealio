@@ -61,6 +61,16 @@ final class AgentLoop {
 
     /// Whether a plan returned by `APIService.generateMealPlan` came from the AI
     /// (rather than the on-device fallback used when the AI call failed).
+    /// Rebuilds the on-device plan now from the current cart, stock, split and target
+    /// (used after adding a plan's missing foods, so the change shows at once).
+    static func rebuildPlanNow(appState: AppState = .shared) {
+        let request = MealPlanRequest.current(profile: appState.userProfile, bmr: appState.bmrData)
+        var plan = FallbackData.mealPlan(targetKcal: request.bmrData.calories(forGoal: request.goal))
+        plan.generationSource = "local"
+        appState.saveMealPlan(plan)
+        recordPlanInputs(PlanInputs.current(appState))
+    }
+
     /// Off: meal plans are built on the phone. Online AI is used for chat and recipes only.
     nonisolated static let onlineMealPlans = false
 

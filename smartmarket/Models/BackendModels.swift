@@ -288,6 +288,51 @@ struct MealItem: Codable, Equatable {
     let pavadinimas: String    // name
     let ingredientai: [String] // ingredients
     let kcal: Int
+    /// Foods in this meal that aren't in the cart or My Stock (suggested from the catalogue).
+    var missing: [String]? = nil
+    /// Their catalogue ids, to add them to the cart in one tap.
+    var missingCatalogIds: [String]? = nil
+}
+
+/// How the day's calories are shared between meals, in percent. Chosen in Profile › Meal plan.
+struct MealSplit: Codable, Equatable {
+    var breakfast: Int
+    var lunch: Int
+    var dinner: Int
+    var snack: Int
+
+    static let balanced = MealSplit(breakfast: 25, lunch: 35, dinner: 30, snack: 10)
+    static let presets: [(name: String, split: MealSplit)] = [
+        ("Balanced", .balanced),
+        ("Big breakfast", MealSplit(breakfast: 35, lunch: 30, dinner: 25, snack: 10)),
+        ("Light dinner", MealSplit(breakfast: 25, lunch: 40, dinner: 25, snack: 10)),
+        ("No snacks", MealSplit(breakfast: 30, lunch: 40, dinner: 30, snack: 0)),
+        ("Big dinner", MealSplit(breakfast: 20, lunch: 30, dinner: 40, snack: 10)),
+    ]
+
+    var total: Int { breakfast + lunch + dinner + snack }
+    var isValid: Bool { total == 100 && [breakfast, lunch, dinner].allSatisfy { $0 >= 5 } && snack >= 0 }
+
+    /// Calories per meal for a day's target; the snack takes what's left so the day adds up.
+    func targets(for kcal: Int) -> (breakfast: Int, lunch: Int, dinner: Int, snack: Int) {
+        let s = isValid ? self : .balanced
+        let b = kcal * s.breakfast / 100, l = kcal * s.lunch / 100
+        let d = s.snack == 0 ? kcal - b - l : kcal * s.dinner / 100
+        return (b, l, d, kcal - b - l - d)
+    }
+
+    static let storageKey = "mealSplit_v1"
+    @MainActor static var current: MealSplit {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: storageKey),
+                  let split = try? JSONDecoder().decode(MealSplit.self, from: data), split.isValid else { return .balanced }
+            return split
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data, forKey: storageKey) }
+            NotificationCenter.default.post(name: .cartDidChange, object: nil)   // rebuild the plan
+        }
+    }
 }
 
 // MARK: - Nutritional gaps (computed locally, passed to shopping advice)

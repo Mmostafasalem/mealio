@@ -12,8 +12,7 @@ struct WeeklyGroceryCard: View {
     private var plan: GroceryPlan {
         let favourites = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
         return WeeklyGroceryPlanner.plan(budget: cart.weeklyBudget, cart: cart.cartItems, favourites: favourites,
-                                         mealPlan: AppState.shared.weeklyMealPlan, preferences: .load(),
-                                         excluded: removed) { cart.effectivePrice(for: $0, store: .catalog) }
+                                         preferences: .load(), excluded: removed) { cart.effectivePrice(for: $0, store: .catalog) }
     }
 
     var body: some View {
@@ -32,7 +31,9 @@ struct WeeklyGroceryCard: View {
                                         : "Nothing left to suggest within the budget. Raise the budget or clear some suggestions.")
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
             } else {
-                Text("Built from your meal plan, favourites and a balanced week, within what's left of your budget.")
+                Text(plan.tight
+                     ? "Your budget is tight, so the basics for a balanced week come first, then your foods (two of a kind at most)."
+                     : "The foods you picked, plus what a balanced week still needs, within what's left of your budget. Your meal plan is made from what you buy.")
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                 VStack(spacing: 0) {
                     ForEach(plan.lines) { line in

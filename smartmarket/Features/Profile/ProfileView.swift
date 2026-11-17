@@ -149,11 +149,15 @@ struct ProfileView: View {
                 ForEach(WeeklyReset.dayNames, id: \.day) { Text($0.name).tag($0.day) }
             }
             .accessibilityIdentifier("profile.weekStart")
+            NavigationLink { MealSplitView() } label: {
+                LabeledContent("Daily calorie split", value: MealSplit.presets.first { $0.split == MealSplit.current }?.name ?? "Your own")
+            }
+            .accessibilityIdentifier("profile.mealSplit")
             Toggle("Ask to empty cart and stock each week", isOn: $weeklyResetAsk)
                 .toggleStyle(.spring)
                 .accessibilityIdentifier("profile.weeklyReset")
         } header: {
-            Text("Your week")
+            Text("Your week and meals")
         } footer: {
             Text("Your weekly budget and \"this week\" in Train follow this day. When a new week starts, Nourlo asks whether to start fresh; nothing is cleared without your yes, and your food log always stays.")
         }

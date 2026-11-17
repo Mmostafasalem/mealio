@@ -105,6 +105,14 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         MotionSettings.prepare()
+        // UI tests only: start with an empty cart, stock and plan (a launch argument
+        // can't do this itself, because it would hide everything the app saves later).
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-NourloUITesting"), args.contains("-NourloEmptyKitchen") {
+            for key in ["shoppingCart_v1", "nourloStock_v1", "cartStockLinks_v1", Constants.Storage.currentMealPlan] {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
         // Native navigation titles follow the same adaptive palette as content.
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]

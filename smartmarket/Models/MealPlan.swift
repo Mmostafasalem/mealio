@@ -13,13 +13,15 @@ struct MealEntry: Codable, Identifiable {
     let notes: String?          // e.g. "grilled", "steamed"
     var nutritionIngredients: [NutritionIngredient]? = nil
     var stockOperationID: String? = nil
+    /// Foods in this meal that aren't in the cart or My Stock yet.
+    var missing: [String]? = nil
 
     /// Protein/carbs/fat are only known when the entry has ingredient
     /// portions. Otherwise the stored 0 g values mean "not available".
     var macrosAvailable: Bool { nutritionIngredients?.isEmpty == false }
 
     enum CodingKeys: String, CodingKey {
-        case id, calories, notes, nutritionIngredients, stockOperationID
+        case id, calories, notes, nutritionIngredients, stockOperationID, missing
         case foodName  = "food_name"
         case portionG  = "portion_g"
         case proteinG  = "protein_g"
@@ -146,7 +148,7 @@ extension MealPlan {
                           carbsG: totals?.reduce(0) { $0 + $1.carbs } ?? 0,
                           fatG: totals?.reduce(0) { $0 + $1.fat } ?? 0,
                           notes: ingredients?.map { "\($0.food.name) · \($0.amount.formatted()) \($0.food.basis.rawValue)" }.joined(separator: ", ") ?? item.ingredientai.joined(separator: ", "),
-                          nutritionIngredients: ingredients)]
+                          nutritionIngredients: ingredients, missing: item.missing)]
     }
 
     static func from(day: DayPlan, date: Date, notes: String) -> MealPlan {

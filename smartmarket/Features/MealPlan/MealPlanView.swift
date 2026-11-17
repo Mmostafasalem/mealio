@@ -37,6 +37,8 @@ struct MealPlanView: View {
                     .foregroundStyle(Color.labelSecondary)
                     .transition(.opacity)
                 }
+                MissingFoodsBanner()
+                    .padding(.horizontal, Spacing.lg)
                 switch vm.selectedTab {
                 case .today: todayContent
                 case .week:  weekContent
@@ -267,6 +269,12 @@ private struct MealEntryRow: View {
                 Text(subtitle)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let missing = entry.missing, !missing.isEmpty {
+                    Label("Not in your stock: \(missing.joined(separator: ", "))", systemImage: "cart.badge.plus")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.brandAmber)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             // The title rides up a little as the card opens.
             .offset(y: -2 * q)
@@ -724,4 +732,57 @@ private struct WeekDayCard: View {
 
 #Preview {
     NavigationStack { MealPlanView() }
+}
+
+/// Shown when the plan uses foods that aren't in the cart or My Stock: what they
+/// are, and one tap to add them (the cart fills My Stock, and the plan is rebuilt).
+private struct MissingFoodsBanner: View {
+    @State private var appState = AppState.shared
+    @State private var added = 0
+
+    private var missing: [(id: String, name: String)] {
+        guard let plan = appState.weeklyMealPlan else { return [] }
+        var seen = Set<String>(), out: [(String, String)] = []
+        for day in plan.allDays.map(\.plan) {
+            for meal in [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].compactMap({ $0 }) {
+                for (i, id) in (meal.missingCatalogIds ?? []).enumerated() where seen.insert(id).inserted {
+                    out.append((id, meal.missing?.indices.contains(i) == true ? meal.missing![i] : id))
+                }
+            }
+        }
+        return out
+    }
+
+    var body: some View {
+        let missing = missing
+        if !missing.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Label("Some meals use food you don't have yet", systemImage: "cart.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                Text("Not in your cart or stock: \(missing.map(\.name).joined(separator: ", ")). Add them so the plan is made from your own kitchen.")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    for m in missing {
+                        if let item = CatalogItem.all.first(where: { $0.id == m.id }) { ShoppingCartService.shared.add(item, store: .catalog) }
+                    }
+                    AgentLoop.rebuildPlanNow()
+                    added &+= 1
+                } label: {
+                    Label("Add \(missing.count) to cart and stock", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, Spacing.lg).frame(minHeight: 40)
+                        .background(Color.dullPink, in: Capsule())
+                        .foregroundStyle(Color.onAccent)
+                }
+                .buttonStyle(ScalePressStyle())
+                .accessibilityIdentifier("meals.addMissing")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Spacing.lg)
+            .premiumCard(radius: Radius.tile)
+            .sensoryFeedback(.success, trigger: added)
+            .accessibilityElement(children: .contain)
+        }
+    }
 }

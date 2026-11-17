@@ -9,6 +9,7 @@ final class DietaryFallbackTests: XCTestCase {
     private let domain = Bundle.main.bundleIdentifier ?? "com.mostafa.mealio"
 
     override func setUp() {
+        StockStore.shared.clearItems()   // the plan reads My Stock; start each test with an empty shelf
         super.setUp()
         savedDomain = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
         // No cart or grocery rows: exercise the generic menu or the pantry path.

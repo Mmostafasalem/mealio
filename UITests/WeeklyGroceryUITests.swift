@@ -7,7 +7,7 @@ final class WeeklyGroceryUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-NourloUITesting", "YES", "-shoppingCart_v1", "", "-weeklyBudget", "40"]
+                               "-NourloUITesting", "YES", "-NourloEmptyKitchen", "-weeklyBudget", "40"]
         app.launch()
         app.tabBars.buttons["Shop"].tap()
         let addAll = app.buttons["shop.weeklyPlan.addAll"]
