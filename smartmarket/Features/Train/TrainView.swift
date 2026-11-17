@@ -52,6 +52,8 @@ struct TrainView: View {
     @FocusState private var wishesFocused: Bool
     @State private var showLibrary = false
     @State private var guide: ExerciseGuide?
+    @State private var building = false
+    @State private var editingWorkout: Workout?
 
     var body: some View {
         NavigationStack {
@@ -59,7 +61,7 @@ struct TrainView: View {
                 VStack(spacing: Spacing.xl) {
                     weekCard
                     builderCard
-                    if !store.saved.isEmpty { savedSection }
+                    savedSection
                     exerciseBrowser
                     NavigationLink { TrainingProgressView() } label: {
                         TrainLinkRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
@@ -85,6 +87,8 @@ struct TrainView: View {
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(isPresented: $showLibrary) { ExerciseLibraryView() }
             .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
+            .sheet(isPresented: $building) { WorkoutBuilderView() }
+            .sheet(item: $editingWorkout) { WorkoutBuilderView(editing: $0) }
             .navigationDestination(item: $vm.generated) { workout in
                 WorkoutDetailView(workout: workout, localReason: vm.localReason)
             }
@@ -238,13 +242,25 @@ struct TrainView: View {
 
     private var savedSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Saved workouts").font(.sectionTitle)
+            Text("My workouts").font(.sectionTitle)
+            Button { building = true } label: {
+                TrainLinkRow(symbol: "plus.square.on.square", title: "Create your own workout",
+                             detail: "Pick exercises from the library or add your own")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("train.createWorkout")
             ForEach(store.saved) { workout in
                 NavigationLink { WorkoutDetailView(workout: workout, localReason: nil) } label: {
-                    TrainLinkRow(symbol: workout.kind.symbol, title: workout.title,
-                                 detail: "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · \(workout.level.title)")
+                    TrainLinkRow(symbol: workout.source == "custom" ? "person.crop.circle.fill" : workout.kind.symbol, title: workout.title,
+                                 detail: workout.source == "custom"
+                                    ? "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · built by you"
+                                    : "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · \(workout.level.title)")
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button { editingWorkout = workout } label: { Label("Edit", systemImage: "pencil") }
+                    Button(role: .destructive) { store.remove(workout) } label: { Label("Delete", systemImage: "trash") }
+                }
             }
         }
     }

@@ -59,4 +59,48 @@ final class WorkoutModeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Every time"].waitForExistence(timeout: 5))
         shot("exercise-progress")
     }
+
+    func testBuildingOwnWorkoutWithANewExercise() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloUITesting", "YES", "-workoutModeDraft_v1", "", "-savedWorkouts_v1", "", "-customExercises_v1", ""]
+        app.launch()
+        app.tabBars.buttons["Train"].tap()
+        let create = app.buttons["train.createWorkout"]
+        for _ in 0..<8 where !create.isHittable { app.swipeUp() }
+        create.tap()
+        let title = app.textFields["builder.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap(); title.typeText("Push day")
+        app.buttons["builder.addExercise"].tap()
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 5))
+        search.tap(); search.typeText("Bench press\n")
+        let bench = app.buttons["picker.exercise.Bench press"]
+        XCTAssertTrue(bench.waitForExistence(timeout: 5))
+        bench.tap()
+        shot("exercise-picker")
+        app.buttons["picker.newExercise"].tap()
+        let name = app.textFields["newExercise.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap(); name.typeText("Landmine press")
+        app.buttons["newExercise.create"].tap()
+        let add = app.buttons["picker.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+
+        XCTAssertTrue(app.staticTexts["Landmine press"].waitForExistence(timeout: 5))
+        shot("workout-builder")
+        app.buttons["builder.save"].tap()
+        let mine = app.buttons.containing(NSPredicate(format: "label CONTAINS 'Push day'")).firstMatch
+        XCTAssertTrue(mine.waitForExistence(timeout: 5))
+        mine.tap()
+        let start = app.buttons["workout.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        start.tap()
+        XCTAssertTrue(app.buttons["workoutMode.completeSet"].waitForExistence(timeout: 10))
+        shot("custom-workout-mode")
+    }
 }

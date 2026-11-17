@@ -247,6 +247,12 @@ final class WorkoutStore {
         persist()
     }
 
+    /// Replaces a saved workout with its edited version (kept in the same place).
+    func update(_ workout: Workout) {
+        if let i = saved.firstIndex(where: { $0.id == workout.id }) { saved[i] = workout } else { saved.insert(workout, at: 0) }
+        persist()
+    }
+
     func remove(_ workout: Workout) {
         saved.removeAll { $0.id == workout.id }
         persist()

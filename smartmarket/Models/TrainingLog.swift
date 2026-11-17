@@ -21,6 +21,8 @@ enum ExerciseTracking: String, Codable, CaseIterable {
 
     /// A good guess from the step and the catalogue: timed steps are timed, kit with a weight is weighed.
     static func guess(for step: WorkoutExercise) -> ExerciseTracking {
+        if let chosen = step.tracking { return chosen }
+        if let custom = CustomExerciseStore.shared.exercise(named: step.name) { return custom.tracking }
         let reps = step.reps.lowercased()
         if step.minutes > 0 || reps.contains("sec") || reps.contains("min") { return .time }
         let equipment = (Exercise.closestMatch(name: step.name)?.equipment ?? "").lowercased()

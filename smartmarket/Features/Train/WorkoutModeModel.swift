@@ -66,7 +66,7 @@ final class WorkoutModeModel {
         let sets = (0..<count).map { i -> LoggedSet in
             let previous = last.indices.contains(i) ? last[i] : last.last
             switch tracking {
-            case .weightReps: return LoggedSet(weightKg: previous?.weightKg ?? 0, reps: previous?.reps ?? targetReps)
+            case .weightReps: return LoggedSet(weightKg: previous?.weightKg ?? step.weightKg ?? 0, reps: previous?.reps ?? targetReps)
             case .reps:       return LoggedSet(reps: previous?.reps ?? targetReps)
             case .time:       return LoggedSet(seconds: targetSeconds)
             }

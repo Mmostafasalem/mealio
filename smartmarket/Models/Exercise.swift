@@ -520,6 +520,10 @@ struct WorkoutExercise: Codable, Hashable, Identifiable {
     let minutes: Int
     let restSeconds: Int
     let note: String
+    /// How it's measured when the person chose it (workouts they build); nil to guess.
+    var tracking: ExerciseTracking? = nil
+    /// The weight to start from in a workout someone built, in kg.
+    var weightKg: Double? = nil
 
     /// "3 × 10", "12 min", or "3 × 30 sec".
     var prescription: String {
