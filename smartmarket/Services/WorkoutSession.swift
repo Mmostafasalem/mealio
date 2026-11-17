@@ -92,6 +92,15 @@ final class WorkoutSession {
         pushActivity(s)
     }
 
+    /// Shows `index` as the current exercise (workout mode moves forwards and back).
+    func syncStep(to index: Int) {
+        guard var s = state, !s.isFinished, s.steps.indices.contains(index), s.index != index else { return }
+        s.index = index
+        state = s
+        persist()
+        pushActivity(s)
+    }
+
     /// Finishes and logs the workout (once per day), and ends the Live Activity.
     func finish(now: Date = Date()) {
         guard var s = state, s.finish(at: now) else { return }

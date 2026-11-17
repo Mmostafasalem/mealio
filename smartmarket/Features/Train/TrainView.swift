@@ -155,6 +155,10 @@ struct TrainView: View {
                 }
                 .animation(.snappyValue, value: vm.minutes)
                 .accessibilityHidden(true)
+                TypeNumberButton(title: "Workout length", unit: "minutes", current: "\(Int(vm.minutes))",
+                                 hint: "From 10 to 90 minutes.", keyboard: .numberPad, identifier: "train.minutes.type") { text in
+                    if let m = TypedNumber.parse(text) { vm.minutes = TypedNumber.fitted(m, range: 10...90, step: 5) }
+                }
                 RulerPicker(value: $vm.minutes, range: 10...90, step: 5, majorEvery: 2, midEvery: 1, spacing: 22,
                             accessibilityName: "Duration", spokenValue: { "\(Int($0)) minutes" })
                     .frame(height: 96)

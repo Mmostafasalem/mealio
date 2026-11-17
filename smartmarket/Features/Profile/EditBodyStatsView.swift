@@ -64,12 +64,29 @@ struct EditBodyStatsView: View {
                 StatRuler(label: "Weight", symbol: "scalemass.fill", valueText: WeightRuler.text(weight, weightUnit)) {
                     UnitToggle(selection: $weightUnit, options: WeightUnit.allCases, label: \.label,
                                accessibilityName: "Weight unit")
+                    TypeNumberButton(title: "Your weight", unit: weightUnit.suffix, current: WeightRuler.number(weight, weightUnit),
+                                     identifier: "profile.weight.type") { text in
+                        guard let number = TypedNumber.parse(text) else { return }
+                        weight = weightUnit == .kg ? TypedNumber.fitted(number, range: WeightRuler.defaultRange, step: 0.5)
+                                                   : WeightRuler.kilograms(fromPounds: number.rounded())
+                    }
                 } ruler: {
                     WeightRuler(kilograms: $weight, unit: weightUnit)
                 }
                 StatRuler(label: "Height", symbol: "ruler.fill", valueText: HeightRuler.text(height, heightUnit)) {
                     UnitToggle(selection: $heightUnit, options: HeightUnit.allCases, label: \.label,
                                accessibilityName: "Height unit")
+                    TypeNumberButton(title: "Your height", unit: heightUnit == .cm ? "cm" : "feet and inches",
+                                     current: heightUnit == .cm ? String(format: "%.0f", height) : HeightRuler.text(height, .ft),
+                                     hint: heightUnit == .cm ? "Enter your height in centimetres." : "For example 5'11.",
+                                     keyboard: heightUnit == .cm ? .numberPad : .numbersAndPunctuation,
+                                     identifier: "profile.height.type") { text in
+                        if heightUnit == .cm, let cm = TypedNumber.parse(text) {
+                            height = TypedNumber.fitted(cm, range: HeightRuler.defaultRange, step: 1)
+                        } else if heightUnit == .ft, let inches = TypedNumber.inches(text) {
+                            height = HeightRuler.centimetres(fromInches: inches)
+                        }
+                    }
                 } ruler: {
                     HeightRuler(centimetres: $height, unit: heightUnit)
                 }
@@ -215,7 +232,7 @@ private struct StatRuler<Toggle: View, Ruler: View>: View {
                 Image(systemName: symbol).foregroundStyle(Color.brandPrimary).frame(width: 22)
                 Text(label)
                 Spacer()
-                toggle().scaleEffect(0.85, anchor: .trailing)
+                HStack(spacing: Spacing.xs) { toggle() }.scaleEffect(0.85, anchor: .trailing)
             }
             Text(valueText)
                 .font(.system(.title, design: .rounded).weight(.semibold))

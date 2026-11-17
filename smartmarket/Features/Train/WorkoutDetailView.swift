@@ -11,6 +11,7 @@ struct WorkoutDetailView: View {
     @State private var session = WorkoutSession.shared
     @State private var markedDone = false
     @State private var guide: ExerciseGuide?
+    @State private var mode: WorkoutModeModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var weight: Double { AppState.shared.userProfile.weight }
@@ -133,6 +134,11 @@ struct WorkoutDetailView: View {
             }
         }
         .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
+        .fullScreenCover(isPresented: Binding(get: { mode != nil }, set: { if !$0 { mode = nil } })) {
+            if let mode {
+                WorkoutModeView(model: mode) { self.mode = nil; markedDone = store.isCompletedToday(workout) }
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             Group {
                 if let state = runningState {
@@ -168,7 +174,9 @@ struct WorkoutDetailView: View {
         } else {
             VStack(spacing: Spacing.xs) {
                 PrimaryButton(title: "Start workout", systemImage: "play.fill") {
-                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.start(workout) }
+                    UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
+                    session.start(workout)
+                    mode = WorkoutModeModel(workout: workout)
                 }
                 .accessibilityHint("Steps through the exercises one at a time")
                 .accessibilityIdentifier("workout.start")
@@ -223,20 +231,11 @@ struct WorkoutDetailView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("workout.session.current")
             }
-            HStack(spacing: Spacing.sm) {
-                if state.canAdvance {
-                    SecondaryButton(title: "Next", systemImage: "forward.fill") {
-                        withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.next() }
-                    }
-                    .accessibilityHint("Moves on to the next exercise")
-                    .accessibilityIdentifier("workout.session.next")
-                }
-                PrimaryButton(title: "Finish", systemImage: "checkmark") {
-                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.finish() }
-                }
-                .accessibilityHint("Logs this workout as done")
-                .accessibilityIdentifier("workout.session.finish")
+            PrimaryButton(title: "Continue workout", systemImage: "play.fill") {
+                mode = WorkoutModeModel(workout: workout)
             }
+            .accessibilityHint("Opens workout mode where you left off")
+            .accessibilityIdentifier("workout.session.continue")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Workout in progress")

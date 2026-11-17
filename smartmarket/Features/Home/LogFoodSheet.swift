@@ -594,6 +594,13 @@ struct ServingDetailView: View {
                                 .padding(.horizontal, 12).padding(.vertical, 6)
                                 .background(Color.surfaceElevated, in: Capsule())
                         }
+                        Spacer(minLength: 0)
+                        TypeNumberButton(title: "Amount", unit: food.basis.rawValue,
+                                         current: formatAmount(grams), identifier: "logFood.amount.type") { text in
+                            if let n = TypedNumber.parse(text) {
+                                grams = TypedNumber.fitted(n, range: food.minimumAmount...food.maximumAmount, step: amountStep)
+                            }
+                        }
                     }
                 }
                 .padding(16)

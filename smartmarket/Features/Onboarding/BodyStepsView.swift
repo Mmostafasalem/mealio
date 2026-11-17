@@ -39,7 +39,28 @@ struct NameStepView: View {
                                            label: \.displayName, accessibilityName: "Gender")
                 }
                 ageStepper
+                // The number pad has no return key and the keyboard bar doesn't always show,
+                // so a plain button closes it (the Next button sits under the keyboard).
+                if focusedField != nil {
+                    HStack {
+                        Spacer()
+                        Button { focusedField = nil } label: {
+                            Text("Done")
+                                .font(.headline)
+                                .foregroundStyle(Color.onAccent)
+                                .padding(.horizontal, Spacing.xl)
+                                .frame(minHeight: 48)
+                                .background(Color.dullPink, in: Capsule())
+                        }
+                        .buttonStyle(ScalePressStyle())
+                        .accessibilityIdentifier("onboarding.closeKeyboard")
+                    }
+                    .transition(.opacity)
+                }
             }
+            .animation(.smoothCard, value: focusedField == nil)
+            // Tapping anywhere outside a field closes the keyboard too.
+            .background(Color.clear.contentShape(Rectangle()).onTapGesture { focusedField = nil })
         } footer: {
             OnboardingNextButton(vm: vm, next: .height, identifier: "onboarding.name.continue")
                 .disabled(typedAge == nil)
@@ -185,8 +206,21 @@ struct HeightStepView: View {
     var body: some View {
         OnboardingScaffold(vm: vm, step: .height, title: "What's your height?", contentPadding: 0) {
             VStack(spacing: Spacing.md) {
-                UnitToggle(selection: $unit, options: HeightUnit.allCases, label: \.label,
-                           accessibilityName: "Height unit")
+                HStack(spacing: Spacing.sm) {
+                    UnitToggle(selection: $unit, options: HeightUnit.allCases, label: \.label,
+                               accessibilityName: "Height unit")
+                    TypeNumberButton(title: "Your height", unit: unit == .cm ? "cm" : "feet and inches",
+                                     current: unit == .cm ? String(format: "%.0f", vm.height) : HeightRuler.text(vm.height, .ft),
+                                     hint: unit == .cm ? "Enter your height in centimetres." : "For example 5'11.",
+                                     keyboard: unit == .cm ? .numberPad : .numbersAndPunctuation,
+                                     identifier: "onboarding.height.type") { text in
+                        if unit == .cm, let cm = TypedNumber.parse(text) {
+                            vm.height = TypedNumber.fitted(cm, range: range, step: 1)
+                        } else if unit == .ft, let inches = TypedNumber.inches(text) {
+                            vm.height = HeightRuler.centimetres(fromInches: inches, range: range)
+                        }
+                    }
+                }
                 HeightScene(growth: growth, height: $vm.height, unit: unit, range: range, pose: mascot.pose)
             }
         } footer: {
@@ -301,8 +335,16 @@ struct WeightStepView: View {
     var body: some View {
         OnboardingScaffold(vm: vm, step: .weight, title: "What's your current weight?", contentPadding: 0) {
             VStack(spacing: Spacing.sm) {
-                UnitToggle(selection: $unit, options: WeightUnit.allCases, label: \.label,
-                           accessibilityName: "Weight unit")
+                HStack(spacing: Spacing.sm) {
+                    UnitToggle(selection: $unit, options: WeightUnit.allCases, label: \.label,
+                               accessibilityName: "Weight unit")
+                    TypeNumberButton(title: "Your weight", unit: unit.suffix, current: WeightRuler.number(vm.weight, unit),
+                                     identifier: "onboarding.weight.type") { text in
+                        guard let number = TypedNumber.parse(text) else { return }
+                        vm.weight = unit == .kg ? TypedNumber.fitted(number, range: WeightRuler.defaultRange, step: 0.5)
+                                                : WeightRuler.kilograms(fromPounds: number.rounded())
+                    }
+                }
                 Spacer()
                 OnboardingReadout(number: WeightRuler.number(vm.weight, unit), unit: unit.suffix)
                 WeightRuler(kilograms: $vm.weight, unit: unit)

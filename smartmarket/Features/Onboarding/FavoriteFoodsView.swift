@@ -190,16 +190,11 @@ private struct FoodChip: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 6) {
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption.weight(.bold))
-                        .transition(.scale.combined(with: .opacity))
-                }
-                Text(item.name)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-            }
+            // No tick: picking a food only changes its colour, so the chip keeps its
+            // width and nothing jumps to another row.
+            Text(item.name)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
             .padding(.horizontal, 14)
             .frame(minHeight: 44)
             .background(isSelected ? Color.dullPink : Color.surfaceSecondary, in: Capsule())

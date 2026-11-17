@@ -278,6 +278,8 @@ final class ShoppingCartService {
             ))
         }
         save()
+        // What goes in the cart is in the kitchen too: no second step to add it to My Stock.
+        CartStockLink.added(item)
     }
 
     func remove(_ catalogId: String, store: String) {
@@ -287,6 +289,7 @@ final class ShoppingCartService {
             } else {
                 cartItems.remove(at: idx)
             }
+            CartStockLink.removed(catalogId)
         }
         save()
     }
@@ -418,7 +421,9 @@ final class ShoppingCartService {
     /// Removes an entire cart line (all quantities) — used when the Groceries tab
     /// deletes a cart-sourced row, so the deletion round-trips back to the cart.
     func removeLine(catalogId: String, store: String) {
+        let units = cartItems.filter { $0.catalogId == catalogId && $0.store == store }.reduce(0) { $0 + $1.quantity }
         cartItems.removeAll { $0.catalogId == catalogId && $0.store == store }
+        if units > 0 { CartStockLink.removed(catalogId, units: units) }
         save()
     }
 
