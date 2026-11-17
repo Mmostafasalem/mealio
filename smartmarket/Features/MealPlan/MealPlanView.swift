@@ -97,6 +97,11 @@ struct MealPlanView: View {
                 RegenerateButton(isGenerating: vm.isGenerating) {
                     Task { await vm.regenerate() }
                 }
+                if let notice = vm.notice {
+                    Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("meals.regenerateNotice")
+                }
 
                 Text("Calorie & macro values are estimates and may vary by product and preparation.")
                     .font(.caption2)
@@ -145,6 +150,10 @@ struct MealPlanView: View {
                 // One request writes all seven days.
                 RegenerateButton(isGenerating: vm.isGenerating, idleTitle: "Regenerate week") {
                     Task { await vm.regenerate() }
+                }
+                if let notice = vm.notice {
+                    Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
                 }
             }
             .padding(.horizontal, Spacing.lg)

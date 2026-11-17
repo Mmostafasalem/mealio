@@ -17,6 +17,8 @@ final class MealPlanViewModel {
     var weekPlans: [MealPlan] = []
     var isGenerating = false
     var errorMessage: String?
+    /// Said under the button when another plan can't differ (one food for each part of the plate).
+    var notice: String?
     var recommendations: [ShoppingRecommendation] = []
     var profile: UserProfile = .load()
     var groceryList: [GroceryItem] = GroceryStorage.load()
@@ -40,9 +42,25 @@ final class MealPlanViewModel {
     func regenerate() async {
         guard !isGenerating else { return }
         errorMessage = nil
+        notice = nil
+        let before = Self.fingerprint(AppState.shared.weeklyMealPlan)
+        // The next pairing of the same foods: a new plan even when the kitchen hasn't changed.
+        let key = FallbackData.variationKey
+        UserDefaults.standard.set(UserDefaults.standard.integer(forKey: key) &+ 1, forKey: key)
         // Preserve the saved plan until its replacement is ready.
         await fetchTodaysPlan()
+        if errorMessage == nil, before != nil, Self.fingerprint(AppState.shared.weeklyMealPlan) == before {
+            notice = "Same plan: there's one food for each part of the plate. Add more foods to your cart or stock for variety."
+        }
         if selectedTab == .week { await loadWeekPlans() }
+    }
+
+    /// The meals of a plan, without its message, to tell whether a new one differs.
+    static func fingerprint(_ plan: WeeklyMealPlan?) -> Data? {
+        guard let plan else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return try? encoder.encode(plan.allDays.map(\.plan))
     }
 
     static let offlinePlanNotice = "Couldn't reach the planner. Showing an offline plan."

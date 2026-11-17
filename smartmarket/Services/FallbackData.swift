@@ -80,9 +80,16 @@ enum FallbackData {
         StockFood(name: name, category: category, kcal100: kcal, owned: false, catalogId: id)
     }
 
+    /// How many times the person asked for another plan. Each step pairs the foods
+    /// differently (a protein with another carb, other vegetables), so "Regenerate"
+    /// changes the plan even when the cart and stock haven't. Rebuilds keep it.
+    static let variationKey = "mealPlanVariation_v1"
+
     static func mealPlan(targetKcal: Int, pantry: [Deal] = [],
-                         preferences: Set<DietaryPreference> = .load(), split: MealSplit? = nil) -> WeeklyMealPlan {
+                         preferences: Set<DietaryPreference> = .load(), split: MealSplit? = nil,
+                         variation: Int? = nil) -> WeeklyMealPlan {
         let split = split ?? .current
+        let s = max(0, variation ?? UserDefaults.standard.integer(forKey: variationKey))
         let kcal = max(targetKcal, 1200)
         let stock = ownedFoods(pantry: pantry).filter { $0.isAllowed(by: preferences) }
 
@@ -141,15 +148,15 @@ enum FallbackData {
         let t = split.targets(for: kcal)
         func day(_ i: Int) -> DayPlan {
             let breakfast = compose([
-                at(grainPool, i).map { ($0, 60, 100, "1 bowl") },
-                at(fruitPool, i).map { ($0, 120, 160, "1 piece") },
-                at(dairyPool, i).map { ($0, 150, 250, "½ cup") },
+                at(grainPool, i + s).map { ($0, 60, 100, "1 bowl") },
+                at(fruitPool, i + 2 * s).map { ($0, 120, 160, "1 piece") },
+                at(dairyPool, i + 3 * s).map { ($0, 150, 250, "½ cup") },
             ], target: t.breakfast)
             func plate(_ offset: Int, carbBase: Int, carbMax: Int, target: Int) -> MealItem? {
-                let v = at(vegPool, i + offset)
+                let v = at(vegPool, i + offset + 3 * s)
                 return compose([
-                    at(proteinPool, i + offset).map { ($0, 170, 250, "½ plate") },
-                    at(carbPool, i + offset).map { ($0, carbBase, carbMax, "¼ plate") },
+                    at(proteinPool, i + offset + s).map { ($0, 170, 250, "½ plate") },
+                    at(carbPool, i + offset + 2 * s).map { ($0, carbBase, carbMax, "¼ plate") },
                     v.map { ($0, 120, 200, "¼ plate") },
                 ], target: target) { foods in
                     guard let first = foods.first else { return "Vegetables" }
@@ -160,8 +167,8 @@ enum FallbackData {
             let lunch = plate(0, carbBase: 150, carbMax: 250, target: t.lunch)
             let dinner = plate(1, carbBase: 130, carbMax: 220, target: t.dinner)
             let snack = compose([
-                at(fruitPool, i + 1).map { ($0, 120, 160, "1 piece") },
-                at(nutPool, i).map { ($0, 25, 40, "1 handful") },
+                at(fruitPool, i + 1 + 2 * s).map { ($0, 120, 160, "1 piece") },
+                at(nutPool, i + s).map { ($0, 25, 40, "1 handful") },
             ], target: t.snack)
             let total = [breakfast, lunch, dinner, snack].compactMap { $0?.kcal }.reduce(0, +)
             return DayPlan(pusryciai: breakfast, pietus: lunch, vakariene: dinner, uzkandziai: snack, visoKcal: total)

@@ -46,6 +46,25 @@ final class MealPlanRulesTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "shoppingCart_v1")
     }
 
+    func testAnotherPlanPairsTheSameFoodsDifferently() throws {
+        let cart = [
+            CartItem(id: UUID(), catalogId: "salmon-fillet", name: "Salmon Fillet", store: "Catalogue", price: 6, category: "seafood", quantity: 1),
+            CartItem(id: UUID(), catalogId: "chicken-breast", name: "Chicken Breast", store: "Catalogue", price: 5, category: "meat", quantity: 1),
+            CartItem(id: UUID(), catalogId: "brown-rice", name: "Brown Rice", store: "Catalogue", price: 2, category: "grains", quantity: 1),
+            CartItem(id: UUID(), catalogId: "spaghetti", name: "Spaghetti", store: "Catalogue", price: 1, category: "grains", quantity: 1),
+            CartItem(id: UUID(), catalogId: "broccoli", name: "Broccoli", store: "Catalogue", price: 2, category: "vegetables", quantity: 1),
+        ]
+        UserDefaults.standard.set(try JSONEncoder().encode(cart), forKey: "shoppingCart_v1")
+        defer { UserDefaults.standard.removeObject(forKey: "shoppingCart_v1") }
+        let first = FallbackData.mealPlan(targetKcal: 2000, preferences: [], variation: 0)
+        let next = FallbackData.mealPlan(targetKcal: 2000, preferences: [], variation: 1)
+        XCTAssertNotEqual(MealPlanViewModel.fingerprint(first), MealPlanViewModel.fingerprint(next), "regenerate changes the plan")
+        XCTAssertNotEqual(meals(first)[0][1]?.pavadinimas, meals(next)[0][1]?.pavadinimas, "today's lunch changes")
+        // The same step builds the same plan, so background rebuilds keep the person's choice.
+        XCTAssertEqual(MealPlanViewModel.fingerprint(next),
+                       MealPlanViewModel.fingerprint(FallbackData.mealPlan(targetKcal: 2000, preferences: [], variation: 1)))
+    }
+
     func testSplitsMustAddUpToAHundred() {
         XCTAssertFalse(MealSplit(breakfast: 30, lunch: 30, dinner: 30, snack: 30).isValid)
         XCTAssertTrue(MealSplit.presets.allSatisfy(\.split.isValid))
