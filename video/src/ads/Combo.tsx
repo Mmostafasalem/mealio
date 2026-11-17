@@ -33,7 +33,7 @@ const Layer: React.FC<{ a: number; b: number; children: React.ReactNode }> = ({ 
 };
 
 /** A label that settles in word by word; the pink word sits on a soft highlight. */
-const Title: React.FC<{ text: string; at: number; top: number; size?: number; mark?: string[] }> = ({ text, at, top, size = 92, mark = [] }) => {
+export const Title: React.FC<{ text: string; at: number; top: number; size?: number; mark?: string[] }> = ({ text, at, top, size = 92, mark = [] }) => {
   const t = useT();
   return (
     <div style={{ position: "absolute", top, left: 70, right: 70, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: `${size * 0.04}px ${size * 0.24}px`,
@@ -53,7 +53,7 @@ const Title: React.FC<{ text: string; at: number; top: number; size?: number; ma
   );
 };
 
-const Panel: React.FC<{ top: number; at: number; children: React.ReactNode; style?: React.CSSProperties }> = ({ top, at, children, style }) => {
+export const Panel: React.FC<{ top: number; at: number; children: React.ReactNode; style?: React.CSSProperties }> = ({ top, at, children, style }) => {
   const t = useT();
   const p = rise(t, at, 0.6);
   return (
@@ -64,7 +64,7 @@ const Panel: React.FC<{ top: number; at: number; children: React.ReactNode; styl
 
 // ---------- the beats ----------
 
-const Plan: React.FC<{ a: number }> = ({ a }) => {
+export const Plan: React.FC<{ a: number }> = ({ a }) => {
   const t = useT();
   const days: [string, string, string][] = [["Mon", "🥣", "Overnight oats"], ["Tue", "🍗", "Chicken rice bowl"], ["Wed", "🍳", "Shakshuka"], ["Thu", "🐟", "Salmon & potatoes"]];
   return (
@@ -85,7 +85,7 @@ const Plan: React.FC<{ a: number }> = ({ a }) => {
   );
 };
 
-const Budget: React.FC<{ a: number }> = ({ a }) => {
+export const Budget: React.FC<{ a: number }> = ({ a }) => {
   const t = useT();
   const fill = interpolate(t, [a + 0.3, a + 1.4], [0, 38.6 / 40], { ...clamp, easing: inOut });
   const toast = rise(t, a + 1.3, 0.5);
@@ -108,7 +108,7 @@ const Budget: React.FC<{ a: number }> = ({ a }) => {
   );
 };
 
-const Voice: React.FC<{ a: number }> = ({ a }) => {
+export const Voice: React.FC<{ a: number }> = ({ a }) => {
   const t = useT();
   const words = "Two eggs and a banana".split(" ");
   const said = a + 0.3, wps = 5.5;
@@ -137,7 +137,7 @@ const Voice: React.FC<{ a: number }> = ({ a }) => {
   );
 };
 
-const Scan: React.FC<{ a: number }> = ({ a }) => {
+export const Scan: React.FC<{ a: number }> = ({ a }) => {
   const t = useT();
   const lock = interpolate(t, [a + 0.85, a + 1.05], [0, 1], { ...clamp, easing: ease });
   const bars = "1101001011101100101011011001010011011101001011".split("");
@@ -165,7 +165,7 @@ const Scan: React.FC<{ a: number }> = ({ a }) => {
   );
 };
 
-const Stock: React.FC<{ a: number }> = ({ a }) => {
+export const Stock: React.FC<{ a: number }> = ({ a }) => {
   const t = useT();
   const items = ["🥚", "🍅", "🧀", "🥬", "🧅", "🫑"];
   return (
@@ -185,7 +185,7 @@ const Stock: React.FC<{ a: number }> = ({ a }) => {
   );
 };
 
-const Train: React.FC<{ a: number }> = ({ a }) => {
+export const Train: React.FC<{ a: number }> = ({ a }) => {
   const t = useT();
   const p = interpolate(t, [a + 0.9, a + 2.1], [0, 0.6], { ...clamp, easing: Easing.linear });
   const r = 140, c = 2 * Math.PI * r;

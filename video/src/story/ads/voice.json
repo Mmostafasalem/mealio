@@ -1,0 +1,274 @@
+{
+ "id": "voice",
+ "dur": 17.745,
+ "bpm": 132,
+ "music": {
+  "style": "garage",
+  "bars": [
+   "Bbmaj9",
+   "Am7",
+   "Gm9",
+   "C13",
+   "Bbmaj9",
+   "Am7",
+   "Gm9",
+   "C13",
+   "Fmaj9",
+   "Fmaj9"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 9
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "Just say what you ate",
+   "mark": [
+    "say"
+   ]
+  },
+  {
+   "kind": "voice",
+   "at": 1.818,
+   "cut": "slide",
+   "label": "Nourlo logs it",
+   "mark": [
+    "logs"
+   ]
+  },
+  {
+   "kind": "lines",
+   "at": 5.455,
+   "cut": "rise",
+   "label": "In four languages",
+   "mark": [
+    "four"
+   ],
+   "items": [
+    "English",
+    "Deutsch",
+    "العربية",
+    "Lietuvių"
+   ]
+  },
+  {
+   "kind": "scan",
+   "at": 9.091,
+   "cut": "slide",
+   "label": "Or scan it",
+   "mark": [
+    "scan"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 12.727,
+   "cut": "zoom",
+   "label": "Logging, done in a second",
+   "mark": [
+    "second"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 15.145,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 1.618,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 2.218,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 260
+  },
+  {
+   "t": 5.705,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 5.905,
+   "x": 220,
+   "y": 1470,
+   "size": 440,
+   "move": "jump",
+   "arc": 120
+  },
+  {
+   "t": 5.955,
+   "x": 220,
+   "y": 1470,
+   "size": 440
+  },
+  {
+   "t": 6.155,
+   "x": 430,
+   "y": 1470,
+   "size": 440,
+   "move": "jump",
+   "arc": 120
+  },
+  {
+   "t": 6.205,
+   "x": 430,
+   "y": 1470,
+   "size": 440
+  },
+  {
+   "t": 6.405,
+   "x": 640,
+   "y": 1470,
+   "size": 440,
+   "move": "jump",
+   "arc": 120
+  },
+  {
+   "t": 6.455,
+   "x": 640,
+   "y": 1470,
+   "size": 440
+  },
+  {
+   "t": 6.655,
+   "x": 850,
+   "y": 1470,
+   "size": 440,
+   "move": "jump",
+   "arc": 120
+  },
+  {
+   "t": 8.691,
+   "x": 850,
+   "y": 1470,
+   "size": 440
+  },
+  {
+   "t": 9.691,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "walk"
+  },
+  {
+   "t": 12.527,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 13.227,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood happy"
+  ],
+  [
+   0.6,
+   "tap"
+  ],
+  [
+   2.218,
+   "look -0.6 -0.9"
+  ],
+  [
+   2.218,
+   "mood idle"
+  ],
+  [
+   3.118,
+   "mood happy"
+  ],
+  [
+   3.118,
+   "hop"
+  ],
+  [
+   6.755,
+   "mood love"
+  ],
+  [
+   9.691,
+   "mood cheeky"
+  ],
+  [
+   9.691,
+   "look 0.5 -0.9"
+  ],
+  [
+   10.191,
+   "hop"
+  ],
+  [
+   10.191,
+   "look none"
+  ],
+  [
+   13.227,
+   "mood celebrate"
+  ],
+  [
+   14.745,
+   "mood love"
+  ],
+  [
+   14.745,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   3.118,
+   "success"
+  ],
+  [
+   5.855,
+   "pop"
+  ],
+  [
+   6.105,
+   "pop"
+  ],
+  [
+   6.355,
+   "pop"
+  ],
+  [
+   6.605,
+   "pop"
+  ],
+  [
+   9.941,
+   "beep"
+  ],
+  [
+   10.141,
+   "success"
+  ]
+ ]
+}

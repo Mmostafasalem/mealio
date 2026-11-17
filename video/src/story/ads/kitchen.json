@@ -1,0 +1,257 @@
+{
+ "id": "kitchen",
+ "dur": 19.864,
+ "bpm": 88,
+ "music": {
+  "style": "lofi",
+  "bars": [
+   "Fmaj7",
+   "Em7",
+   "Dm9",
+   "Cmaj7",
+   "Fmaj7",
+   "Em7",
+   "Dm9",
+   "Cmaj7"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 7
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "What's for dinner?",
+   "mark": [
+    "dinner"
+   ]
+  },
+  {
+   "kind": "stock",
+   "at": 2.727,
+   "cut": "slide",
+   "label": "Cook what you have",
+   "mark": [
+    "have"
+   ]
+  },
+  {
+   "kind": "recipe",
+   "at": 8.182,
+   "cut": "rise",
+   "label": "1,500 recipes. No AI.",
+   "mark": [
+    "1500"
+   ]
+  },
+  {
+   "kind": "day",
+   "at": 13.636,
+   "cut": "zoom",
+   "label": "Counted for you",
+   "mark": [
+    "counted"
+   ]
+  },
+  {
+   "kind": "end",
+   "at": 17.264,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 2.627,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 3.227,
+   "x": 220,
+   "y": 800,
+   "size": 380,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 3.627,
+   "x": 220,
+   "y": 800,
+   "size": 380
+  },
+  {
+   "t": 4.127,
+   "x": 540,
+   "y": 800,
+   "size": 380,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 4.527,
+   "x": 540,
+   "y": 800,
+   "size": 380
+  },
+  {
+   "t": 5.027,
+   "x": 860,
+   "y": 800,
+   "size": 380,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 5.655,
+   "x": 860,
+   "y": 800,
+   "size": 380
+  },
+  {
+   "t": 6.355,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 7.882,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 8.582,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 13.436,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 14.136,
+   "x": 540,
+   "y": 1470,
+   "size": 520,
+   "move": "jump",
+   "arc": 260
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood thinking"
+  ],
+  [
+   0,
+   "look -0.6 -0.8"
+  ],
+  [
+   1.2,
+   "look 0.6 -0.8"
+  ],
+  [
+   2.127,
+   "mood happy"
+  ],
+  [
+   2.127,
+   "look none"
+  ],
+  [
+   2.427,
+   "resize 0.8"
+  ],
+  [
+   5.127,
+   "look -0.4 0.6"
+  ],
+  [
+   6.455,
+   "look 0.6 -0.6"
+  ],
+  [
+   6.455,
+   "mood love"
+  ],
+  [
+   8.582,
+   "mood happy"
+  ],
+  [
+   8.582,
+   "look -0.6 -0.5"
+  ],
+  [
+   9.982,
+   "mood celebrate"
+  ],
+  [
+   10.782,
+   "hop"
+  ],
+  [
+   14.136,
+   "mood happy"
+  ],
+  [
+   14.136,
+   "look none"
+  ],
+  [
+   15.236,
+   "resize 0.6"
+  ],
+  [
+   16.964,
+   "mood love"
+  ],
+  [
+   16.964,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   1.8,
+   "pop"
+  ],
+  [
+   3.227,
+   "pop"
+  ],
+  [
+   4.127,
+   "pop"
+  ],
+  [
+   5.027,
+   "pop"
+  ],
+  [
+   6.055,
+   "success"
+  ],
+  [
+   9.732,
+   "tap"
+  ],
+  [
+   9.982,
+   "success"
+  ]
+ ]
+}

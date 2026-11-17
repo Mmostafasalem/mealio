@@ -1,0 +1,204 @@
+{
+ "id": "buddy",
+ "dur": 14.0,
+ "bpm": 120,
+ "music": {
+  "style": "pop",
+  "bars": [
+   "Am7",
+   "F",
+   "C",
+   "G",
+   "Am7",
+   "F",
+   "C"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 6
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "Meet your gym buddy",
+   "mark": [
+    "buddy"
+   ],
+   "titleSize": 124
+  },
+  {
+   "kind": "timer",
+   "at": 3.0,
+   "cut": "slide",
+   "label": "Every rest, timed",
+   "mark": [
+    "timed"
+   ]
+  },
+  {
+   "kind": "workout",
+   "at": 6.0,
+   "cut": "slide",
+   "label": "Every PR, cheered",
+   "mark": [
+    "cheered"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 9.0,
+   "cut": "zoom",
+   "label": "It's a bowl. It lifts.",
+   "mark": [
+    "lifts"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 11.6,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": -400,
+   "size": 520
+  },
+  {
+   "t": 0.7,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 60
+  },
+  {
+   "t": 2.8,
+   "x": 540,
+   "y": 1150,
+   "size": 780
+  },
+  {
+   "t": 3.4,
+   "x": 540,
+   "y": 1580,
+   "size": 440,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 5.8,
+   "x": 540,
+   "y": 1580,
+   "size": 440
+  },
+  {
+   "t": 6.4,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 260
+  },
+  {
+   "t": 7.45,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 7.85,
+   "x": 800,
+   "y": 1300,
+   "size": 440,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 8.8,
+   "x": 800,
+   "y": 1300,
+   "size": 440
+  },
+  {
+   "t": 9.5,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0.75,
+   "mood happy"
+  ],
+  [
+   1.3,
+   "mood flex"
+  ],
+  [
+   2.2,
+   "resize 0.9"
+  ],
+  [
+   3.5,
+   "walk 1.4"
+  ],
+  [
+   5.6,
+   "walk 0"
+  ],
+  [
+   7.75,
+   "mood flex"
+  ],
+  [
+   9.6,
+   "resize 0.9"
+  ],
+  [
+   10.4,
+   "hop"
+  ],
+  [
+   11.3,
+   "mood love"
+  ],
+  [
+   11.3,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   1.3,
+   "sparkle"
+  ],
+  [
+   3.9,
+   "beep"
+  ],
+  [
+   6.55,
+   "tap"
+  ],
+  [
+   6.95,
+   "tap"
+  ],
+  [
+   7.35,
+   "tap"
+  ],
+  [
+   7.75,
+   "sparkle"
+  ]
+ ]
+}

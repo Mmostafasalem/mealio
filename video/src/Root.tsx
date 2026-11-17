@@ -17,6 +17,7 @@ import { Stock, stockLength } from "./ads/Stock";
 import { Moods2, moods2Length } from "./ads/Moods2";
 import { Combo, comboLength } from "./ads/Combo";
 import { fps } from "./theme";
+import { StoryCompositions } from "./story";
 
 // The wordmark's font (SIL Open Font License), loaded before any frame is drawn.
 const WithFont: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -30,6 +31,7 @@ const WithFont: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 export const Root: React.FC = () => (
   <>
+    <StoryCompositions />
     <Composition id="Animated" component={() => <WithFont><Animated /></WithFont>} durationInFrames={animatedLength} fps={fps} width={1080} height={1920} />
     <Composition id="Fun" component={() => <WithFont><Fun /></WithFont>} durationInFrames={funLength} fps={fps} width={1080} height={1920} />
     <Composition id="Footage" component={Footage} durationInFrames={2970} fps={fps} width={603} height={1311} />

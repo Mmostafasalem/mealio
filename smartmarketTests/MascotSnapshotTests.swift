@@ -173,6 +173,103 @@ final class MascotSnapshotTests: XCTestCase {
         rig.stop()
     }
 
+    /// Renders every advert script in /tmp/mealio-run/stories (video/make-stories.sh copies them there)
+    /// into /tmp/mealio-run/clips/<id>/fNNNN.png. A script has `dur`, `path` (where the picture moves the
+    /// mascot: walking keys step its feet, jump keys lift it, stretch it in flight and land it) and `rig`
+    /// cues ("mood flex", "hop", "wave", "look 0.4 -0.9", "look none", "resize 0.7", "walk 1.2", "tap").
+    /// Only one script: TEST_RUNNER_NOURLO_STORY=<id>.
+    func testRenderStories() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["NOURLO_MASCOT_CLIPS"] == "1", "Only for advert footage")
+        let dir = URL(fileURLWithPath: "/tmp/mealio-run/stories", isDirectory: true)
+        let only = ProcessInfo.processInfo.environment["NOURLO_STORY"]
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" && (only == nil || only!.isEmpty || $0.deletingPathExtension().lastPathComponent == only) }
+        XCTAssertFalse(files.isEmpty)
+        for file in files { try renderStory(file) }
+    }
+
+    private struct PathKey { let t: Double; let x: Double; let y: Double; let size: Double; let move: String; let arc: Double }
+
+    /// The picture's mascot position at time t: the same easing as video/src/story/path.ts.
+    private static func place(_ keys: [PathKey], _ t: Double) -> (x: Double, y: Double, size: Double, moving: String?) {
+        guard let first = keys.first else { return (540, 1400, 480, nil) }
+        if t <= first.t { return (first.x, first.y, first.size, nil) }
+        for i in 1..<keys.count where t < keys[i].t {
+            let a = keys[i - 1], b = keys[i]
+            let u = (t - a.t) / max(0.001, b.t - a.t)
+            let e = u * u * (3 - 2 * u)
+            let lift = b.move == "jump" ? -4 * b.arc * u * (1 - u) : 0
+            let still = a.x == b.x && a.y == b.y
+            return (a.x + (b.x - a.x) * e, a.y + (b.y - a.y) * e + lift, a.size + (b.size - a.size) * e, still ? nil : b.move)
+        }
+        let last = keys[keys.count - 1]
+        return (last.x, last.y, last.size, nil)
+    }
+
+    private func renderStory(_ file: URL) throws {
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        let id = file.deletingPathExtension().lastPathComponent
+        let dur = try XCTUnwrap(json["dur"] as? Double)
+        let keys: [PathKey] = ((json["path"] as? [[String: Any]]) ?? []).map {
+            PathKey(t: $0["t"] as? Double ?? 0, x: $0["x"] as? Double ?? 540, y: $0["y"] as? Double ?? 1400,
+                    size: $0["size"] as? Double ?? 480, move: $0["move"] as? String ?? "glide", arc: $0["arc"] as? Double ?? 220)
+        }
+        let cues: [(Double, String)] = ((json["rig"] as? [[Any]]) ?? []).compactMap { c in
+            guard c.count == 2, let t = (c[0] as? NSNumber)?.doubleValue, let cmd = c[1] as? String else { return nil }
+            return (t, cmd)
+        }.sorted { $0.0 < $1.0 }
+
+        let rig = MascotRig()
+        rig.reduceMotion = false
+        rig.set(mood: .idle)
+        rig.setActive(true)
+        rig.stop()
+        rig.simulate(seconds: 0.5)
+        func run(_ cmd: String) {
+            let w = cmd.split(separator: " ").map(String.init)
+            switch w.first {
+            case "mood": if let m = MascotMood(rawValue: w[1]) { rig.set(mood: m) }
+            case "hop": rig.hop()
+            case "wave": rig.wave()
+            case "tap": rig.react(.tap)
+            case "walk": rig.walk(speed: Double(w[1]) ?? 1)
+            case "resize": rig.resize(by: Double(w[1]) ?? 0.5)
+            case "look": rig.look(at: w[1] == "none" ? nil : CGPoint(x: Double(w[1]) ?? 0, y: Double(w[2]) ?? 0))
+            default: XCTFail("unknown cue \(cmd)")
+            }
+        }
+        let folder = URL(fileURLWithPath: "/tmp/mealio-run/clips/\(id)", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var next = 0, wasMoving: String? = nil, walkingByPath = false
+        var last = Self.place(keys, 0)
+        for i in 0..<Int((dur + 0.5) * 30) {
+            let t = Double(i) / 30
+            while next < cues.count, cues[next].0 <= t { run(cues[next].1); next += 1 }
+            // Follow the picture: walking steps the feet, a jump is a lift, a flight and a landing.
+            let now = Self.place(keys, t)
+            if now.moving != wasMoving {
+                if wasMoving == "jump" { rig.land(impact: 0.8) }
+                if wasMoving == "walk", walkingByPath { rig.walk(speed: 0); walkingByPath = false }
+                if now.moving == "jump" { rig.pickUp() }
+                if now.moving == "walk" { rig.walk(speed: 1.2); walkingByPath = true }
+                wasMoving = now.moving
+            }
+            if now.moving == "jump" {
+                let k = 256 / max(1, now.size * 2 / 3)     // picture pixels to the rig's points
+                rig.drag(velocity: CGVector(dx: (now.x - last.x) * 30 * k, dy: (now.y - last.y) * 30 * k))
+            }
+            last = now
+            if i > 0 { rig.simulate(seconds: 1.0 / 30, fps: 120) }
+            let renderer = ImageRenderer(content: MascotFigure(pose: rig.pose, size: 256).frame(width: 384, height: 384).environment(\.colorScheme, .light))
+            renderer.scale = 1.5
+            renderer.isOpaque = false
+            guard let data = renderer.uiImage?.pngData() else { return XCTFail("no image") }
+            try data.write(to: folder.appendingPathComponent(String(format: "f%04d.png", i)))
+        }
+        rig.stop()
+    }
+
     private func write<V: View>(_ view: V, name: String, scheme: ColorScheme, side: CGFloat) {
         let canvas = view
             .frame(width: side * 1.6, height: side * 1.6)

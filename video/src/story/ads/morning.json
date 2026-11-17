@@ -1,0 +1,187 @@
+{
+ "id": "morning",
+ "dur": 17.133,
+ "bpm": 90,
+ "music": {
+  "style": "lofi",
+  "bars": [
+   "Cmaj7",
+   "Am7",
+   "Dm9",
+   "G9",
+   "Cmaj7",
+   "Am7",
+   "Dm9",
+   "Cmaj7"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 7
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "Good morning",
+   "mark": [
+    "morning"
+   ],
+   "titleSize": 130
+  },
+  {
+   "kind": "voice",
+   "at": 2.667,
+   "cut": "rise",
+   "label": "Say breakfast. Done.",
+   "mark": [
+    "done"
+   ]
+  },
+  {
+   "kind": "day",
+   "at": 6.667,
+   "cut": "slide",
+   "label": "See your day at a glance",
+   "mark": [
+    "glance"
+   ]
+  },
+  {
+   "kind": "plan",
+   "at": 10.667,
+   "cut": "slide",
+   "label": "Lunch and dinner, planned",
+   "mark": [
+    "planned"
+   ]
+  },
+  {
+   "kind": "end",
+   "at": 14.533,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 2.467,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 3.067,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 240
+  },
+  {
+   "t": 6.367,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 7.367,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "walk"
+  },
+  {
+   "t": 10.467,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 11.067,
+   "x": 540,
+   "y": 1470,
+   "size": 520,
+   "move": "jump",
+   "arc": 260
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood sleepy"
+  ],
+  [
+   1.6,
+   "mood happy"
+  ],
+  [
+   1.6,
+   "resize 0.8"
+  ],
+  [
+   2.2,
+   "wave"
+  ],
+  [
+   3.067,
+   "look -0.6 -0.9"
+  ],
+  [
+   3.967,
+   "hop"
+  ],
+  [
+   7.467,
+   "look 0.5 -0.9"
+  ],
+  [
+   7.467,
+   "mood love"
+  ],
+  [
+   11.067,
+   "mood happy"
+  ],
+  [
+   11.067,
+   "look 0 -1"
+  ],
+  [
+   11.867,
+   "hop"
+  ],
+  [
+   11.867,
+   "look none"
+  ],
+  [
+   13.933,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   1.6,
+   "pop"
+  ],
+  [
+   3.967,
+   "success"
+  ],
+  [
+   10.817,
+   "type",
+   22,
+   30
+  ],
+  [
+   11.667,
+   "click"
+  ]
+ ]
+}

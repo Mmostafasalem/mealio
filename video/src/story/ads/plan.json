@@ -1,0 +1,239 @@
+{
+ "id": "plan",
+ "dur": 20.955,
+ "bpm": 110,
+ "music": {
+  "style": "song",
+  "bars": [
+   "Fmaj7",
+   "Am7",
+   "Dm9",
+   "Bbmaj7",
+   "Csus",
+   "Fmaj7",
+   "Am7",
+   "Dm9",
+   "Bbmaj7",
+   "Fadd9"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 9
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "A week of meals in one tap",
+   "mark": [
+    "one",
+    "tap"
+   ]
+  },
+  {
+   "kind": "plan",
+   "at": 2.182,
+   "cut": "slide",
+   "label": "Built from your kitchen",
+   "mark": [
+    "kitchen"
+   ]
+  },
+  {
+   "kind": "split",
+   "at": 6.545,
+   "cut": "slide",
+   "label": "Split your day your way",
+   "mark": [
+    "your",
+    "way"
+   ]
+  },
+  {
+   "kind": "shuffle",
+   "at": 10.909,
+   "cut": "rise",
+   "label": "Not feeling it?",
+   "mark": [
+    "feeling"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 15.273,
+   "cut": "zoom",
+   "label": "Nourlo plans. You eat.",
+   "mark": [
+    "eat"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 18.354999999999997,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": -380,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 0,
+   "x": -380,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 1.4,
+   "x": 540,
+   "y": 1250,
+   "size": 640,
+   "move": "walk"
+  },
+  {
+   "t": 1.982,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 2.582,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 280
+  },
+  {
+   "t": 6.045,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 7.045,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "walk"
+  },
+  {
+   "t": 10.709,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 11.409,
+   "x": 540,
+   "y": 1470,
+   "size": 520,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 15.073,
+   "x": 540,
+   "y": 1470,
+   "size": 520
+  },
+  {
+   "t": 15.773,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood happy"
+  ],
+  [
+   1.5,
+   "wave"
+  ],
+  [
+   2.582,
+   "look 0.5 -0.9"
+  ],
+  [
+   3.382,
+   "hop"
+  ],
+  [
+   7.145,
+   "look -0.5 -0.9"
+  ],
+  [
+   7.145,
+   "mood thinking"
+  ],
+  [
+   8.727,
+   "mood happy"
+  ],
+  [
+   8.727,
+   "resize 0.6"
+  ],
+  [
+   11.409,
+   "mood cheeky"
+  ],
+  [
+   11.909,
+   "hop"
+  ],
+  [
+   12.509,
+   "mood happy"
+  ],
+  [
+   15.773,
+   "mood love"
+  ],
+  [
+   17.455,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   2.332,
+   "type",
+   22,
+   30
+  ],
+  [
+   3.182,
+   "click"
+  ],
+  [
+   3.282,
+   "success"
+  ],
+  [
+   11.909,
+   "click"
+  ],
+  [
+   12.009,
+   "pop"
+  ],
+  [
+   12.129,
+   "pop"
+  ],
+  [
+   12.249,
+   "pop"
+  ]
+ ]
+}
