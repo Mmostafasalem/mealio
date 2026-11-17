@@ -31,11 +31,12 @@ struct WorkoutDetailView: View {
                         fact("chart.bar.fill", workout.level.title)
                         fact("flame.fill", "~\(workout.estimatedCalories(weightKg: weight)) kcal")
                     }
-                    Label(workout.isFromAI ? "Written by online AI for your stats and request" : (localReason ?? "Built on your phone"),
-                          systemImage: workout.isFromAI ? "sparkles" : "iphone")
-                        .font(.footnote)
-                        .foregroundStyle(Color.labelSecondary)
-                        .accessibilityIdentifier("workout.source")
+                    if workout.isFromAI {
+                        Label("Written by online AI for your stats and request", systemImage: "sparkles")
+                            .font(.footnote)
+                            .foregroundStyle(Color.labelSecondary)
+                            .accessibilityIdentifier("workout.source")
+                    }
                 }
                 .padding(.vertical, Spacing.xs)
             }

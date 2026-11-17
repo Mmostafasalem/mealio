@@ -1,6 +1,6 @@
 # Nourlo — Privacy Policy
 
-_Last updated: 2026-11-14_
+_Last updated: 2026-11-17_
 
 Nourlo ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not
@@ -44,7 +44,7 @@ Health data stays on your iPhone and in Apple Health and is not sent anywhere:
 not to Nourlo's servers, to Groq or any other AI provider, to iCloud shopping
 sync, or used for advertising. If you choose to use your Health weight in your
 profile, it becomes your profile weight and is used like a weight you type in,
-including in AI meal plans if you have allowed online AI. You can turn Apple
+including in your meal plans. You can turn Apple
 Health off in Profile or change access in the Health app (Sharing → Apps →
 Nourlo). Turning it off, or using Delete All Data, stops syncing but leaves data
 already saved in Apple Health; you can review or delete it in the Health app.
@@ -127,22 +127,14 @@ device. Spotlight indexes only the exercise catalogue, never your personal data.
 
 ## Information sent to our servers
 
-Online AI features are optional and require a guest or Apple session plus the
-sharing permission in Profile. Without both, nothing is sent to the AI and meal
-plans are built on your device; those offline plans follow the diets and
-allergies you selected. With sharing on, an online meal plan is requested when
-you tap regenerate, and by the background agent only when you have no plan,
-once a day, when your agent grocery list grows, or when live deals first load.
-Editing the Shop cart never sends an online request; it only rebuilds an
-on-device plan. Workouts are built on your device unless sharing is on; with
-sharing on, generating a workout sends your age, gender, weight, height, activity
-level, goal, the workout options you picked and the note you typed. When sharing
-is enabled and you generate a meal plan, ask the
-in-app assistant, or request a recipe, we
+Online AI is used for two things only: chatting with Nourlo and writing recipes.
+Both are optional and require a guest or Apple session plus the sharing permission
+in Profile. Meal plans, workouts and shopping suggestions are always built on your
+device and never sent to an AI; they follow the diets and allergies you selected.
+When sharing is enabled and you ask the in-app assistant or request a recipe, we
 send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
-foods, shopping list, owned food names, quantities, units and reference nutrition,
-remaining daily calorie and macro totals, your message and up to the 20 most
-recent chat messages for context) to our backend, which uses **Groq** (an AI
+foods, the meal you want a recipe for, remaining daily calorie and macro totals,
+your message and up to the 20 most recent chat messages for context) to our backend, which uses **Groq** (an AI
 provider) to generate the response. Product nutrition is looked up from **Open
 Food Facts**. We send the minimum needed for the feature and do not attach your name. Online AI requests use a Nourlo session linked to
 your optional Apple account. The session and Apple identifier are not included

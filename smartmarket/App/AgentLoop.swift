@@ -61,6 +61,9 @@ final class AgentLoop {
 
     /// Whether a plan returned by `APIService.generateMealPlan` came from the AI
     /// (rather than the on-device fallback used when the AI call failed).
+    /// Off: meal plans are built on the phone. Online AI is used for chat and recipes only.
+    nonisolated static let onlineMealPlans = false
+
     nonisolated static func isAIPlan(_ plan: WeeklyMealPlan) -> Bool {
         plan.generationSource == "online"
     }
@@ -295,7 +298,8 @@ final class AgentLoop {
             groceryBaseline: groceryBaseline,
             dueForDailyRefresh: Self.isDueForDailyRefresh(defaults: defaults),
             refreshRequested: defaults.bool(forKey: Self.refreshRequestedKey),
-            hasAIConsent: APIService.shared.hasAIConsent,
+            // Meal plans are always built on the phone; online AI is only for chat and recipes.
+            hasAIConsent: Self.onlineMealPlans && APIService.shared.hasAIConsent,
             lastFailure: defaults.object(forKey: Self.lastFailureKey) as? Date,
             now: Date(),
             failuresToday: Self.failuresToday(defaults: defaults))

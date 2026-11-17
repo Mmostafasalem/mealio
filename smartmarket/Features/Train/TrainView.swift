@@ -25,23 +25,10 @@ final class TrainViewModel {
         guard !isGenerating else { return }
         isGenerating = true
         defer { isGenerating = false }
-        let profile = AppState.shared.userProfile
-        let request = WorkoutRequest(kind: kind, level: level, minutes: Int(minutes), focus: focus,
-                                     wishes: wishes, profile: profile)
-        do {
-            generated = try await APIService.shared.generateWorkout(request)
-            localReason = nil
-        } catch {
-            let hadWishes = !request.request.isEmpty
-            if case APIError.aiConsentRequired = error {
-                localReason = "Built on your phone. Turn on online AI in Profile to have sessions written around your request."
-            } else {
-                localReason = "Online AI wasn't available, so this was built on your phone."
-                    + (hadWishes ? " Your note wasn't used." : "")
-            }
-            generated = WorkoutBuilder.build(kind: kind, level: level, minutes: Int(minutes),
-                                             focus: focus, goal: profile.weightGoal)
-        }
+        // Built on the phone from the catalogue (online AI is only for chat and recipes).
+        localReason = nil
+        generated = WorkoutBuilder.build(kind: kind, level: level, minutes: Int(minutes),
+                                         focus: focus, goal: AppState.shared.userProfile.weightGoal)
     }
 }
 
@@ -49,7 +36,6 @@ struct TrainView: View {
 
     @State private var vm = TrainViewModel()
     @State private var store = WorkoutStore.shared
-    @FocusState private var wishesFocused: Bool
     @State private var showLibrary = false
     @State private var guide: ExerciseGuide?
     @State private var building = false
@@ -204,24 +190,8 @@ struct TrainView: View {
                 .transition(.opacity)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                caption("Anything specific?")
-                TextField("e.g. only dumbbells, easy on the knees", text: $vm.wishes, axis: .vertical)
-                    .lineLimit(1...3)
-                    .focused($wishesFocused)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.md)
-                    .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                        .strokeBorder(wishesFocused ? Color.labelPrimary : Color.hairline, lineWidth: wishesFocused ? 1.5 : 1))
-                    .accessibilityIdentifier("train.wishes")
-                Text("Used when online AI writes the session.")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-            }
-
             PrimaryButton(title: vm.isGenerating ? "Building…" : "Generate workout",
-                          systemImage: "sparkles", isLoading: vm.isGenerating) {
-                wishesFocused = false
+                          systemImage: "wand.and.stars", isLoading: vm.isGenerating) {
                 Task { await vm.generate() }
             }
             .accessibilityIdentifier("train.generate")

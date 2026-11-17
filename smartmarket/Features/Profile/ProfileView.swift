@@ -273,7 +273,7 @@ struct ProfileView: View {
 
     private var privacySection: some View {
         Section {
-            Toggle("Allow online AI suggestions", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
+            Toggle("Online AI for chat and recipes", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
                 .toggleStyle(.spring)
                 .accessibilityIdentifier("profile.aiConsent")
             NavigationLink {

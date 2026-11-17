@@ -65,20 +65,14 @@ final class MealPlanViewModel {
         do {
             let builtFor = AgentLoop.PlanInputs.current(appState)
             let request = MealPlanRequest.current(profile: profile, bmr: appState.bmrData)
-            let weekly = try await APIService.shared.generateMealPlan(request)
-            guard !Task.isCancelled, appState.dataGeneration == generation,
-                  appState.ownsMealPlanRequest(ticket) else { return }
+            // Built on the phone from the cart, stock and preferences (no online AI for plans).
+            var weekly = FallbackData.mealPlan(targetKcal: request.bmrData.calories(forGoal: request.goal))
+            weekly.generationSource = "local"
+            try Task.checkCancellation()
+            guard appState.dataGeneration == generation, appState.ownsMealPlanRequest(ticket) else { return }
             todaysPlan = MealPlan.from(weekly: weekly)
             appState.saveMealPlan(weekly)
             AgentLoop.recordPlanInputs(builtFor)
-            if AgentLoop.isAIPlan(weekly) {
-                AgentLoop.markPlanGeneratedToday()
-            } else {
-                // The AI call failed with no saved plan: say so, keep the day
-                // unstamped and back off like a failed background refresh.
-                AgentLoop.noteRefreshFailed()
-                errorMessage = Self.offlinePlanNotice
-            }
         } catch {
             appLog("[MealPlan] load failed:", error)
             errorMessage = "Could not update your meal plan. Your saved plan is kept. Check the AI connection in Profile, then retry."
@@ -87,8 +81,11 @@ final class MealPlanViewModel {
 
     // MARK: - Recommendations
 
+    /// Online shopping advice is off (online AI is only for chat and recipes).
+    static let onlineShoppingAdvice = false
+
     func loadRecommendations() async {
-        guard recommendations.isEmpty else { return }
+        guard recommendations.isEmpty, Self.onlineShoppingAdvice else { return }
         do {
             let gaps = computeNutritionalGaps()
             let adviceRequest = ShoppingAdviceRequest(
