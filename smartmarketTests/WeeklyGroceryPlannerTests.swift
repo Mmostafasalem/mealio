@@ -41,11 +41,15 @@ final class WeeklyGroceryPlannerTests: XCTestCase {
     }
 
     func testTheCartCountsAndSmallChangeSuggestsNothing() {
-        let cart = [CartItem(id: UUID(), catalogId: "oats", name: "Oats", store: "Catalogue", price: 10, category: "grains", quantity: 2)]
+        let cart = [CartItem(id: UUID(), catalogId: "brown-rice", name: "Brown Rice", store: "Catalogue", price: 10, category: "grains", quantity: 2)]
         let plan = WeeklyGroceryPlanner.plan(budget: 40, cart: cart, favourites: [], preferences: [], price: price)
         XCTAssertEqual(plan.available, 20)
         XCTAssertFalse(plan.lines.contains { $0.reason == .staple && WeeklyGroceryPlanner.role(of: $0.item) == .carb },
-                       "the oats in the cart already cover the carb")
+                       "the rice in the cart already covers the carb")
+        // Oats are breakfast; the plate still needs its own carb, as the meal plan does.
+        let oats = [CartItem(id: UUID(), catalogId: "oats", name: "Oats", store: "Catalogue", price: 10, category: "grains", quantity: 2)]
+        XCTAssertTrue(WeeklyGroceryPlanner.plan(budget: 40, cart: oats, favourites: [], preferences: [], price: price)
+            .lines.contains { $0.reason == .staple && WeeklyGroceryPlanner.role(of: $0.item) == .carb })
         let full = [CartItem(id: UUID(), catalogId: "oats", name: "Oats", store: "Catalogue", price: 38, category: "grains", quantity: 1)]
         XCTAssertTrue(WeeklyGroceryPlanner.plan(budget: 40, cart: full, favourites: [], preferences: [], price: price).lines.isEmpty)
     }

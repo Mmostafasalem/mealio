@@ -227,7 +227,7 @@ struct StoreProductsView: View {
                             .foregroundStyle(Color.almond)
                             .monospacedDigit()
                         if cart.budgetFraction > 0.01 {
-                            Text("\(Int(cart.budgetFraction * 100))% of budget")
+                            Text(cart.budgetRemaining < 0 ? String(format: "€%.2f over budget", -cart.budgetRemaining) : "\(Int(cart.budgetFraction * 100))% of budget")
                                 .font(.caption2)
                                 .foregroundStyle(Color.almond.opacity(0.75))
                         }

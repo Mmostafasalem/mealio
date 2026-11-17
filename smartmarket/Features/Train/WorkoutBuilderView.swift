@@ -23,6 +23,11 @@ final class CustomExerciseStore {
         exercises = ResilientStorage.loadArray(CustomExercise.self, key: key, defaults: defaults)
     }
 
+    /// Re-reads storage (after Delete All Data).
+    func reload() {
+        exercises = ResilientStorage.loadArray(CustomExercise.self, key: key, defaults: defaults)
+    }
+
     func exercise(named name: String) -> CustomExercise? {
         let wanted = TrainingLogStore.key(name)
         return exercises.first { TrainingLogStore.key($0.name) == wanted }
@@ -76,8 +81,9 @@ struct BuilderItem: Identifiable, Hashable {
     init(step: WorkoutExercise) {
         name = step.name
         tracking = ExerciseTracking.guess(for: step)
-        sets = max(step.sets, 1)
-        let number = Int(step.reps.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "")
+        let parsed = WorkoutModeModel.prescription(step)
+        sets = max(parsed.sets, 1)
+        let number = Int(parsed.each.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "")
         reps = number ?? 10
         seconds = WorkoutModeModel.seconds(in: step)
         weightKg = step.weightKg ?? 0

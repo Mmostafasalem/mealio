@@ -82,7 +82,7 @@ struct HealthSettingsView: View {
             }
 
             Section {
-                Text("Health data stays on this iPhone and in Apple Health and isn't sent anywhere. If you use your Health weight in your profile, it's used like a weight you type in, including for AI meal plans if you've allowed online AI.")
+                Text("Health data stays on this iPhone and in Apple Health and isn't sent anywhere. If you use your Health weight in your profile, it's used like a weight you type in.")
                     .font(.footnote)
                     .foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)

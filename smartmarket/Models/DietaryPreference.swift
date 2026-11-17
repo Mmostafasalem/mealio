@@ -77,6 +77,8 @@ extension DietaryPreference {
         let cat = category.lowercased()
         func has(_ words: [String]) -> Bool { words.contains { text.contains($0) } }
         typealias K = DietaryPreference.Keywords
+        // Plant milks (oat, almond, soy…) are sold next to dairy but contain none.
+        let plantMilk = has(["oat milk", "almond milk", "soy milk", "soya milk", "rice milk", "coconut milk", "oat drink", "plant-based"])
         switch self {
         case .nutAllergy:
             return has(K.nuts) || ["nuts", "snacks", "bakery"].contains(cat)
@@ -87,14 +89,15 @@ extension DietaryPreference {
             return has(K.gluten) || ["bread", "bakery", "pasta", "baking"].contains(cat)
                 || (cat == "grains" && !has(K.glutenFreeGrains))
         case .lactoseFree:
-            if has(["lactose-free", "lactose free"]) { return false }
+            if has(["lactose-free", "lactose free"]) || plantMilk { return false }
             return has(K.dairy) || cat == "dairy"
         case .vegetarian:
             return has(K.meat + K.pork + K.fish + K.shellfish + ["gelatin"])
                 || ["meat", "poultry", "fish", "seafood"].contains(cat)
         case .vegan:
-            return DietaryPreference.vegetarian.conflicts(name: name, category: category, allergens: allergens)
-                || has(K.dairy + K.eggs + ["honey"]) || ["dairy", "eggs", "bakery"].contains(cat)
+            if DietaryPreference.vegetarian.conflicts(name: name, category: category, allergens: allergens) { return true }
+            if plantMilk { return has(K.eggs + ["honey"]) }
+            return has(K.dairy + K.eggs + ["honey"]) || ["dairy", "eggs", "bakery"].contains(cat)
         case .keto:
             return has(K.highCarb + K.gluten)
                 || ["grains", "pasta", "bread", "bakery", "rice", "legumes", "baking"].contains(cat)

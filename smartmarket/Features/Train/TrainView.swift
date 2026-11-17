@@ -40,11 +40,21 @@ struct TrainView: View {
     @State private var guide: ExerciseGuide?
     @State private var building = false
     @State private var editingWorkout: Workout?
+    /// Workout mode reopened for a workout still running (after the app was closed).
+    @State private var resumed: WorkoutModeModel?
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
+                    if let running = WorkoutSession.shared.workout, WorkoutSession.shared.state != nil {
+                        Button { resumed = WorkoutModeModel(workout: running) } label: {
+                            TrainLinkRow(symbol: "figure.run", title: "Workout in progress",
+                                         detail: "\(running.title) · tap to continue")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("train.resume")
+                    }
                     weekCard
                     builderCard
                     savedSection
@@ -75,6 +85,9 @@ struct TrainView: View {
             .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
             .sheet(isPresented: $building) { WorkoutBuilderView() }
             .sheet(item: $editingWorkout) { WorkoutBuilderView(editing: $0) }
+            .fullScreenCover(isPresented: Binding(get: { resumed != nil }, set: { if !$0 { resumed = nil } })) {
+                if let resumed { WorkoutModeView(model: resumed) { self.resumed = nil } }
+            }
             .navigationDestination(item: $vm.generated) { workout in
                 WorkoutDetailView(workout: workout, localReason: vm.localReason)
             }

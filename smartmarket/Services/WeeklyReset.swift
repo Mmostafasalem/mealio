@@ -16,7 +16,14 @@ enum WeeklyReset {
     /// 1 Sunday … 7 Saturday (Calendar weekday numbers). Monday unless changed.
     static var startDay: Int {
         get { let v = UserDefaults.standard.integer(forKey: startDayKey); return (1...7).contains(v) ? v : 2 }
-        set { UserDefaults.standard.set(newValue, forKey: startDayKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: startDayKey)
+            // A different start day isn't a new week: the current week, counted the new
+            // way, counts as answered, so moving Monday to Wednesday doesn't ask mid-week.
+            if UserDefaults.standard.object(forKey: handledKey) != nil {
+                UserDefaults.standard.set(weekStart(of: Date()), forKey: handledKey)
+            }
+        }
     }
 
     /// Whether to ask about a fresh start each week (on unless turned off).

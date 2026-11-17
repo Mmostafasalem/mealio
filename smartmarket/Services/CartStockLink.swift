@@ -53,6 +53,13 @@ enum CartStockLink {
         }
     }
 
+    /// The cart let go of the item, but its food stays in My Stock as the person's own
+    /// (it was bought): the link goes, so the stock is no longer the cart's to take back.
+    static func forget(_ catalogId: String) { links[catalogId] = nil }
+
+    /// The whole cart let go of its foods (cleared or a new week): My Stock keeps them all.
+    static func forgetAll() { UserDefaults.standard.removeObject(forKey: key) }
+
     /// The plain, common food for a catalogue name ("Chicken Breast" → raw chicken breast).
     static func food(for item: CatalogItem) -> NutritionFood? {
         VoiceFoodRanker.foods(for: item.name, limit: 1).first

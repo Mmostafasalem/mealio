@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MealPlanView: View {
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var vm = MealPlanViewModel()
     /// One meal open at a time, across every section.
@@ -62,6 +63,18 @@ struct MealPlanView: View {
                 await vm.loadTodaysPlan()
                 if vm.selectedTab == .week { await vm.loadWeekPlans() }
             }
+        }
+        // A new day (midnight, a time-zone change, or the app opened the next morning):
+        // "Today" moves on and the week starts from the new day.
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refreshDay() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in refreshDay() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refreshDay() } }
+    }
+
+    private func refreshDay() {
+        Task {
+            await vm.loadTodaysPlan()
+            if vm.selectedTab == .week { await vm.loadWeekPlans() }
         }
     }
 
@@ -556,7 +569,7 @@ private struct RegenerateButton: View {
 
     var body: some View {
         PrimaryButton(
-            title: isGenerating ? "Agent is thinking…" : idleTitle,
+            title: isGenerating ? "Building your plan…" : idleTitle,
             systemImage: isGenerating ? nil : "arrow.clockwise",
             isLoading: isGenerating,
             action: onTap

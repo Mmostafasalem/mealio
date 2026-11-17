@@ -340,7 +340,10 @@ private struct QuickActionsMenu: View {
 
     var body: some View {
         NavigationStack {
-            List(rows, id: \.id) { row in
+            List(rows.filter { row in
+                if case .chat = row.choice { return AIAccountService.shared.offersOnlineAI }
+                return true
+            }, id: \.id) { row in
                 Button { choose(row.choice) } label: {
                     Label(row.title, systemImage: row.symbol)
                         .foregroundStyle(Color.labelPrimary)

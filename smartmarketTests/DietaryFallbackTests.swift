@@ -66,8 +66,11 @@ final class DietaryFallbackTests: XCTestCase {
             .joined(separator: " ").lowercased()
         XCTAssertFalse(generic.contains("almond") || generic.contains("peanut") || generic.contains("nuts"))
 
+        // Plant milks (oat, almond, soy) are vegan; only animal milk counts here.
         let vegan = texts(FallbackData.mealPlan(targetKcal: 2000, pantry: FallbackData.deals, preferences: [.vegan]))
             .joined(separator: " ").lowercased()
+            .replacingOccurrences(of: "oat milk", with: "").replacingOccurrences(of: "almond milk", with: "")
+            .replacingOccurrences(of: "soy milk", with: "")
         for word in ["pork", "beef", "chicken", "salmon", "yogurt", "egg", "milk"] {
             XCTAssertFalse(vegan.contains(word), "vegan plan contains \(word)")
         }

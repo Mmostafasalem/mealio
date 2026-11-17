@@ -68,6 +68,15 @@ final class AIAccountService {
     var guestAvailable = false
     var appleAvailable = false
     var isGuest: Bool { stored?.appleUserID.isEmpty == true }
+
+    /// Whether the app shows online AI at all (chat, AI recipes, the AI section in Profile):
+    /// the backend said it's switched on (remembered from the last answer), the person is
+    /// signed in, or it's the owner's private test build. While the hosted service runs
+    /// without AI, nobody is offered something that can't work.
+    static let offeredKey = "onlineAIOffered_v1"
+    var offersOnlineAI: Bool {
+        OwnerAITestConfiguration.current != nil || isAvailable || isSignedIn || UserDefaults.standard.bool(forKey: Self.offeredKey)
+    }
     var isWorking = false
     var message: String?
     private var retainedAccountIDs: [String] { KeychainHelper.load([String].self, key: Self.retainedAccountsKey) ?? [] }
@@ -121,6 +130,7 @@ final class AIAccountService {
             guard generation == expected else { return }
             let config = try JSONDecoder().decode(Configuration.self, from: data)
             isAvailable = config.enabled
+            UserDefaults.standard.set(config.enabled, forKey: Self.offeredKey)
             guestAvailable = config.enabled && config.guestEnabled == true
             appleAvailable = config.enabled && (config.appleEnabled ?? true) && BuildCapabilities.supportsAppleServices
             guard isAvailable else { message = AIAccountError.unavailable.localizedDescription; return }

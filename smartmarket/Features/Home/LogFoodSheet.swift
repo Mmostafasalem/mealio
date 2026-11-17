@@ -47,6 +47,8 @@ struct LogFoodSheet: View {
     private var results: [NutritionFood] { catalog.searchLocal(query) }
     /// Wikibooks recipes, read in the background when the sheet opens.
     @State private var cookbook: [CookbookRecipe] = []
+    /// The sheet's one-time setup (meal slot) has run; pushes and pops don't redo it.
+    @State private var didSetUp = false
     private var recipeResults: [CookbookRecipe] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard onSelect == nil, q.count >= 2 else { return [] }
@@ -213,6 +215,11 @@ struct LogFoodSheet: View {
             .onChange(of: autoProductSearch) { scheduleAutoProductSearch() }
             .onDisappear { lookupTask?.cancel(); autoSearchTask?.cancel(); scanTask?.cancel(); scanOpenTask?.cancel() }
             .onAppear {
+                // Also fires when coming back from a pushed food or the recipe browser:
+                // the meal chosen here stays, and a search that leaving cancelled is reset.
+                if isSearching { isSearching = false }
+                guard !didSetUp else { return }
+                didSetUp = true
                 // Brings "From today's plan" to today if the day has changed.
                 vm.activate()
                 catalog.reloadSaved()
@@ -616,7 +623,7 @@ struct ServingDetailView: View {
                                 majorEvery: food.basis == .serving ? 4 : 10,
                                 midEvery: food.basis == .serving ? 2 : 5,
                                 spacing: food.basis == .serving ? 16 : 8,
-                                accessibilityName: "Amount", spokenValue: { _ in amountLabel })
+                                accessibilityName: "Amount", spokenValue: { formatAmount($0) })
                         .frame(height: 96)
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in

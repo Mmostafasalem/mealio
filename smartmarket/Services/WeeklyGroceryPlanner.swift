@@ -42,7 +42,8 @@ enum WeeklyGroceryPlanner {
     /// Staples per role, in order of preference.
     static let staples: [Role: [String]] = [
         .protein: ["free-range-eggs", "chicken-breast", "red-lentils", "canned-tuna", "chickpeas-canned"],
-        .carb: ["oats", "brown-rice", "whole-grain-bread", "spaghetti", "potato"],
+        // The plate's carb (oats and buckwheat stay at breakfast, so they don't count here).
+        .carb: ["brown-rice", "potato", "spaghetti", "whole-grain-bread", "basmati-rice"],
         .vegetable: ["broccoli", "spinach", "carrot", "tomato", "frozen-veg-mix", "bell-pepper", "onion"],
         .fruit: ["banana", "apple", "frozen-berries", "orange"],
         .dairy: ["greek-yogurt", "kefir", "cottage-cheese", "oat-milk"],
@@ -50,13 +51,18 @@ enum WeeklyGroceryPlanner {
 
     static let minimumToSuggest = 3.0
 
+    /// The same roles the meal plan gives foods (`FallbackData.planRole`), so what is
+    /// bought here is what the plan uses: potatoes are the plate's carb, frozen
+    /// vegetables are vegetables, butter and cheese are no one's dairy.
     static func role(of item: CatalogItem) -> Role? {
-        switch item.category {
-        case .meat, .seafood, .eggs, .legumes: return .protein
-        case .grains, .bread: return .carb
-        case .vegetables: return item.id.contains("potato") ? .carb : .vegetable
-        case .fruits: return .fruit
-        case .dairy: return .dairy
+        switch FallbackData.planRole(name: item.name, category: item.category.rawValue) {
+        case "eggs", "seafood", "meat", "legumes": return .protein
+        case "grains":
+            let breakfastOnly = ["oat", "buckwheat", "muesli", "granola", "porridge"].contains { item.name.lowercased().contains($0) }
+            return breakfastOnly ? nil : .carb
+        case "vegetables": return .vegetable
+        case "fruits": return .fruit
+        case "dairy": return .dairy
         default: return nil
         }
     }
@@ -107,17 +113,20 @@ enum WeeklyGroceryPlanner {
         var lines: [GroceryPlanLine] = []
         var spent = 0.0
         var perGroup: [CatalogCategory: Int] = [:]
-        func take(_ line: GroceryPlanLine) {
+        @discardableResult
+        func take(_ line: GroceryPlanLine) -> Bool {
             guard !lines.contains(where: { $0.id == line.id }), spent + line.price <= available + 0.001,
-                  perGroup[line.item.category, default: 0] < 2 else { return }
+                  perGroup[line.item.category, default: 0] < 2 else { return false }
             lines.append(line)
             spent += line.price
             perGroup[line.item.category, default: 0] += 1
+            return true
         }
         for r in balancedWeek {
             let taken = Set(lines.map(\.id))
-            if let own = favs.filter({ role(of: $0) == r && !taken.contains($0.id) }).min(by: { price($0) < price($1) }) {
-                take(GroceryPlanLine(item: own, price: price(own), reason: .favourite))
+            // The person's own food for the role if it fits the money, else the cheapest staple.
+            if let own = favs.filter({ role(of: $0) == r && !taken.contains($0.id) }).min(by: { price($0) < price($1) }),
+               take(GroceryPlanLine(item: own, price: price(own), reason: .favourite)) {
                 continue
             }
             let staple = (staples[r] ?? []).compactMap { id in CatalogItem.all.first { $0.id == id } }
@@ -154,18 +163,9 @@ enum WeeklyGroceryPlanner {
         return out
     }
 
-    /// Diet rules on catalogue categories and names (allergies are strict, preferences are close enough).
+    /// The same diet rule the meal plan uses (`DietaryPreference.conflicts`), so nothing
+    /// suggested here is then refused by the plan. Allergies are strict.
     static func allowed(_ item: CatalogItem, _ prefs: Set<DietaryPreference>) -> Bool {
-        let name = item.name.lowercased(), id = item.id
-        let pork = ["pork", "bacon", "ham", "salami", "lard", "hot-dogs", "sausages"].contains { id.contains($0) || name.contains($0) }
-        if prefs.contains(.vegan) && [.meat, .seafood, .eggs, .dairy].contains(item.category) && !id.contains("oat-milk") && !id.contains("almond-milk") { return false }
-        if prefs.contains(.vegetarian) && [.meat, .seafood].contains(item.category) { return false }
-        if (prefs.contains(.halal) || prefs.contains(.noPork)) && pork { return false }
-        if prefs.contains(.nutAllergy) && (item.category == .nuts || name.contains("nut") || name.contains("almond") || name.contains("pesto")) { return false }
-        if prefs.contains(.shellfishAllergy) && ["shrimp", "prawns", "mussels", "crab"].contains(where: id.contains) { return false }
-        if prefs.contains(.glutenFree) && (item.category == .bread || ["spaghetti", "penne", "fusilli", "couscous", "bulgur", "barley", "flour", "noodles", "orzo", "lasagna", "rigatoni", "tagliatelle"].contains(where: id.contains)) { return false }
-        if prefs.contains(.lactoseFree) && item.category == .dairy && !["oat-milk", "almond-milk"].contains(id) { return false }
-        if prefs.contains(.keto) && [.grains, .bread, .fruits].contains(item.category) && !["avocado", "strawberries", "raspberries", "blueberries"].contains(id) { return false }
-        return true
+        prefs.allows(name: item.name, category: item.category.rawValue)
     }
 }

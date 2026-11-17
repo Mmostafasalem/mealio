@@ -36,7 +36,8 @@ struct WorkoutModeView: View {
         .sensoryFeedback(.warning, trigger: model.restDoneCount)
         .sensoryFeedback(.impact(weight: .heavy), trigger: model.recordCount)
         .confirmationDialog("Leave this workout?", isPresented: $confirmLeave, titleVisibility: .visible) {
-            Button("Finish and save") { withAnimation { model.finish() } }
+            // Nothing done means nothing to save (and no calories counted).
+            if model.setsDone > 0 { Button("Finish and save") { withAnimation { model.finish() } } }
             Button("Discard workout", role: .destructive) { model.discard(); onClose() }
             Button("Keep going", role: .cancel) {}
         } message: {
@@ -240,14 +241,22 @@ struct WorkoutModeView: View {
             switch ex.tracking {
             case .weightReps:
                 valueCell(weightText(set.weightKg ?? 0), width: 96, done: set.done) { editing = EditTarget(set: index, field: .weight) }
+                    .accessibilityLabel("Set \(index + 1) weight, \(weightText(set.weightKg ?? 0)) \(unit.suffix)")
+                    .accessibilityHint("Double-tap to change")
                     .accessibilityIdentifier("workoutMode.weight.\(index + 1)")
                 valueCell("\(set.reps ?? 0)", width: 76, done: set.done) { editing = EditTarget(set: index, field: .reps) }
+                    .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
+                    .accessibilityHint("Double-tap to change")
                     .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
             case .reps:
                 valueCell("\(set.reps ?? 0)", width: 96, done: set.done) { editing = EditTarget(set: index, field: .reps) }
+                    .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
+                    .accessibilityHint("Double-tap to change")
                     .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
             case .time:
                 valueCell(TrainingFormat.duration(set.seconds ?? 0), width: 96, done: set.done) { editing = EditTarget(set: index, field: .seconds) }
+                    .accessibilityLabel("Set \(index + 1) time, \(TrainingFormat.duration(set.seconds ?? 0))")
+                    .accessibilityHint("Double-tap to change")
             }
             Button {
                 if set.done { model.reopen(index) } else if isCurrent { model.completeSet() }

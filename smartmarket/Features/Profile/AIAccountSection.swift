@@ -3,6 +3,7 @@ import AuthenticationServices
 
 struct AIAccountSection: View {
     @State private var account = AIAccountService.shared
+    @State private var confirmDelete = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -28,15 +29,18 @@ struct AIAccountSection: View {
                         Text("Resets \(reset.formatted(date: .abbreviated, time: .shortened))")
                             .font(.footnote).foregroundStyle(Color.labelSecondary)
                     }
-                    Text("Meal plan: \(usage.mealPlanCost) credits. Chat, recipes and other suggestions: \(usage.shortRequestCost) credit each. Automatic online plan updates also count.")
+                    Text("Chat and AI recipes: \(usage.shortRequestCost) credit each. Meal plans, groceries and workouts are made on your iPhone and use no credits.")
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                 }
                 Button("Refresh allowance") { Task { try? await account.refreshAllowance() } }
                 Button("Sign out") { Task { await account.signOut() } }
                     .accessibilityIdentifier("profile.aiSignOut")
+                Button("Delete online account", role: .destructive) { confirmDelete = true }
+                    .disabled(account.isWorking)
+                    .accessibilityIdentifier("profile.aiDeleteAccount")
             } else {
                 if account.hasAccount {
-                    Text("Your online account is retained after sign-out. Sign in again to use its allowance or delete it with Delete All Data.")
+                    Text("Your online account is retained after sign-out. Sign in again to use or delete it, or delete it with Delete All Data.")
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                 }
                 if account.guestAvailable {
@@ -69,11 +73,22 @@ struct AIAccountSection: View {
             Text(OwnerAITestConfiguration.current == nil ? "AI allowance" : "AI on your Mac")
         } footer: {
             if OwnerAITestConfiguration.current == nil {
-                Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Free hosting may take up to a minute to wake after inactivity. Signing in or continuing as a guest does not enable AI sharing. Local tracking works without an account. Personal allowances share Nourlo’s overall provider capacity, so temporary service limits can still occur. Use Delete All Data to delete your online account; sign-out alone keeps it.")
+                Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Signing in or continuing as a guest does not enable AI sharing. Local tracking works without an account. Personal allowances share Nourlo’s overall provider capacity, so temporary service limits can still occur. Delete your online account with the button above or with Delete All Data; signing out alone keeps it.")
             } else {
                 Text("Review AI sharing under Privacy & Help before enabling it. The connection works while your Mac is awake and its AI service and private connection are running.")
             }
         }
         .task { await account.prepare() }
+        .confirmationDialog("Delete your online AI account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete account", role: .destructive) {
+                Task {
+                    do { try await account.deleteAccountIfPresent(); account.message = "Your online account and its AI usage record were deleted." }
+                    catch { account.message = (error as? LocalizedError)?.errorDescription ?? "The account couldn't be deleted. Check your connection and try again." }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This deletes your account and AI usage record on Nourlo's server and signs you out. Your food log, plans and workouts on this iPhone stay.")
+        }
     }
 }

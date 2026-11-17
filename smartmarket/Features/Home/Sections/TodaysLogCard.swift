@@ -4,6 +4,8 @@ import SwiftUI
 struct TodaysLogCard: View {
     let vm: HomeViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Asked before removing, so a stray tap on the minus doesn't erase a meal.
+    @State private var pendingDelete: FoodLogEntry?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
@@ -31,7 +33,7 @@ struct TodaysLogCard: View {
                     slot: slot,
                     entries: vm.entries(for: slot),
                     onAdd: { vm.openLog(slot: slot) },
-                    onDelete: { vm.removeLog($0) }
+                    onDelete: { pendingDelete = $0 }
                 )
                 if idx < MealSlot.allCases.count - 1 {
                     Divider().padding(.leading, HomeGrid.textInset)
@@ -41,6 +43,14 @@ struct TodaysLogCard: View {
         .padding(Spacing.lg)
         .premiumCard()
         .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
+        .confirmationDialog("Remove \(pendingDelete?.name ?? "this food") from today?",
+                            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible, presenting: pendingDelete) { entry in
+            Button("Remove", role: .destructive) { vm.removeLog(entry); pendingDelete = nil }
+            Button("Keep it", role: .cancel) { pendingDelete = nil }
+        } message: { entry in
+            Text("\(entry.calories) kcal come off today's total.")
+        }
     }
 
     /// Goo menu bubbles, one per meal slot (ids are `MealSlot` raw values).

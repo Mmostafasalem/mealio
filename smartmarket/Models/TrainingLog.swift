@@ -143,6 +143,12 @@ final class TrainingLogStore {
         return finished
     }
 
+    /// Re-reads storage (after Delete All Data, so nothing erased can be shown or saved back).
+    func reload() {
+        workouts = ResilientStorage.loadArray(LoggedWorkout.self, key: key, defaults: defaults)
+            .sorted { $0.finishedAt > $1.finishedAt }
+    }
+
     func remove(_ workout: LoggedWorkout) {
         workouts.removeAll { $0.id == workout.id }
         persist()

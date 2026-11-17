@@ -206,7 +206,13 @@ final class ShoppingCartService {
     private init() { load() }
 
     var cartItems: [CartItem] = []
-    var weeklyBudget: Double = 60.0 { didSet { saveSettings() } }
+    var weeklyBudget: Double = 60.0 {
+        didSet {
+            saveSettings()
+            // The plan's note quotes the budget, and the groceries fit it.
+            if oldValue != weeklyBudget { NotificationCenter.default.post(name: .cartDidChange, object: nil) }
+        }
+    }
 
     /// Sensible bounds for user-entered amounts; anything outside is rejected
     /// with an inline message instead of corrupting totals.
@@ -295,8 +301,14 @@ final class ShoppingCartService {
     }
 
     /// Undo merges removed quantities with current edits; never overwrite a newer cart.
-    func restoreRemovedLines(_ lines: [CartItem]) {
+    /// `restock` lists the catalogue ids whose packs left My Stock with them: they come back too.
+    func restoreRemovedLines(_ lines: [CartItem], restock: Set<String> = []) {
         guard !lines.isEmpty else { return }
+        for line in lines where restock.contains(line.catalogId) {
+            if let item = CatalogItem.all.first(where: { $0.id == line.catalogId }) {
+                for _ in 0..<max(1, line.quantity) { CartStockLink.added(item) }
+            }
+        }
         for line in lines {
             if let index = cartItems.firstIndex(where: { $0.catalogId == line.catalogId && $0.store == line.store }) {
                 cartItems[index].quantity += line.quantity
@@ -309,7 +321,8 @@ final class ShoppingCartService {
         save()
     }
 
-    func clear() { cartItems = []; save() }
+    /// Empties the cart. What it put in My Stock stays there, now the person's own.
+    func clear() { cartItems = []; CartStockLink.forgetAll(); save() }
 
     func resetAll() {
         cartItems = []
@@ -420,10 +433,12 @@ final class ShoppingCartService {
 
     /// Removes an entire cart line (all quantities) — used when the Groceries tab
     /// deletes a cart-sourced row, so the deletion round-trips back to the cart.
-    func removeLine(catalogId: String, store: String) {
+    /// `keepStock`: the food was bought, so My Stock keeps it; otherwise its packs leave stock too.
+    func removeLine(catalogId: String, store: String, keepStock: Bool = false) {
         let units = cartItems.filter { $0.catalogId == catalogId && $0.store == store }.reduce(0) { $0 + $1.quantity }
         cartItems.removeAll { $0.catalogId == catalogId && $0.store == store }
-        if units > 0 { CartStockLink.removed(catalogId, units: units) }
+        if keepStock { CartStockLink.forget(catalogId) }
+        else if units > 0 { CartStockLink.removed(catalogId, units: units) }
         save()
     }
 

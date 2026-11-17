@@ -30,6 +30,13 @@ struct AgentChatSheet: View {
     var body: some View {
             VStack(spacing: 0) {
                 assistantHeader
+                Text("AI answers can be wrong and aren't medical advice. Check allergens and ingredients yourself.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.bottom, Spacing.xs)
+                    .accessibilityIdentifier("chat.disclaimer")
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: Spacing.md) {

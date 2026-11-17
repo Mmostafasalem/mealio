@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import Observation
 
 /// One workout being done in workout mode: which exercise and set, the numbers
@@ -62,13 +63,17 @@ final class WorkoutModeModel {
     static func prepare(_ step: WorkoutExercise, log: TrainingLogStore) -> LoggedExercise {
         let tracking = ExerciseTracking.guess(for: step)
         let last = log.lastSets(of: step.name)
-        let count = max(step.sets, 1)
-        let targetReps = Int(step.reps.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "") ?? 10
+        let parsed = Self.prescription(step)
+        let count = max(parsed.sets, 1)
+        let targetReps = Int(parsed.each.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "") ?? 10
         let targetSeconds = Self.seconds(in: step)
         let sets = (0..<count).map { i -> LoggedSet in
             let previous = last.indices.contains(i) ? last[i] : last.last
             switch tracking {
-            case .weightReps: return LoggedSet(weightKg: previous?.weightKg ?? step.weightKg ?? 0, reps: previous?.reps ?? targetReps)
+            // A weight set in the builder wins; otherwise start from last time.
+            case .weightReps:
+                if let planned = step.weightKg, planned > 0 { return LoggedSet(weightKg: planned, reps: targetReps) }
+                return LoggedSet(weightKg: previous?.weightKg ?? 0, reps: previous?.reps ?? targetReps)
             case .reps:       return LoggedSet(reps: previous?.reps ?? targetReps)
             case .time:       return LoggedSet(seconds: targetSeconds)
             }
@@ -77,10 +82,25 @@ final class WorkoutModeModel {
                               target: step.prescription, sets: sets)
     }
 
-    /// "30 sec" → 30, "2 min" → 120, a 12-minute block → 720.
+    /// Sets and what each set is: a step with `sets: 0` and reps "2 × 30 sec each side"
+    /// (how mobility stretches are written) is 2 sets of "30 sec each side".
+    static func prescription(_ step: WorkoutExercise) -> (sets: Int, each: String) {
+        let text = step.reps.trimmingCharacters(in: .whitespaces)
+        if let m = text.range(of: #"^\d+\s*[×xX]\s*"#, options: .regularExpression) {
+            let n = Int(text[m].filter(\.isNumber)) ?? 1
+            let rest = String(text[m.upperBound...])
+            if step.sets <= 1 { return (n, rest) }
+            return (step.sets, rest)
+        }
+        return (max(step.sets, 1), text)
+    }
+
+    /// One set's time: "30 sec" → 30, "2 min" → 120. A timed block's minutes are shared
+    /// by its sets (3 interval rounds in a 9-minute block are 3 minutes each).
     static func seconds(in step: WorkoutExercise) -> Int {
-        if step.minutes > 0 { return step.minutes * 60 }
-        let text = step.reps.lowercased()
+        let parsed = prescription(step)
+        if step.minutes > 0 { return step.minutes * 60 / max(parsed.sets, 1) }
+        let text = parsed.each.lowercased()
         let number = Int(text.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "") ?? 30
         return text.contains("min") ? number * 60 : number
     }
@@ -146,6 +166,11 @@ final class WorkoutModeModel {
     /// Marks the current set done, then rests, then moves on (to the next exercise after the last set).
     func completeSet(now: Date = Date()) {
         guard let i = currentSetIndex, var ex = current else { return }
+        // A timed set stopped early counts the time really done, not the target.
+        if ex.tracking == .time, let target = ex.sets[i].seconds {
+            let left = timerEndsAt.map { Int($0.timeIntervalSince(now).rounded()) } ?? timerPausedLeft
+            if let left, left > 0 { ex.sets[i].seconds = max(1, target - left) }
+        }
         stopTimer()
         ex.sets[i].done = true
         ex.sets[i].completedAt = now
@@ -154,9 +179,15 @@ final class WorkoutModeModel {
         setCount &+= 1
         if record { recordCount &+= 1 }
         let exerciseFinished = !ex.sets.contains { !$0.done }
-        if exerciseFinished && !isLastExercise { go(to: exerciseIndex + 1) }
+        // On to the next exercise with work left (after this one, else from the top).
+        if exerciseFinished, let next = nextUnfinished(after: exerciseIndex) { go(to: next) }
         if !allDone, ex.restSeconds > 0 { startRest(ex.restSeconds, now: now) }
         saveDraft()
+    }
+
+    private func nextUnfinished(after index: Int) -> Int? {
+        let unfinished = exercises.indices.filter { exercises[$0].sets.contains { !$0.done } }
+        return unfinished.first { $0 > index } ?? unfinished.first
     }
 
     /// Whether a done set beat the history (for the "PR" mark).
@@ -190,11 +221,32 @@ final class WorkoutModeModel {
     func skipRest() {
         restTask?.cancel()
         restEndsAt = nil
+        Self.cancelRestNotice()
+    }
+
+    static let restNoticeID = "workout_rest_end"
+
+    /// The rest's end also as a notification, for a locked phone between sets.
+    private static func scheduleRestNotice(at end: Date) {
+        let content = UNMutableNotificationContent()
+        content.title = "Rest's over"
+        content.body = "Time for your next set."
+        content.sound = .default
+        let wait = max(1, end.timeIntervalSinceNow)
+        let request = UNNotificationRequest(identifier: restNoticeID, content: content,
+                                            trigger: UNTimeIntervalNotificationTrigger(timeInterval: wait, repeats: false))
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    static func cancelRestNotice() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNoticeID])
     }
 
     private func scheduleRestEnd() {
         restTask?.cancel()
+        Self.cancelRestNotice()
         guard let end = restEndsAt else { return }
+        if session != nil { Self.scheduleRestNotice(at: end) }
         restTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
             guard !Task.isCancelled, let self, self.restEndsAt == end else { return }
@@ -239,7 +291,7 @@ final class WorkoutModeModel {
 
     /// Saves the sets done (exercises with none are left out), logs the workout, and ends the session.
     func finish(now: Date = Date()) {
-        restTask?.cancel(); stopTimer(); restEndsAt = nil
+        restTask?.cancel(); stopTimer(); restEndsAt = nil; Self.cancelRestNotice()
         let done = exercises.compactMap { ex -> LoggedExercise? in
             var kept = ex
             kept.sets = ex.doneSets
@@ -253,8 +305,24 @@ final class WorkoutModeModel {
     }
 
     /// Leaves without saving anything.
+    /// The workout was finished outside workout mode (the Live Activity's Finish): the sets
+    /// already done in its draft are saved to Progress, as `finish` would have.
+    static func saveFinishedDraft(for workout: Workout, finishedAt: Date, defaults: UserDefaults = .standard) {
+        guard let data = defaults.data(forKey: draftKey),
+              let draft = try? JSONDecoder().decode(Draft.self, from: data), draft.workoutID == workout.id else { return }
+        defaults.removeObject(forKey: draftKey)
+        let done = draft.exercises.compactMap { ex -> LoggedExercise? in
+            var kept = ex
+            kept.sets = ex.doneSets
+            return kept.sets.isEmpty ? nil : kept
+        }
+        guard !done.isEmpty else { return }
+        let log = defaults === UserDefaults.standard ? TrainingLogStore.shared : TrainingLogStore(defaults: defaults)
+        log.save(LoggedWorkout(title: workout.title, kind: workout.kind, startedAt: draft.startedAt, finishedAt: finishedAt, exercises: done))
+    }
+
     func discard() {
-        restTask?.cancel(); stopTimer()
+        restTask?.cancel(); stopTimer(); Self.cancelRestNotice()
         session?.cancel()
         defaults.removeObject(forKey: Self.draftKey)
     }

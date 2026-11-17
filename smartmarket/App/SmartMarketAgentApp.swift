@@ -90,9 +90,15 @@ struct SmartMarketAgentApp: App {
                 Task { await ReminderStore.shared.reschedule() }
                 DailyLoopStore.shared.startObservingCart()
                 DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }
+                // Whether online AI is switched on, so its entries show only when it can work.
+                Task { await AIAccountService.shared.prepare() }
                 await PrivateSyncService.shared.start()
                 await NotificationService.shared.checkPermission()
                 appState.agentLoop.start(appState: appState)
+                // Read the offline food catalogue while nothing is happening, instead of on
+                // the first Log Food or cart tap (it is a few megabytes of JSON).
+                try? await Task.sleep(for: .milliseconds(1500))
+                _ = NutritionCatalogService.shared
             }
         }
     }
@@ -107,6 +113,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         MotionSettings.prepare()
         // UI tests only: start with an empty cart, stock and plan (a launch argument
         // can't do this itself, because it would hide everything the app saves later).
+        #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-NourloUITesting"), args.contains("-NourloEmptyKitchen") {
             for key in ["shoppingCart_v1", "nourloStock_v1", "cartStockLinks_v1", Constants.Storage.currentMealPlan] {
@@ -117,6 +124,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             StockStore.shared.reload()
             AppState.shared.weeklyMealPlan = nil
         }
+        #endif
         // Native navigation titles follow the same adaptive palette as content.
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]

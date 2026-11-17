@@ -35,7 +35,7 @@ struct ProfileView: View {
                 } footer: {
                     Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
                 }
-                AIAccountSection()
+                if AIAccountService.shared.offersOnlineAI { AIAccountSection() }
                 voiceSection
                 healthSection
                 syncSection
@@ -296,9 +296,11 @@ struct ProfileView: View {
 
     private var privacySection: some View {
         Section {
-            Toggle("Online AI for chat and recipes", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
-                .toggleStyle(.spring)
-                .accessibilityIdentifier("profile.aiConsent")
+            if AIAccountService.shared.offersOnlineAI {
+                Toggle("Online AI for chat and recipes", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
+                    .toggleStyle(.spring)
+                    .accessibilityIdentifier("profile.aiConsent")
+            }
             NavigationLink {
                 LegalDocumentView(resource: "Privacy", title: "Privacy Policy")
             } label: { Label("Privacy Policy", systemImage: "hand.raised") }
@@ -325,8 +327,10 @@ struct ProfileView: View {
         } footer: {
             if OwnerAITestConfiguration.current != nil {
                 Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
-            } else {
+            } else if AIAccountService.shared.offersOnlineAI {
                 Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
+            } else {
+                Text("Meal plans, groceries, workouts, recipes and food logging all work on this iPhone. Your food log and body measurements stay on it.")
             }
         }
     }

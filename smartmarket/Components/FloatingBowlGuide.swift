@@ -183,7 +183,7 @@ struct FloatingBowlGuide: View {
                     .accessibilityIdentifier("guide.title")
                 Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                chatRow
+                if AIAccountService.shared.offersOnlineAI { chatRow }
                 pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
                 pathway("Grocery checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
                 pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)

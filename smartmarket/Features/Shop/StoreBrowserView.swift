@@ -108,7 +108,7 @@ struct StoreBrowserView: View {
 
             HStack {
                 Spacer()
-                Text("\(String(format: "€%.2f", max(cart.budgetRemaining, 0))) left")
+                Text(cart.budgetRemaining < 0 ? "\(String(format: "€%.2f", -cart.budgetRemaining)) over" : "\(String(format: "€%.2f", cart.budgetRemaining)) left")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
@@ -222,7 +222,7 @@ struct StoreBrowserView: View {
                     }
                 }
                 Section {
-                    Text("We'll warn you as you approach your limit while shopping.")
+                    Text("The budget bar turns amber as you get close and red when you go over, and shows how much is left.")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
             }

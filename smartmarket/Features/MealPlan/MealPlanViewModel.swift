@@ -93,7 +93,7 @@ final class MealPlanViewModel {
             AgentLoop.recordPlanInputs(builtFor)
         } catch {
             appLog("[MealPlan] load failed:", error)
-            errorMessage = "Could not update your meal plan. Your saved plan is kept. Check the AI connection in Profile, then retry."
+            errorMessage = "Could not update your meal plan. Your saved plan is kept; please try again."
         }
     }
 

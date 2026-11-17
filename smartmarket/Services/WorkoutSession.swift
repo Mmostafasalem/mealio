@@ -129,6 +129,8 @@ final class WorkoutSession {
             var finished = saved
             if finished.finishedAt == nil { finished.finish(at: now) }
             complete(finished)
+            // The sets logged in workout mode go to Progress too.
+            WorkoutModeModel.saveFinishedDraft(for: workout, finishedAt: finished.finishedAt ?? now, defaults: defaults)
             // Finished from the lock screen: the app may be about to be suspended again.
             onFinishedOutsideApp()
         } else if saved.isStale(now: now) {

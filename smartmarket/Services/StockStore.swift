@@ -175,8 +175,11 @@ final class StockStore {
         var next = snapshot
         next.logs.append(FoodLogEntry(nutritionFood: next.items[index].food, slot: slot, amount: amount))
         next.items[index].amount -= amount
-        if next.items[index].amount < 0.000001 { next.items.remove(at: index) }
+        let usedUp = next.items[index].amount < 0.000001
+        if usedUp { next.items.remove(at: index) }
         try save(next)
+        // A food that ran out leaves the plan too.
+        if usedUp { NotificationCenter.default.post(name: .cartDidChange, object: nil) }
     }
 
     func hasLoggedMeal(_ operationID: String) -> Bool {
@@ -213,10 +216,13 @@ final class StockStore {
                 remaining -= amount
             }
         }
+        let before = next.items.count
         next.items.removeAll { $0.amount < 0.000001 }
+        let ranOut = next.items.count < before
         next.mealOperations = (next.mealOperations ?? []) + [operationID]
         next.mealOperationDates = (next.mealOperationDates ?? [:]).merging([operationID: now()]) { _, new in new }
         try save(next)
+        if ranOut { NotificationCenter.default.post(name: .cartDidChange, object: nil) }
     }
 
     private func requirements(_ ingredients: [NutritionIngredient]) throws -> [NutritionIngredient] {

@@ -53,8 +53,17 @@ struct TypeNumberButton: View {
 
 enum TypedNumber {
     /// "72,5" and "72.5" both read as 72.5; anything without a number is nil.
+    /// Any script's digits as ASCII ("٧٢٫٥" → "72.5"), so every keyboard's numbers read.
+    static func western(_ text: String) -> String {
+        String(text.map { ch -> Character in
+            if ch == "٫" || ch == "," { return "." }
+            if let d = ch.wholeNumberValue, ch.isNumber, !ch.isASCII { return Character(String(d)) }
+            return ch
+        })
+    }
+
     static func parse(_ text: String) -> Double? {
-        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        let cleaned = western(text.trimmingCharacters(in: .whitespaces))
         guard let match = cleaned.range(of: #"\d+(\.\d+)?"#, options: .regularExpression) else { return nil }
         return Double(cleaned[match])
     }
@@ -62,7 +71,7 @@ enum TypedNumber {
     /// A height in feet and inches as total inches: "5'11", "5 11", "5ft 11in", "5.11" → 71;
     /// one small number is feet ("6" → 72), one large number is inches ("70" → 70).
     static func inches(_ text: String) -> Double? {
-        let numbers = text.replacingOccurrences(of: ",", with: ".")
+        let numbers = western(text)
             .components(separatedBy: CharacterSet(charactersIn: "0123456789").inverted)
             .filter { !$0.isEmpty }.compactMap(Double.init)
         switch numbers.count {

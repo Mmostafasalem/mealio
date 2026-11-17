@@ -135,6 +135,12 @@ struct WorkoutDetailView: View {
             }
         }
         .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
+        .confirmationDialog("Another workout is in progress", isPresented: $confirmReplace, titleVisibility: .visible) {
+            Button("Start this one instead", role: .destructive) { startFresh() }
+            Button("Keep the other one", role: .cancel) {}
+        } message: {
+            Text("Starting this workout ends \(session.workout?.title ?? "the other one") without saving its sets.")
+        }
         .fullScreenCover(isPresented: Binding(get: { mode != nil }, set: { if !$0 { mode = nil } })) {
             if let mode {
                 WorkoutModeView(model: mode) { self.mode = nil; markedDone = store.isCompletedToday(workout) }
@@ -167,6 +173,14 @@ struct WorkoutDetailView: View {
     private var currentStep: Int? { runningState?.index }
 
     /// Before starting: start the guided session, or just log it as done.
+    @State private var confirmReplace = false
+
+    private func startFresh() {
+        UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
+        session.start(workout)
+        mode = WorkoutModeModel(workout: workout)
+    }
+
     @ViewBuilder private var startActions: some View {
         if isDone {
             PrimaryButton(title: "Logged for today", systemImage: "checkmark") {}
@@ -175,9 +189,8 @@ struct WorkoutDetailView: View {
         } else {
             VStack(spacing: Spacing.xs) {
                 PrimaryButton(title: "Start workout", systemImage: "play.fill") {
-                    UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
-                    session.start(workout)
-                    mode = WorkoutModeModel(workout: workout)
+                    // Another workout still running: ask before its sets are dropped.
+                    if session.state != nil && !session.isRunning(workout) { confirmReplace = true } else { startFresh() }
                 }
                 .accessibilityHint("Steps through the exercises one at a time")
                 .accessibilityIdentifier("workout.start")

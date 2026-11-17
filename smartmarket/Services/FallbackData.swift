@@ -99,7 +99,7 @@ enum FallbackData {
         let veg      = role(["vegetables"])
         let fruits   = role(["fruit", "fruits"])
         let dairy    = role(["dairy"])
-        let nuts     = role(["nuts", "snacks", "seeds"])
+        let nuts     = role(["nuts"])
         let grains   = carbs.filter { ["oat", "buckwheat", "muesli", "granola", "porridge"].contains(where: $0.name.lowercased().contains) }
 
         /// Owned foods for a role, else the first suggestion the diet allows.
@@ -213,11 +213,11 @@ enum FallbackData {
         var seen = Set<String>()
         func add(_ f: StockFood) { if seen.insert(f.name.lowercased()).inserted { foods.append(f) } }
         for item in ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1") {
-            let cat = item.category.lowercased()
-            add(StockFood(name: item.name, category: cat, kcal100: itemKcal[item.catalogId] ?? categoryKcal[cat] ?? 150, catalogId: item.catalogId))
+            guard let role = planRole(name: item.name, category: item.category.lowercased()) else { continue }
+            add(StockFood(name: item.name, category: role, kcal100: itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150, catalogId: item.catalogId))
         }
         let fromCart = Set((UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]).values)
-        for item in StockStore.shared.items where !fromCart.contains(item.id.uuidString) && item.amount > 0 {
+        for item in StockStore.shared.items where !fromCart.contains(item.id.uuidString) && item.amount > 0 && !item.isExpired() {
             guard let food = stockFood(item.food) else { continue }
             add(food)
         }
@@ -227,26 +227,62 @@ enum FallbackData {
         return foods
     }
 
-    /// A My Stock food as a plan food: a short name and a role guessed from its name.
+    /// A My Stock food as a plan food: a short name and its role.
     private static func stockFood(_ food: NutritionFood) -> StockFood? {
-        let full = food.name.lowercased()
         let short = food.name.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? food.name
-        let roles: [(String, [String])] = [
-            ("eggs", ["egg"]),
-            ("seafood", ["salmon", "tuna", "cod", "fish", "shrimp", "trout", "mackerel", "herring", "sardine"]),
-            ("meat", ["chicken", "turkey", "beef", "pork", "lamb", "ham", "veal", "duck"]),
-            ("legumes", ["lentil", "bean", "chickpea", "tofu", "pea "]),
-            ("dairy", ["yogurt", "yoghurt", "milk", "kefir", "cheese", "quark", "curd"]),
-            ("grains", ["oat", "rice", "pasta", "spaghetti", "bread", "buckwheat", "quinoa", "couscous", "noodle", "bulgur"]),
-            ("fruits", ["apple", "banana", "berr", "orange", "pear", "grape", "kiwi", "mango", "peach", "plum", "melon"]),
-            ("nuts", ["almond", "walnut", "cashew", "peanut", "hazelnut", "seed", "nut"]),
-            ("vegetables", ["broccoli", "spinach", "carrot", "tomato", "cucumber", "pepper", "zucchini", "cabbage", "onion",
-                            "lettuce", "kale", "cauliflower", "bean", "pea", "beet", "mushroom", "potato", "squash", "vegetable"]),
-        ]
-        guard let role = roles.first(where: { $0.1.contains(where: full.contains) })?.0 else { return nil }
+        guard let role = planRole(name: food.name, category: "") else { return nil }
         let kcal100 = food.basis == .grams ? max(Int(food.kcal.rounded()), 1) : (categoryKcal[role] ?? 150)
-        let category = role == "vegetables" && full.contains("potato") ? "grains" : role
-        return StockFood(name: short.capitalized, category: category, kcal100: kcal100)
+        return StockFood(name: short.capitalized, category: role, kcal100: kcal100)
+    }
+
+    /// The part of the plan a food can play, from whole words of its name (then its shop
+    /// category): "eggs" (protein), "seafood", "meat", "legumes", "dairy" (spoonable or
+    /// drinkable, for breakfast), "grains" (potatoes count as the plate's carb),
+    /// "fruits", "nuts" (nuts and seeds only), "vegetables". Fats, cheeses, sweets,
+    /// sauces and seasonings play no part (nil), so butter is never breakfast's "½ cup"
+    /// and an eggplant is never the protein.
+    static func planRole(name: String, category: String) -> String? {
+        let words = name.lowercased().folding(options: .diacriticInsensitive, locale: nil)
+            .components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
+        let set = Set(words)
+        func word(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w == $0 || w == $0 + "s" || w == $0 + "es" } } }
+        func prefix(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w.hasPrefix($0) } } }
+        // Never a plan component, whatever the category says.
+        let excluded = ["butter", "ghee", "margarine", "cream", "oil", "sauce", "ketchup", "mayonnaise", "mayo", "dressing", "jam", "honey",
+                        "syrup", "sugar", "salt", "flour", "spice", "spices", "chips", "crisps", "chocolate", "candy", "cookie", "cookies",
+                        "biscuit", "biscuits", "cake", "doughnut", "donut", "nutella", "nutmeg", "peppermint", "graham", "crackers",
+                        "juice", "soda", "cola", "stock", "bouillon", "vinegar", "mustard", "gelatin", "yeast", "powder"]
+        let peanutButter = set.contains("peanut") && set.contains("butter")
+        if !peanutButter && words.contains(where: excluded.contains) && !set.contains("cottage") { return nil }
+        if set.contains("eggplant") || set.contains("aubergine") { return "vegetables" }
+        if word(["egg"]) { return "eggs" }
+        if word(["salmon", "tuna", "cod", "fish", "shrimp", "prawn", "trout", "mackerel", "herring", "sardine", "hake", "pollock", "tilapia", "bass", "seafood"]) { return "seafood" }
+        if word(["chicken", "turkey", "beef", "pork", "lamb", "ham", "veal", "duck", "steak", "mince", "sausage", "meatball"]) { return "meat" }
+        if word(["lentil", "chickpea", "tofu", "tempeh", "edamame"]) || (word(["bean"]) && !set.contains("green")) { return "legumes" }
+        if peanutButter || word(["almond", "walnut", "cashew", "peanut", "hazelnut", "pistachio", "pecan", "nut", "seed"]) && !set.contains("milk") { return "nuts" }
+        // Cheese is a topping here, not a breakfast bowl; cottage cheese and quark are.
+        if word(["yogurt", "yoghurt", "kefir", "milk", "quark", "skyr", "curd", "cottage", "buttermilk"]) { return "dairy" }
+        if set.contains("cheese") || word(["feta", "mozzarella", "cheddar", "parmesan", "gouda", "edam", "brie"]) { return nil }
+        if word(["potato", "yam"]) { return "grains" }
+        if prefix(["oat"]) || word(["rice", "pasta", "spaghetti", "penne", "fusilli", "bread", "buckwheat", "quinoa", "couscous", "noodle",
+                                    "bulgur", "barley", "millet", "rigatoni", "tagliatelle", "macaroni", "tortilla", "wrap", "bagel", "granola", "muesli"]) { return "grains" }
+        if prefix(["berr"]) || word(["apple", "banana", "berry", "orange", "pear", "grape", "kiwi", "mango", "peach", "plum", "melon",
+                                    "cherry", "cherrie", "apricot", "pineapple", "strawberr", "raspberr", "blueberr", "lemon", "lime", "fig", "date"]) { return "fruits" }
+        if word(["broccoli", "spinach", "carrot", "tomato", "cucumber", "pepper", "zucchini", "courgette", "cabbage", "onion", "lettuce", "kale",
+                 "cauliflower", "pea", "beet", "beetroot", "mushroom", "squash", "vegetable", "veg", "asparagus", "celery", "leek", "radish", "salad"])
+            || (set.contains("green") && word(["bean"])) { return "vegetables" }
+        // Nothing in the name: trust the shop's category for the clear cases only.
+        switch category {
+        case "meat", "poultry": return "meat"
+        case "seafood", "fish": return "seafood"
+        case "eggs": return "eggs"
+        case "legumes": return "legumes"
+        case "vegetables": return "vegetables"
+        case "fruits", "fruit": return "fruits"
+        case "nuts": return "nuts"
+        case "grains", "pasta", "bread": return "grains"
+        default: return nil
+        }
     }
 
     /// Mentions the budget only as it really stands against the cart total.
@@ -282,7 +318,7 @@ enum FallbackData {
         // Carbs / grains
         "white-rice": 130, "brown-rice": 123, "basmati-rice": 130, "potato": 87,
         "sweet-potato": 90, "spaghetti": 158, "penne": 158, "fusilli": 158,
-        "oats": 389, "instant-oats": 389, "buckwheat": 92, "quinoa": 120, "couscous": 112,
+        "oats": 389, "instant-oats": 389, "buckwheat": 343, "quinoa": 120, "couscous": 112,
         // Bread
         "whole-grain-bread": 247, "rye-bread": 259, "white-bread": 265, "sourdough-bread": 250,
         // Veg
@@ -303,7 +339,7 @@ enum FallbackData {
     private static let categoryKcal: [String: Int] = [
         "meat": 200, "poultry": 170, "fish": 130, "seafood": 110, "dairy": 90,
         "eggs": 155, "bread": 260, "bakery": 300, "vegetables": 35, "fruits": 55,
-        "fruit": 55, "grains": 360, "pasta": 360, "legumes": 130, "snacks": 450,
+        "fruit": 55, "grains": 130, "pasta": 158, "legumes": 130, "snacks": 450,
         "nuts": 600, "beverages": 40, "frozen": 120, "oils": 880, "condiments": 150,
         "canned": 90, "spices": 100, "baking": 380,
     ]
