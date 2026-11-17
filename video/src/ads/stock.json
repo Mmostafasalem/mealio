@@ -1,0 +1,10 @@
+{
+  "dur": 20.6,
+  "head": { "at": 0.3, "out": 2.0 },
+  "shelf": { "at": 2.1, "cook": 5.1, "out": 5.5 },
+  "think": { "at": 5.5, "out": 6.5 },
+  "recipes": { "at": 6.5, "pick": 9.9, "out": 10.5 },
+  "detail": { "at": 10.5, "out": 14.2 },
+  "line": { "at": 14.3 },
+  "end": 15.8
+}

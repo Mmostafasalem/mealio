@@ -1,0 +1,10 @@
+{
+  "dur": 24.0,
+  "intro": { "head": 0.3, "pick": 2.6, "out": 3.3 },
+  "form": { "at": 3.4, "q1": 3.8, "a1": "Lose 5 kg before summer", "q2": 5.6, "a2": "€50 a week", "q3": 6.8, "chips": [7.5, 7.9], "next": 8.6 },
+  "styles": { "at": 9.0, "pick": 10.3, "out": 11.3 },
+  "heroes": [11.4, 12.8, 14.2],
+  "grid": { "at": 15.6, "out": 17.1 },
+  "outro": { "at": 17.2 },
+  "end": 19.2
+}

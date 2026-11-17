@@ -1,0 +1,9 @@
+{
+  "dur": 19.8,
+  "before": { "at": 0.2, "lps": 6, "stamp": 3.3, "out": 4.3 },
+  "then": { "at": 4.4, "out": 5.6 },
+  "after": { "at": 5.7, "lps": 6, "stamp": 8.9, "out": 10.2 },
+  "budget": { "at": 10.3, "out": 13.0 },
+  "line": { "at": 13.1 },
+  "end": 15.0
+}
