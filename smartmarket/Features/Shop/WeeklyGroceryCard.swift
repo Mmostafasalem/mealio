@@ -1,0 +1,77 @@
+import SwiftUI
+
+/// "This week's groceries": a list built on the phone that fits what's left of the
+/// budget (see `WeeklyGroceryPlanner`). Remove what you don't want; Add all puts the
+/// rest in the cart (and, through the cart, in My Stock).
+struct WeeklyGroceryCard: View {
+    @State private var cart = ShoppingCartService.shared
+    @State private var removed: Set<String> = []
+    @State private var added = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var plan: GroceryPlan {
+        let favourites = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+        return WeeklyGroceryPlanner.plan(budget: cart.weeklyBudget, cart: cart.cartItems, favourites: favourites,
+                                         mealPlan: AppState.shared.weeklyMealPlan, preferences: .load(),
+                                         excluded: removed) { cart.effectivePrice(for: $0, store: .catalog) }
+    }
+
+    var body: some View {
+        let plan = plan
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("This week's groceries", systemImage: "list.bullet.clipboard").font(.headline)
+                Spacer()
+                Text(String(format: "€%.2f of €%.2f", plan.total, plan.available))
+                    .font(.subheadline.weight(.semibold)).monospacedDigit()
+                    .foregroundStyle(Color.labelSecondary)
+                    .contentTransition(.numericText())
+            }
+            if plan.lines.isEmpty {
+                Text(plan.available < WeeklyGroceryPlanner.minimumToSuggest ? "Your cart fills this week's budget."
+                                        : "Nothing left to suggest within the budget. Raise the budget or clear some suggestions.")
+                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
+            } else {
+                Text("Built from your meal plan, favourites and a balanced week, within what's left of your budget.")
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                VStack(spacing: 0) {
+                    ForEach(plan.lines) { line in
+                        HStack(spacing: Spacing.md) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(line.item.name).font(.subheadline.weight(.medium))
+                                Text(line.reason.rawValue).font(.caption).foregroundStyle(Color.labelSecondary)
+                            }
+                            Spacer()
+                            Text(String(format: "€%.2f", line.price)).font(.subheadline).monospacedDigit()
+                            Button {
+                                withAnimation(reduceMotion ? .reducedFade : .snappyValue) { _ = removed.insert(line.item.id) }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelTertiary)
+                                    .frame(width: 36, height: 36)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove \(line.item.name) from the suggestions")
+                        }
+                        .padding(.vertical, 6)
+                        if line.id != plan.lines.last?.id { Divider() }
+                    }
+                }
+                PrimaryButton(title: "Add all \(plan.lines.count) to cart", systemImage: "cart.badge.plus") {
+                    for line in plan.lines { cart.add(line.item, store: .catalog) }
+                    added &+= 1
+                }
+                .accessibilityIdentifier("shop.weeklyPlan.addAll")
+            }
+            if !removed.isEmpty {
+                Button("Show removed suggestions again") { withAnimation { removed = [] } }
+                    .font(.footnote.weight(.semibold)).foregroundStyle(Color.labelPrimary)
+            }
+        }
+        .padding(16)
+        .premiumCard()
+        .sensoryFeedback(.success, trigger: added)
+        .animation(reduceMotion ? .reducedFade : .snappyValue, value: plan.lines.map(\.id))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("shop.weeklyPlan")
+    }
+}

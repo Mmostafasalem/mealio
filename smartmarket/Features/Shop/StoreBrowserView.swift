@@ -18,6 +18,7 @@ struct StoreBrowserView: View {
                     budgetCard
                     // Inline under the card, so it never covers the Edit button.
                     TipView(budgetTip, arrowEdge: .top)
+                    WeeklyGroceryCard()
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
                 }
