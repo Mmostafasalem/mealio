@@ -507,7 +507,9 @@ final class ReleaseSmokeTests: XCTestCase {
 
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
+        // Starts from an empty kitchen: food other tests leave in stock would stay on the shelf.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO",
+                               "-NourloEmptyKitchen"]
         launchForTesting(app)
         tap("home.stock", in: app)
         tap("stock.add", in: app)
