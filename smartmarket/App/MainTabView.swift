@@ -31,6 +31,8 @@ struct MainTabView: View {
     @State private var dismissalTimeout: Task<Void, Never>?
     @State private var quickLog = HomeViewModel()
     @State private var keyboardVisible = false
+    /// A new week has started: ask whether to empty the cart and My Stock.
+    @State private var askNewWeek = false
     /// Height of the system tab bar above the home indicator (sizes the bowl's guide panel).
     @State private var tabBarHeight: CGFloat = 49
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -89,11 +91,18 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
         // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
-        .onAppear { AppRouter.shared.takeInbox(); routeRequest() }
+        .onAppear { AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek() }
         .onChange(of: AppRouter.shared.request?.id) { _, _ in routeRequest() }
         .onChange(of: scenePhase) { _, phase in
             // A link left by another process (the widget extension) has no in-process notification.
-            if phase == .active { AppRouter.shared.takeInbox(); routeRequest() }
+            if phase == .active { AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek() }
+        }
+        .confirmationDialog("A new week has started", isPresented: $askNewWeek, titleVisibility: .visible) {
+            Button("Empty cart and stock") { WeeklyReset.answer(.cartAndStock) }
+            Button("Empty the cart only") { WeeklyReset.answer(.cartOnly) }
+            Button("Keep everything", role: .cancel) { WeeklyReset.answer(.keep) }
+        } message: {
+            Text("Start this week fresh? Emptying clears last week's cart and the food in My Stock. Your food log and history stay. You can change your week's start day in Profile.")
         }
         .sheet(item: $sheet, onDismiss: { if awaitingDismissal { finishDismissal() } }) { sheet in
             switch sheet {
@@ -348,5 +357,15 @@ private struct QuickActionsMenu: View {
         }
         .presentationDetents([.height(400), .medium])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - New week
+
+extension MainTabView {
+    /// Asks once per new week whether to empty the cart and My Stock (see `WeeklyReset`).
+    fileprivate func checkNewWeek() {
+        let hasSomething = !ShoppingCartService.shared.cartItems.isEmpty || !StockStore.shared.items.isEmpty
+        if WeeklyReset.isDue(hasSomething: hasSomething) { askNewWeek = true }
     }
 }

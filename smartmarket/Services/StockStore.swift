@@ -246,6 +246,13 @@ final class StockStore {
         snapshot = Snapshot()
         defaults.removeObject(forKey: key)
     }
+
+    /// Empties the shelf for a new week; what was eaten (the food history) stays.
+    func clearItems() {
+        var next = snapshot
+        next.items = []
+        do { try save(next) } catch { Self.logger.error("Could not empty stock: \(error.localizedDescription)") }
+    }
     private static func day(_ date: Date?) -> Date? {
         date.map { StockItem.dayStamp($0) }
     }

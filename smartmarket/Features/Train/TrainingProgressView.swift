@@ -95,14 +95,14 @@ struct TrainingProgressView: View {
     }
 
     private var thisWeek: [LoggedWorkout] {
-        let start = Calendar.current.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let start = WeeklyReset.weekStart(of: Date())
         return log.workouts.filter { $0.finishedAt >= start }
     }
 
     /// The last eight weeks, oldest first, with empty weeks as zero.
     private var weeklyVolume: [(week: Date, kg: Double)] {
-        let cal = Calendar.current
-        let thisStart = cal.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        let cal = WeeklyReset.calendar
+        let thisStart = WeeklyReset.weekStart(of: Date())
         return (0..<8).reversed().map { back in
             let start = cal.date(byAdding: .weekOfYear, value: -back, to: thisStart) ?? thisStart
             let end = cal.date(byAdding: .weekOfYear, value: 1, to: start) ?? start

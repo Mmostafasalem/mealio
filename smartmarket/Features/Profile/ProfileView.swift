@@ -14,6 +14,8 @@ struct ProfileView: View {
     @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
     @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
     @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
+    @AppStorage(WeeklyReset.startDayKey) private var weekStartDay = 2
+    @AppStorage(WeeklyReset.askKey) private var weeklyResetAsk = true
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -22,6 +24,7 @@ struct ProfileView: View {
                 headerSection
                 statsSection
                 editSection
+                weekSection
                 appearanceSection
                 Section {
                     Toggle("Bowl guide", isOn: $bowlGuideVisible)
@@ -138,6 +141,22 @@ struct ProfileView: View {
             get: { appearanceOverride == "light" || (appearanceOverride.isEmpty && colorScheme == .light) },
             set: { appearanceOverride = $0 ? "light" : "dark" }
         )
+    }
+
+    private var weekSection: some View {
+        Section {
+            Picker("Week starts on", selection: $weekStartDay) {
+                ForEach(WeeklyReset.dayNames, id: \.day) { Text($0.name).tag($0.day) }
+            }
+            .accessibilityIdentifier("profile.weekStart")
+            Toggle("Ask to empty cart and stock each week", isOn: $weeklyResetAsk)
+                .toggleStyle(.spring)
+                .accessibilityIdentifier("profile.weeklyReset")
+        } header: {
+            Text("Your week")
+        } footer: {
+            Text("Your weekly budget and \"this week\" in Train follow this day. When a new week starts, Nourlo asks whether to start fresh; nothing is cleared without your yes, and your food log always stays.")
+        }
     }
 
     private var appearanceSection: some View {
