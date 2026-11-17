@@ -28,7 +28,7 @@ struct WeeklyGroceryCard: View {
             }
             if plan.lines.isEmpty {
                 Text(plan.available < WeeklyGroceryPlanner.minimumToSuggest ? "Your cart fills this week's budget."
-                                        : "Nothing left to suggest within the budget. Raise the budget or clear some suggestions.")
+                                        : "Your cart already has a balanced week, and nothing else fits what's left. Raise the budget or bring back cleared suggestions.")
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
             } else {
                 Text(plan.tight

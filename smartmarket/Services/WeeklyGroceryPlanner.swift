@@ -8,12 +8,16 @@ import Foundation
 // what a balanced week is still missing (a protein, a carb, two vegetables, a fruit,
 // a dairy food), and fits what's left of the weekly budget after the cart.
 //
-// When everything fits, everything is suggested. When the budget is tight, the
+// When everything fits, everything is suggested, and money still left buys more
+// for the week: staples round the food groups (protein, vegetables, fruit, a carb,
+// dairy), each one only once, while they fit. When the budget is tight, the
 // balanced basics come first and then favourites, at most two from one food group,
 // until the money runs out.
 
 struct GroceryPlanLine: Identifiable, Hashable {
-    enum Reason: String { case favourite = "One of your foods", staple = "For a balanced week" }
+    enum Reason: String {
+        case favourite = "One of your foods", staple = "For a balanced week", more = "More for the week"
+    }
     var id: String { item.id }
     let item: CatalogItem
     let price: Double
@@ -91,8 +95,10 @@ enum WeeklyGroceryPlanner {
 
         let everything = favs.map { GroceryPlanLine(item: $0, price: price($0), reason: .favourite) }
             + chosenStaples.map { GroceryPlanLine(item: $0, price: price($0), reason: .staple) }
-        if everything.reduce(0, { $0 + $1.price }) <= available + 0.001 {
-            return GroceryPlan(lines: everything, available: available)
+        let spentOnBasics = everything.reduce(0, { $0 + $1.price })
+        if spentOnBasics <= available + 0.001 {
+            return GroceryPlan(lines: everything + more(after: everything, left: available - spentOnBasics, usable: usable, price: price),
+                               available: available)
         }
 
         // Tight budget: the balanced basics first (the person's own food for a role
@@ -121,6 +127,31 @@ enum WeeklyGroceryPlanner {
         }
         for item in favs { take(GroceryPlanLine(item: item, price: price(item), reason: .favourite)) }
         return GroceryPlan(lines: lines, available: available, tight: true)
+    }
+
+    /// The order money left over is spent in: the plate first, then the rest of the day.
+    static let topUpOrder: [Role] = [.protein, .vegetable, .fruit, .carb, .vegetable, .dairy, .protein, .fruit, .vegetable]
+    static let maxMore = 9
+
+    /// Staples not yet in the cart or the list, round the food groups, while the money lasts.
+    static func more(after lines: [GroceryPlanLine], left: Double, usable: (CatalogItem) -> Bool,
+                     price: (CatalogItem) -> Double) -> [GroceryPlanLine] {
+        var taken = Set(lines.map(\.id)), left = left, out: [GroceryPlanLine] = []
+        var stuck = Set<Role>()
+        while out.count < maxMore, left >= minimumToSuggest, stuck.count < Role.allCases.count {
+            var added = false
+            for r in topUpOrder where out.count < maxMore && !stuck.contains(r) {
+                let next = (staples[r] ?? []).compactMap { id in CatalogItem.all.first { $0.id == id } }
+                    .first { usable($0) && !taken.contains($0.id) && price($0) <= left + 0.001 }
+                guard let next else { stuck.insert(r); continue }
+                out.append(GroceryPlanLine(item: next, price: price(next), reason: .more))
+                taken.insert(next.id)
+                left -= price(next)
+                added = true
+            }
+            if !added { break }
+        }
+        return out
     }
 
     /// Diet rules on catalogue categories and names (allergies are strict, preferences are close enough).
