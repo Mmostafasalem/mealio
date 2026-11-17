@@ -39,12 +39,14 @@ final class WorkoutModeModel {
         let startedAt: Date
     }
 
-    init(workout: Workout, log: TrainingLogStore = .shared, defaults: UserDefaults = .standard,
-         session: WorkoutSession? = .shared, now: Date = Date()) {
+    /// `tracksSession` false keeps the shared live session (Live Activity, Health) out of it, for tests.
+    init(workout: Workout, log: TrainingLogStore? = nil, defaults: UserDefaults = .standard,
+         tracksSession: Bool = true, now: Date = Date()) {
+        let log = log ?? .shared
         self.workout = workout
         self.log = log
         self.defaults = defaults
-        self.session = session
+        self.session = tracksSession ? .shared : nil
         if let data = defaults.data(forKey: Self.draftKey),
            let draft = try? JSONDecoder().decode(Draft.self, from: data), draft.workoutID == workout.id {
             exercises = draft.exercises

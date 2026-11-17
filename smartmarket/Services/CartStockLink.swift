@@ -21,7 +21,8 @@ enum CartStockLink {
     }
 
     /// One more unit of `item` went into the cart.
-    static func added(_ item: CatalogItem, stock: StockStore = .shared) {
+    static func added(_ item: CatalogItem, stock: StockStore? = nil) {
+        let stock = stock ?? .shared
         guard let food = food(for: item) else { return }
         let pack = packAmount(for: item, food: food)
         if let id = links[item.id], let existing = stock.items.first(where: { $0.id == id }) {
@@ -35,7 +36,8 @@ enum CartStockLink {
     }
 
     /// One unit of the item with `catalogId` came out of the cart.
-    static func removed(_ catalogId: String, units: Int = 1, stock: StockStore = .shared) {
+    static func removed(_ catalogId: String, units: Int = 1, stock: StockStore? = nil) {
+        let stock = stock ?? .shared
         guard let id = links[catalogId], let existing = stock.items.first(where: { $0.id == id }) else {
             links[catalogId] = nil
             return

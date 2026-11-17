@@ -57,8 +57,9 @@ enum WeeklyReset {
     enum Choice { case cartAndStock, cartOnly, keep }
 
     /// Records the answer for this week and clears what was chosen.
-    static func answer(_ choice: Choice, now: Date = Date(), cart: ShoppingCartService = .shared, stock: StockStore = .shared,
+    static func answer(_ choice: Choice, now: Date = Date(), cart: ShoppingCartService? = nil, stock: StockStore? = nil,
                        defaults: UserDefaults = .standard) {
+        let cart = cart ?? .shared, stock = stock ?? .shared
         switch choice {
         case .cartAndStock:
             cart.clear()

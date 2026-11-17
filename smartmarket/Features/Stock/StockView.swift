@@ -11,7 +11,7 @@ struct StockView: View {
 
     private var filtered: [StockItem] {
         store.items.filter { query.isEmpty || $0.food.name.localizedStandardContains(query) }
-            .sorted(by: StockItem.expiryOrder)
+            .sorted { StockItem.expiryOrder($0, $1) }
     }
 
     var body: some View {
@@ -21,6 +21,12 @@ struct StockView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Button("Add food to stock", systemImage: "plus") { showAdd = true }
                     .accessibilityIdentifier("stock.add")
+                NavigationLink {
+                    CookWithWhatIHaveView()
+                } label: {
+                    Label("Cook with what I have", systemImage: "frying.pan")
+                }
+                .accessibilityIdentifier("stock.cook")
             }
             if store.items.isEmpty {
                 ContentUnavailableView("Your stock starts here", systemImage: "cabinet",

@@ -115,7 +115,7 @@ final class ProfileViewModel {
 
     /// The profile `save()` stores: goal moved to what the age allows and
     /// targets recomputed. Pure, so tests can check it without the Keychain.
-    nonisolated static func prepared(_ profile: UserProfile) -> UserProfile {
+    static func prepared(_ profile: UserProfile) -> UserProfile {
         var profile = profile
         BMRCalculator.populate(profile: &profile)
         return profile

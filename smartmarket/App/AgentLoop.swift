@@ -63,7 +63,8 @@ final class AgentLoop {
     /// (rather than the on-device fallback used when the AI call failed).
     /// Rebuilds the on-device plan now from the current cart, stock, split and target
     /// (used after adding a plan's missing foods, so the change shows at once).
-    static func rebuildPlanNow(appState: AppState = .shared) {
+    static func rebuildPlanNow(appState: AppState? = nil) {
+        let appState = appState ?? .shared
         let request = MealPlanRequest.current(profile: appState.userProfile, bmr: appState.bmrData)
         var plan = FallbackData.mealPlan(targetKcal: request.bmrData.calories(forGoal: request.goal))
         plan.generationSource = "local"
@@ -359,7 +360,7 @@ final class AgentLoop {
     }
 
     /// A saved plan whose days miss the calorie target (see `WeeklyMealPlan.isOnTarget`).
-    nonisolated static func savedPlanNeedsReplacing(_ plan: WeeklyMealPlan?, target: Int) -> Bool {
+    static func savedPlanNeedsReplacing(_ plan: WeeklyMealPlan?, target: Int) -> Bool {
         guard let plan, target > 0 else { return false }
         return !plan.isOnTarget(target)
     }

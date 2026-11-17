@@ -184,7 +184,7 @@ struct WorkoutBuilderView: View {
         guard items.isEmpty, let w = editing else { return }
         title = w.title
         kind = w.kind
-        items = w.exercises.map(BuilderItem.init(step:))
+        items = w.exercises.map { BuilderItem(step: $0) }
     }
 
     private func save() {

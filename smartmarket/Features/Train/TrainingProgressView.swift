@@ -180,7 +180,7 @@ struct ExerciseProgressView: View {
                         case .reps:
                             best("Most reps", b.reps.map(String.init))
                         case .time:
-                            best("Longest", b.seconds.map(TrainingFormat.duration))
+                            best("Longest", b.seconds.map { TrainingFormat.duration($0) })
                         }
                         best("Sessions", "\(history.count)")
                     }

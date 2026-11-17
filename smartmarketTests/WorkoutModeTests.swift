@@ -29,7 +29,7 @@ final class WorkoutModeTests: XCTestCase {
 
     func testCompletingSetsRestsMovesOnAndFinishesWithTheNumbers() {
         let log = TrainingLogStore(defaults: defaults)
-        let model = WorkoutModeModel(workout: workout(), log: log, defaults: defaults, session: nil)
+        let model = WorkoutModeModel(workout: workout(), log: log, defaults: defaults, tracksSession: false)
         XCTAssertEqual(model.exercises[1].sets.first?.seconds, 30)
 
         model.setWeight(60, set: 0)
@@ -54,12 +54,12 @@ final class WorkoutModeTests: XCTestCase {
 
     func testTheNextWorkoutStartsFromLastTimeAndSpotsRecords() {
         let log = TrainingLogStore(defaults: defaults)
-        let first = WorkoutModeModel(workout: workout(), log: log, defaults: defaults, session: nil, now: Date(timeIntervalSinceNow: -86_400))
+        let first = WorkoutModeModel(workout: workout(), log: log, defaults: defaults, tracksSession: false, now: Date(timeIntervalSinceNow: -86_400))
         first.setWeight(60, set: 0); first.completeSet(); first.skipRest()
         first.setWeight(60, set: 1); first.completeSet()
         first.finish(now: Date(timeIntervalSinceNow: -80_000))
 
-        let second = WorkoutModeModel(workout: workout(), log: log, defaults: defaults, session: nil)
+        let second = WorkoutModeModel(workout: workout(), log: log, defaults: defaults, tracksSession: false)
         XCTAssertEqual(second.exercises[0].sets[0].weightKg, 60, "starts from last time")
         second.setWeight(65, set: 0)
         second.completeSet()
@@ -72,16 +72,16 @@ final class WorkoutModeTests: XCTestCase {
     func testADraftSurvivesClosingTheApp() {
         let log = TrainingLogStore(defaults: defaults)
         let w = workout()
-        let model = WorkoutModeModel(workout: w, log: log, defaults: defaults, session: nil)
+        let model = WorkoutModeModel(workout: w, log: log, defaults: defaults, tracksSession: false)
         model.setWeight(70, set: 0)
         model.completeSet()
-        let reopened = WorkoutModeModel(workout: w, log: log, defaults: defaults, session: nil)
+        let reopened = WorkoutModeModel(workout: w, log: log, defaults: defaults, tracksSession: false)
         XCTAssertEqual(reopened.exercises[0].sets[0].weightKg, 70)
         XCTAssertTrue(reopened.exercises[0].sets[0].done)
     }
 
     func testATypedWeightCarriesToTheSetsBelow() {
-        let model = WorkoutModeModel(workout: workout(), log: TrainingLogStore(defaults: defaults), defaults: defaults, session: nil)
+        let model = WorkoutModeModel(workout: workout(), log: TrainingLogStore(defaults: defaults), defaults: defaults, tracksSession: false)
         model.setWeight(40, set: 0)
         XCTAssertEqual(model.exercises[0].sets[1].weightKg, 40)
         model.setWeight(45, set: 1)

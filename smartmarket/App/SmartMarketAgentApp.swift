@@ -112,6 +112,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             for key in ["shoppingCart_v1", "nourloStock_v1", "cartStockLinks_v1", Constants.Storage.currentMealPlan] {
                 UserDefaults.standard.removeObject(forKey: key)
             }
+            // The shared stores may already have read the old values: read again.
+            ShoppingCartService.shared.reloadFromStorage()
+            StockStore.shared.reload()
+            AppState.shared.weeklyMealPlan = nil
         }
         // Native navigation titles follow the same adaptive palette as content.
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]

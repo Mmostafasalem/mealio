@@ -341,7 +341,7 @@ extension DailyLoop {
     static func saverEvents(_ i: LoopInputs) -> [LoopEvent] {
         guard let start = loopStart(i) else { return [] }
         let kept = keptDays(i)
-        var ledger = Set(i.ledger.compactMap(SaverMark.init))
+        var ledger = Set(i.ledger.compactMap { SaverMark($0) })
         var out: [LoopEvent] = []
         var run = 0, held = 0
         var previousSaved = false

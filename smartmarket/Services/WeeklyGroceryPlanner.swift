@@ -74,8 +74,8 @@ enum WeeklyGroceryPlanner {
             .sorted { (order.firstIndex(of: $0.category) ?? 99) < (order.firstIndex(of: $1.category) ?? 99) }
 
         // What the balanced week still lacks once the person's foods are counted (the cart counts too).
-        var have = cart.compactMap { line in CatalogItem.all.first { $0.id == line.catalogId }.flatMap(role(of:)) }
-        have += favs.compactMap(role(of:))
+        var have = cart.compactMap { line in CatalogItem.all.first { $0.id == line.catalogId }.flatMap { role(of: $0) } }
+        have += favs.compactMap { role(of: $0) }
         var needed: [Role] = []
         var remaining = have
         for r in balancedWeek {
