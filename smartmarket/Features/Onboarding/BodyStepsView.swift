@@ -3,9 +3,9 @@ import SwiftUI
 // MARK: - About you (name, age, gender)
 
 /// The first screen: who you are, on one page. Name and surname are optional
-/// and sit side by side; gender is a three-way switch; age is a number with
-/// minus and plus (tap the number to type it). Nothing scrolls, and the
-/// keyboard covers only the space under the fields.
+/// and sit side by side; age is a number with minus and plus (tap the number to
+/// type it); gender is a three-way switch. Nothing scrolls: the fields you type
+/// in sit above the keyboard even on a 667 pt screen, gender is under them.
 struct NameStepView: View {
 
     @Bindable var vm: OnboardingViewModel
@@ -13,11 +13,13 @@ struct NameStepView: View {
     private enum Field { case firstName, lastName, age }
     @FocusState private var focusedField: Field?
     @State private var ageText = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let ageRange = Constants.Onboarding.minimumAge...Constants.Onboarding.maximumAge
 
     private var typedAge: Int? {
-        guard let age = Int(ageText), Self.ageRange.contains(age) else { return nil }
+        // Any keyboard's digits ("٣٠") read as a number.
+        guard let age = Int(TypedNumber.western(ageText)), Self.ageRange.contains(age) else { return nil }
         return age
     }
 
@@ -33,32 +35,15 @@ struct NameStepView: View {
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
                 }
+                // Age sits above gender, so the keyboard never covers it on a small phone.
+                ageStepper
                 VStack(alignment: .leading, spacing: 6) {
                     label("Gender")
                     SpringSegmentedControl(selection: $vm.gender, options: Gender.allCases,
                                            label: \.displayName, accessibilityName: "Gender")
                 }
-                ageStepper
-                // The number pad has no return key and the keyboard bar doesn't always show,
-                // so a plain button closes it (the Next button sits under the keyboard).
-                if focusedField != nil {
-                    HStack {
-                        Spacer()
-                        Button { focusedField = nil } label: {
-                            Text("Done")
-                                .font(.headline)
-                                .foregroundStyle(Color.onAccent)
-                                .padding(.horizontal, Spacing.xl)
-                                .frame(minHeight: 48)
-                                .background(Color.dullPink, in: Capsule())
-                        }
-                        .buttonStyle(ScalePressStyle())
-                        .accessibilityIdentifier("onboarding.closeKeyboard")
-                    }
-                    .transition(.opacity)
-                }
             }
-            .animation(.smoothCard, value: focusedField == nil)
+            .animation(reduceMotion ? nil : .smoothCard, value: focusedField == nil)
             // Tapping anywhere outside a field closes the keyboard too.
             .background(Color.clear.contentShape(Rectangle()).onTapGesture { focusedField = nil })
         } footer: {
@@ -78,8 +63,8 @@ struct NameStepView: View {
         }
         .onAppear { if ageText.isEmpty { ageText = String(vm.age) } }
         .onChange(of: ageText) { _, text in
-            // Digits only, three at most.
-            let digits = String(text.filter(\.isNumber).prefix(3))
+            // Western digits only, three at most.
+            let digits = String(TypedNumber.western(text).filter { $0.isASCII && $0.isNumber }.prefix(3))
             if digits != text { ageText = digits; return }
             if let typedAge { vm.age = typedAge }
         }
@@ -125,7 +110,7 @@ struct NameStepView: View {
     /// One year down or up from the current age (or from the nearest limit when
     /// the box is empty or out of range).
     private func step(_ delta: Int) {
-        let current = Int(ageText).map { min(max($0, Self.ageRange.lowerBound), Self.ageRange.upperBound) } ?? vm.age
+        let current = Int(TypedNumber.western(ageText)).map { min(max($0, Self.ageRange.lowerBound), Self.ageRange.upperBound) } ?? vm.age
         ageText = String(min(max(current + delta, Self.ageRange.lowerBound), Self.ageRange.upperBound))
     }
 
@@ -147,32 +132,50 @@ struct NameStepView: View {
     private var ageStepper: some View {
         VStack(alignment: .leading, spacing: 6) {
             label("Age")
-            fieldFrame(focused: focusedField == .age, invalid: typedAge == nil && focusedField != .age, padding: 0) {
-                HStack(spacing: 0) {
-                    stepButton("minus", name: "One year younger", delta: -1,
-                               disabled: (typedAge ?? Self.ageRange.upperBound) <= Self.ageRange.lowerBound)
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        TextField("", text: $ageText)
-                            .font(.title3.weight(.semibold))
-                            .keyboardType(.numberPad)
-                            .monospacedDigit()
-                            .multilineTextAlignment(.trailing)
-                            .focused($focusedField, equals: .age)
-                            .fixedSize()
-                            .frame(minWidth: 30)
-                            .accessibilityLabel("Age in years")
-                            .accessibilityIdentifier("onboarding.age")
-                        Text("years")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.labelSecondary)
-                            .accessibilityHidden(true)
+            HStack(spacing: Spacing.md) {
+                fieldFrame(focused: focusedField == .age, invalid: typedAge == nil && focusedField != .age, padding: 0) {
+                    HStack(spacing: 0) {
+                        stepButton("minus", name: "One year younger", delta: -1,
+                                   disabled: (typedAge ?? Self.ageRange.upperBound) <= Self.ageRange.lowerBound)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            TextField("", text: $ageText)
+                                .font(.title3.weight(.semibold))
+                                .keyboardType(.numberPad)
+                                .monospacedDigit()
+                                .multilineTextAlignment(.trailing)
+                                .focused($focusedField, equals: .age)
+                                .fixedSize()
+                                .frame(minWidth: 30)
+                                .accessibilityLabel("Age in years")
+                                .accessibilityIdentifier("onboarding.age")
+                            Text("years")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.labelSecondary)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(maxWidth: .infinity)
+                        // Tapping anywhere in the middle starts typing.
+                        .contentShape(Rectangle())
+                        .onTapGesture { focusedField = .age }
+                        stepButton("plus", name: "One year older", delta: 1,
+                                   disabled: (typedAge ?? Self.ageRange.lowerBound) >= Self.ageRange.upperBound)
                     }
-                    .frame(maxWidth: .infinity)
-                    // Tapping anywhere in the middle starts typing.
-                    .contentShape(Rectangle())
-                    .onTapGesture { focusedField = .age }
-                    stepButton("plus", name: "One year older", delta: 1,
-                               disabled: (typedAge ?? Self.ageRange.lowerBound) >= Self.ageRange.upperBound)
+                }
+                // The number pad has no return key and the keyboard bar doesn't always show,
+                // so a plain button closes it. Beside the field, it stays above the keyboard.
+                if focusedField != nil {
+                    Button { focusedField = nil } label: {
+                        Text("Done")
+                            .font(.headline)
+                            .foregroundStyle(Color.onAccent)
+                            .padding(.horizontal, Spacing.xl)
+                            .frame(minHeight: 52)
+                            .background(Color.dullPink, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(ScalePressStyle())
+                    .accessibilityIdentifier("onboarding.closeKeyboard")
+                    .transition(.opacity)
                 }
             }
             .sensoryFeedback(.selection, trigger: vm.age)

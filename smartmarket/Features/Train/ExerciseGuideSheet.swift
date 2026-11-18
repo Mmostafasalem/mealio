@@ -29,7 +29,7 @@ struct ExerciseGuide: Identifiable {
 
     /// A step in a workout. Uses the catalogue entry when the name matches one.
     init(step: WorkoutExercise) {
-        let known = Exercise.closestMatch(name: step.name)
+        let known = Self.catalogueEntry(named: step.name)
         name = step.name
         motion = known?.motion ?? ExerciseMotion.matching(name: step.name)
         drawingID = known?.id
@@ -38,6 +38,15 @@ struct ExerciseGuide: Identifiable {
         muscles = known?.muscles
         equipment = known?.equipment
         prescription = step.restSeconds > 0 ? "\(step.prescription) · rest \(step.restSeconds) sec" : step.prescription
+    }
+
+    /// The catalogue exercise a step is: by its name, or for an interval block
+    /// ("Jump rope intervals") by the drill it is made of.
+    static func catalogueEntry(named name: String) -> Exercise? {
+        if let known = Exercise.closestMatch(name: name) { return known }
+        let suffix = " intervals"
+        guard name.lowercased().hasSuffix(suffix) else { return nil }
+        return Exercise.closestMatch(name: String(name.dropLast(suffix.count)))
     }
 
     /// The hand-drawn frames, once the drawings have loaded and this one's paths are

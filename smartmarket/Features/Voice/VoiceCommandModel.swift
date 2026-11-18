@@ -61,6 +61,9 @@ final class VoiceCommandModel {
     /// Nothing heard at all for this long gives up.
     static let nothingHeard: TimeInterval = 8
     static let autoConfirmSeconds = 4
+    /// The offline model hears any loud sound as a voice, so a noisy room would
+    /// never end the listening: it stops here whatever is heard.
+    static let longestOfflineListening: TimeInterval = 30
 
     /// The language being listened for (chosen in Profile).
     private(set) var language = VoiceLanguage.current
@@ -75,6 +78,7 @@ final class VoiceCommandModel {
 
     func start() {
         cancelTimers()
+        stopEngine()
         session += 1
         let session = session
         transcript = ""
@@ -171,6 +175,7 @@ final class VoiceCommandModel {
                 let quietFor = now.timeIntervalSince(self.lastHeardAt)
                 let spoke = !self.transcript.isEmpty || self.hasSpoken
                 if spoke, quietFor > Self.endOfSpeech { self.stopListening(); return }
+                if !self.showsLiveText, now.timeIntervalSince(self.startedAt) > Self.longestOfflineListening { self.stopListening(); return }
                 if !spoke, now.timeIntervalSince(self.startedAt) > Self.nothingHeard { self.stopListening(); return }
             }
         }
@@ -191,6 +196,11 @@ final class VoiceCommandModel {
             // The final pass can be shorter than what was shown; keep the fuller one.
             let text = final.count >= transcript.count ? final : transcript
             transcript = text
+            // Reading the recording failed: say so, instead of "I didn't hear anything".
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let error = engine?.lastError {
+                fail(error)
+                return
+            }
             understand(text)
         }
     }
@@ -242,7 +252,7 @@ final class VoiceCommandModel {
             phase = .review
             // A model's reading, or one that allowed for misheard words, is shown for a tap;
             // only the rules' exact readings save by themselves.
-            if plan.isComplete, helper == nil, !guessed { startCountdown() }
+            if plan.isComplete, helper == nil, !guessed, !plan.isGuessed { startCountdown() }
         } else {
             run(plan)
         }
@@ -275,6 +285,8 @@ final class VoiceCommandModel {
         countdown = Self.autoConfirmSeconds
         // A UI test confirms by hand, so it never races the timer.
         guard Self.testPhrase == nil else { countdown = nil; return }
+        // VoiceOver and Switch Control take longer than the countdown: wait for a tap.
+        guard !UIAccessibility.isVoiceOverRunning, !UIAccessibility.isSwitchControlRunning else { countdown = nil; return }
         let session = session
         countdownTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -387,6 +399,8 @@ final class VoiceCommandModel {
     // MARK: Ending
 
     private func fail(_ error: Error) {
+        // The microphone must not stay live behind an error message.
+        stopEngine()
         if let capture = error as? SpeechCaptureError, capture == .microphoneDenied || capture == .speechDenied {
             permissionDenied = true
         }
@@ -400,13 +414,18 @@ final class VoiceCommandModel {
         countdown = nil
     }
 
+    /// Lets go of the engine and stops its microphone.
+    private func stopEngine() {
+        guard let engine else { return }
+        self.engine = nil
+        Task { _ = await engine.stop() }
+    }
+
     /// The sheet is going away: stop the microphone, keep whatever was saved.
     func cancel() {
         cancelTimers()
         session += 1
-        let engine = engine
-        self.engine = nil
-        Task { _ = await engine?.stop() }
+        stopEngine()
     }
 }
 
@@ -415,7 +434,7 @@ extension SpeechCaptureError: Equatable {
         switch (a, b) {
         case (.microphoneDenied, .microphoneDenied), (.speechDenied, .speechDenied),
              (.unsupportedLanguage, .unsupportedLanguage), (.unavailable, .unavailable),
-             (.needsOfflineModel, .needsOfflineModel): return true
+             (.needsOfflineModel, .needsOfflineModel), (.transcriptionFailed, .transcriptionFailed): return true
         case let (.audio(x), .audio(y)): return x == y
         default: return false
         }

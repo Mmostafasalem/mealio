@@ -107,7 +107,7 @@ struct ProfileView: View {
 
     @ViewBuilder private var metricTiles: some View {
         MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
-        MetricTile(title: "Daily Goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
+        MetricTile(title: "Daily goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
         MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
     }
 
@@ -115,7 +115,7 @@ struct ProfileView: View {
         Section("Edit") {
             NavigationLink {
                 EditBodyStatsView(vm: vm)
-            } label: { Label("Body Stats", systemImage: "figure") }
+            } label: { Label("Body stats", systemImage: "figure") }
 
             NavigationLink {
                 EditGoalView(vm: vm)
@@ -128,7 +128,7 @@ struct ProfileView: View {
 
             NavigationLink {
                 EditFavoriteFoodsView(vm: vm)
-            } label: { Label("Favorite Foods", systemImage: "heart") }
+            } label: { Label("Favourite foods", systemImage: "heart") }
 
             NavigationLink {
                 RemindersView()

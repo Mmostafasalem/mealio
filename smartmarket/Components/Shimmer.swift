@@ -7,6 +7,7 @@ private struct ShimmerModifier: ViewModifier {
     @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
 
     private var animates: Bool { active && !reduceMotion && !lowPower && scenePhase == .active }
 
@@ -15,7 +16,8 @@ private struct ShimmerModifier: ViewModifier {
             .overlay {
                 if animates {
                     GeometryReader { geometry in
-                        LinearGradient(colors: [.clear, Color.almond.opacity(0.45), .clear],
+                        // A faint band on dark surfaces; almond at 45% there is a bright stripe.
+                        LinearGradient(colors: [.clear, Color.almond.opacity(colorScheme == .dark ? 0.1 : 0.45), .clear],
                                        startPoint: .leading, endPoint: .trailing)
                             .frame(width: geometry.size.width * 1.5)
                             .offset(x: phase * geometry.size.width * 1.5)

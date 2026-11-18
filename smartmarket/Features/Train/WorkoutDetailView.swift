@@ -12,6 +12,9 @@ struct WorkoutDetailView: View {
     @State private var markedDone = false
     @State private var guide: ExerciseGuide?
     @State private var mode: WorkoutModeModel?
+    /// Asking before the running session is stopped, with the sets done so far.
+    @State private var confirmStop = false
+    @State private var setsDoneAtStop = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var weight: Double { AppState.shared.userProfile.weight }
@@ -141,6 +144,14 @@ struct WorkoutDetailView: View {
         } message: {
             Text("Starting this workout ends \(session.workout?.title ?? "the other one") without saving its sets.")
         }
+        .confirmationDialog("Stop this workout?", isPresented: $confirmStop, titleVisibility: .visible) {
+            // Nothing done means nothing to save (and no calories counted).
+            if setsDoneAtStop > 0 { Button("Finish and save") { finishFromStrip() } }
+            Button("Stop without logging", role: .destructive) { stopWithoutLogging() }
+            Button("Keep going", role: .cancel) {}
+        } message: {
+            Text(setsDoneAtStop > 0 ? "\(setsDoneAtStop) set\(setsDoneAtStop == 1 ? " is" : "s are") done." : "No sets are done yet.")
+        }
         .fullScreenCover(isPresented: Binding(get: { mode != nil }, set: { if !$0 { mode = nil } })) {
             if let mode {
                 WorkoutModeView(model: mode) { self.mode = nil; markedDone = store.isCompletedToday(workout) }
@@ -179,6 +190,21 @@ struct WorkoutDetailView: View {
         UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
         session.start(workout)
         mode = WorkoutModeModel(workout: workout)
+    }
+
+    /// Saves the sets done so far (as workout mode's Finish does) and shows the summary.
+    private func finishFromStrip() {
+        let model = WorkoutModeModel(workout: workout)
+        model.finish()
+        mode = model
+    }
+
+    /// Stops the session and drops its draft and pending timer notices; nothing is logged.
+    private func stopWithoutLogging() {
+        withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.cancel() }
+        UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
+        WorkoutModeModel.cancelRestNotice()
+        WorkoutModeModel.cancelTimerNotice()
     }
 
     @ViewBuilder private var startActions: some View {
@@ -220,14 +246,16 @@ struct WorkoutDetailView: View {
                     .foregroundStyle(Color.labelPrimary)
                     .accessibilityLabel("Elapsed time")
                 Button {
-                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.cancel() }
+                    setsDoneAtStop = WorkoutModeModel.draftSetsDone(for: workout) ?? 0
+                    confirmStop = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title3)
                         .foregroundStyle(Color.labelTertiary)
-                        .frame(minWidth: 44, minHeight: 32)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Stop without logging")
+                .accessibilityLabel("Stop workout")
                 .accessibilityIdentifier("workout.session.stop")
             }
             if let step = state.current {
@@ -304,7 +332,13 @@ struct WorkoutHistoryView: View {
                             .font(.caption).foregroundStyle(Color.labelSecondary)
                     }
                 }
-                .swipeActions { Button("Delete", role: .destructive) { store.removeCompleted(session) } }
+                .swipeActions {
+                    Button("Delete", role: .destructive) {
+                        store.removeCompleted(session)
+                        // Its sets in Progress go with it.
+                        if let logID = session.logID { TrainingLogStore.shared.remove(id: logID) }
+                    }
+                }
             }
         }
         .scrollContentBackground(.hidden)

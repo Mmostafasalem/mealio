@@ -101,6 +101,12 @@ OPTIONAL = re.compile(r"\b(to taste|optional|for garnish|for serving|to serve|as
                       r"for deep frying|for greasing|for dusting|garnish|for the pan|if desired|cooking spray)\b", re.I)
 HEADER = re.compile(r"^(for the |the )?[a-z ]{0,30}:$", re.I)
 
+# What one counted piece weighs when the line names the piece ("24 wingettes", "12 cabbage leaves").
+PIECES = [("wingette", 35), ("drumette", 40), ("wing", 60), ("drumstick", 110), ("thigh", 110), ("breast", 200),
+          ("leaf", 25), ("leave", 25), ("slice", 25), ("strip", 20), ("rasher", 15), ("fillet", 150), ("chop", 180),
+          ("cutlet", 120), ("floret", 20), ("wedge", 40), ("segment", 15), ("cube", 5), ("sprig", 1), ("stalk", 40),
+          ("rib", 60), ("spear", 16), ("ear", 100), ("link", 60), ("patty", 110), ("patties", 110)]
+
 MEAS = {"g": 1, "kg": 1000, "oz": 28.35, "lb": 453.6}
 VOL_CUPS = {"cup": 1, "tbsp": 1 / 16, "tsp": 1 / 48, "ml": 1 / 240, "l": 1000 / 240, "dl": 100 / 240,
             "floz": 1 / 8, "cl": 10 / 240, "pint": 2, "quart": 4}
@@ -209,8 +215,18 @@ def grams(line, key):
         return (40 if key == "garlic" else each or 400) * q
     if unit == "stalk":
         return 40 * q
-    if unit in SIZE and each:
-        return q * each * SIZE[unit]
+    if unit in SIZE:
+        piece = each
+        for word, g in PIECES:
+            if re.search(r"\b" + word + r"s?\b", raw):
+                piece = g
+                break
+        else:
+            # "24 chicken" isn't 24 whole birds: a count this large with a whole-item weight is a misread.
+            if piece and piece >= 400 and q > 3:
+                return None
+        if piece:
+            return q * piece * SIZE[unit]
     return None
 
 
@@ -282,22 +298,68 @@ DAIRY = ANIMAL - {"egg", "eggs", "egg yolk", "egg white", "hard boiled eggs", "h
 ALCOHOL = {"wine", "red wine", "white wine", "rum", "brandy", "beer"}
 
 
-def tags(keys):
+# Words that settle a diet tag wherever they appear in any ingredient line (linked or not),
+# so "pork chops", "chicken wings" or "a splash of sherry" can't slip past the key sets.
+MEAT_WORDS = ["chicken", "beef", "pork", "lamb", "mutton", "veal", "turkey", "duck", "goose", "ham", "bacon", "sausage",
+              "salami", "chorizo", "pepperoni", "prosciutto", "pancetta", "meat", "steak", "mince", "ribs", "liver",
+              "gelatin", "gelatine", "lard", "suet", "broth", "stock", "bouillon", "oxtail", "venison", "rabbit", "goat"]
+FISH_WORDS = ["fish", "salmon", "tuna", "cod", "anchovy", "anchovies", "sardine", "shrimp", "prawn", "crab", "lobster",
+              "mussel", "clam", "oyster", "scallop", "squid", "crayfish", "mackerel", "herring", "trout", "tilapia"]
+PORK_WORDS = ["pork", "bacon", "ham", "sausage", "salami", "chorizo", "pepperoni", "prosciutto", "pancetta", "lard",
+              "gelatin", "gelatine"]
+ALCOHOL_WORDS = ["wine", "sherry", "vodka", "bourbon", "whiskey", "whisky", "rum", "brandy", "beer", "ale", "lager", "liqueur",
+                 "cognac", "tequila", "gin", "vermouth", "marsala", "port", "sake", "mirin", "champagne", "kirsch", "amaretto",
+                 "kahlua", "stout", "cider"]
+DAIRY_WORDS = ["milk", "butter", "cream", "cheese", "yogurt", "yoghurt", "ghee", "whey", "custard", "buttermilk", "paneer",
+               "mascarpone", "ricotta", "parmesan", "mozzarella", "cheddar", "feta"]
+EGG_WORDS = ["egg", "eggs", "mayonnaise", "honey"]
+GLUTEN_WORDS = ["flour", "bread", "breadcrumbs", "pasta", "spaghetti", "macaroni", "noodle", "noodles", "couscous", "bulgur",
+                "barley", "semolina", "wheat", "rye", "tortilla", "pita", "pastry", "cracker", "crackers", "biscuit", "biscuits",
+                "cake", "beer", "seitan", "soy", "oats", "oatmeal", "phyllo", "filo", "vermicelli", "lasagna", "lasagne", "penne"]
+NUT_WORDS = ["almond", "almonds", "walnut", "walnuts", "pecan", "pecans", "cashew", "cashews", "peanut", "peanuts", "pistachio",
+             "pistachios", "hazelnut", "hazelnuts", "nut", "nuts", "macadamia", "marzipan", "praline", "nutella"]
+# Plant foods whose names contain an animal word.
+PLANT_PHRASES = ["coconut milk", "almond milk", "soy milk", "oat milk", "rice milk", "coconut cream", "peanut butter", "almond butter",
+                 "cocoa butter", "nut butter", "apple butter", "cream of tartar", "vegetable stock", "vegetable broth",
+                 "vegetable bouillon", "butternut", "butter beans", "butter bean", "eggplant", "ginger ale", "rice wine vinegar",
+                 "wine vinegar", "cider vinegar", "root beer", "coconut", "nutmeg", "soy sauce"]
+
+
+def words_of(lines):
+    text = " " + " ".join(l.lower() for l in lines) + " "
+    for phrase in PLANT_PHRASES:
+        keep = {"coconut": " coconut ", "nutmeg": " nutmeg ", "soy sauce": " soy sauce "}.get(phrase)
+        text = text.replace(phrase, keep or " ")
+    return set(re.findall(r"[a-z]+", text)), text
+
+
+def tags(keys, lines=()):
+    """Diet tags from the ingredient keys and every word of every line."""
+    w, text = words_of(lines)
+    def has(words): return any(x in w or (x + "s") in w for x in words)
+    meat = bool(keys & MEAT) or has(MEAT_WORDS)
+    fish = bool(keys & FISH) or has(FISH_WORDS)
+    animal = bool(keys & ANIMAL) or has(DAIRY_WORDS) or has(EGG_WORDS)
+    gluten = bool(keys & GLUTEN) or has(GLUTEN_WORDS) or " soy sauce " in text
+    dairy = bool(keys & DAIRY) or has(DAIRY_WORDS)
+    nuts = bool(keys & NUTS) or has(NUT_WORDS)
+    pork = bool(keys & PORK) or has(PORK_WORDS)
+    alcohol = bool(keys & ALCOHOL) or has(ALCOHOL_WORDS)
     out = []
-    if not keys & (MEAT | FISH):
+    if not meat and not fish:
         out.append("vegetarian")
-        if not keys & ANIMAL:
+        if not animal:
             out.append("vegan")
-    if not keys & GLUTEN:
+    if not gluten:
         out.append("glutenFree")
-    if not keys & DAIRY:
+    if not dairy:
         out.append("dairyFree")
-    if not keys & NUTS:
+    if not nuts:
         out.append("nutFree")
-    if not keys & PORK:
+    if not pork:
         out.append("noPork")
-        if not keys & ALCOHOL:
-            out.append("halal" if not keys & MEAT else "noPorkNoAlcohol")
+        if not alcohol:
+            out.append("halal" if not meat else "noPorkNoAlcohol")
     return out
 
 # --------------------------------------------------------------------------- build
@@ -423,9 +485,14 @@ def build(report=False):
         if total["kcal"] / servings < 120 and kind not in ("sauce",):
             servings = max(1, round(total["kcal"] / 300))
             estimated_servings = True
+        # A whole batch given as one serving ("Bulk Sausage"): portion it by calories instead.
+        if total["kcal"] / servings > 1400 or weight / servings > 1200:
+            portion = 300 if kind in ("dessert", "bread", "sauce") else 550
+            servings = max(servings, round(total["kcal"] / portion), round(weight / 600))
+            estimated_servings = True
         per = {n: round(v / servings, 1) for n, v in total.items()}
         per["kcal"] = round(per["kcal"])
-        if per["kcal"] > 2500 or per["kcal"] < 20:
+        if per["kcal"] > 1500 or per["kcal"] < 20 or weight > 12000:
             reasons["odd per serving"] += 1
             continue
         name = r["title"]
@@ -442,7 +509,7 @@ def build(report=False):
             "steps": r["steps"],
             "perServing": per,
             "gramsPerServing": round(weight / servings),
-            "tags": tags(used),
+            "tags": tags(used, [l["raw"] for l in lines]),
         })
     print(f"{len(pages)} pages -> {len(recipes)} recipes kept")
     print(dict(reasons))

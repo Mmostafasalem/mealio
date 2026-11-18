@@ -38,6 +38,8 @@ struct LoggedSet: Codable, Hashable, Identifiable {
     var seconds: Int? = nil
     var done = false
     var completedAt: Date? = nil
+    /// A timed set stopped early: what it was meant to last (`seconds` is the time done).
+    var targetSeconds: Int? = nil
 }
 
 struct LoggedExercise: Codable, Hashable, Identifiable {
@@ -97,9 +99,14 @@ struct ExerciseBests: Equatable {
 
 enum TrainingFormat {
     static func weight(_ kg: Double, _ unit: WeightUnit) -> String {
+        "\(weightNumber(kg, unit)) \(unit.suffix)"
+    }
+
+    /// The number alone, to one decimal with no trailing ".0": 83.9 kg in pounds is "185", not "185.0".
+    static func weightNumber(_ kg: Double, _ unit: WeightUnit) -> String {
         let value = unit == .kg ? kg : kg / WeightUnit.kgPerPound
-        let text = value.rounded() == value ? String(format: "%.0f", value) : String(format: "%.1f", value)
-        return "\(text) \(unit.suffix)"
+        let rounded = (value * 10).rounded() / 10
+        return rounded == rounded.rounded() ? String(format: "%.0f", rounded) : String(format: "%.1f", rounded)
     }
 
     static func duration(_ seconds: Int) -> String {
@@ -137,8 +144,10 @@ final class TrainingLogStore {
     @discardableResult
     func save(_ workout: LoggedWorkout) -> LoggedWorkout {
         var finished = workout
-        // Finished twice (the lock screen, then workout mode): the later save replaces the first.
-        workouts.removeAll { $0.title == workout.title && abs($0.startedAt.timeIntervalSince(workout.startedAt)) < 1 }
+        // Finished twice (the lock screen, then workout mode): the later save replaces the
+        // first and keeps its id, which the completed session may point at.
+        if let earlier = saved(title: workout.title, startedAt: workout.startedAt) { finished.id = earlier.id }
+        workouts.removeAll { $0.id == finished.id }
         finished.records = records(in: workout)
         workouts.insert(finished, at: 0)
         persist()
@@ -151,9 +160,17 @@ final class TrainingLogStore {
             .sorted { $0.finishedAt > $1.finishedAt }
     }
 
-    func remove(_ workout: LoggedWorkout) {
-        workouts.removeAll { $0.id == workout.id }
+    func remove(_ workout: LoggedWorkout) { remove(id: workout.id) }
+
+    func remove(id: UUID) {
+        guard workouts.contains(where: { $0.id == id }) else { return }
+        workouts.removeAll { $0.id == id }
         persist()
+    }
+
+    /// The saved workout with this title and start, if it was already finished once.
+    func saved(title: String, startedAt: Date) -> LoggedWorkout? {
+        workouts.first { $0.title == title && abs($0.startedAt.timeIntervalSince(startedAt)) < 1 }
     }
 
     private func persist() {
@@ -214,10 +231,13 @@ final class TrainingLogStore {
         return found
     }
 
-    /// Whether one set beats the history (shown with a "PR" mark as it's done).
-    func isRecord(_ set: LoggedSet, exercise name: String, tracking: ExerciseTracking) -> Bool {
-        guard !history(of: name).isEmpty else { return false }
-        return !Self.beaten(before: bests(of: name), now: Self.bests(of: [set]), tracking: tracking).isEmpty
+    /// Whether one set beats the history (shown with a "PR" mark as it's done). `earlier`
+    /// are the sets already done in this session, so only a set that beats those too counts.
+    func isRecord(_ set: LoggedSet, exercise name: String, tracking: ExerciseTracking, earlier: [LoggedSet] = []) -> Bool {
+        let past = history(of: name)
+        guard !past.isEmpty else { return false }
+        let before = Self.bests(of: past.flatMap(\.exercise.doneSets) + earlier)
+        return !Self.beaten(before: before, now: Self.bests(of: [set]), tracking: tracking).isEmpty
     }
 
     private static func beaten(before: ExerciseBests, now: ExerciseBests, tracking: ExerciseTracking) -> [(PersonalRecord.Kind, Double)] {

@@ -144,7 +144,8 @@ struct HeaderBowl: View {
             .overlay(alignment: .bottomTrailing) {
                 if loop.state.streak > 0 {
                     Text("\(loop.state.streak)")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded).monospacedDigit())
+                        .font(.system(.caption2, design: .rounded).weight(.heavy).monospacedDigit())
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .foregroundStyle(Color.onAccent)
                         .padding(.horizontal, 5)
                         .frame(minWidth: 18, minHeight: 18)

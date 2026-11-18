@@ -83,7 +83,13 @@ struct TrainingProgressView: View {
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                         }
                     }
-                    .swipeActions { Button("Delete", role: .destructive) { log.remove(w) } }
+                    .swipeActions {
+                        Button("Delete", role: .destructive) {
+                            log.remove(w)
+                            // Its entry in History goes with it.
+                            WorkoutStore.shared.removeCompleted(logID: w.id)
+                        }
+                    }
                 }
             }
         }
@@ -154,8 +160,10 @@ struct ExerciseProgressView: View {
     private var tracking: ExerciseTracking { history.first?.exercise.tracking ?? .reps }
 
     /// One point per session, oldest first: the best weight, reps or time that day.
+    /// Only sessions measured the way it is measured now: one logged another way
+    /// (reps before, weight now) has no value on this chart, and isn't drawn as zero.
     private var points: [(date: Date, value: Double)] {
-        history.reversed().map { entry in
+        history.reversed().filter { $0.exercise.tracking == tracking }.map { entry in
             let b = TrainingLogStore.bests(of: entry.exercise.doneSets)
             let value: Double
             switch tracking {
@@ -212,7 +220,7 @@ struct ExerciseProgressView: View {
                 ForEach(Array(history.enumerated()), id: \.offset) { _, entry in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(entry.date.formatted(date: .abbreviated, time: .shortened)).font(.subheadline.weight(.semibold))
-                        Text(entry.exercise.doneSets.map { TrainingFormat.set($0, tracking: tracking, unit: unit) }.joined(separator: "  ·  "))
+                        Text(entry.exercise.doneSets.map { TrainingFormat.set($0, tracking: entry.exercise.tracking, unit: unit) }.joined(separator: "  ·  "))
                             .font(.footnote).foregroundStyle(Color.labelSecondary).monospacedDigit()
                     }
                 }

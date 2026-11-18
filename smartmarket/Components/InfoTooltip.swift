@@ -23,7 +23,7 @@ struct InfoTooltip: View {
         } label: {
             Image(systemName: "info.circle")
                 .font(.system(size: 12))
-                .foregroundStyle(Color.secondary.opacity(0.65))
+                .foregroundStyle(Color.labelSecondary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }

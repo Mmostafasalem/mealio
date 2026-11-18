@@ -531,6 +531,22 @@ struct WorkoutExercise: Codable, Hashable, Identifiable {
         if sets > 1 { return "\(sets) × \(reps)" }
         return reps
     }
+
+    /// One set's working time: the set's own time, or about 3 s a rep (both sides when "each side").
+    var secondsPerSet: Int {
+        let each = WorkoutModeModel.prescription(self).each.lowercased()
+        guard minutes == 0, !each.contains("sec"), !each.contains("min") else { return WorkoutModeModel.seconds(in: self) }
+        let count = Int(each.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "") ?? 10
+        return count * 3 * (each.contains("each") ? 2 : 1)
+    }
+
+    /// Rough time for the whole step: a timed block's minutes, or the sets, the rests
+    /// between them and 45 s to set up and move on.
+    var estimatedSeconds: Int {
+        if minutes > 0 { return minutes * 60 }
+        let count = max(WorkoutModeModel.prescription(self).sets, 1)
+        return count * secondsPerSet + (count - 1) * max(restSeconds, 0) + 45
+    }
 }
 
 struct Workout: Codable, Hashable, Identifiable {
@@ -562,6 +578,12 @@ struct Workout: Codable, Hashable, Identifiable {
     /// Rough energy use for someone of this weight (MET × kg × hours).
     func estimatedCalories(weightKg: Double) -> Int {
         Int((kind.met * max(weightKg, 30) * Double(durationMinutes) / 60).rounded())
+    }
+
+    /// About how long these steps take, with `extraSeconds` of warm-up and cool-down.
+    static func estimatedMinutes(of exercises: [WorkoutExercise], extraSeconds: Int = 0) -> Int {
+        let seconds = exercises.reduce(extraSeconds) { $0 + $1.estimatedSeconds }
+        return max(1, Int((Double(seconds) / 60).rounded()))
     }
 }
 
@@ -637,4 +659,7 @@ struct CompletedWorkout: Codable, Hashable, Identifiable {
     /// `nil` for "Mark as done" and older entries: those aren't written to Apple Health.
     var trackedStart: Date? = nil
     var trackedEnd: Date? = nil
+    /// The `LoggedWorkout` (Progress) saved for the same session in workout mode, so
+    /// deleting one deletes the other. `nil` for "Mark as done" and older entries.
+    var logID: UUID? = nil
 }

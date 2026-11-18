@@ -134,6 +134,8 @@ struct LogFoodIntent: AppIntent {
         // Only products are saved (`remember` ignores the rest); skip the catalogue load otherwise.
         if source.source == .openFoodFacts { NutritionCatalogService.shared.remember(source) }
         FoodLogStore.shared.add(entry)
+        // The app may be suspended again before the usual short pause: update the widgets now.
+        WidgetSync.shared.syncNow()
         // The person has logged food, so the "Log food" tip has done its job.
         NourloTips.foodLogged()
         return .result(dialog: IntentDialog(stringLiteral: Self.confirmation(for: entry, food: source)))

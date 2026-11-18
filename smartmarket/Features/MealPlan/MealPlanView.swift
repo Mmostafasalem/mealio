@@ -50,7 +50,7 @@ struct MealPlanView: View {
             .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.isGenerating)
         }
         .background { GrainyGradient().ignoresSafeArea() }
-        .navigationTitle("Meal Plan")
+        .navigationTitle("Meal plan")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
         .task {
             if vm.todaysPlan == nil { await vm.loadTodaysPlan() }
@@ -118,7 +118,7 @@ struct MealPlanView: View {
 
                 Text("Calorie & macro values are estimates and may vary by product and preparation.")
                     .font(.caption2)
-                    .foregroundStyle(Color.labelTertiary)
+                    .foregroundStyle(Color.labelSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
@@ -130,7 +130,7 @@ struct MealPlanView: View {
         } else {
             EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
                            message: "Generate a plan tailored to your goals and favourite foods.",
-                           actionTitle: "Generate Plan") { Task { await vm.loadTodaysPlan() } }
+                           actionTitle: "Generate plan") { Task { await vm.loadTodaysPlan() } }
                 .padding(.top, Spacing.xxl)
         }
     }
@@ -396,9 +396,9 @@ private struct MealEntryRow: View {
                 }
             }
             if let missing, !missing.isEmpty, entry.stockOperationID != nil {
-                actionButton("Add missing ingredients to groceries", systemImage: "cart.badge.plus", prominent: false) {
+                actionButton("Add missing ingredients to checklist", systemImage: "cart.badge.plus", prominent: false) {
                     if PlannedMealStockSheet.addMissingToGroceries(entry: entry, missing: missing) {
-                        addedNotice = "Missing quantities added to Groceries."
+                        addedNotice = "Missing quantities added to your checklist."
                         addedTrigger.toggle()
                     }
                 }
@@ -415,7 +415,7 @@ private struct MealEntryRow: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(prominent ? Color.onAccent : Color.labelPrimary)
                 .padding(.horizontal, Spacing.md)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(prominent ? Color.progress : Color.surfaceSecondary,
                             in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
@@ -469,7 +469,7 @@ private struct RecommendationsSection: View {
                 }
             }
 
-            SwipeDeck(items: remaining, acceptLabel: "Add to groceries", skipLabel: "Skip",
+            SwipeDeck(items: remaining, acceptLabel: "Add to checklist", skipLabel: "Skip",
                       label: { item in
                           "\(item.foodName). \(item.reason). €\(String(format: "%.2f", item.estimatedPrice)). \(PriorityBadge.label(item.priority)) priority"
                       },
@@ -483,7 +483,7 @@ private struct RecommendationsSection: View {
                     Label("All done", systemImage: "checkmark.circle")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.labelPrimary)
-                    Text("Added items are in Groceries.")
+                    Text("Added items are in your checklist.")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -496,7 +496,7 @@ private struct RecommendationsSection: View {
                     onAddAll(remaining)
                     remaining = []
                 } label: {
-                    Label("Add all to grocery list", systemImage: "cart.badge.plus")
+                    Label("Add all to checklist", systemImage: "cart.badge.plus")
                         .font(.subheadline).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -589,9 +589,11 @@ private struct SkeletonMealPlanContent: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemFill))
                 .frame(height: 54)
-                .shimmer()
         }
         .padding(.horizontal, 16)
+        // One band across the whole placeholder, not one animation per bar.
+        .shimmer()
+        .accessibilityHidden(true)
     }
 }
 
@@ -602,28 +604,23 @@ private struct SkeletonMealSection: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color(.systemFill))
                     .frame(width: 34, height: 34)
-                    .shimmer()
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.systemFill))
                     .frame(width: 110, height: 15)
-                    .shimmer()
                 Spacer()
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.systemFill))
                     .frame(width: 55, height: 13)
-                    .shimmer()
             }
             ForEach(0..<2, id: \.self) { i in
                 HStack(spacing: 10) {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemFill))
                         .frame(width: i == 0 ? 160 : 120, height: 13)
-                        .shimmer()
                     Spacer()
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemFill))
                         .frame(width: 48, height: 13)
-                        .shimmer()
                 }
                 .padding(.leading, 46)
             }
@@ -640,6 +637,8 @@ private struct SkeletonWeekContent: View {
         VStack(spacing: 12) {
             ForEach(0..<7, id: \.self) { _ in SkeletonWeekDayCard() }
         }
+        .shimmer()
+        .accessibilityHidden(true)
     }
 }
 
@@ -648,21 +647,21 @@ private struct SkeletonWeekDayCard: View {
         HStack(spacing: 14) {
             VStack(spacing: 4) {
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 24, height: 10).shimmer()
+                    .fill(Color(.systemFill)).frame(width: 24, height: 10)
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 20, height: 18).shimmer()
+                    .fill(Color(.systemFill)).frame(width: 20, height: 18)
             }
             .frame(width: 36)
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 90, height: 14).shimmer()
+                        .fill(Color(.systemFill)).frame(width: 90, height: 14)
                     Spacer()
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 32, height: 12).shimmer()
+                        .fill(Color(.systemFill)).frame(width: 32, height: 12)
                 }
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.systemFill)).frame(height: 6).shimmer()
+                    .fill(Color(.systemFill)).frame(height: 6)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
@@ -793,9 +792,10 @@ private struct MissingFoodsBanner: View {
                 } label: {
                     Label("Add \(missing.count) to cart and stock", systemImage: "plus")
                         .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, Spacing.lg).frame(minHeight: 40)
+                        .padding(.horizontal, Spacing.lg).frame(minHeight: 44)
                         .background(Color.dullPink, in: Capsule())
                         .foregroundStyle(Color.onAccent)
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(ScalePressStyle())
                 .accessibilityIdentifier("meals.addMissing")

@@ -16,6 +16,9 @@ struct VoiceFoodMatch: Identifiable, Equatable {
     var alternatives: [NutritionFood]
     /// The amount was worked out from a typical size ("2 eggs" → 100 g), not said in grams.
     var estimated: Bool
+    /// The food or its amount is a guess (a bare name, grams said for a food
+    /// counted in servings): shown for a tap, never saved by the countdown.
+    var guessed = false
 
     var kcal: Int { Int(food.portion(amount).kcal.rounded()) }
 
@@ -40,6 +43,12 @@ enum VoicePlan: Equatable {
         case .food, .cart, .checklist: return true
         case .workout, .open, .exercise, .answer, .notUnderstood: return false
         }
+    }
+
+    /// Something in it was guessed, so it waits for a tap instead of saving itself.
+    var isGuessed: Bool {
+        if case .food(let matches, _, _) = self { return matches.contains { $0.guessed } }
+        return false
     }
 
     /// Nothing was left unmatched, so it can be saved without the person choosing anything.
@@ -118,10 +127,11 @@ enum VoiceCommandRunner {
         case .caloriesLeft:
             return .answer(CaloriesLeftSummary.current(now: now).dialog())
         case .unknown(let text):
-            // A bare food name ("banana") is still worth a try before giving up.
+            // A bare food name ("banana") is still worth a try before giving up, but only
+            // when it plainly names the food, and only as a guess: "stop" or "no" log nothing.
             let phrases = VoiceRuleBook.foodPhrases(text, language.lexicon).filter { !$0.name.isEmpty }
             if !phrases.isEmpty, phrases.count <= 4,
-               case .food(let matches, let missing, let slot) = foodPlan(phrases, slot: MealSlot.suggested(at: now), search: search),
+               case .food(let matches, let missing, let slot) = foodPlan(phrases, slot: MealSlot.suggested(at: now), search: search, bareNames: true),
                !matches.isEmpty, missing.isEmpty {
                 return .food(matches: matches, missing: [], slot: slot)
             }
@@ -129,17 +139,22 @@ enum VoiceCommandRunner {
         }
     }
 
-    private static func foodPlan(_ phrases: [VoiceFoodPhrase], slot: MealSlot, search: FoodSearch) -> VoicePlan {
+    /// `bareNames`: the phrase had no verb, meal or amount, so a food is taken
+    /// only when the name plainly names it, and the match is marked as a guess.
+    private static func foodPlan(_ phrases: [VoiceFoodPhrase], slot: MealSlot, search: FoodSearch, bareNames: Bool = false) -> VoicePlan {
         var matches: [VoiceFoodMatch] = []
         var missing: [String] = []
         for phrase in phrases {
-            let found = search(phrase.name).filter(\.isValid)
+            var found = search(phrase.name).filter { $0.isValid }
+            if bareNames { found = found.filter { VoiceFoodRanker.plainlyNames(phrase.name, $0) } }
             guard let food = found.first else {
                 missing.append(phrase.name)
                 continue
             }
             let (amount, estimated) = VoiceAmounts.amount(for: phrase, food: food)
-            matches.append(VoiceFoodMatch(phrase: phrase, food: food, amount: amount, alternatives: found, estimated: estimated))
+            var match = VoiceFoodMatch(phrase: phrase, food: food, amount: amount, alternatives: found, estimated: estimated)
+            match.guessed = bareNames || VoiceAmounts.isUnsure(phrase, food: food)
+            matches.append(match)
         }
         return .food(matches: matches, missing: missing, slot: slot)
     }
@@ -262,19 +277,18 @@ enum VoiceAmounts {
 
     private static func rawAmount(for phrase: VoiceFoodPhrase, food: NutritionFood) -> (amount: Double, estimated: Bool) {
         let count = phrase.quantity ?? 1
-        // Foods measured in servings (own dishes, menu items) are counted, whatever was said.
+        // Foods measured in servings (own dishes, menu items) are counted.
         if food.basis == .serving {
+            // "200 grams" of one is not 200 servings: one serving, for the person to set.
+            if isUnsure(phrase, food: food) { return (1, true) }
             let exact = phrase.unit == nil || phrase.unit == .serving || phrase.unit == .piece
             return (count, !exact)
         }
+        let piece = pieceWeight(of: phrase.name, food: food)
         guard let unit = phrase.unit else {
-            // No amount at all: the usual 100. A bare count: typical pieces.
-            guard phrase.quantity != nil else {
-                if let grams = typical(pieceGrams, in: phrase.name) { return (grams, true) }
-                return (food.defaultAmount, true)
-            }
-            if let grams = typical(pieceGrams, in: phrase.name) { return (count * grams, true) }
-            return (count * food.defaultAmount, true)
+            // No amount at all: one piece, or the usual 100. A bare count: typical pieces.
+            guard phrase.quantity != nil else { return (piece ?? food.defaultAmount, true) }
+            return (count * (piece ?? food.defaultAmount), true)
         }
         switch unit {
         case .gram: return (count, food.basis != .grams)
@@ -292,14 +306,44 @@ enum VoiceAmounts {
         case .can: return (count * 330, true)
         case .bottle: return (count * 500, true)
         case .handful: return (count * 30, true)
-        case .slice: return (count * (typical(sliceGrams, in: phrase.name) ?? 30), true)
-        case .piece: return (count * (typical(pieceGrams, in: phrase.name) ?? food.defaultAmount), true)
+        case .slice: return (count * (sliceWeight(of: phrase.name) ?? 30), true)
+        case .piece: return (count * (piece ?? food.defaultAmount), true)
         case .serving: return (count * food.defaultAmount, true)
         }
     }
 
-    private static func typical(_ table: [(word: String, grams: Double)], in name: String) -> Double? {
-        let words = Set(IntentSearch.words(name))
-        return table.first { words.contains($0.word) }?.grams
+    /// A weight or volume was said for a food that is counted in servings, so
+    /// the amount can't be worked out and must not save by itself.
+    static func isUnsure(_ phrase: VoiceFoodPhrase, food: NutritionFood) -> Bool {
+        guard food.basis == .serving, let unit = phrase.unit else { return false }
+        switch unit {
+        case .gram, .kilogram, .ounce, .pound, .millilitre, .litre: return true
+        default: return false
+        }
+    }
+
+    /// Catalogue groups whose foods are never eaten by the piece ("Spices, pepper, black").
+    private static let notPieces: Set<String> = ["spice", "seasoning", "sauce", "powder", "juice", "soup", "oil", "beverage", "babyfood"]
+
+    /// The typical weight of one piece, when the piece word is what the food is:
+    /// the last word of the spoken name ("boiled eggs"), not a word describing
+    /// something else ("almond milk", "potato chips", "apple pie").
+    static func pieceWeight(of name: String, food: NutritionFood) -> Double? {
+        let lead = Set(IntentSearch.words(food.name.split(separator: ",").first.map(String.init) ?? ""))
+        guard lead.isDisjoint(with: notPieces) else { return nil }
+        let spoken = IntentSearch.words(name)
+        if let head = spoken.last, let grams = pieceGrams.first(where: { $0.word == head })?.grams { return grams }
+        // One word that isn't a piece word, for a food named by one ("Egg, whole, raw").
+        if spoken.count == 1, lead.count == 1, let word = lead.first {
+            return pieceGrams.first { $0.word == word }?.grams
+        }
+        return nil
+    }
+
+    /// The typical weight of one slice: the last word first ("cheese cake" is a cake), then any word.
+    private static func sliceWeight(of name: String) -> Double? {
+        let spoken = IntentSearch.words(name)
+        if let head = spoken.last, let grams = sliceGrams.first(where: { $0.word == head })?.grams { return grams }
+        return sliceGrams.first { spoken.contains($0.word) }?.grams
     }
 }

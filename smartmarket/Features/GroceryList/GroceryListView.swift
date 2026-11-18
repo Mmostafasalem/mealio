@@ -13,15 +13,19 @@ struct GroceryListView: View {
             Group {
                 if vm.items.isEmpty {
                     EmptyStateView(icon: "cart",
-                                   title: "Your grocery list is empty",
-                                   message: "Add items from the Shop tab to build your shopping list.",
-                                   actionTitle: "Browse groceries") { dismiss() }
+                                   title: "Your checklist is empty",
+                                   message: "Add items from the Shop tab, then tick them off here as you shop.",
+                                   actionTitle: "Browse groceries") {
+                        // Closes the checklist and switches to the Shop tab.
+                        dismiss()
+                        NotificationCenter.default.post(name: .openShop, object: nil)
+                    }
                 } else {
                     listContent
                 }
             }
             .background(Color.surfaceGrouped.ignoresSafeArea())
-            .navigationTitle("Groceries")
+            .navigationTitle("Checklist")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.accessibilityIdentifier("groceries.done")
@@ -71,7 +75,7 @@ struct GroceryListView: View {
 
     private var clearBoughtMessage: String {
         let cartCount = vm.boughtCartCount
-        guard cartCount > 0 else { return "They're removed from your grocery list." }
+        guard cartCount > 0 else { return "They're removed from your checklist." }
         let noun = cartCount == 1 ? "item" : "items"
         return "\(cartCount) \(noun) also leave your cart, so they no longer count toward your weekly budget."
     }
@@ -184,7 +188,7 @@ private struct GrocerySummaryRow: View {
             .accessibilityLabel("\(bought) of \(total) bought")
             .accessibilityIdentifier("groceries.boughtCount")
             Spacer(minLength: Spacing.sm)
-            CopyButton(title: "Copy list", doneTitle: "Copied", announcement: "Shopping list copied") { copyText }
+            CopyButton(title: "Copy list", doneTitle: "Copied", announcement: "Checklist copied") { copyText }
                 .disabled(copyText.isEmpty)
                 .accessibilityHint(copyText.isEmpty ? "Everything is bought" : "Copies the items still to buy")
                 .accessibilityIdentifier("groceries.copy")
@@ -198,6 +202,7 @@ private struct FooterBar: View {
     let total: Double
     let count: Int
     let hasUnknownPrices: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 0) {
@@ -224,7 +229,7 @@ private struct FooterBar: View {
         .padding(.vertical, Spacing.lg)
         .background(.ultraThinMaterial)
         .overlay(Divider(), alignment: .top)
-        .animation(.snappyValue, value: total)
+        .animation(reduceMotion ? nil : .snappyValue, value: total)
     }
 }
 

@@ -27,8 +27,9 @@ struct CartButton: View {
     @State private var limitTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let widthClosed: CGFloat = 88
-    private static let widthOpen: CGFloat = 124
+    // The pill widens with the text size (capped below), so "Add" and "12" never clip.
+    @ScaledMetric(relativeTo: .subheadline) private var widthClosed: CGFloat = 88
+    @ScaledMetric(relativeTo: .subheadline) private var widthOpen: CGFloat = 124
     private static let side: CGFloat = 44
     private static let fade = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.2)
     private static let resize = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.32)
@@ -71,7 +72,8 @@ struct CartButton: View {
             control(systemImage: "plus", delta: 1, label: isOpen ? "Increase quantity" : "Add to cart")
                 .foregroundStyle(isOpen ? Color.onAccent.opacity(quantity >= max ? 0.4 : 1) : Color.labelPrimary)
         }
-        .frame(width: isOpen ? Self.widthOpen : Self.widthClosed, height: Self.side)
+        .frame(width: isOpen ? widthOpen : widthClosed, height: Self.side)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .clipShape(Capsule())
         .contentShape(Capsule())
         // Closed, the whole pill adds one.

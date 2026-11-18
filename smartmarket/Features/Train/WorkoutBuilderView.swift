@@ -65,11 +65,40 @@ struct BuilderItem: Identifiable, Hashable {
     var seconds = 30
     var weightKg: Double = 0
     var restSeconds = 60
+    /// The step being edited. Its how-to note, the words after its number ("each side")
+    /// and a timed block's description are kept, so editing doesn't rewrite it.
+    private(set) var source: WorkoutExercise? = nil
 
     var step: WorkoutExercise {
-        WorkoutExercise(name: name, sets: sets, reps: tracking == .time ? "\(seconds) sec" : "\(reps)", minutes: 0,
-                        restSeconds: restSeconds, note: "", tracking: tracking,
-                        weightKg: tracking == .weightReps && weightKg > 0 ? weightKg : nil)
+        guard let source else {
+            return WorkoutExercise(name: name, sets: sets, reps: tracking == .time ? "\(seconds) sec" : "\(reps)", minutes: 0,
+                                   restSeconds: restSeconds, note: "", tracking: tracking,
+                                   weightKg: tracking == .weightReps && weightKg > 0 ? weightKg : nil)
+        }
+        // Nothing changed: the step goes back exactly as it was.
+        if sameTargets(as: BuilderItem(step: source)) { return source }
+        let weight = tracking == .weightReps && weightKg > 0 ? weightKg : nil
+        // A block written in minutes ("12 min · conversational pace") stays one when it still is whole minutes.
+        if tracking == .time, source.minutes > 0, (sets * seconds) % 60 == 0 {
+            return WorkoutExercise(name: name, sets: sets, reps: source.reps, minutes: sets * seconds / 60,
+                                   restSeconds: restSeconds, note: source.note, tracking: tracking, weightKg: weight)
+        }
+        let suffix = source.minutes > 0 ? "" : Self.suffix(of: WorkoutModeModel.prescription(source).each)
+        return WorkoutExercise(name: name, sets: sets, reps: (tracking == .time ? "\(seconds) sec" : "\(reps)") + suffix,
+                               minutes: 0, restSeconds: restSeconds, note: source.note, tracking: tracking, weightKg: weight)
+    }
+
+    private func sameTargets(as other: BuilderItem) -> Bool {
+        name == other.name && tracking == other.tracking && sets == other.sets && reps == other.reps
+            && seconds == other.seconds && weightKg == other.weightKg && restSeconds == other.restSeconds
+    }
+
+    /// The words after the amount: "10 each side" and "30 sec each side" → " each side".
+    static func suffix(of each: String) -> String {
+        guard let amount = each.range(of: #"^\s*\d+\s*(seconds?|secs?|minutes?|mins?)?"#,
+                                      options: [.regularExpression, .caseInsensitive]) else { return "" }
+        let words = each[amount.upperBound...].trimmingCharacters(in: .whitespaces)
+        return words.isEmpty ? "" : " " + words
     }
 
     init(name: String, tracking: ExerciseTracking) {
@@ -88,6 +117,7 @@ struct BuilderItem: Identifiable, Hashable {
         seconds = WorkoutModeModel.seconds(in: step)
         weightKg = step.weightKg ?? 0
         restSeconds = step.restSeconds
+        source = step
     }
 
     /// Rough time: about 3 s a rep (or the set's time), plus the rests between sets.
@@ -156,7 +186,12 @@ struct WorkoutBuilderView: View {
                 }
             }
             .sheet(isPresented: $picking) {
-                ExercisePickerView { picked in items.append(contentsOf: picked) }
+                // One row per exercise name: a step's name is its identity in the workout.
+                ExercisePickerView { picked in
+                    for item in picked where !items.contains(where: { TrainingLogStore.key($0.name) == TrainingLogStore.key(item.name) }) {
+                        items.append(item)
+                    }
+                }
             }
             .sheet(item: $editingItem) { item in
                 BuilderItemEditor(item: item, unit: unit) { updated in
@@ -195,13 +230,19 @@ struct WorkoutBuilderView: View {
 
     private func save() {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let steps = items.map { $0.step }
+        // Saved with nothing changed: the workout stays as it was (a generated one isn't relabelled).
+        if let editing, editing.title == name, editing.kind == kind, editing.exercises == steps {
+            dismiss()
+            return
+        }
         let workout = Workout(id: editing?.id ?? UUID(),
                               title: name.isEmpty ? "My \(kind.title.lowercased()) workout" : name,
                               summary: "Built by you · \(items.count) exercise\(items.count == 1 ? "" : "s")",
                               kind: kind, level: editing?.level ?? .intermediate, durationMinutes: minutes,
                               warmup: editing?.warmup ?? "5 minutes of easy movement to warm up.",
                               cooldown: editing?.cooldown ?? "A few minutes of easy stretching.",
-                              exercises: items.map(\.step),
+                              exercises: steps,
                               safetyNote: "Stop if anything hurts. General fitness guidance, not medical advice.",
                               source: "custom")
         WorkoutStore.shared.update(workout)
@@ -228,7 +269,9 @@ private struct BuilderItemEditor: View {
                 Section {
                     Stepper("Sets: \(item.sets)", value: $item.sets, in: 1...20)
                     if item.tracking == .time {
-                        Stepper("Time: \(TrainingFormat.duration(item.seconds))", value: $item.seconds, in: 5...3600, step: 5)
+                        // Up to two hours, for long steady blocks; whole minutes once past ten.
+                        Stepper("Time: \(TrainingFormat.duration(item.seconds))", value: $item.seconds, in: 5...7200,
+                                step: item.seconds >= 600 ? 60 : 5)
                     } else {
                         Stepper("Reps: \(item.reps)", value: $item.reps, in: 1...100)
                     }
@@ -265,11 +308,30 @@ struct ExercisePickerView: View {
     @State private var chosen: [BuilderItem] = []
     @State private var creating = false
 
+    /// Library exercises, without ones an own exercise of the same name stands in for.
     private var library: [Exercise] {
         Exercise.catalog.filter { e in
             (focus == nil || e.focus == focus)
                 && (query.isEmpty || e.name.localizedStandardContains(query) || e.muscles.localizedStandardContains(query))
+                && custom.exercise(named: e.name) == nil
         }
+    }
+
+    /// How a library exercise is measured: timed when its usual prescription is.
+    static func tracking(of e: Exercise) -> ExerciseTracking {
+        let timed = e.prescription.contains("min") || e.prescription.contains("sec")
+        return ExerciseTracking.guess(for: WorkoutExercise(name: e.name, sets: 3, reps: timed ? e.prescription : "10",
+                                                           minutes: 0, restSeconds: 60, note: ""))
+    }
+
+    private func isChosen(_ name: String) -> Bool {
+        chosen.contains { TrainingLogStore.key($0.name) == TrainingLogStore.key(name) }
+    }
+
+    /// Adds an exercise to the choice once, however it was picked.
+    private func choose(_ name: String, _ tracking: ExerciseTracking) {
+        guard !isChosen(name) else { return }
+        chosen.append(BuilderItem(name: name, tracking: tracking))
     }
 
     private var mine: [CustomExercise] {
@@ -303,8 +365,7 @@ struct ExercisePickerView: View {
                 }
                 Section("Library") {
                     ForEach(library) { e in
-                        row(name: e.name, detail: "\(e.muscles) · \(e.equipment)",
-                            tracking: ExerciseTracking.guess(for: WorkoutExercise(name: e.name, sets: 3, reps: e.prescription.contains("min") || e.prescription.contains("sec") ? e.prescription : "10", minutes: 0, restSeconds: 60, note: "")))
+                        row(name: e.name, detail: "\(e.muscles) · \(e.equipment)", tracking: Self.tracking(of: e))
                     }
                 }
             }
@@ -329,16 +390,20 @@ struct ExercisePickerView: View {
                 }
             }
             .sheet(isPresented: $creating) {
-                NewExerciseView { e in chosen.append(BuilderItem(name: e.name, tracking: e.tracking)) }
+                NewExerciseView { name, tracking in choose(name, tracking) }
                     .presentationDetents([.medium, .large])
             }
         }
     }
 
     private func row(name: String, detail: String, tracking: ExerciseTracking) -> some View {
-        let isChosen = chosen.contains { $0.name == name }
+        let picked = isChosen(name)
         return Button {
-            if isChosen { chosen.removeAll { $0.name == name } } else { chosen.append(BuilderItem(name: name, tracking: tracking)) }
+            if picked {
+                chosen.removeAll { TrainingLogStore.key($0.name) == TrainingLogStore.key(name) }
+            } else {
+                choose(name, tracking)
+            }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -346,9 +411,9 @@ struct ExercisePickerView: View {
                     Text(detail).font(.footnote).foregroundStyle(Color.labelSecondary).lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: isChosen ? "checkmark.circle.fill" : "plus.circle")
+                Image(systemName: picked ? "checkmark.circle.fill" : "plus.circle")
                     .font(.title3)
-                    .foregroundStyle(isChosen ? Color.ringProtein : Color.labelTertiary)
+                    .foregroundStyle(picked ? Color.ringProtein : Color.labelTertiary)
             }
             .contentShape(Rectangle())
         }
@@ -359,7 +424,7 @@ struct ExercisePickerView: View {
     private func chip(_ label: String, _ on: Bool, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label).font(.subheadline.weight(.medium))
-                .padding(.horizontal, 14).frame(minHeight: 36)
+                .padding(.horizontal, 14).frame(minHeight: 44)
                 .background(on ? Color.dullPink : Color.surfaceSecondary, in: Capsule())
                 .foregroundStyle(on ? Color.onAccent : Color.labelPrimary)
         }
@@ -368,20 +433,46 @@ struct ExercisePickerView: View {
 }
 
 /// A new exercise of the person's own: its name, the muscles, and how it's measured.
+/// A name the library or the person's own exercises already have isn't made twice:
+/// the form says so, and its button adds the existing exercise instead.
 private struct NewExerciseView: View {
-    let onCreate: (CustomExercise) -> Void
+    /// The exercise to add to the workout: its name and how it's measured.
+    let onCreate: (String, ExerciseTracking) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var muscles = ""
     @State private var tracking: ExerciseTracking = .weightReps
 
+    private var cleanName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// The exercise that already has this name, if any.
+    private var existing: (name: String, tracking: ExerciseTracking, own: Bool)? {
+        guard !cleanName.isEmpty else { return nil }
+        if let own = CustomExerciseStore.shared.exercise(named: cleanName) { return (own.name, own.tracking, true) }
+        if let known = Exercise.closestMatch(name: cleanName) { return (known.name, ExercisePickerView.tracking(of: known), false) }
+        return nil
+    }
+
     var body: some View {
-        NavigationStack {
+        let existing = self.existing
+        return NavigationStack {
             Form {
-                TextField("Name, e.g. Landmine press", text: $name).accessibilityIdentifier("newExercise.name")
-                TextField("Muscles (optional)", text: $muscles)
-                Picker("Measured by", selection: $tracking) {
-                    ForEach(ExerciseTracking.allCases, id: \.self) { Text($0.title).tag($0) }
+                Section {
+                    TextField("Name, e.g. Sled push", text: $name).accessibilityIdentifier("newExercise.name")
+                    if existing == nil {
+                        TextField("Muscles (optional)", text: $muscles)
+                        Picker("Measured by", selection: $tracking) {
+                            ForEach(ExerciseTracking.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                    }
+                } footer: {
+                    if let existing {
+                        Text(existing.own
+                             ? "You already have an exercise called \(existing.name). It won't be made twice; Add puts it in the workout."
+                             : "\(existing.name) is already in the library. It won't be made twice; Add puts it in the workout.")
+                            .foregroundStyle(Color.brandDanger)
+                            .accessibilityIdentifier("newExercise.clash")
+                    }
                 }
             }
             .navigationTitle("New exercise")
@@ -389,12 +480,17 @@ private struct NewExerciseView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        onCreate(CustomExerciseStore.shared.add(name: name, muscles: muscles, tracking: tracking))
+                    Button(existing == nil ? "Create" : "Add") {
+                        if let existing {
+                            onCreate(existing.name, existing.tracking)
+                        } else {
+                            let made = CustomExerciseStore.shared.add(name: cleanName, muscles: muscles, tracking: tracking)
+                            onCreate(made.name, made.tracking)
+                        }
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(cleanName.isEmpty)
                     .accessibilityIdentifier("newExercise.create")
                 }
             }

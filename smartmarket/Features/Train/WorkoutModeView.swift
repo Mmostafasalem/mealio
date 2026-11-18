@@ -9,6 +9,7 @@ struct WorkoutModeView: View {
 
     @AppStorage(Constants.Storage.weightUnit) private var unit: WeightUnit = .kg
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var guide: ExerciseGuide?
     @State private var confirmLeave = false
     @State private var editing: EditTarget?
@@ -42,6 +43,16 @@ struct WorkoutModeView: View {
             Button("Keep going", role: .cancel) {}
         } message: {
             Text("\(model.setsDone) of \(model.setsTotal) sets are done.")
+        }
+        // The Live Activity's Next and Finish change the session: follow it here.
+        .onChange(of: WorkoutSession.shared.state?.index) { _, index in
+            if let index { model.follow(sessionIndex: index) }
+        }
+        .onChange(of: WorkoutSession.shared.state == nil) { _, gone in
+            guard gone, model.tracksSession, !model.isClosed else { return }
+            let logged = withAnimation(reduceMotion ? .reducedFade : .smoothCard) { model.sessionEndedOutside() }
+            // Stopped with nothing logged: there is no summary to show.
+            if !logged { onClose() }
         }
     }
 
@@ -123,7 +134,9 @@ struct WorkoutModeView: View {
                 }
                 .padding(.horizontal, Spacing.lg)
             }
-            .onChange(of: model.exerciseIndex) { _, i in withAnimation { proxy.scrollTo(i, anchor: .center) } }
+            .onChange(of: model.exerciseIndex) { _, i in
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(i, anchor: .center) }
+            }
         }
         .padding(.bottom, Spacing.xs)
     }
@@ -184,13 +197,18 @@ struct WorkoutModeView: View {
             HStack {
                 Text("Set").frame(width: 40, alignment: .leading)
                 Text("Last time").frame(maxWidth: .infinity, alignment: .leading)
-                switch ex.tracking {
-                case .weightReps: Text(unit.suffix).frame(width: 96); Text("Reps").frame(width: 76)
-                case .reps:       Text("Reps").frame(width: 96)
-                case .time:       Text("Time").frame(width: 96)
+                // At the largest text sizes the values sit on their own line and carry their units.
+                if !stacksSetRows {
+                    switch ex.tracking {
+                    case .weightReps: Text(unit.suffix).frame(width: 96); Text("Reps").frame(width: 76)
+                    case .reps:       Text("Reps").frame(width: 96)
+                    case .time:       Text("Time").frame(width: 96)
+                    }
+                    Color.clear.frame(width: 44, height: 1)
                 }
-                Color.clear.frame(width: 40, height: 1)
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .font(.caption.weight(.semibold))
             .foregroundStyle(Color.labelSecondary)
             .padding(.horizontal, Spacing.md)
@@ -221,77 +239,123 @@ struct WorkoutModeView: View {
         } message: { Text(editMessage) }
     }
 
+    /// Fixed columns don't fit accessibility text sizes: the values move to a second line.
+    private var stacksSetRows: Bool { dynamicTypeSize.isAccessibilitySize }
+
     private func setRow(_ ex: LoggedExercise, set: LoggedSet, index: Int, previous: LoggedSet?) -> some View {
         let isCurrent = index == model.currentSetIndex
-        let record = model.isRecord(set, in: ex)
-        return HStack(spacing: 0) {
-            ZStack {
-                Circle().fill(set.done ? Color.ringProtein : (isCurrent ? Color.dullPink : Color.surfaceSecondary))
-                    .frame(width: 30, height: 30)
-                Text("\(index + 1)").font(.footnote.weight(.bold))
-                    .foregroundStyle(set.done || isCurrent ? Color.onAccent : Color.labelPrimary)
+        return Group {
+            if stacksSetRows {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    HStack(spacing: 0) {
+                        setNumber(index, set: set, isCurrent: isCurrent)
+                        lastTime(ex, set: set, previous: previous)
+                        doneButton(set, index: index, isCurrent: isCurrent)
+                    }
+                    HStack(spacing: Spacing.sm) { valueCells(ex, set: set, index: index) }
+                }
+            } else {
+                HStack(spacing: 0) {
+                    setNumber(index, set: set, isCurrent: isCurrent)
+                    lastTime(ex, set: set, previous: previous)
+                    valueCells(ex, set: set, index: index)
+                    doneButton(set, index: index, isCurrent: isCurrent)
+                }
             }
-            .frame(width: 40, alignment: .leading)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(previous.map { TrainingFormat.set($0, tracking: ex.tracking, unit: unit) } ?? "–")
-                    .font(.footnote).foregroundStyle(Color.labelSecondary).lineLimit(1)
-                if record { Text("PR").font(.caption2.weight(.heavy)).foregroundStyle(Color.brandAmber) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            switch ex.tracking {
-            case .weightReps:
-                valueCell(weightText(set.weightKg ?? 0), width: 96, done: set.done) { editing = EditTarget(set: index, field: .weight) }
-                    .accessibilityLabel("Set \(index + 1) weight, \(weightText(set.weightKg ?? 0)) \(unit.suffix)")
-                    .accessibilityHint("Double-tap to change")
-                    .accessibilityIdentifier("workoutMode.weight.\(index + 1)")
-                valueCell("\(set.reps ?? 0)", width: 76, done: set.done) { editing = EditTarget(set: index, field: .reps) }
-                    .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
-                    .accessibilityHint("Double-tap to change")
-                    .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
-            case .reps:
-                valueCell("\(set.reps ?? 0)", width: 96, done: set.done) { editing = EditTarget(set: index, field: .reps) }
-                    .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
-                    .accessibilityHint("Double-tap to change")
-                    .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
-            case .time:
-                valueCell(TrainingFormat.duration(set.seconds ?? 0), width: 96, done: set.done) { editing = EditTarget(set: index, field: .seconds) }
-                    .accessibilityLabel("Set \(index + 1) time, \(TrainingFormat.duration(set.seconds ?? 0))")
-                    .accessibilityHint("Double-tap to change")
-            }
-            Button {
-                if set.done { model.reopen(index) } else if isCurrent { model.completeSet() }
-            } label: {
-                Image(systemName: set.done ? "checkmark.circle.fill" : "circle")
-                    .font(.title2)
-                    .foregroundStyle(set.done ? Color.ringProtein : (isCurrent ? Color.labelPrimary : Color.labelTertiary))
-                    .frame(width: 40, height: 44)
-            }
-            .buttonStyle(.plain)
-            .disabled(!set.done && !isCurrent)
-            .accessibilityLabel(set.done ? "Set \(index + 1) done. Tap to edit." : "Complete set \(index + 1)")
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
         .background(isCurrent ? Color.dullPink.opacity(0.08) : Color.clear)
     }
 
-    private func valueCell(_ text: String, width: CGFloat, done: Bool, action: @escaping () -> Void) -> some View {
+    private func setNumber(_ index: Int, set: LoggedSet, isCurrent: Bool) -> some View {
+        ZStack {
+            Circle().fill(set.done ? Color.ringProtein : (isCurrent ? Color.dullPink : Color.surfaceSecondary))
+                .frame(width: 30, height: 30)
+            Text("\(index + 1)").font(.footnote.weight(.bold))
+                .lineLimit(1).minimumScaleFactor(0.5)
+                .foregroundStyle(set.done || isCurrent ? Color.onAccent : Color.labelPrimary)
+                .frame(width: 26)
+        }
+        .frame(width: 40, alignment: .leading)
+    }
+
+    private func lastTime(_ ex: LoggedExercise, set: LoggedSet, previous: LoggedSet?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(previous.map { TrainingFormat.set($0, tracking: ex.tracking, unit: unit) } ?? "–")
+                .font(.footnote).foregroundStyle(Color.labelSecondary).lineLimit(1).minimumScaleFactor(0.7)
+            if model.isRecord(set, in: ex) { Text("PR").font(.caption2.weight(.heavy)).foregroundStyle(Color.brandAmber) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func valueCells(_ ex: LoggedExercise, set: LoggedSet, index: Int) -> some View {
+        let stacked = stacksSetRows
+        switch ex.tracking {
+        case .weightReps:
+            valueCell(weightText(set.weightKg ?? 0) + (stacked ? " \(unit.suffix)" : ""), width: stacked ? nil : 96, done: set.done) {
+                editing = EditTarget(set: index, field: .weight)
+            }
+            .accessibilityLabel("Set \(index + 1) weight, \(weightText(set.weightKg ?? 0)) \(unit.suffix)")
+            .accessibilityHint("Double-tap to change")
+            .accessibilityIdentifier("workoutMode.weight.\(index + 1)")
+            valueCell("\(set.reps ?? 0)" + (stacked ? " reps" : ""), width: stacked ? nil : 76, done: set.done) {
+                editing = EditTarget(set: index, field: .reps)
+            }
+            .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
+            .accessibilityHint("Double-tap to change")
+            .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
+        case .reps:
+            valueCell("\(set.reps ?? 0)" + (stacked ? " reps" : ""), width: stacked ? nil : 96, done: set.done) {
+                editing = EditTarget(set: index, field: .reps)
+            }
+            .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
+            .accessibilityHint("Double-tap to change")
+            .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
+        case .time:
+            valueCell(TrainingFormat.duration(set.seconds ?? 0), width: stacked ? nil : 96, done: set.done) {
+                editing = EditTarget(set: index, field: .seconds)
+            }
+            .accessibilityLabel("Set \(index + 1) time, \(TrainingFormat.duration(set.seconds ?? 0))")
+            .accessibilityHint("Double-tap to change")
+        }
+    }
+
+    private func doneButton(_ set: LoggedSet, index: Int, isCurrent: Bool) -> some View {
+        Button {
+            if set.done { model.reopen(index) } else if isCurrent { model.completeSet() }
+        } label: {
+            Image(systemName: set.done ? "checkmark.circle.fill" : "circle")
+                .font(.title2)
+                .foregroundStyle(set.done ? Color.ringProtein : (isCurrent ? Color.labelPrimary : Color.labelTertiary))
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .disabled(!set.done && !isCurrent)
+        .accessibilityLabel(set.done ? "Set \(index + 1) done. Tap to edit." : "Complete set \(index + 1)")
+    }
+
+    /// `width` nil lets the cell share the row (the stacked layout).
+    private func valueCell(_ text: String, width: CGFloat?, done: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(text)
                 .font(.system(.headline, design: .rounded))
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
                 .foregroundStyle(done ? Color.labelSecondary : Color.labelPrimary)
-                .frame(width: width - 10, height: 40)
+                .padding(.horizontal, 4)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.horizontal, width == nil ? 0 : 5)
         }
         .buttonStyle(.plain)
         .frame(width: width)
     }
 
-    private func weightText(_ kg: Double) -> String {
-        let v = unit == .kg ? kg : kg / WeightUnit.kgPerPound
-        return v.rounded() == v ? String(format: "%.0f", v) : String(format: "%.1f", v)
-    }
+    /// The number alone: "62.5", and whole pounds as "185", never "185.0".
+    private func weightText(_ kg: Double) -> String { TrainingFormat.weightNumber(kg, unit) }
 
     // MARK: Typing a value
 
@@ -348,11 +412,11 @@ struct WorkoutModeView: View {
                 VStack(spacing: Spacing.xs) {
                     Button("+15 s") { model.addRest(15) }
                         .font(.subheadline.weight(.semibold))
-                        .frame(minWidth: 64, minHeight: 36)
+                        .frame(minWidth: 64, minHeight: 44)
                         .background(Color.surfaceSecondary, in: Capsule())
                     Button("Skip") { model.skipRest() }
                         .font(.subheadline.weight(.semibold))
-                        .frame(minWidth: 64, minHeight: 36)
+                        .frame(minWidth: 64, minHeight: 44)
                         .background(Color.surfaceSecondary, in: Capsule())
                         .accessibilityIdentifier("workoutMode.skipRest")
                 }
@@ -384,7 +448,8 @@ struct WorkoutModeView: View {
                 Button("Finish early") { confirmLeave = true }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.labelSecondary)
-                    .frame(minHeight: 36)
+                    .frame(minWidth: 88, minHeight: 44)
+                    .contentShape(Rectangle())
             }
         }
         .padding(.horizontal, Spacing.xl)
@@ -396,17 +461,20 @@ struct WorkoutModeView: View {
         TimelineView(.periodic(from: .now, by: 0.25)) { context in
             let left: Int = {
                 if let end = model.timerEndsAt { return max(0, Int(end.timeIntervalSince(context.date).rounded(.up))) }
+                // Paused: what is left, not the whole set again.
+                if let paused = model.timerPausedLeft { return paused }
                 if let ex = model.current, let i = model.currentSetIndex { return ex.sets[i].seconds ?? 0 }
                 return 0
             }()
             HStack(spacing: Spacing.md) {
                 Text(TrainingFormat.duration(left))
-                    .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
-                    .frame(minWidth: 110)
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold)).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.5)
+                    .frame(minWidth: 96)
                 if model.timerRunning {
                     SecondaryButton(title: "Pause", systemImage: "pause.fill") { model.pauseTimer() }
                 } else {
-                    PrimaryButton(title: "Start", systemImage: "play.fill") { model.startTimer() }
+                    PrimaryButton(title: model.timerPausedLeft == nil ? "Start" : "Resume", systemImage: "play.fill") { model.startTimer() }
                         .accessibilityIdentifier("workoutMode.startTimer")
                 }
                 Button { model.completeSet() } label: {

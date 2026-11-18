@@ -66,8 +66,12 @@ struct SmartMarketAgentApp: App {
                 if PrivateSyncService.shared.deletionPending {
                     VStack(spacing: 6) {
                         Text(PrivateSyncService.shared.status).font(.footnote)
-                        Button("Retry iCloud Deletion") { Task { await PrivateSyncService.shared.sync() } }
-                            .disabled(PrivateSyncService.shared.isSyncing)
+                        HStack(spacing: 24) {
+                            Button("Retry iCloud Deletion") { Task { await PrivateSyncService.shared.sync() } }
+                                .disabled(PrivateSyncService.shared.isSyncing)
+                            // For someone who changed Apple Account or left iCloud: the copy can't be reached from here.
+                            Button("Stop trying", role: .destructive) { PrivateSyncService.shared.abandonPendingDeletion() }
+                        }
                     }
                     .padding().frame(maxWidth: .infinity).background(.regularMaterial)
                 }
@@ -76,7 +80,7 @@ struct SmartMarketAgentApp: App {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
                 // The daily loop: apply savers on open, line up tonight's nudge on leaving.
-                if phase == .active { DailyLoopStore.shared.refresh() }
+                if phase == .active { DailyLoopStore.shared.refresh(); appState.recoverProfileIfNeeded() }
                 if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.stateForNudge()) }
             }
             .task(id: appState.isOnboarded) {
@@ -97,8 +101,8 @@ struct SmartMarketAgentApp: App {
                 appState.agentLoop.start(appState: appState)
                 // Read the offline food catalogue while nothing is happening, instead of on
                 // the first Log Food or cart tap (it is a few megabytes of JSON).
-                try? await Task.sleep(for: .milliseconds(1500))
-                _ = NutritionCatalogService.shared
+                try? await Task.sleep(for: .milliseconds(600))
+                await NutritionCatalogService.warmUp()
                 // The plan can now carry each meal's foods (macros, "Review and log").
                 NotificationCenter.default.post(name: .planInputsDidChange, object: nil)
             }
@@ -113,6 +117,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         MotionSettings.prepare()
+        // The Keychain outlives the app: a fresh install starts clean, not signed in as
+        // whoever used it before. (An update of an existing install is left alone.)
+        let launchedKey = "hasLaunchedBefore_v1"
+        if !UserDefaults.standard.bool(forKey: launchedKey) {
+            if !UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding),
+               UserDefaults.standard.object(forKey: "hasSeenWelcome") == nil,
+               UIApplication.shared.isProtectedDataAvailable {
+                _ = KeychainHelper.deleteAll()
+            }
+            UserDefaults.standard.set(true, forKey: launchedKey)
+        }
         // UI tests only: start with an empty cart, stock and plan (a launch argument
         // can't do this itself, because it would hide everything the app saves later).
         #if DEBUG
@@ -146,7 +161,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                                 didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
         if info["streakNudge"] != nil {
-            await MainActor.run { NotificationCenter.default.post(name: .openHome, object: nil) }
+            await MainActor.run { AppRouter.shared.open(.home) }
+            return
+        }
+        // A reminder opens what it reminds about: training, or the food logger.
+        if let kind = info["reminder"] as? String {
+            await MainActor.run { AppRouter.shared.open(kind == "workout" ? .train : .logFood) }
             return
         }
         guard let foodIdStr  = info["food_id"]       as? String,
@@ -185,7 +205,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         // The rest timer is on screen with its own haptic: its notice is for a locked phone only.
-        if notification.request.identifier == WorkoutModeModel.restNoticeID { return [] }
+        if [WorkoutModeModel.restNoticeID, WorkoutModeModel.timerNoticeID].contains(notification.request.identifier) { return [] }
         return [.banner, .sound, .badge]
     }
 }

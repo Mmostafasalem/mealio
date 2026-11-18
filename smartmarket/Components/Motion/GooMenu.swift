@@ -413,7 +413,7 @@ final class GooMenuEngine {
     @Previewable @State var picked = "Nothing yet"
     VStack(alignment: .leading, spacing: Spacing.lg) {
         HStack {
-            Label("Today's Log", systemImage: "list.bullet.clipboard.fill").font(.sectionTitle)
+            Label("Today's log", systemImage: "list.bullet.clipboard.fill").font(.sectionTitle)
             Spacer()
             GooMenu(items: [
                 GooMenuItem(id: "breakfast", title: "Breakfast", systemImage: "sunrise"),

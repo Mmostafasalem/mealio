@@ -31,6 +31,8 @@ final class WorkoutModeModel {
     @ObservationIgnored private let session: WorkoutSession?
     @ObservationIgnored private var restTask: Task<Void, Never>?
     @ObservationIgnored private var timerTask: Task<Void, Never>?
+    /// Set once the workout was finished or discarded here, or found ended outside.
+    @ObservationIgnored private(set) var isClosed = false
     static let draftKey = "workoutModeDraft_v1"
 
     private struct Draft: Codable {
@@ -56,8 +58,13 @@ final class WorkoutModeModel {
         } else {
             exercises = workout.exercises.map { Self.prepare($0, log: log) }
             startedAt = now
+            // Saved at once, so the start time survives the app closing before the first set.
+            saveDraft()
         }
     }
+
+    /// Whether this follows the shared live session (false in tests).
+    var tracksSession: Bool { session != nil }
 
     /// An exercise ready to log: its sets, filled from last time where there is one.
     static func prepare(_ step: WorkoutExercise, log: TrainingLogStore) -> LoggedExercise {
@@ -121,8 +128,13 @@ final class WorkoutModeModel {
     func setWeight(_ kg: Double, set: Int) {
         carry(from: set, \.weightKg, min(max(kg, 0), 1000))
     }
-    func setReps(_ reps: Int, set: Int) { carry(from: set, \.reps, min(max(reps, 0), 999)) }
-    func setSeconds(_ seconds: Int, set: Int) { carry(from: set, \.seconds, min(max(seconds, 0), 6 * 3600)) }
+    /// Reps and seconds are 1 at least: a set of nothing isn't a set.
+    func setReps(_ reps: Int, set: Int) { carry(from: set, \.reps, min(max(reps, 1), 999)) }
+    func setSeconds(_ seconds: Int, set: Int) {
+        // A paused timer starts again from the new time.
+        if set == currentSetIndex, timerPausedLeft != nil { timerPausedLeft = nil }
+        carry(from: set, \.seconds, min(max(seconds, 1), 6 * 3600))
+    }
 
     private func carry<T: Equatable>(from setIndex: Int, _ field: WritableKeyPath<LoggedSet, T?>, _ value: T) {
         guard exercises.indices.contains(exerciseIndex), exercises[exerciseIndex].sets.indices.contains(setIndex) else { return }
@@ -142,10 +154,17 @@ final class WorkoutModeModel {
         saveDraft()
     }
 
+    // Adding, removing or reopening a set can change which set is current, so a
+    // running or paused timer is stopped first: it must never complete another set.
+
     func addSet() {
         guard var ex = current else { return }
+        stopTimer()
         var copy = ex.sets.last ?? LoggedSet()
         copy.id = UUID(); copy.done = false; copy.completedAt = nil
+        // A timed set stopped early: the new one gets what was asked for, not the time done.
+        if let target = copy.targetSeconds { copy.seconds = target }
+        copy.targetSeconds = nil
         ex.sets.append(copy)
         exercises[exerciseIndex] = ex
         saveDraft()
@@ -153,28 +172,41 @@ final class WorkoutModeModel {
 
     func removeSet(_ setIndex: Int) {
         guard var ex = current, ex.sets.count > 1, ex.sets.indices.contains(setIndex) else { return }
+        stopTimer()
         ex.sets.remove(at: setIndex)
         exercises[exerciseIndex] = ex
         saveDraft()
     }
 
-    /// Opens a done set again to fix its numbers.
-    func reopen(_ setIndex: Int) { edit(setIndex) { $0.done = false; $0.completedAt = nil } }
+    /// Opens a done set again to fix its numbers (a timed set goes back to its target).
+    func reopen(_ setIndex: Int) {
+        stopTimer()
+        edit(setIndex) { set in
+            set.done = false
+            set.completedAt = nil
+            if let target = set.targetSeconds { set.seconds = target }
+            set.targetSeconds = nil
+        }
+    }
 
     // MARK: Moving on
 
     /// Marks the current set done, then rests, then moves on (to the next exercise after the last set).
     func completeSet(now: Date = Date()) {
         guard let i = currentSetIndex, var ex = current else { return }
-        // A timed set stopped early counts the time really done, not the target.
+        // A timed set stopped early counts the time really done; its target is kept beside it.
         if ex.tracking == .time, let target = ex.sets[i].seconds {
             let left = timerEndsAt.map { Int($0.timeIntervalSince(now).rounded()) } ?? timerPausedLeft
-            if let left, left > 0 { ex.sets[i].seconds = max(1, target - left) }
+            if let left, left > 0 {
+                ex.sets[i].targetSeconds = target
+                ex.sets[i].seconds = max(1, target - left)
+            }
         }
         stopTimer()
         ex.sets[i].done = true
         ex.sets[i].completedAt = now
-        let record = log.isRecord(ex.sets[i], exercise: ex.name, tracking: ex.tracking)
+        let record = log.isRecord(ex.sets[i], exercise: ex.name, tracking: ex.tracking,
+                                  earlier: ex.sets[..<i].filter(\.done))
         exercises[exerciseIndex] = ex
         setCount &+= 1
         if record { recordCount &+= 1 }
@@ -190,9 +222,13 @@ final class WorkoutModeModel {
         return unfinished.first { $0 > index } ?? unfinished.first
     }
 
-    /// Whether a done set beat the history (for the "PR" mark).
+    /// Whether a done set beat the history and the sets done before it today (for the
+    /// "PR" mark): one mark per new best, not one on every set above the old best.
     func isRecord(_ set: LoggedSet, in exercise: LoggedExercise) -> Bool {
-        set.done && log.isRecord(set, exercise: exercise.name, tracking: exercise.tracking)
+        guard set.done else { return false }
+        let position = exercise.sets.firstIndex { $0.id == set.id } ?? 0
+        return log.isRecord(set, exercise: exercise.name, tracking: exercise.tracking,
+                            earlier: exercise.sets[..<position].filter(\.done))
     }
 
     func go(to index: Int) {
@@ -201,6 +237,28 @@ final class WorkoutModeModel {
         exerciseIndex = index
         session?.syncStep(to: index)
         saveDraft()
+    }
+
+    // MARK: Following the session
+
+    /// The Live Activity's Next moved the session on: show that exercise (the session
+    /// already has it, so nothing is sent back).
+    func follow(sessionIndex index: Int) {
+        guard session != nil, !isClosed, result == nil, index != exerciseIndex else { return }
+        go(to: index)
+    }
+
+    /// The session ended outside workout mode (the Live Activity's Finish, or another
+    /// workout started). Shows the summary of what the session saved; returns false
+    /// when nothing was logged, so the screen can close.
+    @discardableResult
+    func sessionEndedOutside() -> Bool {
+        guard session != nil, !isClosed else { return result != nil }
+        isClosed = true
+        restTask?.cancel(); stopTimer(); restEndsAt = nil; Self.cancelRestNotice()
+        // Already saved by the session from the draft: shown, not saved again.
+        result = log.saved(title: workout.title, startedAt: startedAt)
+        return result != nil
     }
 
     // MARK: Rest
@@ -221,30 +279,57 @@ final class WorkoutModeModel {
     func skipRest() {
         restTask?.cancel()
         restEndsAt = nil
-        Self.cancelRestNotice()
+        if session != nil { Self.cancelRestNotice() }
     }
 
     static let restNoticeID = "workout_rest_end"
+    /// The end of a timed set, for a locked phone. On screen the timer itself shows it,
+    /// so it is silenced in the foreground like the rest notice.
+    static let timerNoticeID = "workout_timer_end"
+    /// The end each asked-for notice waits for, so one cancelled meanwhile isn't added late.
+    private static var noticeEnds: [String: Date] = [:]
 
     /// The rest's end also as a notification, for a locked phone between sets.
     private static func scheduleRestNotice(at end: Date) {
-        let content = UNMutableNotificationContent()
-        content.title = "Rest's over"
-        content.body = "Time for your next set."
-        content.sound = .default
-        let wait = max(1, end.timeIntervalSinceNow)
-        let request = UNNotificationRequest(identifier: restNoticeID, content: content,
-                                            trigger: UNTimeIntervalNotificationTrigger(timeInterval: wait, repeats: false))
-        UNUserNotificationCenter.current().add(request)
+        scheduleNotice(id: restNoticeID, title: "Rest's over", body: "Time for your next set.", at: end)
     }
 
-    static func cancelRestNotice() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNoticeID])
+    /// Adds a notice for `end`. Asks for permission the first time one is wanted;
+    /// with notifications denied nothing is scheduled.
+    private static func scheduleNotice(id: String, title: String, body: String, at end: Date) {
+        noticeEnds[id] = end
+        Task {
+            let center = UNUserNotificationCenter.current()
+            var status = await center.notificationSettings().authorizationStatus
+            // UI tests are never shown the system's question.
+            if status == .notDetermined, !NourloTips.isUITesting() {
+                _ = try? await center.requestAuthorization(options: [.alert, .sound])
+                status = await center.notificationSettings().authorizationStatus
+            }
+            guard status == .authorized || status == .provisional || status == .ephemeral else { return }
+            let wait = end.timeIntervalSinceNow
+            guard noticeEnds[id] == end, wait >= 1 else { return }
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: id, content: content,
+                                                trigger: UNTimeIntervalNotificationTrigger(timeInterval: wait, repeats: false))
+            try? await center.add(request)
+        }
     }
+
+    private static func cancelNotice(id: String) {
+        noticeEnds[id] = nil
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+
+    static func cancelRestNotice() { cancelNotice(id: restNoticeID) }
+    static func cancelTimerNotice() { cancelNotice(id: timerNoticeID) }
 
     private func scheduleRestEnd() {
         restTask?.cancel()
-        Self.cancelRestNotice()
+        if session != nil { Self.cancelRestNotice() }
         guard let end = restEndsAt else { return }
         if session != nil { Self.scheduleRestNotice(at: end) }
         restTask = Task { [weak self] in
@@ -266,23 +351,30 @@ final class WorkoutModeModel {
         let end = now.addingTimeInterval(TimeInterval(length))
         timerEndsAt = end
         timerTask?.cancel()
+        if session != nil {
+            Self.scheduleNotice(id: Self.timerNoticeID, title: "Time's up", body: "That set is done.", at: end)
+        }
         timerTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(max(0, end.timeIntervalSinceNow)))
             guard !Task.isCancelled, let self, self.timerEndsAt == end else { return }
             self.timerEndsAt = nil
-            self.completeSet()
+            // On a locked phone this runs late, when the app is back: the set still
+            // ended at `end`, and its rest counts from then.
+            self.completeSet(now: end)
         }
     }
 
     func pauseTimer(now: Date = Date()) {
         guard let end = timerEndsAt else { return }
         timerTask?.cancel()
+        if session != nil { Self.cancelTimerNotice() }
         timerPausedLeft = max(0, Int(end.timeIntervalSince(now).rounded()))
         timerEndsAt = nil
     }
 
     private func stopTimer() {
         timerTask?.cancel()
+        if session != nil, timerEndsAt != nil { Self.cancelTimerNotice() }
         timerEndsAt = nil
         timerPausedLeft = nil
     }
@@ -291,7 +383,9 @@ final class WorkoutModeModel {
 
     /// Saves the sets done (exercises with none are left out), logs the workout, and ends the session.
     func finish(now: Date = Date()) {
-        restTask?.cancel(); stopTimer(); restEndsAt = nil; Self.cancelRestNotice()
+        isClosed = true
+        restTask?.cancel(); stopTimer(); restEndsAt = nil
+        if session != nil { Self.cancelRestNotice() }
         let done = exercises.compactMap { ex -> LoggedExercise? in
             var kept = ex
             kept.sets = ex.doneSets
@@ -299,30 +393,42 @@ final class WorkoutModeModel {
         }
         let logged = LoggedWorkout(title: workout.title, kind: workout.kind, startedAt: startedAt,
                                    finishedAt: now, exercises: done)
-        result = log.save(logged)
-        session?.finish(now: now)
+        let saved = log.save(logged)
+        result = saved
+        // The completed session points at this log, so deleting one deletes the other.
+        session?.finish(now: now, logID: saved.id)
         defaults.removeObject(forKey: Self.draftKey)
     }
 
-    /// Leaves without saving anything.
-    /// The workout was finished outside workout mode (the Live Activity's Finish): the sets
-    /// already done in its draft are saved to Progress, as `finish` would have.
-    static func saveFinishedDraft(for workout: Workout, finishedAt: Date, defaults: UserDefaults = .standard) {
+    /// The sets ticked off in the saved draft for `workout`; nil when it has no draft.
+    static func draftSetsDone(for workout: Workout, defaults: UserDefaults = .standard) -> Int? {
         guard let data = defaults.data(forKey: draftKey),
-              let draft = try? JSONDecoder().decode(Draft.self, from: data), draft.workoutID == workout.id else { return }
+              let draft = try? JSONDecoder().decode(Draft.self, from: data), draft.workoutID == workout.id else { return nil }
+        return draft.exercises.reduce(0) { $0 + $1.doneSets.count }
+    }
+
+    /// The workout was finished outside workout mode (the Live Activity's Finish): the sets
+    /// already done in its draft are saved to Progress, as `finish` would have. Returns what was saved.
+    @discardableResult
+    static func saveFinishedDraft(for workout: Workout, finishedAt: Date, defaults: UserDefaults = .standard) -> LoggedWorkout? {
+        guard let data = defaults.data(forKey: draftKey),
+              let draft = try? JSONDecoder().decode(Draft.self, from: data), draft.workoutID == workout.id else { return nil }
         defaults.removeObject(forKey: draftKey)
         let done = draft.exercises.compactMap { ex -> LoggedExercise? in
             var kept = ex
             kept.sets = ex.doneSets
             return kept.sets.isEmpty ? nil : kept
         }
-        guard !done.isEmpty else { return }
+        guard !done.isEmpty else { return nil }
         let log = defaults === UserDefaults.standard ? TrainingLogStore.shared : TrainingLogStore(defaults: defaults)
-        log.save(LoggedWorkout(title: workout.title, kind: workout.kind, startedAt: draft.startedAt, finishedAt: finishedAt, exercises: done))
+        return log.save(LoggedWorkout(title: workout.title, kind: workout.kind, startedAt: draft.startedAt, finishedAt: finishedAt, exercises: done))
     }
 
+    /// Leaves without saving anything.
     func discard() {
-        restTask?.cancel(); stopTimer(); Self.cancelRestNotice()
+        isClosed = true
+        restTask?.cancel(); stopTimer()
+        if session != nil { Self.cancelRestNotice() }
         session?.cancel()
         defaults.removeObject(forKey: Self.draftKey)
     }

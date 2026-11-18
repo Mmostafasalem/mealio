@@ -65,8 +65,9 @@ enum VoiceRuleBook {
 
         if isCaloriesQuestion(text, lexicon) { return .caloriesLeft }
         if let exercise = exerciseQuestion(text, lexicon) { return .showExercise(exercise) }
-        if let workout = workout(text, lexicon) { return workout }
+        // Shopping first: "buy exercise bands" is a list item, not a workout.
         if let list = shopping(text, lexicon) { return list }
+        if let workout = workout(text, lexicon) { return workout }
         if let screen = destination(text, lexicon) { return .open(screen) }
         if let food = foodLog(text, lexicon) { return food }
         return .unknown(text)
@@ -108,6 +109,9 @@ enum VoiceRuleBook {
 
     private static func isCaloriesQuestion(_ text: String, _ lexicon: VoiceLexicon) -> Bool {
         guard lexicon.calorieWords.contains(where: text.contains) else { return false }
+        // "how many calories in a banana" asks about a food, not about today.
+        let aboutAFood = lexicon.calorieExclusions.contains { text.range(of: $0, options: .regularExpression) != nil }
+        guard !aboutAFood else { return false }
         return lexicon.calorieCues.contains(where: text.contains)
     }
 
@@ -130,8 +134,10 @@ enum VoiceRuleBook {
         let namesWorkout = words.contains { lexicon.matches($0, lexicon.workoutNouns) } || lexicon.workoutPhrases.contains(where: text.contains)
         guard namesWorkout else { return nil }
         // "log my workout" isn't a request to build one, and a food phrase can't hold these nouns.
+        // A short phrase is enough ("gym session"), unless a food or shopping verb leads it ("log my workout").
+        let leadsElsewhere = (lexicon.foodVerbs + lexicon.shoppingVerbs).contains { text == $0 || text.hasPrefix($0 + " ") }
         let asksForOne = words.contains { lexicon.matches($0, lexicon.workoutVerbs) }
-            || lexicon.workoutCues.contains(where: text.contains) || words.count <= 4
+            || lexicon.workoutCues.contains(where: text.contains) || (words.count <= 4 && !leadsElsewhere)
         guard asksForOne else { return nil }
         let kind = lexicon.workoutKinds.first { kind in words.contains { lexicon.matches($0, kind.words) } }?.kind
         return .startWorkout(kind: kind, minutes: minutes(in: text, lexicon))
@@ -194,8 +200,7 @@ enum VoiceRuleBook {
         // The meal can be anywhere: "for breakfast i had…", "…as a snack", "log to dinner…".
         for meal in lexicon.meals {
             for name in meal.names {
-                let pattern = #"(?:^| )"# + lexicon.mealPrefix + name + lexicon.mealSuffix + #"(?= |$)"#
-                if let range = rest.range(of: pattern, options: .regularExpression) {
+                if let range = mealMention(of: name, in: rest, lexicon) {
                     slot = meal.slot
                     rest.replaceSubrange(range, with: " ")
                     break
@@ -242,6 +247,31 @@ enum VoiceRuleBook {
         return .logFood(items: items, slot: slot)
     }
 
+    /// Where a meal is named as the meal, not as part of a food's name. With
+    /// `mealPrepositions` set, "snack" in "a snack bar" stays with the food: the
+    /// meal needs a preposition ("for a snack"), or to end the phrase, or to
+    /// start it with an amount, an article or a verb after it ("breakfast two eggs").
+    private static func mealMention(of name: String, in text: String, _ lexicon: VoiceLexicon) -> Range<String.Index>? {
+        let pattern = #"(?:^| )("# + lexicon.mealPrefix + ")" + name + lexicon.mealSuffix + #"(?= |$)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+            guard let range = Range(match.range, in: text) else { continue }
+            guard let prepositions = lexicon.mealPrepositions else { return range }
+            let lead = Range(match.range(at: 1), in: text).map { String(text[$0]) } ?? ""
+            if let first = lead.split(separator: " ").first, prepositions.contains(String(first)) { return range }
+            if range.upperBound == text.endIndex { return range }
+            if range.lowerBound == text.startIndex {
+                let after = text[range.upperBound...].trimmingCharacters(in: .whitespaces)
+                let next = after.split(separator: " ").first.map(String.init) ?? ""
+                let startsAFood = next == "," || Double(next) != nil || lexicon.numbers[next] != nil
+                    || lexicon.oneArticles.contains(next) || lexicon.leadingNoise.contains(next)
+                    || lexicon.foodVerbs.contains { after == $0 || after.hasPrefix($0 + " ") }
+                if startsAFood { return range }
+            }
+        }
+        return nil
+    }
+
     /// Splits "2 eggs, a slice of toast and 200 g of yoghurt" into its foods.
     static func foodPhrases(_ text: String, _ lexicon: VoiceLexicon = .english, translated: Bool = true) -> [VoiceFoodPhrase] {
         var numbered = numberWordsToDigits(text, lexicon)
@@ -286,7 +316,11 @@ enum VoiceRuleBook {
         while let first = words.first, lexicon.leadingNoise.contains(first) || lexicon.oneArticles.contains(first) { words.removeFirst() }
         var name = words.joined(separator: " ")
         guard !name.isEmpty, quantity ?? 1 > 0 else { return nil }
-        if translated { name = lexicon.translate(name, with: lexicon.foods) }
+        if translated {
+            // Both spellings mean the catalogue's "yogurt".
+            name = name.replacingOccurrences(of: #"\byoghurt"#, with: "yogurt", options: .regularExpression)
+            name = lexicon.translate(name, with: lexicon.foods)
+        }
         return VoiceFoodPhrase(name: name, quantity: quantity, unit: unit)
     }
 
@@ -415,6 +449,7 @@ struct VoiceLexicon {
     var fillers: [String]
 
     var calorieWords: [String]
+    /// Words that make a calorie phrase a question about what is left today.
     var calorieCues: [String]
 
     var exercisePatterns: [String]
@@ -470,6 +505,13 @@ struct VoiceLexicon {
     var wordPrefixes: [String] = []
     /// Also accept a word a letter or two away from a known one (see `VoiceRuleBook.parse`).
     var tolerant = false
+    /// Verbs that start a shopping phrase ("buy"); a short phrase led by one isn't a workout.
+    var shoppingVerbs: [String] = []
+    /// Regexes that mark a calorie question as being about a food ("in a banana").
+    var calorieExclusions: [String] = []
+    /// Words that tie a meal's name to the meal ("for", "as"). When set, a meal
+    /// word inside a food's name ("snack bar") is left there; nil takes any mention.
+    var mealPrepositions: Set<String>?
 
     static let fractionRewrites: [(String, String)] = [
         (#"(?<![\d/.])1/2(?![\d/])"#, "0.5"), (#"(?<![\d/.])1/4(?![\d/])"#, "0.25"),

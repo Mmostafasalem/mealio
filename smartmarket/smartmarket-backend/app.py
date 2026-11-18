@@ -7,6 +7,7 @@ import threading
 import time
 from groq import Groq
 import ai_usage
+from ai_accounts import network_key
 
 from openfoodfacts import nutrition_for, flush as flush_nutrition_cache
 
@@ -27,7 +28,9 @@ GROQ_MODEL  = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 groq_client = Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=1) if GROQ_API_KEY else None
 
 # ---------------------------------------------------------------------------
-# Rate limiting — 60 requests per IP per minute
+# Rate limiting — 60 requests per network per minute. A network is one IPv4
+# address or one IPv6 /64 (a single connection usually owns a whole /64, so
+# counting single IPv6 addresses would be trivial to step around).
 # ---------------------------------------------------------------------------
 
 _rate_buckets: dict = collections.defaultdict(list)
@@ -38,6 +41,7 @@ _last_sweep  = 0.0
 _rate_lock   = threading.Lock()
 
 def _is_rate_limited(ip: str) -> bool:
+    ip = network_key(ip)
     with _rate_lock:
         now    = time.time()
         cutoff = now - _RATE_WINDOW
@@ -275,8 +279,10 @@ def _resolve_nutrition(raw: dict):
         return (n.get("kcal", fb[0]), n.get("protein", fb[1]),
                 n.get("carbs", fb[2]), n.get("fat", fb[3]), allergens, "curated")
 
-    # 2. Open Food Facts (by barcode, then name)
-    off = nutrition_for(name=raw.get("name"), barcode=raw.get("barcode"))
+    # 2. Open Food Facts, by barcode only. A name search returns whatever
+    #    product happens to rank first, so items without a barcode must carry
+    #    explicit nutrition in the feed or they get the category average.
+    off = nutrition_for(barcode=raw.get("barcode")) if raw.get("barcode") else None
     if off:
         return (off["kcal"], off["protein"], off["carbs"], off["fat"],
                 allergens, "openfoodfacts")
@@ -593,7 +599,6 @@ def handle_health():
     return {
         "status":         "ok",
         "aiConfigured":   bool(GROQ_API_KEY),
-        "model":          GROQ_MODEL,
         "catalogSize":    len(catalog),
         "deals":          sum(1 for p in catalog if p.get("isOnSale")),
         "catalogSources": sorted(set(p["store"] for p in catalog)),
@@ -943,10 +948,21 @@ def handle_shopping_advice(body):
 # Simple in-memory LRU recipe cache — avoids re-generating the same meal while
 # staying bounded so a caller sending many distinct mealNames can't grow it without
 # limit (memory-exhaustion). Oldest entry is evicted once the cap is reached.
+# Entries are keyed by (account, meal name): the meal name is free text typed by
+# one person, so a recipe is only ever served back to the account that asked
+# for it. Without a known account nothing is read from or written to the cache.
 _RECIPE_CACHE_MAX = 500
-_recipe_cache: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
+_recipe_cache: "collections.OrderedDict[tuple, dict]" = collections.OrderedDict()
 # gunicorn threads share the cache: every read/write holds this lock.
 _recipe_cache_lock = threading.Lock()
+
+def _forget_account_recipes(account):
+    """Drop an account's cached recipes when that account is deleted."""
+    with _recipe_cache_lock:
+        for key in [k for k in _recipe_cache if isinstance(k, tuple) and k[0] == account]:
+            del _recipe_cache[key]
+
+ai_usage.on_account_deleted.append(_forget_account_recipes)
 
 class _VerifiedRecipe(dict):
     """Internal provenance; callers cannot create this marker through JSON."""
@@ -957,11 +973,14 @@ def handle_recipe(body):
     if not meal_name:
         return {"error": "mealName required"}
 
-    cache_key = meal_name.lower()
-    with _recipe_cache_lock:
-        cached = _recipe_cache.get(cache_key)
-        if cached is not None:
-            _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
+    account = ai_usage.account.get()
+    cache_key = (account, meal_name.lower()) if account else None
+    cached = None
+    if cache_key is not None:
+        with _recipe_cache_lock:
+            cached = _recipe_cache.get(cache_key)
+            if cached is not None:
+                _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
     if cached is not None:
         ai_usage.verified_cache.set(isinstance(cached, _VerifiedRecipe))
         return cached
@@ -990,7 +1009,7 @@ def handle_recipe(body):
         json_object=True, validator=_usable_recipe, # reject unusable output without charging
     )
     result["mealName"] = meal_name
-    if ai_usage.succeeded.get():
+    if cache_key is not None and ai_usage.succeeded.get():
         with _recipe_cache_lock:
             _recipe_cache[cache_key] = _VerifiedRecipe(result)
             _recipe_cache.move_to_end(cache_key)

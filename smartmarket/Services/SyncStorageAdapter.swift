@@ -74,5 +74,7 @@ enum SyncStorageAdapter {
         NotificationCenter.default.post(name: .personalDataDidChange, object: nil)
         NotificationCenter.default.post(name: .groceryListDidChange, object: nil)
         NotificationCenter.default.post(name: .mealPlanDidUpdate, object: nil)
+        // The cart and stock just changed under the plan: rebuild it.
+        NotificationCenter.default.post(name: .planInputsDidChange, object: nil)
     }
 }

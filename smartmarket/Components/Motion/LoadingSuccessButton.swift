@@ -12,19 +12,19 @@ import UIKit
 
 struct LoadingSuccessButton: View {
     enum Style {
-        /// Rhino fill, almond text: the app's "Add" pill.
+        /// Ink fill with page-coloured text; turns over in dark mode so it never vanishes.
         case rhino
-        /// Dull pink fill, on-accent text: the PrimaryButton look.
+        /// Dull pink fill, on-accent text: the PrimaryButton look (the default).
         case dullPink
 
-        var fill: Color { self == .rhino ? .rhino : .dullPink }
-        var text: Color { self == .rhino ? .almond : .onAccent }
+        var fill: Color { self == .rhino ? .labelPrimary : .dullPink }
+        var text: Color { self == .rhino ? .surfaceGrouped : .onAccent }
     }
 
     let title: String
     let doneTitle: String
     var systemImage: String? = nil
-    var style: Style = .rhino
+    var style: Style = .dullPink
     /// Announced to VoiceOver when `action` returns false.
     var failureMessage: String = "Couldn't add. Try again."
     let action: () async -> Bool
@@ -39,7 +39,7 @@ struct LoadingSuccessButton: View {
         title: String,
         doneTitle: String,
         systemImage: String? = nil,
-        style: Style = .rhino,
+        style: Style = .dullPink,
         failureMessage: String = "Couldn't add. Try again.",
         action: @escaping () async -> Bool,
         onFinished: (() -> Void)? = nil
@@ -411,7 +411,7 @@ final class LoadingSuccessModel {
             try? await Task.sleep(for: .seconds(1))
             return true
         }
-        LoadingSuccessButton(title: "Save", doneTitle: "Saved", style: .dullPink) {
+        LoadingSuccessButton(title: "Save", doneTitle: "Saved", style: .rhino) {
             try? await Task.sleep(for: .seconds(0.4))
             return false
         }

@@ -97,7 +97,17 @@ final class FoodLogStore {
     private(set) var revision = 0
     private let defaults: UserDefaults
     private let stock: StockStore
-    var allEntries: [FoodLogEntry] { (history + stock.logs).sorted { $0.loggedAt < $1.loggedAt } }
+    /// Manual and stock logs together, oldest first. Home reads this many times a redraw,
+    /// so the merged list is kept until either log changes.
+    var allEntries: [FoodLogEntry] {
+        let stockLogs = stock.logs
+        let stamp = "\(revision)|\(stockLogs.count)|\(stockLogs.last?.id ?? "")"
+        if let merged, merged.stamp == stamp { return merged.entries }
+        let entries = (history + stockLogs).sorted { $0.loggedAt < $1.loggedAt }
+        merged = (stamp, entries)
+        return entries
+    }
+    @ObservationIgnored private var merged: (stamp: String, entries: [FoodLogEntry])?
     var entries: [FoodLogEntry] { entries(on: Date()) }
     /// The entries logged on `date`'s calendar day. Views that stay on screen
     /// pass their own clock so they move to the new day at midnight.

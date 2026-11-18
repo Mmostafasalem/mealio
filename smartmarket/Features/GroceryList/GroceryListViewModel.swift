@@ -14,6 +14,8 @@ final class GroceryListViewModel {
     private var deletedCartLines: [CartItem] = []
     /// Cart lines whose My Stock packs went with them (not bought): undo puts the packs back.
     private var deletedRestock: [String: Double] = [:]
+    /// Bought lines whose stock stayed: undo gives the cart line its stock item back.
+    private var deletedLinks: [String: UUID] = [:]
     private var undoGeneration: UUID?
     private var undoID = UUID()
     private let undoDuration: Duration
@@ -82,6 +84,7 @@ final class GroceryListViewModel {
         deletedItems = removed
         deletedCartLines = lines
         deletedRestock = [:]
+        deletedLinks = [:]
         undoMessage = message
         undoGeneration = AppState.shared.dataGeneration
         let expected = UUID()
@@ -100,6 +103,7 @@ final class GroceryListViewModel {
         deletedItems = []
         deletedCartLines = []
         deletedRestock = [:]
+        deletedLinks = [:]
         undoGeneration = nil
         undoID = UUID()
     }
@@ -115,13 +119,19 @@ final class GroceryListViewModel {
         // A bought row's food is in the kitchen: My Stock keeps it. An unbought row was
         // never bought, so its pack leaves My Stock (and comes back on undo).
         let bought = Set(removed.filter(\.isBought).map(\.id))
+        remove(lines, bought: bought, from: cart)
+        items = GroceryStorage.load().filter { !ids.contains($0.id) }
+        saveItems()
+    }
+
+    /// Takes the lines out of the cart, remembering what an undo must put back.
+    private func remove(_ lines: [CartItem], bought: Set<String>, from cart: ShoppingCartService) {
         for line in lines {
             let keep = bought.contains(ShoppingCartService.cartRowId(catalogId: line.catalogId, store: line.store))
+            if keep, let link = CartStockLink.forget(line.catalogId) { deletedLinks[line.catalogId] = link }
             let left = cart.removeLine(catalogId: line.catalogId, store: line.store, keepStock: keep)
             if left > 0 { deletedRestock[line.catalogId, default: 0] += left }
         }
-        items = GroceryStorage.load().filter { !ids.contains($0.id) }
-        saveItems()
     }
 
     func undoDelete() {
@@ -129,9 +139,11 @@ final class GroceryListViewModel {
         let removed = deletedItems
         let lines = deletedCartLines
         let restock = deletedRestock
+        let relink = deletedLinks
         let existingIDs = Set(GroceryStorage.load().map(\.id))
         discardUndo()
         ShoppingCartService.shared.restoreRemovedLines(lines, restock: restock)
+        for (catalogId, id) in relink { CartStockLink.relink(catalogId, to: id) }
         var restored = GroceryStorage.load()
         for item in removed {
             if let index = restored.firstIndex(where: { $0.id == item.id }) {
@@ -161,8 +173,10 @@ final class GroceryListViewModel {
         let cart = ShoppingCartService.shared
         guard !cart.cartItems.isEmpty else { return }
         let rows = GroceryStorage.load().filter { ShoppingCartService.parseCartRowId($0.id) != nil }
-        prepareUndo(rows, lines: cart.cartItems, message: "Cart cleared")
-        deletedRestock = cart.clear()
+        let lines = cart.cartItems
+        prepareUndo(rows, lines: lines, message: "Cart cleared")
+        // Bought food stays in My Stock; only what was never bought leaves it.
+        remove(lines, bought: Set(rows.filter(\.isBought).map(\.id)), from: cart)
         loadItems()
     }
 

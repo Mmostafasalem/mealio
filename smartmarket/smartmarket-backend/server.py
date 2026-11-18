@@ -46,16 +46,32 @@ app.config["MAX_CONTENT_LENGTH"] = 256 * 1024  # 256 KB
 
 
 # ---------------------------------------------------------------------------
-# CORS + rate limiting + auth (mirrors the stdlib Handler in app.py)
+# Rate limiting + auth. No CORS headers are sent: the only client is the iOS
+# app, and no browser page is meant to call this API.
 # ---------------------------------------------------------------------------
 
 # Number of trusted reverse proxies in front of the app (Render = 1). The real
 # client IP is the entry our OWN trusted proxy appended to X-Forwarded-For — i.e.
 # counting from the RIGHT. Anything further left is attacker-controlled and must
 # never be trusted, otherwise rate limiting can be bypassed by spoofing XFF.
-# NOTE: the default of 1 is an assumption about Render's proxy chain. Verify it
-# against a real Render request (see DEPLOY.md) before relying on per-IP limits.
-_TRUSTED_PROXIES = max(1, int(os.environ.get("TRUSTED_PROXY_COUNT", "1")))
+# NOTE: 1 is an assumption about Render's proxy chain. Verify it against a real
+# Render request (see DEPLOY.md) before relying on per-IP limits. Production
+# refuses to start unless TRUSTED_PROXY_COUNT is set (release_config.py); the
+# fallback to 1 here is for local development only.
+def _trusted_proxy_count() -> int:
+    try:
+        return max(1, int(os.environ.get("TRUSTED_PROXY_COUNT", "1")))
+    except ValueError:
+        return 1
+
+
+_TRUSTED_PROXIES = _trusted_proxy_count()
+
+# AI routes the app no longer calls (meal plans, gap fillers, shopping advice
+# and workouts are built on the phone). They answer 410 Gone unless
+# LEGACY_AI_ROUTES=1 is set, so they cannot be used to spend AI capacity.
+LEGACY_AI_PATHS = frozenset({'/api/meal-plan', '/api/gap-fillers',
+                             '/api/shopping-advice', '/api/workout'})
 
 
 def _client_ip() -> str:
@@ -70,12 +86,18 @@ def _client_ip() -> str:
 
 @app.before_request
 def _gate():
-    # Let CORS preflight through without auth.
+    # Every request counts against the rate limit, OPTIONS included.
+    if _is_rate_limited(_client_ip()):
+        return jsonify({"error": "Too many requests"}), 429
+
+    # OPTIONS carries no data and needs no key.
     if request.method == "OPTIONS":
         return ("", 204)
 
-    if _is_rate_limited(_client_ip()):
-        return jsonify({"error": "Too many requests"}), 429
+    if (request.method == "POST" and request.path in LEGACY_AI_PATHS
+            and os.environ.get("LEGACY_AI_ROUTES") != "1"):
+        return jsonify({"error": "This feature now runs on the phone. Please update Nourlo.",
+                        "code": "gone"}), 410
 
     # Auth is enforced only when APP_API_KEY is configured on the server.
     # Constant-time compare avoids leaking the key via timing.
@@ -96,11 +118,7 @@ def _gate():
 
 
 @app.after_request
-def _cors(resp):
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-API-Key, Authorization, Idempotency-Key"
-    # Security headers
+def _security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
@@ -236,7 +254,11 @@ def readiness():
             with active.transaction() as db: db.execute('SELECT 1 FROM accounts LIMIT 1')
         except Exception: accounts_ready = False
     errors = production_errors(os.environ, accounts_ready=accounts_ready)
-    return jsonify({'ready':not errors,'missingOrInvalid':errors,
+    # Booleans only: which settings are missing is logged (names, never values)
+    # and printed by `python release_config.py`, not sent to callers.
+    if errors:
+        logging.error('Readiness check failed: %s', ', '.join(errors))
+    return jsonify({'ready':not errors,
                     'onlineAIEnabled':os.environ.get('AI_ACCOUNTS_ENABLED') == '1'}), (503 if errors else 200)
 
 

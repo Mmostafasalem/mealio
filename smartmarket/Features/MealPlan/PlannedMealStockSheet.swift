@@ -41,7 +41,7 @@ struct PlannedMealStockSheet: View {
                         ForEach(missing) { ingredient in
                             Text("\(ingredient.food.name) · \(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue) missing")
                         }
-                        Button("Add missing ingredients to groceries") { addMissing(missing) }
+                        Button("Add missing ingredients to checklist") { addMissing(missing) }
                             .accessibilityIdentifier("plannedMeal.addMissing")
                         Text("No store or price is assumed. After buying, add the actual quantity to My Stock.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -62,7 +62,7 @@ struct PlannedMealStockSheet: View {
                 }
                 if let notice { Section { Text(notice).accessibilityIdentifier("plannedMeal.notice") } }
             }
-            .navigationTitle("Review Meal")
+            .navigationTitle("Review meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
@@ -70,7 +70,7 @@ struct PlannedMealStockSheet: View {
 
     private func addMissing(_ missing: [NutritionIngredient]) {
         guard Self.addMissingToGroceries(entry: entry, missing: missing) else { return }
-        notice = "Missing quantities added to Groceries."
+        notice = "Missing quantities added to your checklist."
     }
 
     /// Adds (or refreshes) the missing quantities as unbought grocery rows. Shared

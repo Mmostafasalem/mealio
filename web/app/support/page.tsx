@@ -4,7 +4,7 @@ import legal from "@/content/legal.json";
 
 export const metadata: Metadata = {
   title: "Support — Nourlo",
-  description: "Help and frequently asked questions for the Nourlo pre-release build.",
+  description: "Help and frequently asked questions for Nourlo.",
 };
 
 export default function SupportPage() {

@@ -73,13 +73,19 @@ nonisolated struct CookbookRecipe: Codable, Identifiable, Hashable, Sendable {
                                  kcal: perServing.kcal, protein: perServing.protein, carbs: perServing.carbs, fat: perServing.fat,
                                  source: .cookbook, sourceID: id, sourceDate: nil)
         food.menuURL = url
-        food.summary = "About \(Int(gramsPerServing.rounded())) g a serving."
+        food.summary = "About \(Int(gramsPerServing.rounded())) g a serving"
+            + (servingsEstimated ? "; the number of servings is Nourlo's estimate." : ".")
         return food
     }
 
     /// Fits the person's diet. Allergies are strict; the tags come from the ingredients.
     func fits(_ prefs: Set<DietaryPreference>) -> Bool {
         let has = Set(tags)
+        // A second check on the ingredients themselves, whatever the tags say.
+        let terms = Set(ingredients.flatMap(\.terms))
+        let meat: Set<String> = ["chicken", "beef", "pork", "lamb", "turkey", "ham", "bacon", "sausage", "fish", "salmon", "tuna", "shrimp", "cod", "crayfish"]
+        if (prefs.contains(.vegetarian) || prefs.contains(.vegan)) && !terms.isDisjoint(with: meat) { return false }
+        if (prefs.contains(.halal) || prefs.contains(.noPork)) && !terms.isDisjoint(with: ["pork", "ham", "bacon", "sausage"]) { return false }
         for pref in prefs {
             switch pref {
             case .vegan: if !has.contains("vegan") { return false }
@@ -130,11 +136,43 @@ nonisolated enum CookbookLibrary {
 /// Whether an ingredient is in the kitchen, by the words of the stock's food names.
 /// "Peppers, sweet, red, raw" has a "sweet pepper"; "Eggs, Grade A, Large" has an "egg".
 nonisolated struct KitchenMatcher: Sendable {
-    /// Each stock item's name as a set of singular words.
+    /// Each stock item's name as singular words: the words that say what it is (its leading
+    /// part: "Peppers, sweet" for "Peppers, sweet, red, raw") and all of its words.
     let names: [Set<String>]
+    private let leads: [Set<String>]
+
+    /// First segments that only name a group; the food is in the next one.
+    private static let groups: Set<String> = ["fish", "nut", "seed", "cheese", "cereal", "bean", "crustacean", "mollusk",
+                                              "squash", "pepper", "spice", "soup", "beverage", "snack", "bread", "oil"]
+    /// A name with one of these words isn't the plain ingredient ("peanut butter" isn't butter).
+    private static let blockers: [String: Set<String>] = [
+        "butter": ["peanut", "almond", "sesame", "cocoa", "apple", "nut", "cashew"],
+        "egg": ["noodle", "roll", "bread", "eggnog", "substitute"],
+        "tomato": ["paste", "sauce", "juice", "soup", "ketchup", "puree"],
+        "chicken": ["broth", "soup", "liver", "stock", "nugget", "bouillon"],
+        "beef": ["broth", "soup", "stock", "bouillon", "jerky"],
+        "rice": ["noodle", "milk", "flour", "cake", "cracker", "vinegar", "paper"],
+        "oat": ["milk", "bran", "drink"],
+        "cheese": ["cottage", "cream"],
+        "potato": ["sweet", "chip", "fry", "starch", "flour"],
+        "bean": ["green", "sprout", "coffee"],
+        "milk": ["coconut", "almond", "oat", "soy", "rice", "condensed", "evaporated", "chocolate", "powder", "dry", "butter"],
+        "cream": ["ice", "sour", "cheese", "coconut"],
+        "onion": ["powder", "ring", "soup"],
+        "pepper": ["black", "white", "cayenne", "ground", "sauce"],
+        "corn": ["starch", "syrup", "flour", "oil", "chip", "tortilla"],
+        "apple": ["juice", "sauce", "pie", "cider"],
+        "orange": ["juice"], "lemon": ["juice"], "lime": ["juice"],
+    ]
 
     init(names: [String]) {
         self.names = names.map(Self.words)
+        leads = names.map { name in
+            let parts = name.lowercased().split(separator: ",").map(String.init)
+            var lead = Self.words(parts.first ?? name)
+            if parts.count > 1, lead.count == 1, !lead.isDisjoint(with: Self.groups) { lead.formUnion(Self.words(parts[1])) }
+            return lead
+        }
     }
 
     static func words(_ text: String) -> Set<String> {
@@ -153,7 +191,11 @@ nonisolated struct KitchenMatcher: Sendable {
     func has(_ line: CookbookRecipe.Line) -> Bool {
         line.terms.contains { term in
             let want = Self.words(term)
-            return !want.isEmpty && names.contains { want.isSubset(of: $0) }
+            guard !want.isEmpty else { return false }
+            let blocked = want.reduce(into: Set<String>()) { $0.formUnion(Self.blockers[$1] ?? []) }.subtracting(want)
+            return names.indices.contains { i in
+                want.isSubset(of: names[i]) && !want.isDisjoint(with: leads[i]) && names[i].isDisjoint(with: blocked)
+            }
         }
     }
 

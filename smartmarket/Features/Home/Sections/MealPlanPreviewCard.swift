@@ -8,10 +8,10 @@ struct MealPlanPreviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
-                HomeCardTitle(title: "Today's Meals", symbol: "fork.knife.circle.fill")
+                HomeCardTitle(title: "Today's meals", symbol: "fork.knife.circle.fill")
                 Spacer()
                 NavigationLink { MealPlanView() } label: {
-                    Text("Full Plan")
+                    Text("Full plan")
                         .font(.footnote).fontWeight(.semibold)
                         .foregroundStyle(Color.brandPrimary)
                         .frame(minHeight: 44)
@@ -19,14 +19,8 @@ struct MealPlanPreviewCard: View {
                 }
             }
 
-            if vm.isLoading {
-                ForEach(0..<4, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                        .fill(Color(.systemFill))
-                        .frame(height: 40)
-                        .shimmer(active: !reduceMotion)
-                }
-            } else if let plan = vm.mealPlan {
+            // `vm.isLoading` follows the deals, so a plan that exists is always shown.
+            if let plan = vm.mealPlan {
                 ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { idx, meal in
                     MealPreviewRow(
                         icon: meal.sfSymbol,
@@ -38,11 +32,21 @@ struct MealPlanPreviewCard: View {
                         Divider().padding(.leading, HomeGrid.textInset)
                     }
                 }
+            } else if vm.isLoading {
+                VStack(spacing: Spacing.md) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                            .fill(Color(.systemFill))
+                            .frame(height: 40)
+                    }
+                }
+                .shimmer(active: !reduceMotion)
+                .accessibilityHidden(true)
             } else {
                 HStack(spacing: Spacing.sm) {
                     Image(systemName: "wand.and.stars")
                         .foregroundStyle(Color.brandPrimary.opacity(0.5))
-                    Text("Pull to refresh and generate today's plan")
+                    Text("Your plan builds itself from your cart and My Stock. Open Meals to see it.")
                         .font(.subheadline).foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.vertical, Spacing.sm)

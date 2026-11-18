@@ -311,7 +311,7 @@ final class DynamicMenuModel {
     ]
     NavigationStack {
         List { Text("Kefyras 3.5%"); Text("Grikiai") }
-            .navigationTitle("Groceries")
+            .navigationTitle("Checklist")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { DynamicMenuToggle(model: menu, items: items) }
             }

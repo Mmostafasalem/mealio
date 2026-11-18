@@ -44,7 +44,8 @@ struct LogFoodSheet: View {
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var results: [NutritionFood] { catalog.searchLocal(query) }
+    /// Offline matches for the current text: searched once per change, not on every redraw.
+    @State private var results: [NutritionFood] = []
     /// Wikibooks recipes, read in the background when the sheet opens.
     @State private var cookbook: [CookbookRecipe] = []
     /// The sheet's one-time setup (meal slot) has run; pushes and pops don't redo it.
@@ -104,7 +105,8 @@ struct LogFoodSheet: View {
                         if onSelect == nil && !vm.plannedEntries(for: slot).isEmpty {
                             Section("From today's plan") {
                                 ForEach(vm.plannedEntries(for: slot)) { entry in
-                                    Text(entry.foodName).font(.subheadline)
+                                    Label(entry.foodName, systemImage: "calendar")
+                                        .font(.subheadline).foregroundStyle(Color.labelSecondary)
                                 }
                                 Text("Meal-plan totals are estimates. Search and log each ingredient with the amount you ate to track sourced nutrition.")
                                     .font(.footnote).foregroundStyle(Color.labelSecondary)
@@ -166,6 +168,7 @@ struct LogFoodSheet: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .scrollDismissesKeyboard(.immediately)
                 .navigationDestination(item: $detailFood) { food in
                     ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock",
                                       slotSelection: onSelect == nil ? $slot : nil) { grams in
@@ -203,6 +206,12 @@ struct LogFoodSheet: View {
                 BarcodeScannerSheet { scanned = $0 }
             }
             .overlay(alignment: .bottom) { toast }
+            .task(id: query) {
+                // A short pause while typing fast, then one search of the catalogue.
+                if !query.isEmpty { try? await Task.sleep(for: .milliseconds(120)) }
+                guard !Task.isCancelled else { return }
+                results = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : catalog.searchLocal(query)
+            }
             .onChange(of: query) {
                 lookupTask?.cancel()
                 products = []
@@ -265,7 +274,10 @@ struct LogFoodSheet: View {
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelSecondary)
+                        .minTapTarget()
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
             }
             if BarcodeScannerView.shouldOffer {
@@ -307,7 +319,7 @@ struct LogFoodSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(food.name).font(.subheadline).fontWeight(.medium)
                             .foregroundStyle(Color.labelPrimary)
-                        Text(food.subtitle)
+                        Text(food.source == .usda ? "\(food.subtitle) · \(food.dataset == "survey" ? "as eaten" : food.dataset == "foundation" ? "lab-measured" : "reference")" : food.subtitle)
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
@@ -359,7 +371,10 @@ struct LogFoodSheet: View {
             dismiss()
             return
         }
-        vm.logFood(food, slot: slot, amount: food.defaultAmount)
+        guard vm.logFood(food, slot: slot, amount: food.defaultAmount) else {
+            showToast("Couldn't add \(food.name)")
+            return
+        }
         LogFoodTip().invalidate(reason: .actionPerformed)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         showToast("Added \(Self.amountText(food.defaultAmount, basis: food.basis)) · \(food.name)")
@@ -501,12 +516,24 @@ struct LogFoodSheet: View {
     private func searchProducts(loadMore: Bool = false) {
         guard !isSearching else { return }
         autoSearchTask?.cancel()
+        // A typed barcode takes the scanner's path: check digit, UPC as 13 digits, the same parsing.
+        let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !loadMore, (8...14).contains(typed.count), typed.allSatisfy({ $0.isASCII && $0.isNumber }) {
+            lookUp(ScannedBarcode(payload: typed, symbology: .unknown))
+            return
+        }
         let submitted = query
         let submittedMarket = market
         let nextPage = loadMore ? productPage + 1 : 1
         isSearching = true
         productNotice = nil
         lookupTask = Task { @MainActor in
+            defer { isSearching = false }
+            // Open Food Facts asks for a few seconds between searches: wait, with the spinner showing.
+            while !Task.isCancelled, catalog.secondsUntilNextSearch > 0 {
+                try? await Task.sleep(for: .seconds(min(catalog.secondsUntilNextSearch + 0.05, 1)))
+            }
+            guard !Task.isCancelled, submitted == query else { return }
             do {
                 let found = try await catalog.fetchProducts(submitted, market: submittedMarket, page: nextPage)
                 guard !Task.isCancelled, submitted == query, submittedMarket == market else { return }
@@ -521,7 +548,6 @@ struct LogFoodSheet: View {
                 guard !Task.isCancelled, submitted == query, submittedMarket == market else { return }
                 productNotice = (error as? LocalizedError)?.errorDescription ?? "Product search is unavailable. Offline foods and saved products still work."
             }
-            isSearching = false
         }
     }
 
@@ -579,7 +605,7 @@ struct ServingDetailView: View {
                 // Calorie hero for this serving
                 VStack(spacing: 4) {
                     Text("\(kcal)")
-                        .font(.system(size: 52, weight: .bold, design: .rounded))
+                        .font(.system(.largeTitle, design: .rounded).weight(.bold)).scaleEffect(1.35, anchor: .center)
                         .foregroundStyle(Color.labelPrimary).monospacedDigit()
                         .contentTransition(.numericText())
                     Text("kcal · \(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.subheadline).foregroundStyle(Color.labelSecondary)
@@ -633,6 +659,8 @@ struct ServingDetailView: View {
                                 .lineLimit(1)
                                 .padding(.horizontal, 12).padding(.vertical, 6)
                                 .background(Color.surfaceElevated, in: Capsule())
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         Spacer(minLength: 0)
                         TypeNumberButton(title: "Amount", unit: food.basis.rawValue,
@@ -715,7 +743,7 @@ struct ServingDetailView: View {
     private func macroChip(_ label: String, _ grams: Double, _ color: Color) -> some View {
         VStack(spacing: 3) {
             Text("\(grams.formatted(.number.precision(.fractionLength(0...1)))) g")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(.headline, design: .rounded).weight(.bold))
                 .foregroundStyle(color).monospacedDigit()
             Text(label).font(.caption2).foregroundStyle(Color.labelSecondary)
         }

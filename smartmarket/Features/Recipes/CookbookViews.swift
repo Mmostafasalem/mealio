@@ -134,6 +134,9 @@ struct CookWithWhatIHaveView: View {
                 .foregroundStyle(selected ? Color.surfaceGrouped : Color.labelPrimary)
                 .padding(.horizontal, 14).frame(minHeight: 36)
                 .background(selected ? Color.labelPrimary : Color.surfaceElevated, in: Capsule())
+                // The chip stays 36 pt tall; the tap area is 44.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -260,7 +263,7 @@ struct CookbookRecipeView: View {
 
     private func color(for line: CookbookRecipe.Line) -> Color {
         if line.isPantry { return Color.labelSecondary }
-        return kitchen.has(line) ? Color.green : Color.brandAmber
+        return kitchen.has(line) ? Color.ringProtein : Color.brandAmber
     }
 
     private func tile(_ value: String, _ label: String) -> some View {
@@ -304,12 +307,13 @@ struct CookedRecipeSheet: View {
 
                 Section {
                     Toggle("Take the ingredients out of My Stock", isOn: $useStock)
+                        .toggleStyle(.spring)
                 } footer: {
                     Text("Takes the whole recipe's amounts from the matching foods in stock. Kitchen basics are left alone.")
                 }
 
                 if let done {
-                    Section { Label(done, systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+                    Section { Label(done, systemImage: "checkmark.circle.fill").foregroundStyle(Color.ringProtein) }
                 }
             }
             .navigationTitle("I cooked this")
@@ -429,6 +433,9 @@ struct CourseChip: View {
                 .foregroundStyle(selected ? Color.surfaceGrouped : Color.labelPrimary)
                 .padding(.horizontal, 14).frame(minHeight: 36)
                 .background(selected ? Color.labelPrimary : Color.surfaceElevated, in: Capsule())
+                // The chip stays 36 pt tall; the tap area is 44.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])

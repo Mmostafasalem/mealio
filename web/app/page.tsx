@@ -10,7 +10,7 @@ const FEATURES: { emoji: string; title: string; text: string }[] = [
   { emoji: "🎯", title: "Calories and macros", text: "Rings for calories, protein, carbs and fat that fill as you go." },
   { emoji: "🧺", title: "Cook what you have", text: "Keep track of what's at home and get dinners that use it up." },
   { emoji: "🏃", title: "Workouts made for you", text: "Pick where and how long; Nourlo builds the session and times it." },
-  { emoji: "🔒", title: "Private by design", text: "Your log, stock and Health data stay on your iPhone." },
+  { emoji: "🔒", title: "Private by design", text: "Your log and stock stay on your iPhone unless you turn on online AI. Health data never leaves it." },
 ];
 
 function StoreButton() {

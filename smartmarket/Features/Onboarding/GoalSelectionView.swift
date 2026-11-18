@@ -46,7 +46,7 @@ struct PaceSelectionView: View {
                 OnboardingOptionList {
                     ForEach(LossPace.allCases) { pace in
                         OnboardingOptionRow(symbol: PaceStyle.symbol(for: pace), title: pace.displayName,
-                                            subtitle: vm.isCappedBySafetyFloor(pace) ? "Capped at your safe minimum" : nil,
+                                            subtitle: vm.isCappedBySafetyFloor(pace) ? "Kept from going too low" : nil,
                                             trailing: PaceStyle.deficitText(vm.effectiveDeficit(for: pace)),
                                             isSelected: vm.lossPace == pace) { vm.lossPace = pace }
                     }

@@ -102,13 +102,16 @@ def ingredient(line):
     # food it is the size of one piece: "2 (200 g) chicken breasts".
     size = re.match(r"^\(\s*(?:about\s+|approx\.?\s+)?(\d+(?:\.\d+)?)\s*(?:[-–]\s*\d+(?:\.\d+)?\s*)?"
                     r"(oz|ounces?|g|grams?|ml|kg|lbs?|pounds?|l|litres?|liters?)\b\.?[^)]*\)\s*"
-                    r"(cans?|packages?|tins?|jars?|bags?|box(?:es)?|packets?)?", rest, re.I)
+                    r"((?:cans?|packages?|tins?|jars?|bags?|box(?:es)?|packets?)\b)?", rest, re.I)
     sized, given = None, None
     if size:
         amount, u = float(size.group(1)), size.group(2).lower()
         u = {"ounce": "oz", "ounces": "oz", "gram": "g", "grams": "g", "lbs": "lb", "pound": "lb", "pounds": "lb",
              "litre": "l", "litres": "l", "liter": "l", "liters": "l"}.get(u, u)
-        if unit and not size.group(3):
+        # After a weight or volume ("15 oz (425 g) can", "2 lb (900 g)") the bracket restates the
+        # whole amount, whatever follows; only a count ("2 (15 oz) cans") makes it a size each.
+        measured = unit in ("g", "kg", "oz", "lb", "ml", "l", "dl", "cl", "cup", "tbsp", "tsp", "floz", "pint", "quart")
+        if measured or (unit and not size.group(3)):
             given = (amount, u)
         else:
             sized = (amount, u)

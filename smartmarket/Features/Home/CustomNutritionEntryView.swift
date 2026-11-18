@@ -156,9 +156,9 @@ private struct NutritionIngredientPicker: View {
                 }
                 ForEach(local) { ingredientRow($0) }
                 if query.count >= 2 {
-                    Section("Packaged ingredients · \(market.title)") {
+                    Section("Packaged ingredients") {
                         Button(loading ? "Searching…" : "Search packaged ingredients") { search() }.disabled(loading)
-                        Text("Sends only this ingredient query and selected market to Open Food Facts.").font(.footnote)
+                        Text("Sends only this ingredient search to Open Food Facts.").font(.footnote)
                         if let notice { Text(notice).font(.footnote) }
                         ForEach(products) { ingredientRow($0) }
                         if hasMore {

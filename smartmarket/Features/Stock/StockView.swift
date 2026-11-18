@@ -45,7 +45,7 @@ struct StockView: View {
                         if let expiry = item.expiryDay() {
                             let expired = item.isExpired()
                             Text((expired ? "Expired · use by " : "Use by ") + expiry.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption).foregroundStyle(expired ? Color.red : Color.secondary)
+                                .font(.caption).foregroundStyle(expired ? Color.brandDanger : Color.secondary)
                         }
                     }
                 }
@@ -124,6 +124,7 @@ private struct StockItemSheet: View {
                     TextField("Total remaining in \(item.food.basis.rawValue)", text: $remainingAmount).keyboardType(.decimalPad)
                         .accessibilityIdentifier("stock.remainingAmount")
                     Toggle("Use-by date", isOn: $hasExpiry)
+                        .toggleStyle(.spring)
                     if hasExpiry { DatePicker("Date", selection: $expiry, displayedComponents: .date) }
                     Button("Save remaining amount") {
                         perform { try store.update(id: item.id, amount: remainingValue ?? 0, expiresAt: hasExpiry ? expiry : nil) }
@@ -142,7 +143,7 @@ private struct StockItemSheet: View {
                     Text(item.food.sourceExplanation).font(.footnote).foregroundStyle(.secondary)
                     if let url = item.food.sourceURL { Link("View source", destination: url) }
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { Text(errorMessage).foregroundStyle(Color.brandDanger) }
             }
             .navigationTitle("Stock details")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }

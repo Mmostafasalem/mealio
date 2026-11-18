@@ -213,7 +213,9 @@ struct RecipeSheet: View {
                 .padding(.horizontal, Spacing.md)
                 .frame(minHeight: 36)
                 .background(Color.surfaceSecondary, in: Capsule())
-                .contentShape(Capsule())
+                // The pill stays 36 pt; the tap area is 44.
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
                 .contentTransition(.opacity)
         }
         .buttonStyle(ScalePressStyle())

@@ -165,7 +165,7 @@ private struct WeekDots: View {
                 .overlay(Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(Color.onAccent))
         case .saved:
             Circle().fill(Color.progress.opacity(0.25))
-                .overlay(Image(systemName: "shield.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.onAccent))
+                .overlay(Image(systemName: "shield.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.labelPrimary))
         case .today(kept: false):
             Circle().strokeBorder(Color.progress, style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
         case .open:

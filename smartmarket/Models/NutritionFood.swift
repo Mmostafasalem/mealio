@@ -2,7 +2,7 @@ import Foundation
 import CoreFoundation
 
 /// A source record, not an AI estimate. Nutrients always describe 100 of `basis`.
-struct NutritionFood: Codable, Hashable, Identifiable {
+nonisolated struct NutritionFood: Codable, Hashable, Identifiable, Sendable {
     enum Basis: String, Codable { case grams = "g", millilitres = "ml", serving = "serving" }
     /// `regional`: Nourlo's own dishes, calculated from typical recipes (`RegionalDishes.json`).
     enum Source: String, Codable { case usda, openFoodFacts, recipe, menu, regional, cookbook }
@@ -144,7 +144,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
     }
 }
 
-enum NutritionDatabase {
+nonisolated enum NutritionDatabase {
     private struct Catalog: Decodable { let foods: [NutritionFood] }
     static func load(bundle: Bundle = .main) throws -> [NutritionFood] {
         guard let url = bundle.url(forResource: "NutritionCatalog", withExtension: "json") else {

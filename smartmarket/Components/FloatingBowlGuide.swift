@@ -25,8 +25,8 @@ struct FloatingBowlGuide: View {
 
     private let tour: [(title: String, detail: String, tab: Int, action: BowlPathway, cta: String)] = [
         ("Start with one meal", "Log something you ate. Choose its portion and meal, then your daily totals update here.", 0, .logFood, "Log my first food"),
-        ("Build your grocery list", "Pick groceries in Shop, then tick them off in your checklist. Catalog prices are estimates, not retailer offers.", 2, .shop, "Browse groceries"),
-        ("Make room for a plan", "Meals brings your suggestions together. Review ingredients and portions before logging. Local suggestions work without AI.", 1, .meals, "Explore my meals")
+        ("Build your grocery list", "Pick groceries in Shop, then tick them off in your checklist. Catalogue prices are estimates, not retailer offers.", 2, .shop, "Browse groceries"),
+        ("Make room for a plan", "Meals brings your suggestions together. Review ingredients and portions before logging. Your plan is built on this iPhone from your cart and My Stock.", 1, .meals, "Explore my meals")
     ]
 
     private var title: String {
@@ -37,8 +37,8 @@ struct FloatingBowlGuide: View {
     private var detail: String {
         if let step = tourStep { return tour[step].detail }
         return [
-            "Start small. Log a meal, make a grocery list, or let me show you around.",
-            "Review your suggestions and portions. Your grocery checklist is a good place to start planning.",
+            "Start small. Log a meal, start your checklist, or let me show you around.",
+            "Review your suggestions and portions. Your checklist is a good place to start planning.",
             "Add what you need, then open your checklist when you shop. Prices here are estimates.",
             "Pick a type and a length, then build a workout. Save the ones you like and tick them off when done."
         ][selectedTab]
@@ -185,7 +185,7 @@ struct FloatingBowlGuide: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if AIAccountService.shared.offersOnlineAI { chatRow }
                 pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
-                pathway("Grocery checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
+                pathway("Checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
                 pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)
                 Divider().overlay(Color.hairline.opacity(0.3))
                 Button("Quick tour", action: startTour).fontWeight(.semibold)
@@ -228,7 +228,7 @@ struct FloatingBowlGuide: View {
                     .frame(width: 40, height: 40)
                     .background(Color.progress, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("Chat with AI").font(.subheadline.weight(.semibold))
+                    Text("Ask Nourlo").font(.subheadline.weight(.semibold))
                     Text("Ask about meals, food or training").font(.caption).foregroundStyle(Color.labelSecondary)
                 }
                 Spacer(minLength: 0)

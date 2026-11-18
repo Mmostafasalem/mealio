@@ -42,6 +42,7 @@ struct TrainView: View {
     @State private var editingWorkout: Workout?
     /// Workout mode reopened for a workout still running (after the app was closed).
     @State private var resumed: WorkoutModeModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -121,6 +122,7 @@ struct TrainView: View {
 
     // MARK: This week
 
+    /// This week, from the person's own week start: the same week Progress counts.
     private var weekCard: some View {
         let week = store.thisWeek
         return HStack(spacing: Spacing.lg) {
@@ -134,7 +136,7 @@ struct TrainView: View {
         .padding(Spacing.lg)
         .premiumCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Last 7 days: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories")
+        .accessibilityLabel("This week: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories")
     }
 
     private func weekStat(_ value: String, _ label: String) -> some View {
@@ -170,7 +172,7 @@ struct TrainView: View {
                         .contentTransition(.numericText())
                     Text("min").font(.headline).foregroundStyle(Color.labelSecondary)
                 }
-                .animation(.snappyValue, value: vm.minutes)
+                .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.minutes)
                 .accessibilityHidden(true)
                 TypeNumberButton(title: "Workout length", unit: "minutes", current: "\(Int(vm.minutes))",
                                  hint: "From 10 to 90 minutes.", keyboard: .numberPad, identifier: "train.minutes.type") { text in
@@ -211,7 +213,7 @@ struct TrainView: View {
         }
         .padding(Spacing.lg)
         .premiumCard()
-        .animation(.snappyValue, value: vm.kind)
+        .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.kind)
     }
 
     private func caption(_ text: String) -> some View {
@@ -362,6 +364,7 @@ struct ChoiceChip: View {
     let label: String
     let isSelected: Bool
     let onTap: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
@@ -374,7 +377,7 @@ struct ChoiceChip: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(.snappyValue, value: isSelected)
+        .animation(reduceMotion ? .reducedFade : .snappyValue, value: isSelected)
         .sensoryFeedback(.selection, trigger: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

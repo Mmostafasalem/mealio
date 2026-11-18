@@ -331,6 +331,7 @@ private struct ChatAISetupView: View {
                 AIAccountSection()
                 Section {
                     Toggle("Allow online AI suggestions", isOn: $sharingConsent)
+                        .toggleStyle(.spring)
                         .accessibilityIdentifier("chat.aiConsent")
                     NavigationLink("Privacy Policy") { LegalDocumentView(resource: "Privacy", title: "Privacy Policy") }
                 } header: {
@@ -339,7 +340,7 @@ private struct ChatAISetupView: View {
                     Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through Nourlo's backend to Groq. Account access and sharing are separate choices. Turning sharing off stops future AI requests. Read the Privacy Policy before enabling.")
                 }
             }
-            .navigationTitle("Online AI")
+            .navigationTitle("Set up Ask Nourlo")
             .toolbar { ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { dismiss() }.accessibilityIdentifier("chat.setupDone")
             } }
@@ -377,7 +378,7 @@ private struct ChatBubble: View {
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .padding(.horizontal, Spacing.lg)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(isUser ? "You: \(message.content)" : "Online assistant: \(message.content)")
+        .accessibilityLabel(isUser ? "You: \(message.content)" : "Nourlo: \(message.content)")
     }
 }
 

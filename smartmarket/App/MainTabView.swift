@@ -203,8 +203,8 @@ struct MainTabView: View {
             case .home: present(nil); selection = 0
             case .meals: present(nil); selection = 1
             case .train: present(nil); selection = 3
-            // An open food logger stays and opens the scanner itself.
-            case .logFood, .scan: present(.logFood)
+            // An open food logger stays (with what was typed) and opens the scanner itself.
+            case .logFood, .scan: if sheet != .logFood { present(.logFood) }
             case .groceries: present(.groceries)
             }
         }

@@ -12,8 +12,8 @@ struct TodaysLogCard: View {
             HStack(spacing: Spacing.md) {
                 // Title on one line, the remaining calories under it.
                 VStack(alignment: .leading, spacing: 2) {
-                    HomeCardTitle(title: "Today's Log", symbol: "list.bullet.clipboard.fill")
-                    Text("\(vm.remaining) kcal left")
+                    HomeCardTitle(title: "Today's log", symbol: "list.bullet.clipboard.fill")
+                    Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")")
                         .font(.footnote.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(Color.labelSecondary)
@@ -71,6 +71,13 @@ struct MealSlotRow: View {
 
     private var kcal: Int { entries.reduce(0) { $0 + $1.calories } }
 
+    /// "150 g", "0.25 serving", "2 servings".
+    static func amountText(_ entry: FoodLogEntry) -> String {
+        let number = entry.amount.formatted(.number.precision(.fractionLength(0...2)))
+        guard entry.amountUnit == "serving" else { return "\(number) \(entry.amountUnit)" }
+        return "\(number) \(entry.amount > 1 ? "servings" : "serving")"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(spacing: HomeGrid.gap) {
@@ -108,12 +115,13 @@ struct MealSlotRow: View {
                         // Name only: where the numbers come from is shown in the food's own detail view.
                         Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
                         Spacer()
-                        Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
-                        Text("\(entry.calories)")
+                        Text(Self.amountText(entry)).font(.caption2).foregroundStyle(Color.labelSecondary)
+                        Text("\(entry.calories) kcal")
                             .font(.caption2).fontWeight(.semibold)
                             .foregroundStyle(Color.labelSecondary).monospacedDigit()
                     }
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(entry.name), \(Self.amountText(entry)), \(entry.calories) kilocalories")
                     Button { onDelete(entry) } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 16))

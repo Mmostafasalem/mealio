@@ -58,7 +58,8 @@ enum WeeklyReset {
             defaults.set(week, forKey: handledKey)
             return false
         }
-        guard week > handled else { return false }
+        // Weeks start seven days apart; a time-zone change moves the start by hours, not days.
+        guard week.timeIntervalSince(handled) > 2 * 86_400 else { return false }
         guard asks, hasSomething else {
             defaults.set(week, forKey: handledKey)
             return false

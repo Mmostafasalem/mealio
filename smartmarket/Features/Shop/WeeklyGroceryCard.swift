@@ -7,12 +7,17 @@ struct WeeklyGroceryCard: View {
     @State private var cart = ShoppingCartService.shared
     @State private var removed: Set<String> = []
     @State private var added = 0
+    /// Bumped when Profile changes the diet or the favourite foods, so the list is rebuilt.
+    @State private var profileRevision = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var plan: GroceryPlan {
+        _ = profileRevision
         let favourites = Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? [])
+        let linked = Set((UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]).values)
+        let ownStock = StockStore.shared.items.filter { !linked.contains($0.id.uuidString) && !$0.isExpired() }.map(\.food.name)
         return WeeklyGroceryPlanner.plan(budget: cart.weeklyBudget, cart: cart.cartItems, favourites: favourites,
-                                         preferences: .load(), excluded: removed) { cart.effectivePrice(for: $0, store: .catalog) }
+                                         preferences: .load(), excluded: removed, stock: ownStock) { cart.effectivePrice(for: $0, store: .catalog) }
     }
 
     var body: some View {
@@ -74,5 +79,7 @@ struct WeeklyGroceryCard: View {
         .animation(reduceMotion ? .reducedFade : .snappyValue, value: plan.lines.map(\.id))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("shop.weeklyPlan")
+        .onReceive(NotificationCenter.default.publisher(for: .personalDataDidChange)) { _ in profileRevision &+= 1 }
+        .onAppear { profileRevision &+= 1 }
     }
 }

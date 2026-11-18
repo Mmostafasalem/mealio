@@ -71,9 +71,14 @@ enum FallbackData {
         var catalogId: String? = nil
         /// The food record behind it (stock's own, or the cart's match), for macros and logging.
         var nutrition: NutritionFood? = nil
+        /// The full name, for rules that need more than the short display name.
+        var key: String? = nil
+        /// The person put it in their cart or My Stock themselves (a legacy pantry list didn't),
+        /// so their own choice of meat is trusted under halal.
+        var chosen = false
 
         func isAllowed(by prefs: Set<DietaryPreference>) -> Bool {
-            prefs.allows(name: name, category: category, allergens: allergens)
+            prefs.allows(name: key ?? name, category: category, allergens: allergens, owned: chosen)
         }
     }
 
@@ -104,7 +109,7 @@ enum FallbackData {
         let fruits   = role(["fruit", "fruits"])
         let dairy    = role(["dairy"])
         let nuts     = role(["nuts"])
-        let grains   = carbs.filter { ["oat", "buckwheat", "muesli", "granola", "porridge"].contains(where: $0.name.lowercased().contains) }
+        let grains   = carbs.filter { c in ["oat", "buckwheat", "muesli", "granola", "porridge"].contains(where: (c.key ?? c.name).lowercased().contains) }
 
         /// Owned foods for a role, else the first suggestion the diet allows.
         func pool(_ owned: [StockFood], _ suggestions: [StockFood]) -> [StockFood] {
@@ -132,15 +137,34 @@ enum FallbackData {
             guard target > 0, !comps.isEmpty else { return nil }
             let baseKcal = comps.reduce(0) { $0 + $1.base * $1.food.kcal100 / 100 }
             let factor = baseKcal > 0 ? Double(target) / Double(baseKcal) : 1
+            var caps = comps.map { Double($0.maxG) * capScale }
+            var grams = zip(comps, caps).map { c, cap in min(max(Double(c.base) * factor, 20), cap) }
+            func kcalNow() -> Double { zip(comps, grams).reduce(0) { $0 + $1.1 * Double($1.0.food.kcal100) / 100 } }
+            // Short of the target because something hit its cap: the rest of the plate takes
+            // up the difference; only if everything is capped do the caps give a little.
+            var relaxed = false
+            for _ in 0..<4 {
+                let deficit = Double(target) - kcalNow()
+                guard deficit > Double(target) * 0.03 else { break }
+                let open = comps.indices.filter { grams[$0] < caps[$0] - 0.5 }
+                if open.isEmpty {
+                    guard !relaxed else { break }
+                    caps = caps.map { $0 * 1.35 }
+                    relaxed = true
+                    continue
+                }
+                let openKcal = open.reduce(0.0) { $0 + grams[$1] * Double(comps[$1].food.kcal100) / 100 }
+                guard openKcal > 0 else { break }
+                for i in open { grams[i] = min(grams[i] * (1 + deficit / openKcal), caps[i]) }
+            }
             var total = 0
             var ings: [String] = []
             var records: [NutritionIngredient] = []
-            for c in comps {
-                let g = min(max(Int(Double(c.base) * factor), 20), Int(Double(c.maxG) * capScale))
+            for (c, amount) in zip(comps, grams) {
+                let g = Int(amount)
                 total += g * c.food.kcal100 / 100
-                // Grains and pulses planned from their dry record say so ("60 g dry" of rice is a plateful).
-                let dry = ["grains", "legumes"].contains(c.food.category)
-                    && (c.food.nutrition.map { !KitchenMatcher.words($0.name).isDisjoint(with: ["raw", "dry", "uncooked"]) } ?? false)
+                // Grains and pulses planned from their dry record say so ("70 g dry" of rice is a plateful).
+                let dry = ["grains", "legumes"].contains(c.food.category) && c.food.kcal100 >= 250
                 ings.append("\(c.food.name) · \(c.label) (\(g)g\(dry ? " dry" : ""))")
                 if let food = c.food.nutrition { records.append(NutritionIngredient(food: food, amount: Double(g))) }
             }
@@ -159,18 +183,35 @@ enum FallbackData {
             return item
         }
 
+        // Portions by what the food is: a plate takes far less dry rice than cooked, more raw
+        // chicken than dry lentils, and potatoes by the handful. (base grams, most grams)
+        func proteinSize(_ f: StockFood) -> (Int, Int) {
+            if f.kcal100 >= 300 { return (80, 130) }            // dry pulses
+            if f.category == "eggs" { return (150, 220) }       // three to four eggs
+            return f.kcal100 >= 200 ? (150, 250) : (180, 320)   // fattier cuts, then lean meat and fish
+        }
+        func carbSize(_ f: StockFood) -> (Int, Int) {
+            switch f.kcal100 {
+            case 300...: return (70, 110)      // dry rice, pasta, grains
+            case 200..<300: return (80, 140)   // bread
+            case 100..<200: return (150, 280)  // cooked grains
+            default: return (280, 420)         // potatoes
+            }
+        }
+        func grainSize(_ f: StockFood) -> (Int, Int) { f.kcal100 >= 300 ? (60, 100) : (150, 250) }
+
         let t = split.targets(for: kcal)
         func day(_ i: Int) -> DayPlan {
             let breakfast = compose([
-                at(grainPool, i + s).map { ($0, 60, 100, "1 bowl") },
+                at(grainPool, i + s).map { ($0, grainSize($0).0, grainSize($0).1, "1 bowl") },
                 at(fruitPool, i + 2 * s).map { ($0, 120, 160, "1 piece") },
                 at(dairyPool, i + 3 * s).map { ($0, 150, 250, "½ cup") },
             ], target: t.breakfast)
-            func plate(_ offset: Int, carbBase: Int, carbMax: Int, target: Int) -> MealItem? {
+            func plate(_ offset: Int, carbShare: Int, target: Int) -> MealItem? {
                 let v = at(vegPool, i + offset + 3 * s)
                 return compose([
-                    at(proteinPool, i + offset + s).map { ($0, 170, 250, "½ plate") },
-                    at(carbPool, i + offset + 2 * s).map { ($0, carbBase, carbMax, "¼ plate") },
+                    at(proteinPool, i + offset + s).map { ($0, proteinSize($0).0, proteinSize($0).1, "½ plate") },
+                    at(carbPool, i + offset + 2 * s).map { ($0, carbSize($0).0 * carbShare / 100, carbSize($0).1, "¼ plate") },
                     v.map { ($0, 120, 200, "¼ plate") },
                 ], target: target) { foods in
                     guard let first = foods.first else { return "Vegetables" }
@@ -178,8 +219,8 @@ enum FallbackData {
                     return rest.isEmpty ? first.name : "\(first.name) with \(rest.joined(separator: " & "))"
                 }
             }
-            let lunch = plate(0, carbBase: 150, carbMax: 250, target: t.lunch)
-            let dinner = plate(1, carbBase: 130, carbMax: 220, target: t.dinner)
+            let lunch = plate(0, carbShare: 100, target: t.lunch)
+            let dinner = plate(1, carbShare: 88, target: t.dinner)   // a slightly lighter carb in the evening
             let snack = compose([
                 at(fruitPool, i + 1 + 2 * s).map { ($0, 120, 160, "1 piece") },
                 at(nutPool, i + s).map { ($0, 25, 40, "1 handful") },
@@ -240,17 +281,20 @@ enum FallbackData {
         var foods: [StockFood] = []
         var seen = Set<String>()
         func add(_ f: StockFood) { if seen.insert(f.name.lowercased()).inserted { foods.append(f) } }
+        let links = UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]
+        let stockItems = StockStore.shared.items
         for item in ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1") {
             guard let role = planRole(name: item.name, category: item.category.lowercased()) else { continue }
-            // Planned in the food as bought (the same record My Stock holds), so the meal's
-            // calories, its macros and what "Review and log" takes from stock agree.
-            let record = catalogNutrition(item.catalogId)
+            // The record My Stock holds for this cart line (so "Review and log" finds it), else the match.
+            let linked = links[item.catalogId].flatMap { id in stockItems.first { $0.id.uuidString == id }?.food }
+            let record = linked.flatMap { $0.basis == .serving ? nil : $0 } ?? catalogNutrition(item.catalogId)
             let kcal = record.map { max(Int($0.kcal.rounded()), 1) } ?? itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150
-            add(StockFood(name: item.name, category: role, kcal100: kcal, catalogId: item.catalogId, nutrition: record))
+            add(StockFood(name: item.name, category: role, kcal100: kcal, catalogId: item.catalogId, nutrition: record, key: item.name, chosen: true))
         }
-        let fromCart = Set((UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]).values)
-        for item in StockStore.shared.items where !fromCart.contains(item.id.uuidString) && item.amount > 0 && !item.isExpired() {
-            guard let food = stockFood(item.food) else { continue }
+        let fromCart = Set(links.values)
+        var seenRecords = Set(foods.compactMap { $0.nutrition?.id })
+        for item in stockItems where !fromCart.contains(item.id.uuidString) && item.amount > 0 && !item.isExpired() {
+            guard seenRecords.insert(item.food.id).inserted, let food = stockFood(item.food) else { continue }
             add(food)
         }
         for deal in pantry {
@@ -261,10 +305,20 @@ enum FallbackData {
 
     /// A My Stock food as a plan food: a short name and its role.
     private static func stockFood(_ food: NutritionFood) -> StockFood? {
-        let short = food.name.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? food.name
         guard let role = planRole(name: food.name, category: "") else { return nil }
+        // "Fish, salmon, Atlantic, raw" is Salmon, not Fish: group words give way to what follows.
+        let parts = food.name.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let groups: Set<String> = ["fish", "nuts", "seeds", "cheese", "cereals", "beans", "crustaceans", "mollusks", "squash",
+                                   "peppers", "spices", "beverages", "soup", "babyfood", "snacks", "nut"]
+        var short = parts.first ?? food.name
+        if parts.count > 1, groups.contains(short.lowercased()) {
+            let second = parts[1]
+            let lead = short.lowercased()
+            short = ["cheese", "squash", "beans", "peppers"].contains(lead) ? "\(second) \(lead)" : second
+        }
         let kcal100 = food.basis == .grams ? max(Int(food.kcal.rounded()), 1) : (categoryKcal[role] ?? 150)
-        return StockFood(name: short.capitalized, category: role, kcal100: kcal100, nutrition: food.basis == .serving ? nil : food)
+        let display = short.prefix(1).uppercased() + short.dropFirst()
+        return StockFood(name: display, category: role, kcal100: kcal100, nutrition: food.basis == .serving ? nil : food, key: food.name, chosen: true)
     }
 
     /// The part of the plan a food can play, from whole words of its name (then its shop
@@ -280,7 +334,8 @@ enum FallbackData {
         func word(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w == $0 || w == $0 + "s" || w == $0 + "es" } } }
         func prefix(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w.hasPrefix($0) } } }
         // Never a plan component, whatever the category says.
-        let excluded = ["broth", "paste", "puree", "coffee", "tea", "garlic", "ginger", "herb", "herbs", "seasoning", "cocoa", "butter", "ghee", "margarine", "cream", "oil", "sauce", "ketchup", "mayonnaise", "mayo", "dressing", "jam", "honey",
+        let excluded = ["onion", "onions", "shallot", "shallots", "chili", "chilli", "lemon", "lemons", "lime", "limes", "coconut",
+                        "croissant", "croissants", "crumbs", "broth", "paste", "puree", "coffee", "tea", "garlic", "ginger", "herb", "herbs", "seasoning", "cocoa", "butter", "ghee", "margarine", "cream", "oil", "sauce", "ketchup", "mayonnaise", "mayo", "dressing", "jam", "honey",
                         "syrup", "sugar", "salt", "flour", "spice", "spices", "chips", "crisps", "chocolate", "candy", "cookie", "cookies",
                         "biscuit", "biscuits", "cake", "doughnut", "donut", "nutella", "nutmeg", "peppermint", "graham", "crackers",
                         "juice", "soda", "cola", "stock", "bouillon", "vinegar", "mustard", "gelatin", "yeast", "powder"]

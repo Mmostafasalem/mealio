@@ -10,7 +10,7 @@ services:
     rootDir: smartmarket/smartmarket-backend
     buildCommand: pip install -r requirements.lock
     # One worker shares catalog/replay caches; threads provide concurrency.
-    # 120s timeout covers the slow AI meal-plan endpoint.
+    # 120s timeout leaves room for a slow AI answer (chat, recipes).
     startCommand: gunicorn server:app --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT
     healthCheckPath: /healthz
     envVars:
@@ -18,6 +18,12 @@ services:
         value: production
       - key: AI_ACCOUNTS_ENABLED
         value: "0"          # catalog-only until Apple + durable storage are activated
+      # Proxies in front of the app: the client address is read from
+      # X-Forwarded-For, this many entries from the right. Production refuses to
+      # start without it. 1 is the documented value for Render; confirm it once
+      # against a real request (DEPLOY.md, "Verify TRUSTED_PROXY_COUNT").
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
       - key: GROQ_API_KEY

@@ -12,7 +12,7 @@ enum MealioQuickAction: String, CaseIterable, Identifiable {
         case .profile: return "Profile and settings"
         case .logFood: return "Log food"
         case .cart: return "View cart"
-        case .groceries: return "Grocery checklist"
+        case .groceries: return "Checklist"
         }
     }
     var symbol: String {

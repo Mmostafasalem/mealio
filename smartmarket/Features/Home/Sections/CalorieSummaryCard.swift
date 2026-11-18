@@ -41,7 +41,7 @@ struct CalorieSummaryCard: View {
                 .accessibilityLabel("Calories: \(vm.consumed) of \(vm.goal) kilocalories")
                 .accessibilityHint("Tap for calorie breakdown")
 
-            // Two columns of figures in the rings' colours; one column when text is very large.
+            // Two columns of figures, each marked with its ring's colour; one column when text is very large.
             let columns = dynamicTypeSize.isAccessibilitySize
                 ? [GridItem(.flexible(), alignment: .leading)]
                 : [GridItem(.flexible(), spacing: Spacing.lg, alignment: .leading), GridItem(.flexible(), alignment: .leading)]
@@ -49,7 +49,7 @@ struct CalorieSummaryCard: View {
                 figure(label: "Calories", value: "\(vm.consumed)/\(vm.goal)", unit: "kcal", color: .ringCalories,
                        spoken: "Calories: \(vm.consumed) of \(vm.goal) kilocalories", tooltip: nil)
                 macroFigure(label: "Protein", current: vm.proteinCurrent, goal: vm.proteinGoal, color: .ringProtein,
-                            tooltip: "Protein builds and repairs muscle. Your target is \(Self.grams(vm.proteinGoal))g/day based on your weight and goal.")
+                            tooltip: "Protein builds and repairs muscle. Your target is \(Self.grams(vm.proteinGoal)) g a day: 30% of your daily calories (25% on a keto diet).")
                 macroFigure(label: "Carbs", current: vm.carbsCurrent, goal: vm.carbsGoal, color: .ringCarbs,
                             tooltip: "Carbohydrates are your body's primary fuel. Choose complex sources like oats, rice, and legumes.")
                 macroFigure(label: "Fat", current: vm.fatCurrent, goal: vm.fatGoal, color: .ringFat,
@@ -91,11 +91,15 @@ struct CalorieSummaryCard: View {
                spoken: Self.macroAccessibilityText(label: label, current: current, goal: goal), tooltip: tooltip)
     }
 
-    /// A name over its "eaten/goal" figure, in its ring's colour.
+    /// A name over its "eaten/goal" figure; the ring's colour is only a dot beside the name.
     private func figure(label: String, value: String, unit: String, color: Color,
                         spoken: String, tooltip: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 0) {
+                Circle().fill(color)
+                    .frame(width: 8, height: 8)
+                    .padding(.trailing, 6)
+                    .accessibilityHidden(true)
                 Text(label)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.labelPrimary)
@@ -110,11 +114,12 @@ struct CalorieSummaryCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value)
                     .font(.system(.headline, design: .rounded).weight(.bold).monospacedDigit())
+                    .foregroundStyle(Color.labelPrimary)
                     .contentTransition(.numericText())
                 Text(unit.uppercased())
                     .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.labelSecondary)
             }
-            .foregroundStyle(color)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .accessibilityElement(children: .ignore)
@@ -130,12 +135,13 @@ private struct CalorieDetailPopover: View {
     var body: some View {
         let remaining = max(vm.goal - vm.consumed, 0)
         let over = max(vm.consumed - vm.goal, 0)
-        let pct = vm.goal > 0 ? min(Int(Double(vm.consumed) / Double(vm.goal) * 100), 100) : 0
+        // Not capped: over the goal reads 115%, matching "kcal over" on the card.
+        let pct = vm.goal > 0 ? Int((Double(vm.consumed) / Double(vm.goal) * 100).rounded()) : 0
         return VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("Calorie Summary").font(.headline)
+            Text("Calorie summary").font(.headline)
             Divider()
             row("Consumed", value: "\(vm.consumed) kcal", color: .primary)
-            row("Daily Goal", value: "\(vm.goal) kcal", color: .secondary)
+            row("Daily goal", value: "\(vm.goal) kcal", color: .secondary)
             row(over > 0 ? "Over by" : "Remaining",
                 value: "\(over > 0 ? over : remaining) kcal",
                 color: over > 0 ? .brandDanger : .brandPrimary)

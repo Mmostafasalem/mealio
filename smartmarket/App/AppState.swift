@@ -132,7 +132,27 @@ final class AppState {
         // The screen swap to the app uses the same slow, even curve as the rest of the root changes.
         withAnimation(SmartMarketAgentApp.rootTransition) { isOnboarded = true }
         UserDefaults.standard.set(true, forKey: Constants.Storage.hasCompletedOnboarding)
+        // The first plan is ready at once; it doesn't wait for the first network tick.
+        AgentLoop.rebuildPlanNow(appState: self)
     }
+
+    /// The profile lives in the Keychain. If it couldn't be read at launch (the phone was
+    /// locked, on items saved by older builds), read it again once the phone is unlocked.
+    /// And when it is really gone (a backup restored to a new phone brings the settings
+    /// but not the Keychain), setup runs again instead of using a made-up person.
+    func recoverProfileIfNeeded() {
+        guard isOnboarded, UIApplication.shared.isProtectedDataAvailable else { return }
+        let inKeychain = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) != nil
+        if inKeychain || UserDefaults.standard.data(forKey: Constants.Storage.userProfile) != nil {
+            if !profileWasRead { reloadStoredData(); profileWasRead = true }
+        } else if !NourloTips.isUITesting() {
+            // UI tests start "onboarded" with no stored profile on purpose.
+            UserDefaults.standard.set(false, forKey: Constants.Storage.hasCompletedOnboarding)
+            withAnimation(SmartMarketAgentApp.rootTransition) { isOnboarded = false }
+        }
+    }
+    /// Whether the stored profile was readable when the app state was created.
+    @ObservationIgnored private var profileWasRead = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) != nil
 
     // MARK: - Static loaders
 

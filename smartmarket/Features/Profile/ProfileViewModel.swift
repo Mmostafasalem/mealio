@@ -170,7 +170,8 @@ final class ProfileViewModel {
             deletionError = "Could not erase secure storage. Unlock your iPhone and retry deletion."
             return
         }
-        AIAccountService.shared.clearLocalSession()
+        // Guest accounts can't be signed into again once their secret is erased: don't keep a marker for one.
+        AIAccountService.shared.clearLocalSessionForLocalErase()
         // Stops Apple Health syncing and forgets what was written; data
         // already in the Health app stays there for the person to manage.
         HealthService.shared.resetForDataDeletion()
@@ -220,6 +221,7 @@ final class ProfileViewModel {
         CustomExerciseStore.shared.reload()
         WorkoutSession.shared.cancel()
         ReminderStore.shared.reload()
+        VoiceAIKeyStore.shared.remove()
         RecipeRatingStore.shared.reload()
         DailyLoopStore.shared.reset()
     }

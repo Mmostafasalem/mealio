@@ -69,6 +69,7 @@ enum WeeklyGroceryPlanner {
 
     static func plan(budget: Double, cart: [CartItem], favourites: Set<String>,
                      preferences: Set<DietaryPreference>, excluded: Set<String> = [],
+                     stock: [String] = [],
                      price: (CatalogItem) -> Double) -> GroceryPlan {
         let available = max(0, budget - cart.reduce(0) { $0 + $1.lineTotal })
         guard available >= minimumToSuggest else { return GroceryPlan(lines: [], available: available) }
@@ -86,6 +87,17 @@ enum WeeklyGroceryPlanner {
         // What the balanced week still lacks once the person's foods are counted (the cart counts too).
         var have = cart.compactMap { line in CatalogItem.all.first { $0.id == line.catalogId }.flatMap { role(of: $0) } }
         have += favs.compactMap { role(of: $0) }
+        // Food already in My Stock (not put there by the cart) covers its part of the week too.
+        have += stock.compactMap { name -> Role? in
+            switch FallbackData.planRole(name: name, category: "") {
+            case "eggs", "seafood", "meat", "legumes": return .protein
+            case "grains": return ["oat", "buckwheat", "muesli", "granola", "porridge"].contains { name.lowercased().contains($0) } ? nil : .carb
+            case "vegetables": return .vegetable
+            case "fruits": return .fruit
+            case "dairy": return .dairy
+            default: return nil
+            }
+        }
         var needed: [Role] = []
         var remaining = have
         for r in balancedWeek {

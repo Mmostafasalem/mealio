@@ -104,8 +104,8 @@ struct VoiceCommandSheet: View {
                 VStack(spacing: Spacing.xs) {
                     Text("Try saying")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.labelTertiary)
-                    ForEach(["\u{201C}Two eggs and toast for breakfast\u{201D}", "\u{201C}Add milk to my cart\u{201D}", "\u{201C}Start a 30 minute leg workout\u{201D}"], id: \.self) { example in
+                        .foregroundStyle(Color.labelSecondary)
+                    ForEach(["\u{201C}Two eggs and toast for breakfast\u{201D}", "\u{201C}Add milk to my cart\u{201D}", "\u{201C}Start a 30 minute cardio workout\u{201D}"], id: \.self) { example in
                         Text(example)
                             .font(.subheadline)
                             .foregroundStyle(Color.labelSecondary)
@@ -262,7 +262,7 @@ struct VoiceCommandSheet: View {
                     Image(systemName: "xmark")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.labelSecondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

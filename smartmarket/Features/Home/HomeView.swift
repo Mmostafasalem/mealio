@@ -94,9 +94,10 @@ struct HomeView: View {
                                 }
                                 .accessibilityLabel("Speak a command")
                                 .accessibilityIdentifier("home.voice")
-                                // The same small "i" as the macros, centred just above the microphone,
-                                // in the gap under the header, so the row stays symmetrical.
-                                .overlay {
+                                // The same small "i" as the macros, centred just above the microphone in the
+                                // gap under the header. It sits behind the button, so where its 44 pt
+                                // target reaches into the circle the microphone wins the tap.
+                                .background {
                                     InfoTooltip(text: "Tap the microphone and say what you ate or want, like \u{201C}two eggs for breakfast\u{201D}, \u{201C}add milk to my cart\u{201D} or \u{201C}start a 30 minute workout\u{201D}. It listens on this iPhone and shows what it understood before saving.")
                                         .offset(y: -34)
                                 }
@@ -208,7 +209,10 @@ struct HomeView: View {
         }
         .font(.footnote.weight(.semibold))
         .foregroundStyle(Color.labelPrimary)
-        .lineLimit(1)
+        // The streak sentence needs room at larger text sizes.
+        .lineLimit(2)
+        .minimumScaleFactor(0.85)
+        .multilineTextAlignment(.leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .accessibilityElement(children: .combine)

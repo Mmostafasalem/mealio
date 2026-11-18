@@ -232,11 +232,14 @@ final class HomeViewModel {
 
     // MARK: - Food logging (local, optimistic)
 
-    func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double) {
-        guard food.isValid, amount.isFinite, amount >= food.minimumAmount, amount <= food.maximumAmount else { return }
+    /// False when the food or amount isn't valid and nothing was logged.
+    @discardableResult
+    func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double) -> Bool {
+        guard food.isValid, amount.isFinite, amount >= food.minimumAmount, amount <= food.maximumAmount else { return false }
         NutritionCatalogService.shared.remember(food)
         log.add(FoodLogEntry(nutritionFood: food, slot: slot, amount: amount))
         mascotCelebration = UUID()
+        return true
     }
 
     func removeLog(_ entry: FoodLogEntry) { log.remove(entry) }
@@ -313,7 +316,7 @@ final class HomeViewModel {
             else if error is URLError, OwnerAITestConfiguration.current != nil {
                 message = "Could not reach the AI on your Mac. Keep the Mac awake, connect both devices to the same Wi-Fi, and allow Nourlo access to your local network in iPhone Settings."
             }
-            else { message = "Sorry, I couldn't reach the agent. Please try again." }
+            else { message = "Sorry, I couldn't reach Nourlo's AI. Please try again." }
             chatNotice = message
             lastChatFailed = true
         }

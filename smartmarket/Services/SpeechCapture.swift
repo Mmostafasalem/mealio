@@ -18,6 +18,8 @@ nonisolated enum SpeechCaptureError: LocalizedError {
     case microphoneDenied, speechDenied, unsupportedLanguage, unavailable, audio(String)
     /// The language needs the offline model, which isn't downloaded.
     case needsOfflineModel
+    /// The recording was made but the offline model couldn't turn it into text.
+    case transcriptionFailed
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +28,7 @@ nonisolated enum SpeechCaptureError: LocalizedError {
         case .unsupportedLanguage: return "On-device dictation isn't available for this language on this iPhone."
         case .needsOfflineModel: return "This language needs the offline speech model. Download it in Profile › Voice."
         case .unavailable: return "On-device dictation isn't available right now."
+        case .transcriptionFailed: return "The offline speech model couldn't read that. Please try again."
         case .audio(let detail): return "The microphone couldn't start. \(detail)"
         }
     }
@@ -50,6 +53,8 @@ nonisolated protocol SpeechEngine: AnyObject, Sendable {
     func start(locale: Locale, events: SpeechCaptureEvents) async throws
     /// Stops the microphone and returns the final text.
     func stop() async -> String
+    /// Why `stop()` came back empty, when turning the recording into text failed.
+    var lastError: Error? { get }
 }
 
 nonisolated enum SpeechCapture {
@@ -207,6 +212,8 @@ nonisolated final class AnalyzerSpeechEngine: SpeechEngine, @unchecked Sendable 
 
     init(model: Model = .speech) { self.model = model }
 
+    var lastError: Error? { nil }
+
     /// The locale this model would listen in, or nil when it doesn't cover the language.
     static func supportedLocale(for locale: Locale, model: Model) async -> Locale? {
         switch model {
@@ -354,6 +361,8 @@ nonisolated final class RecognizerSpeechEngine: SpeechEngine, @unchecked Sendabl
     private var heard = ""
     private var done: CheckedContinuation<Void, Never>?
     private var isDone = false
+
+    var lastError: Error? { nil }
 
     func start(locale: Locale, events: SpeechCaptureEvents) async throws {
         guard let recognizer = SFSpeechRecognizer(locale: locale) else { throw SpeechCaptureError.unsupportedLanguage }

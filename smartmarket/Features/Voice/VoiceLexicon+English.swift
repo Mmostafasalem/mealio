@@ -9,7 +9,7 @@ extension VoiceLexicon {
             #" (?:please|thanks|thank you|for me)$"#,
         ],
         calorieWords: ["calorie", "kcal"],
-        calorieCues: ["left", "remaining", "how many", "how much", "can i eat", "do i have"],
+        calorieCues: ["left", "remaining", "can i eat", "can i still eat", "have i got", "do i have"],
         exercisePatterns: [
             #"^(?:show me |tell me |teach me )?how (?:do i|do you|to|should i) (?:do |perform )?(?:a |an |the )?(.+)$"#,
             #"^(?:show|open)(?: me)? (?:the )?(.+?) exercise$"#,
@@ -108,6 +108,9 @@ extension VoiceLexicon {
         ],
         hundredWords: ["hundred"],
         numberJoiners: ["and"],
-        attachedJoiner: nil
+        attachedJoiner: nil,
+        shoppingVerbs: ["buy", "purchase", "pick up"],
+        calorieExclusions: [#"(?:^| )in (?:a|an|the) (?!day(?: |$))"#],
+        mealPrepositions: ["for", "as", "at", "to", "during"]
     )
 }

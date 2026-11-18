@@ -6,7 +6,7 @@ struct FavoriteFoodsView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
-        OnboardingScaffold(vm: vm, step: .favorites, title: "Build your fridge",
+        OnboardingScaffold(vm: vm, step: .favorites, title: "Pick your foods",
                            subtitle: "Pick at least \(Constants.Onboarding.minimumFavorites) things you buy regularly. Meal plans start from these.",
                            contentPadding: 0) {
             VStack(spacing: 0) {
@@ -43,7 +43,11 @@ struct FavoriteFoodsView: View {
             if !vm.foodSearchQuery.isEmpty {
                 Button { vm.foodSearchQuery = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Color.labelTertiary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .padding(.trailing, -Spacing.md)
                 .accessibilityLabel("Clear search")
             }
         }
@@ -141,6 +145,9 @@ private struct CategoryChip: View {
                 .background(isSelected ? Color.dullPink : Color(.tertiarySystemFill))
                 .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
+                // The chip stays small; the tap area is 44 pt.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         // Colour-only change, so it stays animated under Reduce Motion.
