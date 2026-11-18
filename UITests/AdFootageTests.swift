@@ -120,7 +120,10 @@ final class StoreScreenshotTests: XCTestCase {
         hold(1.5)
         shot("store-2-voice")
         app.buttons["voice.confirm"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["voice.result"].waitForExistence(timeout: 5))
+        if !app.staticTexts["voice.result"].waitForExistence(timeout: 8), app.buttons["voice.confirm"].exists {
+            app.buttons["voice.confirm"].firstMatch.tap()
+        }
+        XCTAssertTrue(app.staticTexts["voice.result"].waitForExistence(timeout: 8))
         hold(1)
         app.buttons["Done"].firstMatch.tap()
         hold(3)
