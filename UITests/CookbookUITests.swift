@@ -15,7 +15,7 @@ final class CookbookUITests: XCTestCase {
         app.launch()
 
         // Fill the kitchen: the plan's missing foods go to the cart, and the cart fills My Stock.
-        app.tabBars.buttons["Meals"].tap()
+        app.tab("Meals").tap()
         let addMissing = app.buttons["meals.addMissing"]
         XCTAssertTrue(addMissing.waitForExistence(timeout: 15))
         addMissing.tap()
@@ -52,7 +52,7 @@ final class CookbookUITests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
                                "-NourloUITesting", "YES"]
         app.launch()
-        let plus = app.tabBars.buttons["Quick actions"]
+        let plus = app.tab("Quick actions")
         XCTAssertTrue(plus.waitForExistence(timeout: 10))
         let logFood = app.buttons["quickActions.logFood"].firstMatch
         for _ in 0..<3 where !logFood.exists { plus.tap(); _ = logFood.waitForExistence(timeout: 3) }

@@ -9,7 +9,7 @@ final class MealPlanStockUITests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
                                "-NourloUITesting", "YES", "-NourloEmptyKitchen"]
         app.launch()
-        app.tabBars.buttons["Meals"].tap()
+        app.tab("Meals").tap()
         let addMissing = app.buttons["meals.addMissing"]
         XCTAssertTrue(addMissing.waitForExistence(timeout: 15))
         let before = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); before.name = "meals-missing"; before.lifetime = .keepAlways; add(before)

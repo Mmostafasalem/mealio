@@ -25,7 +25,7 @@ final class AdFootageTests: XCTestCase {
                                "-NourloUITesting", "YES", "-NourloVoiceTestPhrase", "log two eggs and a banana for breakfast", "-NourloEmptyKitchen"]
         app.launch()
         let start = Date()
-        XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.tab("Home").waitForExistence(timeout: 20))
         hold(3)
         mark("home", since: start)
         hold(2.5)
@@ -48,7 +48,7 @@ final class AdFootageTests: XCTestCase {
         hold(1.5)
 
         // Meals: the plan marks what isn't in the kitchen; one tap adds it, then cook from stock.
-        app.tabBars.buttons["Meals"].tap()
+        app.tab("Meals").tap()
         hold(1)
         mark("meals-missing", since: start)
         hold(2.5)
@@ -74,11 +74,11 @@ final class AdFootageTests: XCTestCase {
             drift(app, from: 0.8, to: 0.3)
             hold(2)
         }
-        app.tabBars.buttons["Home"].tap()
+        app.tab("Home").tap()
         hold(1)
 
         for tab in ["Meals", "Shop", "Train"] {
-            app.tabBars.buttons[tab].tap()
+            app.tab(tab).tap()
             hold(1)
             mark(tab.lowercased(), since: start)
             hold(2.5)

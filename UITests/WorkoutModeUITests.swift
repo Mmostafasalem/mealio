@@ -13,7 +13,7 @@ final class WorkoutModeUITests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
                                "-NourloUITesting", "YES", "-workoutModeDraft_v1", "", "-completedWorkouts_v1", ""]
         app.launch()
-        app.tabBars.buttons["Train"].tap()
+        app.tab("Train").tap()
         let gym = app.buttons["train.kind.gym"]
         XCTAssertTrue(gym.waitForExistence(timeout: 10))
         gym.tap()
@@ -69,7 +69,7 @@ final class WorkoutModeUITests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
                                "-NourloUITesting", "YES", "-workoutModeDraft_v1", "", "-savedWorkouts_v1", "", "-customExercises_v1", ""]
         app.launch()
-        app.tabBars.buttons["Train"].tap()
+        app.tab("Train").tap()
         let create = app.buttons["train.createWorkout"]
         for _ in 0..<8 where !create.isHittable { app.swipeUp() }
         create.tap()

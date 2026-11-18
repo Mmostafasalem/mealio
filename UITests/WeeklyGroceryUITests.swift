@@ -9,7 +9,7 @@ final class WeeklyGroceryUITests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
                                "-NourloUITesting", "YES", "-NourloEmptyKitchen", "-weeklyBudget", "40"]
         app.launch()
-        app.tabBars.buttons["Shop"].tap()
+        app.tab("Shop").tap()
         let addAll = app.buttons["shop.weeklyPlan.addAll"]
         XCTAssertTrue(addAll.waitForExistence(timeout: 10))
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); shot.name = "weekly-groceries"; shot.lifetime = .keepAlways; add(shot)
