@@ -100,7 +100,7 @@ struct SmartMarketAgentApp: App {
                 try? await Task.sleep(for: .milliseconds(1500))
                 _ = NutritionCatalogService.shared
                 // The plan can now carry each meal's foods (macros, "Review and log").
-                NotificationCenter.default.post(name: .cartDidChange, object: nil)
+                NotificationCenter.default.post(name: .planInputsDidChange, object: nil)
             }
         }
     }
@@ -184,6 +184,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     // Show notification even when app is foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        // The rest timer is on screen with its own haptic: its notice is for a locked phone only.
+        if notification.request.identifier == WorkoutModeModel.restNoticeID { return [] }
+        return [.banner, .sound, .badge]
     }
 }

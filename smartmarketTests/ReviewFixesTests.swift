@@ -51,6 +51,43 @@ final class ReviewFixesTests: XCTestCase {
         XCTAssertGreaterThan(today.proteinG, 10)
     }
 
+    func testShopItemsMatchTheRightFoodRecord() throws {
+        _ = NutritionCatalogService.shared
+        func record(_ id: String) -> String? {
+            CatalogItem.all.first { $0.id == id }.flatMap { CartStockLink.food(for: $0) }?.name
+        }
+        XCTAssertEqual(record("milk-25"), "Milk, reduced fat (2%)", "never a dessert topping")
+        XCTAssertEqual(record("spaghetti"), "Pasta, dry, enriched", "never spaghetti squash")
+        XCTAssertEqual(record("eggs-12"), "Egg, whole, raw, fresh")
+        XCTAssertEqual(record("salmon-fillet"), "Fish, salmon, Atlantic, farmed, raw")
+        XCTAssertFalse(record("kefir")?.lowercased().contains("strawberry") ?? true, "plain kefir, not a flavoured one")
+        XCTAssertFalse(record("greek-yogurt")?.lowercased().contains("strawberry") ?? true)
+        XCTAssertEqual(record("brown-rice")?.hasPrefix("Rice, brown"), true)
+    }
+
+    func testSeasoningsAndBrothsPlayNoPartInThePlan() {
+        XCTAssertNil(FallbackData.planRole(name: "Black Pepper", category: "spices"))
+        XCTAssertNil(FallbackData.planRole(name: "Coffee Beans", category: "beverages"))
+        XCTAssertNil(FallbackData.planRole(name: "Chicken Broth", category: "canned"))
+        XCTAssertNil(FallbackData.planRole(name: "Tomato Paste", category: "canned"))
+        XCTAssertEqual(FallbackData.planRole(name: "Cherry Tomatoes", category: "vegetables"), "vegetables")
+        XCTAssertEqual(FallbackData.planRole(name: "Egg Noodles", category: "grains"), "grains")
+        XCTAssertEqual(FallbackData.planRole(name: "Bell Pepper", category: "vegetables"), "vegetables")
+    }
+
+    func testAWorkoutFinishedTwiceIsSavedOnce() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "ReviewFixesTests.log"))
+        defaults.removePersistentDomain(forName: "ReviewFixesTests.log")
+        let log = TrainingLogStore(defaults: defaults)
+        let start = Date()
+        let set = LoggedSet(weightKg: 50, reps: 8, done: true)
+        let ex = LoggedExercise(name: "Bench press", tracking: .weightReps, restSeconds: 60, target: "3 × 8", sets: [set])
+        log.save(LoggedWorkout(title: "Push", kind: .gym, startedAt: start, finishedAt: start.addingTimeInterval(1800), exercises: [ex]))
+        log.save(LoggedWorkout(title: "Push", kind: .gym, startedAt: start, finishedAt: start.addingTimeInterval(1900), exercises: [ex, ex]))
+        XCTAssertEqual(log.workouts.count, 1, "the lock screen's save and workout mode's save are one workout")
+        XCTAssertEqual(log.workouts.first?.exercises.count, 2, "the later save wins")
+    }
+
     // MARK: Workout mode
 
     func testIntervalRoundsShareTheirBlock() {

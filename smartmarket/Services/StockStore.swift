@@ -149,7 +149,7 @@ final class StockStore {
         var next = snapshot
         next.items.append(StockItem(id: UUID(), food: food, amount: amount, expiresAt: Self.day(expiresAt), addedAt: now()))
         try save(next)
-        NotificationCenter.default.post(name: .cartDidChange, object: nil)   // the plan is built from stock too
+        NotificationCenter.default.post(name: .planInputsDidChange, object: nil)   // the plan is built from stock too
     }
 
     func update(id: UUID, amount: Double, expiresAt: Date?) throws {
@@ -165,7 +165,7 @@ final class StockStore {
         var next = snapshot
         next.items.removeAll { $0.id == id }
         try save(next)
-        NotificationCenter.default.post(name: .cartDidChange, object: nil)   // the plan is built from stock too
+        NotificationCenter.default.post(name: .planInputsDidChange, object: nil)   // the plan is built from stock too
     }
 
     func consume(id: UUID, amount: Double, slot: MealSlot) throws {
@@ -179,7 +179,7 @@ final class StockStore {
         if usedUp { next.items.remove(at: index) }
         try save(next)
         // A food that ran out leaves the plan too.
-        if usedUp { NotificationCenter.default.post(name: .cartDidChange, object: nil) }
+        if usedUp { NotificationCenter.default.post(name: .planInputsDidChange, object: nil) }
     }
 
     func hasLoggedMeal(_ operationID: String) -> Bool {
@@ -222,7 +222,7 @@ final class StockStore {
         next.mealOperations = (next.mealOperations ?? []) + [operationID]
         next.mealOperationDates = (next.mealOperationDates ?? [:]).merging([operationID: now()]) { _, new in new }
         try save(next)
-        if ranOut { NotificationCenter.default.post(name: .cartDidChange, object: nil) }
+        if ranOut { NotificationCenter.default.post(name: .planInputsDidChange, object: nil) }
     }
 
     private func requirements(_ ingredients: [NutritionIngredient]) throws -> [NutritionIngredient] {
@@ -260,7 +260,7 @@ final class StockStore {
         var next = snapshot
         next.items = []
         do { try save(next) } catch { Self.logger.error("Could not empty stock: \(error.localizedDescription)") }
-        NotificationCenter.default.post(name: .cartDidChange, object: nil)   // the plan is built from stock too
+        NotificationCenter.default.post(name: .planInputsDidChange, object: nil)   // the plan is built from stock too
     }
     private static func day(_ date: Date?) -> Date? {
         date.map { StockItem.dayStamp($0) }

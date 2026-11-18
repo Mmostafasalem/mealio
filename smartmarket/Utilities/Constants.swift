@@ -5,6 +5,9 @@ extension Notification.Name {
     static let mealPlanDidUpdate    = Notification.Name("mealPlanDidUpdate")
     static let groceryListDidChange = Notification.Name("groceryListDidChange")
     static let cartDidChange        = Notification.Name("cartDidChange")
+    /// Something the meal plan is built from changed that isn't a cart edit (My Stock, the
+    /// budget, the meal split): the plan rebuilds, but it doesn't count as shopping.
+    static let planInputsDidChange  = Notification.Name("planInputsDidChange")
     /// Ask Home to show Profile (it lives behind the avatar, not in the tab bar).
     static let openProfile          = Notification.Name("openProfile")
     /// Ask the tab bar to show Train (from a workout reminder).

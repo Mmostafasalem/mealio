@@ -15,6 +15,8 @@ struct ProfileView: View {
     @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
     @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
     @AppStorage(WeeklyReset.startDayKey) private var weekStartDay = 2
+    /// Watched so the split's name updates when it changes in its own screen.
+    @AppStorage(MealSplit.storageKey) private var mealSplitData = Data()
     @AppStorage(WeeklyReset.askKey) private var weeklyResetAsk = true
     @Environment(\.colorScheme) private var colorScheme
 
@@ -149,8 +151,10 @@ struct ProfileView: View {
                 ForEach(WeeklyReset.dayNames, id: \.day) { Text($0.name).tag($0.day) }
             }
             .accessibilityIdentifier("profile.weekStart")
+            .onChange(of: weekStartDay) { _, _ in WeeklyReset.startDayChanged() }
             NavigationLink { MealSplitView() } label: {
-                LabeledContent("Daily calorie split", value: MealSplit.presets.first { $0.split == MealSplit.current }?.name ?? "Your own")
+                let split = (try? JSONDecoder().decode(MealSplit.self, from: mealSplitData)).flatMap { $0.isValid ? $0 : nil } ?? .balanced
+                LabeledContent("Daily calorie split", value: MealSplit.presets.first { $0.split == split }?.name ?? "Your own")
             }
             .accessibilityIdentifier("profile.mealSplit")
             Toggle("Ask to empty cart and stock each week", isOn: $weeklyResetAsk)
@@ -159,7 +163,7 @@ struct ProfileView: View {
         } header: {
             Text("Your week and meals")
         } footer: {
-            Text("Your weekly budget and \"this week\" in Train follow this day. When a new week starts, Nourlo asks whether to start fresh; nothing is cleared without your yes, and your food log always stays.")
+            Text("Weeks in Progress start on this day. When a new week starts, Nourlo asks whether to start fresh; nothing is cleared without your yes, and your food log always stays.")
         }
     }
 

@@ -149,6 +149,7 @@ struct CookbookRecipeView: View {
     @State private var stock = StockStore.shared
     @State private var showCooked = false
     @State private var addedToCart = false
+    @State private var noShopMatch = false
 
     private var kitchen: KitchenMatcher { KitchenMatcher(names: stock.items.map(\.food.name)) }
 
@@ -184,15 +185,21 @@ struct CookbookRecipeView: View {
                 }
                 if !missing.isEmpty {
                     Button {
+                        var added = 0
                         for line in missing {
-                            if let item = CookbookSuggester.catalogItem(for: line) { ShoppingCartService.shared.add(item, store: .catalog) }
+                            if let item = CookbookSuggester.catalogItem(for: line) { ShoppingCartService.shared.add(item, store: .catalog); added += 1 }
                         }
-                        addedToCart = true
+                        addedToCart = added > 0
+                        noShopMatch = added == 0
                     } label: {
                         Label(addedToCart ? "Added to your cart" : "Add what's missing to the cart", systemImage: addedToCart ? "checkmark" : "cart.badge.plus")
                     }
                     .disabled(addedToCart)
                     .accessibilityIdentifier("cookbook.addMissing")
+                    if noShopMatch {
+                        Text("These aren't in the shop's catalogue. Add them to My Stock when you have them.")
+                            .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    }
                 }
             } header: {
                 Text("Ingredients")

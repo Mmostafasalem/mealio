@@ -13,7 +13,7 @@ final class GroceryListViewModel {
     private var deletedItems: [GroceryItem] = []
     private var deletedCartLines: [CartItem] = []
     /// Cart lines whose My Stock packs went with them (not bought): undo puts the packs back.
-    private var deletedRestock: Set<String> = []
+    private var deletedRestock: [String: Double] = [:]
     private var undoGeneration: UUID?
     private var undoID = UUID()
     private let undoDuration: Duration
@@ -81,7 +81,7 @@ final class GroceryListViewModel {
         undoTask?.cancel()
         deletedItems = removed
         deletedCartLines = lines
-        deletedRestock = []
+        deletedRestock = [:]
         undoMessage = message
         undoGeneration = AppState.shared.dataGeneration
         let expected = UUID()
@@ -99,7 +99,7 @@ final class GroceryListViewModel {
         undoMessage = nil
         deletedItems = []
         deletedCartLines = []
-        deletedRestock = []
+        deletedRestock = [:]
         undoGeneration = nil
         undoID = UUID()
     }
@@ -117,8 +117,8 @@ final class GroceryListViewModel {
         let bought = Set(removed.filter(\.isBought).map(\.id))
         for line in lines {
             let keep = bought.contains(ShoppingCartService.cartRowId(catalogId: line.catalogId, store: line.store))
-            if !keep { deletedRestock.insert(line.catalogId) }
-            cart.removeLine(catalogId: line.catalogId, store: line.store, keepStock: keep)
+            let left = cart.removeLine(catalogId: line.catalogId, store: line.store, keepStock: keep)
+            if left > 0 { deletedRestock[line.catalogId, default: 0] += left }
         }
         items = GroceryStorage.load().filter { !ids.contains($0.id) }
         saveItems()
@@ -162,7 +162,7 @@ final class GroceryListViewModel {
         guard !cart.cartItems.isEmpty else { return }
         let rows = GroceryStorage.load().filter { ShoppingCartService.parseCartRowId($0.id) != nil }
         prepareUndo(rows, lines: cart.cartItems, message: "Cart cleared")
-        cart.clear()
+        deletedRestock = cart.clear()
         loadItems()
     }
 

@@ -18,11 +18,16 @@ enum WeeklyReset {
         get { let v = UserDefaults.standard.integer(forKey: startDayKey); return (1...7).contains(v) ? v : 2 }
         set {
             UserDefaults.standard.set(newValue, forKey: startDayKey)
-            // A different start day isn't a new week: the current week, counted the new
-            // way, counts as answered, so moving Monday to Wednesday doesn't ask mid-week.
-            if UserDefaults.standard.object(forKey: handledKey) != nil {
-                UserDefaults.standard.set(weekStart(of: Date()), forKey: handledKey)
-            }
+            startDayChanged()
+        }
+    }
+
+    /// A different start day isn't a new week: the current week, counted the new way,
+    /// counts as answered, so moving Monday to Wednesday doesn't ask mid-week. Call it
+    /// whenever the start day is written (Profile writes the key directly).
+    static func startDayChanged(now: Date = Date()) {
+        if UserDefaults.standard.object(forKey: handledKey) != nil {
+            UserDefaults.standard.set(weekStart(of: now), forKey: handledKey)
         }
     }
 
@@ -69,11 +74,11 @@ enum WeeklyReset {
         let cart = cart ?? .shared, stock = stock ?? .shared
         switch choice {
         case .cartAndStock:
-            cart.clear()
+            cart.clear(keepStock: true)
             stock.clearItems()
             defaults.removeObject(forKey: "cartStockLinks_v1")
         case .cartOnly:
-            cart.clear()
+            cart.clear(keepStock: true)
             defaults.removeObject(forKey: "cartStockLinks_v1")
         case .keep:
             break

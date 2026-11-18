@@ -137,6 +137,8 @@ final class TrainingLogStore {
     @discardableResult
     func save(_ workout: LoggedWorkout) -> LoggedWorkout {
         var finished = workout
+        // Finished twice (the lock screen, then workout mode): the later save replaces the first.
+        workouts.removeAll { $0.title == workout.title && abs($0.startedAt.timeIntervalSince(workout.startedAt)) < 1 }
         finished.records = records(in: workout)
         workouts.insert(finished, at: 0)
         persist()

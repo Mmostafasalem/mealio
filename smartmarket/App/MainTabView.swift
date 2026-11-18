@@ -149,6 +149,8 @@ struct MainTabView: View {
     /// our sheets, or a sheet or popover another screen presented. The new one
     /// appears only after the old one has gone, so it is never dropped.
     private func present(_ next: MainSheet?) {
+        // Chat needs online AI: while it isn't offered, Siri, links and voice don't open it.
+        if next == .chat && !AIAccountService.shared.offersOnlineAI { return }
         if awaitingDismissal {
             // Something is already going away; show the newest request after it.
             queuedSheet = next

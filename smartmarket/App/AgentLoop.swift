@@ -11,6 +11,7 @@ final class AgentLoop {
     /// The inputs `aiTask`'s request was built from.
     private var aiTaskInputs: PlanInputs?
     private var cartObserver: NSObjectProtocol?
+    private var planInputsObserver: NSObjectProtocol?
     private var profileObserver: NSObjectProtocol?
     private weak var appState: AppState?
     private var dataGeneration = 0
@@ -153,6 +154,11 @@ final class AgentLoop {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.scheduleLocalRegen() }
         }
+        planInputsObserver = NotificationCenter.default.addObserver(
+            forName: .planInputsDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.scheduleLocalRegen() }
+        }
         // Profile edits (body stats, goal, pace, diet, favourites) change the
         // calorie target and the foods allowed, so the plan follows them.
         profileObserver = NotificationCenter.default.addObserver(
@@ -179,6 +185,10 @@ final class AgentLoop {
         regenTask?.cancel(); regenTask = nil
         profileTask?.cancel(); profileTask = nil
         aiTask?.cancel()
+        if let planInputsObserver {
+            NotificationCenter.default.removeObserver(planInputsObserver)
+            self.planInputsObserver = nil
+        }
         if let cartObserver {
             NotificationCenter.default.removeObserver(cartObserver)
             self.cartObserver = nil

@@ -79,7 +79,9 @@ enum FallbackData {
 
     /// The catalogue foods used when nothing owned fills a role, in order of preference.
     private static func suggested(_ name: String, _ category: String, _ kcal: Int, _ id: String?) -> StockFood {
-        StockFood(name: name, category: category, kcal100: kcal, owned: false, catalogId: id, nutrition: id.flatMap { catalogNutrition($0) })
+        let record = id.flatMap { catalogNutrition($0) }
+        return StockFood(name: name, category: category, kcal100: record.map { max(Int($0.kcal.rounded()), 1) } ?? kcal,
+                         owned: false, catalogId: id, nutrition: record)
     }
 
     /// How many times the person asked for another plan. Each step pairs the foods
@@ -136,7 +138,10 @@ enum FallbackData {
             for c in comps {
                 let g = min(max(Int(Double(c.base) * factor), 20), Int(Double(c.maxG) * capScale))
                 total += g * c.food.kcal100 / 100
-                ings.append("\(c.food.name) · \(c.label) (\(g)g)")
+                // Grains and pulses planned from their dry record say so ("60 g dry" of rice is a plateful).
+                let dry = ["grains", "legumes"].contains(c.food.category)
+                    && (c.food.nutrition.map { !KitchenMatcher.words($0.name).isDisjoint(with: ["raw", "dry", "uncooked"]) } ?? false)
+                ings.append("\(c.food.name) · \(c.label) (\(g)g\(dry ? " dry" : ""))")
                 if let food = c.food.nutrition { records.append(NutritionIngredient(food: food, amount: Double(g))) }
             }
             let foods = comps.map(\.food)
@@ -209,10 +214,16 @@ enum FallbackData {
     /// The food record for a catalogue item: the same match the cart uses for My Stock, so
     /// "Review and log" finds it there. Nothing until the catalogue has been read.
     private static func catalogNutrition(_ catalogId: String) -> NutritionFood? {
-        guard NutritionCatalogService.isLoaded, let item = CatalogItem.all.first(where: { $0.id == catalogId }),
-              let food = CartStockLink.food(for: item), food.basis != .serving else { return nil }
-        return food
+        guard NutritionCatalogService.isLoaded else { return nil }
+        if let cached = recordCache[catalogId] { return cached }
+        let found: NutritionFood? = CatalogItem.all.first(where: { $0.id == catalogId })
+            .flatMap { CartStockLink.food(for: $0) }
+            .flatMap { $0.basis == .serving ? nil : $0 }
+        recordCache[catalogId] = .some(found)
+        return found
     }
+    /// One search per catalogue item, not one per plan rebuild.
+    private static var recordCache: [String: NutritionFood?] = [:]
 
     /// "Oats, banana & greek yogurt" from the meal's component names.
     private static func title(_ foods: [StockFood]) -> String {
@@ -231,8 +242,11 @@ enum FallbackData {
         func add(_ f: StockFood) { if seen.insert(f.name.lowercased()).inserted { foods.append(f) } }
         for item in ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1") {
             guard let role = planRole(name: item.name, category: item.category.lowercased()) else { continue }
-            add(StockFood(name: item.name, category: role, kcal100: itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150, catalogId: item.catalogId,
-                          nutrition: catalogNutrition(item.catalogId)))
+            // Planned in the food as bought (the same record My Stock holds), so the meal's
+            // calories, its macros and what "Review and log" takes from stock agree.
+            let record = catalogNutrition(item.catalogId)
+            let kcal = record.map { max(Int($0.kcal.rounded()), 1) } ?? itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150
+            add(StockFood(name: item.name, category: role, kcal100: kcal, catalogId: item.catalogId, nutrition: record))
         }
         let fromCart = Set((UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]).values)
         for item in StockStore.shared.items where !fromCart.contains(item.id.uuidString) && item.amount > 0 && !item.isExpired() {
@@ -250,7 +264,7 @@ enum FallbackData {
         let short = food.name.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces) ?? food.name
         guard let role = planRole(name: food.name, category: "") else { return nil }
         let kcal100 = food.basis == .grams ? max(Int(food.kcal.rounded()), 1) : (categoryKcal[role] ?? 150)
-        return StockFood(name: short.capitalized, category: role, kcal100: kcal100, nutrition: food)
+        return StockFood(name: short.capitalized, category: role, kcal100: kcal100, nutrition: food.basis == .serving ? nil : food)
     }
 
     /// The part of the plan a food can play, from whole words of its name (then its shop
@@ -266,13 +280,19 @@ enum FallbackData {
         func word(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w == $0 || w == $0 + "s" || w == $0 + "es" } } }
         func prefix(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w.hasPrefix($0) } } }
         // Never a plan component, whatever the category says.
-        let excluded = ["butter", "ghee", "margarine", "cream", "oil", "sauce", "ketchup", "mayonnaise", "mayo", "dressing", "jam", "honey",
+        let excluded = ["broth", "paste", "puree", "coffee", "tea", "garlic", "ginger", "herb", "herbs", "seasoning", "cocoa", "butter", "ghee", "margarine", "cream", "oil", "sauce", "ketchup", "mayonnaise", "mayo", "dressing", "jam", "honey",
                         "syrup", "sugar", "salt", "flour", "spice", "spices", "chips", "crisps", "chocolate", "candy", "cookie", "cookies",
                         "biscuit", "biscuits", "cake", "doughnut", "donut", "nutella", "nutmeg", "peppermint", "graham", "crackers",
                         "juice", "soda", "cola", "stock", "bouillon", "vinegar", "mustard", "gelatin", "yeast", "powder"]
         let peanutButter = set.contains("peanut") && set.contains("butter")
         if !peanutButter && words.contains(where: excluded.contains) && !set.contains("cottage") { return nil }
+        // Seasonings, drinks, sauces and baking goods by shop category play no part either.
+        if ["spices", "beverages", "condiments", "oils", "baking", "snacks"].contains(category) && !peanutButter && !word(["nut", "almond", "seed"]) { return nil }
+        // Ground pepper is a spice; bell and sweet peppers are vegetables.
+        if word(["pepper", "peppercorn"]) && !set.isDisjoint(with: ["black", "white", "cayenne", "ground", "peppercorn", "peppercorns"]) { return nil }
         if set.contains("eggplant") || set.contains("aubergine") { return "vegetables" }
+        if word(["noodle"]) { return "grains" }      // egg noodles are pasta, not eggs
+        if word(["tomato"]) { return "vegetables" }  // cherry tomatoes aren't cherries
         if word(["egg"]) { return "eggs" }
         if word(["salmon", "tuna", "cod", "fish", "shrimp", "prawn", "trout", "mackerel", "herring", "sardine", "hake", "pollock", "tilapia", "bass", "seafood"]) { return "seafood" }
         if word(["chicken", "turkey", "beef", "pork", "lamb", "ham", "veal", "duck", "steak", "mince", "sausage", "meatball"]) { return "meat" }

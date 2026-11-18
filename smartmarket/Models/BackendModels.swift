@@ -330,7 +330,7 @@ struct MealSplit: Codable, Equatable {
         }
         set {
             if let data = try? JSONEncoder().encode(newValue) { UserDefaults.standard.set(data, forKey: storageKey) }
-            NotificationCenter.default.post(name: .cartDidChange, object: nil)   // rebuild the plan
+            NotificationCenter.default.post(name: .planInputsDidChange, object: nil)   // rebuild the plan
         }
     }
 }
