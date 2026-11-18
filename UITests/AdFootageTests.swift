@@ -88,3 +88,71 @@ final class AdFootageTests: XCTestCase {
         mark("end", since: start)
     }
 }
+
+/// The App Store screenshots: the same walk as the advert, stopping on each screen.
+/// Opt-in: runs only with `TEST_RUNNER_NOURLO_STORE_SHOTS=1`; images are attachments
+/// named `store-1-home` … `store-6-train`.
+@MainActor
+final class StoreScreenshotTests: XCTestCase {
+
+    private func hold(_ seconds: TimeInterval) { RunLoop.current.run(until: Date().addingTimeInterval(seconds)) }
+
+    private func shot(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testStoreScreenshots() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["NOURLO_STORE_SHOTS"] == "1", "Only for App Store screenshots")
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloUITesting", "YES", "-NourloVoiceTestPhrase", "log two eggs and a banana for breakfast", "-NourloEmptyKitchen"]
+        app.launch()
+        XCTAssertTrue(app.tab("Home").waitForExistence(timeout: 20))
+        hold(3)
+
+        // The voice card, then Home with breakfast logged.
+        app.buttons["home.voice"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 15))
+        hold(1.5)
+        shot("store-2-voice")
+        app.buttons["voice.confirm"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["voice.result"].waitForExistence(timeout: 5))
+        hold(1)
+        app.buttons["Done"].firstMatch.tap()
+        hold(3)
+        shot("store-1-home")
+
+        // Meals once the missing foods are in the kitchen.
+        app.tab("Meals").tap()
+        hold(2)
+        if app.buttons["meals.addMissing"].waitForExistence(timeout: 5) {
+            app.buttons["meals.addMissing"].tap()
+        }
+        // The meal names spell themselves in after a change; let them settle.
+        hold(8)
+        shot("store-3-meals")
+
+        // Cook with what I have, from My Stock.
+        app.navigationBars.buttons["My Stock"].tap()
+        if app.buttons["stock.cook"].waitForExistence(timeout: 8) {
+            app.buttons["stock.cook"].tap()
+            let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'cookbook.recipe.'")).firstMatch
+            XCTAssertTrue(first.waitForExistence(timeout: 15))
+            hold(2)
+            shot("store-4-cook")
+        }
+        app.tab("Shop").tap()
+        hold(3)
+        shot("store-5-shop")
+        for _ in 0..<3 where !app.staticTexts["Build a workout"].waitForExistence(timeout: 4) {
+            app.tab("Train").tap()
+        }
+        XCTAssertTrue(app.staticTexts["Build a workout"].exists, "reached Train")
+        hold(2)
+        shot("store-6-train")
+    }
+}
