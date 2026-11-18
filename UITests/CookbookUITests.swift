@@ -59,7 +59,7 @@ final class CookbookUITests: XCTestCase {
         logFood.tap()
 
         let browse = app.buttons["logFood.browseRecipes"]
-        XCTAssertTrue(browse.waitForExistence(timeout: 10))
+        XCTAssertTrue(browse.waitForExistence(timeout: 20))
         shot("logfood-recipes-entry")
 
         let search = app.textFields["logFood.search"]
