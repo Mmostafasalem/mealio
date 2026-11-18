@@ -27,7 +27,8 @@ struct VoiceCommandSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // On iPad a medium detent makes a short card that hides the review list; use the full form sheet there.
+        .presentationDetents(UIDevice.current.userInterfaceIdiom == .pad ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         // Solid, so the screen behind doesn't show through the review card.
         .presentationBackground(Color.surfaceGrouped)

@@ -127,8 +127,11 @@ final class StoreScreenshotTests: XCTestCase {
         shot("store-1-home")
 
         // Meals once the missing foods are in the kitchen.
-        app.tab("Meals").tap()
-        hold(2)
+        let stockButton = app.navigationBars.buttons["My Stock"]
+        for _ in 0..<3 where !stockButton.waitForExistence(timeout: 4) {
+            app.tab("Meals").tap()
+        }
+        XCTAssertTrue(stockButton.exists, "reached Meals")
         if app.buttons["meals.addMissing"].waitForExistence(timeout: 5) {
             app.buttons["meals.addMissing"].tap()
         }
