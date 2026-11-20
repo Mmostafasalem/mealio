@@ -73,6 +73,38 @@ final class MascotSnapshotTests: XCTestCase {
         try data.write(to: outDir.appendingPathComponent("mascot-icon-happy.png"))
     }
 
+    /// Nourlo's poses for the App Store images (scripts/make-store-images.py), 2304 px on a
+    /// clear background: flexing, waving, mid-jump, heart eyes, cheeky, thinking, happy.
+    func testRenderStorePoses() throws {
+        typealias Setup = (MascotRig) -> Void
+        let poses: [(String, Double, Setup)] = [
+            ("flex", 1.2, { $0.set(mood: .flex) }),
+            ("wave", 0.55, { $0.set(mood: .happy); $0.wave() }),
+            ("jump", 0.32, { $0.set(mood: .celebrate); $0.hop() }),
+            ("love", 1.5, { $0.set(mood: .love) }),
+            ("cheeky", 1.5, { $0.set(mood: .cheeky) }),
+            ("thinking", 1.5, { $0.set(mood: .thinking) }),
+            ("happy", 1.5, { $0.set(mood: .happy) }),
+        ]
+        guard (try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)) != nil else { return }
+        for (name, seconds, setup) in poses {
+            let rig = MascotRig()
+            rig.reduceMotion = false
+            rig.set(mood: .idle)
+            rig.setActive(true)
+            rig.stop()
+            rig.simulate(seconds: 0.6)
+            setup(rig)
+            rig.simulate(seconds: seconds, fps: 120)
+            let renderer = ImageRenderer(content: MascotFigure(pose: rig.pose, size: 512).frame(width: 768, height: 768).environment(\.colorScheme, .light))
+            renderer.scale = 3
+            renderer.isOpaque = false
+            guard let data = renderer.uiImage?.pngData() else { return XCTFail("no image") }
+            try data.write(to: outDir.appendingPathComponent("store-\(name).png"))
+            rig.stop()
+        }
+    }
+
     /// Frame-by-frame clips of the mascot's own animation (30 fps, clear background) for the
     /// adverts in video/. Opt-in: TEST_RUNNER_NOURLO_MASCOT_CLIPS=1.
     func testRenderMascotClips() throws {
