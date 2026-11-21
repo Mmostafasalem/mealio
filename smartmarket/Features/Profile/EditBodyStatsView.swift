@@ -96,7 +96,7 @@ struct EditBodyStatsView: View {
                         Image(systemName: "calendar").foregroundStyle(Color.brandPrimary).frame(width: 22)
                         Text("Age")
                         Spacer()
-                        Text("\(age)").foregroundStyle(Color.brandPrimary).monospacedDigit()
+                        Text("\(age)" as String).foregroundStyle(Color.brandPrimary).monospacedDigit()
                     }
                 }
                 if goalWasLose && !BMRCalculator.allowsWeightLoss(age: age) {
@@ -128,7 +128,7 @@ struct EditBodyStatsView: View {
                 HStack {
                     Text("Estimated BMR")
                     Spacer()
-                    Text("\(liveBMR) kcal")
+                    Text("\(liveBMR) kcal" as String)
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.brandPrimary)
                         .monospacedDigit()

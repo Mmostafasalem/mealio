@@ -174,7 +174,7 @@ struct StoreBrowserView: View {
                         )
                     Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
                     Spacer()
-                    Text("×\(item.quantity)")
+                    Text("×\(item.quantity)" as String)
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                     Text(String(format: "€%.2f", item.lineTotal))
                         .font(.subheadline).fontWeight(.semibold).monospacedDigit()
@@ -182,7 +182,7 @@ struct StoreBrowserView: View {
             }
 
             if cart.cartItems.count > 3 {
-                Text("+ \(cart.cartItems.count - 3) more items")
+                Text("+ \(cart.cartItems.count - 3) more items" as String)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
@@ -305,7 +305,7 @@ struct CartBadge: View {
                 .font(.system(size: 18))
                 .foregroundStyle(Color.brandPrimary)
             if count > 0 {
-                Text("\(min(count, 99))")
+                Text("\(min(count, 99))" as String)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.onAccent)
                     .padding(3)

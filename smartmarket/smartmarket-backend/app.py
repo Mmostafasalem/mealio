@@ -1,3 +1,5 @@
+import binascii
+import base64
 import collections
 import json
 import math
@@ -21,6 +23,8 @@ APP_API_KEY = os.environ.get("APP_API_KEY")  # Shared secret between iOS app and
 # so meal plans / recipes are higher quality and emit valid JSON consistently.
 # Override with the GROQ_MODEL env var (e.g. to swap models without a deploy).
 GROQ_MODEL  = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+# Reads food photos; the chat model above has no image input.
+GROQ_VISION_MODEL = os.environ.get("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
 
 # Bounded timeout + one retry so a slow/transient Groq call fails fast (the app
 # then uses its on-device fallback) instead of hanging. Kept comfortably under
@@ -426,7 +430,7 @@ def _completion_text(response):
     return choice.message.content or ""
 
 
-def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=None):
+def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=None, model=None, temperature=0.7):
     """Call Groq and parse the first JSON object/array from the response.
 
     Set json_object=True for endpoints that return a single JSON *object* to use
@@ -435,10 +439,10 @@ def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=
     """
     try:
         kwargs = dict(
-            model=GROQ_MODEL,
+            model=model or GROQ_MODEL,
             messages=messages,
-            temperature=0.7,
-            **_completion_options(max_tokens),
+            temperature=temperature,
+            **(_completion_options(max_tokens) if model is None else {"max_tokens": max_tokens}),
         )
         if json_object:
             kwargs["response_format"] = {"type": "json_object"}
@@ -1016,6 +1020,60 @@ def handle_recipe(body):
             while len(_recipe_cache) > _RECIPE_CACHE_MAX:
                 _recipe_cache.popitem(last=False)      # evict least-recently used
     return result
+
+
+# ---------------------------------------------------------------------------
+# Food photo: names and rough grams only. The app looks every name up in its own
+# food database, so no nutrition value ever comes from the model.
+# ---------------------------------------------------------------------------
+
+_PHOTO_MAX_BASE64 = 180_000          # a 768 px JPEG is about 60–120 KB in base64
+_PHOTO_MAX_FOODS = 8
+
+def _usable_photo(raw):
+    return isinstance(raw, dict) and isinstance(raw.get("foods"), list)
+
+def _clean_photo_foods(raw):
+    foods = []
+    for item in (raw.get("foods") or [])[:_PHOTO_MAX_FOODS]:
+        if not isinstance(item, dict):
+            continue
+        name = re.sub(r"\s+", " ", str(item.get("name", ""))).strip()[:60]
+        try:
+            grams = float(item.get("grams", 0))
+        except (TypeError, ValueError):
+            grams = 0
+        if not name or not math.isfinite(grams):
+            continue
+        foods.append({"name": name, "grams": int(min(max(grams, 1), 1500))})
+    return foods
+
+def handle_food_photo(body):
+    image = body.get("image")
+    if not isinstance(image, str) or not 100 <= len(image) <= _PHOTO_MAX_BASE64:
+        return {"error": "image required", "foods": []}
+    try:
+        data = base64.b64decode(image, validate=True)
+    except (binascii.Error, ValueError):
+        return {"error": "image must be base64 JPEG", "foods": []}
+    if not data.startswith(b"\xff\xd8"):
+        return {"error": "image must be base64 JPEG", "foods": []}
+    prompt = (
+        "List each food and drink you can see in this photo of a meal, with a realistic "
+        "estimate of its weight in grams as served. Use plain, common food names "
+        '(for example "white rice, cooked", "chicken breast", "banana"). Ignore plates, '
+        "cutlery and anything that is not food. If there is no food, return an empty list. "
+        'Reply with JSON only: {"foods":[{"name":string,"grams":number}]}'
+    )
+    result = groq_json(
+        [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image}},
+        ]}],
+        fallback={"foods": []}, max_tokens=400, json_object=True,
+        validator=_usable_photo, model=GROQ_VISION_MODEL, temperature=0.2,
+    )
+    return {"foods": _clean_photo_foods(result) if isinstance(result, dict) else []}
 
 
 # ---------------------------------------------------------------------------

@@ -56,7 +56,7 @@ struct WeeklyGroceryCard: View {
                                     .frame(width: 36, height: 36)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Remove \(line.item.name) from the suggestions")
+                            .accessibilityLabel("Remove \(line.item.name) from the suggestions" as String)
                         }
                         .padding(.vertical, 6)
                         if line.id != plan.lines.last?.id { Divider() }

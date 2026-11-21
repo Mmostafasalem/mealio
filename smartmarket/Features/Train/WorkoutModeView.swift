@@ -42,7 +42,7 @@ struct WorkoutModeView: View {
             Button("Discard workout", role: .destructive) { model.discard(); onClose() }
             Button("Keep going", role: .cancel) {}
         } message: {
-            Text("\(model.setsDone) of \(model.setsTotal) sets are done.")
+            Text("\(model.setsDone) of \(model.setsTotal) sets are done." as String)
         }
         // The Live Activity's Next and Finish change the session: follow it here.
         .onChange(of: WorkoutSession.shared.state?.index) { _, index in
@@ -93,7 +93,7 @@ struct WorkoutModeView: View {
             .accessibilityIdentifier("workoutMode.close")
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.workout.title).font(.headline).lineLimit(1)
-                Text("Exercise \(model.exerciseIndex + 1) of \(model.exercises.count) · \(model.setsDone)/\(model.setsTotal) sets")
+                Text("Exercise \(model.exerciseIndex + 1) of \(model.exercises.count) · \(model.setsDone)/\(model.setsTotal) sets" as String)
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                     .contentTransition(.numericText())
             }
@@ -165,7 +165,7 @@ struct WorkoutModeView: View {
                     if let muscles = item.muscles, !muscles.isEmpty {
                         Text(muscles).font(.subheadline).foregroundStyle(Color.labelSecondary)
                     }
-                    Text("Target \(ex.target)\(ex.restSeconds > 0 ? " · rest \(ex.restSeconds) s" : "")")
+                    Text("Target \(ex.target)\(ex.restSeconds > 0 ? " · rest \(ex.restSeconds) s" : "")" as String)
                         .font(.footnote.weight(.medium)).foregroundStyle(Color.labelSecondary)
                     if let best = bestText(bests, ex.tracking) {
                         Label(best, systemImage: "trophy.fill").font(.footnote.weight(.semibold)).foregroundStyle(Color.brandAmber)
@@ -272,7 +272,7 @@ struct WorkoutModeView: View {
         ZStack {
             Circle().fill(set.done ? Color.ringProtein : (isCurrent ? Color.dullPink : Color.surfaceSecondary))
                 .frame(width: 30, height: 30)
-            Text("\(index + 1)").font(.footnote.weight(.bold))
+            Text("\(index + 1)" as String).font(.footnote.weight(.bold))
                 .lineLimit(1).minimumScaleFactor(0.5)
                 .foregroundStyle(set.done || isCurrent ? Color.onAccent : Color.labelPrimary)
                 .frame(width: 26)
@@ -303,21 +303,21 @@ struct WorkoutModeView: View {
             valueCell("\(set.reps ?? 0)" + (stacked ? " reps" : ""), width: stacked ? nil : 76, done: set.done) {
                 editing = EditTarget(set: index, field: .reps)
             }
-            .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
+            .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)" as String)
             .accessibilityHint("Double-tap to change")
             .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
         case .reps:
             valueCell("\(set.reps ?? 0)" + (stacked ? " reps" : ""), width: stacked ? nil : 96, done: set.done) {
                 editing = EditTarget(set: index, field: .reps)
             }
-            .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)")
+            .accessibilityLabel("Set \(index + 1) reps, \(set.reps ?? 0)" as String)
             .accessibilityHint("Double-tap to change")
             .accessibilityIdentifier("workoutMode.reps.\(index + 1)")
         case .time:
             valueCell(TrainingFormat.duration(set.seconds ?? 0), width: stacked ? nil : 96, done: set.done) {
                 editing = EditTarget(set: index, field: .seconds)
             }
-            .accessibilityLabel("Set \(index + 1) time, \(TrainingFormat.duration(set.seconds ?? 0))")
+            .accessibilityLabel("Set \(index + 1) time, \(TrainingFormat.duration(set.seconds ?? 0))" as String)
             .accessibilityHint("Double-tap to change")
         }
     }
@@ -405,7 +405,7 @@ struct WorkoutModeView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Rest").font(.headline)
                     if let ex = model.current, let i = model.currentSetIndex {
-                        Text("Next: \(ex.name), set \(i + 1)").font(.footnote).foregroundStyle(Color.labelSecondary).lineLimit(2)
+                        Text("Next: \(ex.name), set \(i + 1)" as String).font(.footnote).foregroundStyle(Color.labelSecondary).lineLimit(2)
                     }
                 }
                 Spacer(minLength: 0)

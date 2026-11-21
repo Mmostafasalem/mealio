@@ -79,7 +79,7 @@ struct TrainingProgressView: View {
                                 Text(w.title).font(.subheadline.weight(.semibold))
                                 if !w.records.isEmpty { Image(systemName: "trophy.fill").font(.caption).foregroundStyle(Color.brandAmber) }
                             }
-                            Text("\(w.finishedAt.formatted(date: .abbreviated, time: .shortened)) · \(TrainingFormat.duration(Int(w.duration))) · \(w.setsDone) sets")
+                            Text("\(w.finishedAt.formatted(date: .abbreviated, time: .shortened)) · \(TrainingFormat.duration(Int(w.duration))) · \(w.setsDone) sets" as String)
                                 .font(.footnote).foregroundStyle(Color.labelSecondary)
                         }
                     }
@@ -263,16 +263,16 @@ struct LoggedWorkoutView: View {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(workout.title).font(.title3.weight(.bold))
-                    Text("\(workout.finishedAt.formatted(date: .complete, time: .shortened))")
+                    Text("\(workout.finishedAt.formatted(date: .complete, time: .shortened))" as String)
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
-                    Text("\(TrainingFormat.duration(Int(workout.duration))) · \(workout.setsDone) sets\(workout.volumeKg > 0 ? " · \(TrainingFormat.weight(workout.volumeKg, unit)) lifted" : "")")
+                    Text("\(TrainingFormat.duration(Int(workout.duration))) · \(workout.setsDone) sets\(workout.volumeKg > 0 ? " · \(TrainingFormat.weight(workout.volumeKg, unit)) lifted" : "")" as String)
                         .font(.subheadline)
                 }
             }
             if !workout.records.isEmpty {
                 Section("Records") {
                     ForEach(workout.records) { r in
-                        Label("\(r.exercise): \(r.text(unit: unit))", systemImage: "trophy.fill").font(.subheadline)
+                        Label("\(r.exercise): \(r.text(unit: unit))" as String, systemImage: "trophy.fill").font(.subheadline)
                     }
                 }
             }
@@ -280,7 +280,7 @@ struct LoggedWorkoutView: View {
                 Section(ex.name) {
                     ForEach(Array(ex.doneSets.enumerated()), id: \.offset) { i, set in
                         HStack {
-                            Text("Set \(i + 1)").foregroundStyle(Color.labelSecondary)
+                            Text("Set \(i + 1)" as String).foregroundStyle(Color.labelSecondary)
                             Spacer()
                             Text(TrainingFormat.set(set, tracking: ex.tracking, unit: unit)).monospacedDigit()
                         }

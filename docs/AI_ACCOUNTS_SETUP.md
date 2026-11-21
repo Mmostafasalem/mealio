@@ -9,7 +9,7 @@ Guest AI is active on the existing Render service with persistent Neon Postgres 
 - Neon: `nourlo-accounts`, project `dawn-river-72271199`, `free_v3`, pdx1. Its Vercel connection is development-only; Render receives its private connection through server environment settings.
 - Guest access is enabled. Apple access remains disabled until the Apple capabilities and server signing credentials are configured.
 - Provider model: existing Groq `openai/gpt-oss-120b`; existing provider and legacy app keys were preserved.
-- Default personal allowance: 30 credits/device/day. Weekly plans cost 5; chat, recipes and other suggestions cost 1. Failed/fallback responses do not spend personal credits.
+- Default personal allowance: 15 credits/device/day. Weekly plans cost 5; chat, recipes and other suggestions cost 1. Failed/fallback responses do not spend personal credits.
 - Current overall limit: 30 provider attempts/day across the service. This is a conservative request cap, not a dollar budget or a public capacity guarantee.
 - Free hosting can sleep; account and AI requests allow additional wake time. Free database/provider allowances remain limited. No automatic paid upgrade was selected.
 
@@ -22,7 +22,7 @@ AI_APPLE_ENABLED=0
 AI_DATABASE_URL=<private Postgres connection>
 AI_SUBJECT_SECRET=<stable private secret>
 AI_TOKEN_ENCRYPTION_KEY=<stable private Fernet key>
-AI_DAILY_CREDITS=30
+AI_DAILY_CREDITS=15
 AI_GLOBAL_DAILY_ATTEMPTS=30
 ```
 

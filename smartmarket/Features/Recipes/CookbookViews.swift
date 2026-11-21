@@ -48,7 +48,7 @@ struct CookWithWhatIHaveView: View {
                 ProgressView().frame(maxWidth: .infinity).listRowBackground(Color.clear)
             } else if !query.isEmpty {
                 Section("From the cookbook") {
-                    if searchResults.isEmpty { Text("No recipe called “\(query)”.").foregroundStyle(.secondary) }
+                    if searchResults.isEmpty { Text("No recipe called “\(query)”." as String).foregroundStyle(.secondary) }
                     ForEach(searchResults) { recipe in
                         let missing = KitchenMatcher(names: stockNames).missing(in: recipe)
                         row(recipe, have: recipe.keyIngredients.count - missing.count, missing: missing)
@@ -56,11 +56,11 @@ struct CookWithWhatIHaveView: View {
                 }
             } else if stock.items.isEmpty {
                 ContentUnavailableView("Your stock is empty", systemImage: "cabinet",
-                                       description: Text("Add what's in your kitchen to My Stock, and recipes that use it show up here. You can also search all \(all.count) recipes."))
+                                       description: Text("Add what's in your kitchen to My Stock, and recipes that use it show up here. You can also search all \(all.count) recipes." as String))
                     .listRowBackground(Color.clear)
             } else if shown.isEmpty {
                 ContentUnavailableView("Nothing close yet", systemImage: "frying.pan",
-                                       description: Text("No recipe can be made with what's in stock or with one or two more things. Search to browse all \(all.count) recipes."))
+                                       description: Text("No recipe can be made with what's in stock or with one or two more things. Search to browse all \(all.count) recipes." as String))
                     .listRowBackground(Color.clear)
             } else {
                 let ready = shown.filter { $0.missing.isEmpty }
@@ -213,7 +213,7 @@ struct CookbookRecipeView: View {
             Section("Method") {
                 ForEach(Array(recipe.steps.enumerated()), id: \.offset) { i, step in
                     HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                        Text("\(i + 1)").font(.subheadline.weight(.bold)).monospacedDigit().foregroundStyle(Color.brandPrimary)
+                        Text("\(i + 1)" as String).font(.subheadline.weight(.bold)).monospacedDigit().foregroundStyle(Color.brandPrimary)
                             .frame(width: 22, alignment: .leading)
                         Text(step).font(.subheadline)
                     }
@@ -297,11 +297,11 @@ struct CookedRecipeSheet: View {
             Form {
                 Section {
                     Stepper(value: $eaten, in: 0.5...6, step: 0.5) {
-                        Text("You ate \(eaten.formatted()) serving\(eaten == 1 ? "" : "s")")
+                        Text("You ate \(eaten.formatted(.number.grouping(.never))) serving\(eaten == 1 ? "" : "s")" as String)
                     }
                     .accessibilityIdentifier("cookbook.eaten")
                     Picker("Meal", selection: $slot) { ForEach(MealSlot.allCases) { Text($0.title).tag($0) } }
-                    Text("\(Int((recipe.perServing.kcal * eaten).rounded())) kcal · \(Int((recipe.perServing.protein * eaten).rounded())) g protein")
+                    Text("\(Int((recipe.perServing.kcal * eaten).rounded())) kcal · \(Int((recipe.perServing.protein * eaten).rounded())) g protein" as String)
                         .font(.footnote).foregroundStyle(.secondary)
                 } header: { Text("Log what you ate") }
 
@@ -403,7 +403,7 @@ struct CookbookBrowserView: View {
                     .accessibilityIdentifier("cookbook.recipe.\(recipe.id)")
                 }
             } footer: {
-                if shown.count > 200 { Text("Showing 200 of \(shown.count). Search to find a recipe.") }
+                if shown.count > 200 { Text("Showing 200 of \(shown.count). Search to find a recipe." as String) }
             }
             Section { CookbookCredit(recipe: nil) }
                 .listRowBackground(Color.clear)
@@ -450,7 +450,7 @@ struct CookbookCredit: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let recipe, let page = recipe.pageURL {
-                Text("Recipe: “\(recipe.title)” from the Wikibooks Cookbook, by its contributors.")
+                Text("Recipe: “\(recipe.title)” from the Wikibooks Cookbook, by its contributors." as String)
                 Link("Open the original page", destination: page)
             } else {
                 Text("Recipes from the Wikibooks Cookbook, by its contributors.")

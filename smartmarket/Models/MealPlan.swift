@@ -147,7 +147,7 @@ extension MealPlan {
                           calories: calories, proteinG: totals?.reduce(0) { $0 + $1.protein } ?? 0,
                           carbsG: totals?.reduce(0) { $0 + $1.carbs } ?? 0,
                           fatG: totals?.reduce(0) { $0 + $1.fat } ?? 0,
-                          notes: ingredients?.map { "\($0.food.name) · \($0.amount.formatted()) \($0.food.basis.rawValue)" }.joined(separator: ", ") ?? item.ingredientai.joined(separator: ", "),
+                          notes: ingredients?.map { "\($0.food.name) · \($0.amount.formatted(.number.grouping(.never))) \($0.food.basis.rawValue)" }.joined(separator: ", ") ?? item.ingredientai.joined(separator: ", "),
                           nutritionIngredients: ingredients, missing: item.missing)]
     }
 

@@ -102,7 +102,7 @@ plans, workouts and shopping suggestions are built on your iPhone and use no
 credits. To use online AI, sign in with Apple in Profile (one daily allowance
 shared across your devices) or continue as a guest where that is offered (the
 allowance belongs to that one device). Signing in does not enable sharing by
-itself. The default allowance is 30 credits a day; each chat message or AI recipe
+itself. The default allowance is 15 credits a day; each chat message or AI recipe
 uses 1. It resets at midnight UTC, shown in your local time. No credit is used
 when a request fails before the AI answers or when a recipe you already asked for
 is served again. If the AI answers but the answer can't be used, 1 credit is kept

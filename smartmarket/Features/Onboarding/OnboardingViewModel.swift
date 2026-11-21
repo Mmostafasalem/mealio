@@ -93,6 +93,12 @@ final class OnboardingViewModel {
     var favoritesCount: Int { favoriteFoodIDs.count }
     var canFinish: Bool { favoritesCount >= Constants.Onboarding.minimumFavorites }
 
+    /// Picks every food in `items`, or clears them all when they are all picked already.
+    func toggleAll(_ items: [CatalogItem]) {
+        let ids = Set(items.map(\.id))
+        if ids.isSubset(of: favoriteFoodIDs) { favoriteFoodIDs.subtract(ids) } else { favoriteFoodIDs.formUnion(ids) }
+    }
+
     func toggleFavorite(_ item: CatalogItem) {
         if favoriteFoodIDs.contains(item.id) { favoriteFoodIDs.remove(item.id) }
         else { favoriteFoodIDs.insert(item.id) }

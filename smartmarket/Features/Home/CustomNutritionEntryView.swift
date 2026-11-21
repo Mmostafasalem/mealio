@@ -47,7 +47,7 @@ struct CustomNutritionEntryView: View {
                                 Text(ingredient.food.name).font(.subheadline)
                                 Text(ingredient.food.sourceName).font(.caption).foregroundStyle(Color.labelSecondary)
                                 HStack {
-                                    Text("Amount (\(ingredient.food.basis.rawValue))")
+                                    Text("Amount (\(ingredient.food.basis.rawValue))" as String)
                                     Spacer()
                                     TextField("Amount", value: $ingredient.amount, format: .number)
                                         .focused($focusedField, equals: ingredient.id.uuidString)

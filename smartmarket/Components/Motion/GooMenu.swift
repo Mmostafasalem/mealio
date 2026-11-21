@@ -423,7 +423,7 @@ final class GooMenuEngine {
             ]) { picked = $0.title }
         }
         .zIndex(1)
-        Text("Picked: \(picked)").foregroundStyle(Color.labelSecondary)
+        Text("Picked: \(picked)" as String).foregroundStyle(Color.labelSecondary)
         Spacer().frame(height: 160)
     }
     .padding(Spacing.lg)

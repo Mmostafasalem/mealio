@@ -139,7 +139,7 @@ struct StoreProductsView: View {
                                 lowerLabel: "Minimum price", upperLabel: "Maximum price", format: euro)
                         .padding(.horizontal, Spacing.xs)
                     HStack {
-                        Text("\(displayItems.count) of \(matchingCount) products")
+                        Text("\(displayItems.count) of \(matchingCount) products" as String)
                             .font(.caption)
                             .monospacedDigit()
                             .foregroundStyle(Color.labelSecondary)
@@ -209,7 +209,7 @@ struct StoreProductsView: View {
             NavigationLink(destination: CartView()) {
                 HStack(spacing: 14) {
                     // Item count badge
-                    Text("\(cart.itemCount)")
+                    Text("\(cart.itemCount)" as String)
                         .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(Color.surfaceGrouped)
                         .frame(width: 28, height: 28)
@@ -355,7 +355,7 @@ struct ProductShopRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Edit price for \(item.name)")
+                .accessibilityLabel("Edit price for \(item.name)" as String)
                 .accessibilityValue((isEstimated ? "Estimate " : "Your price ") + String(format: "€%.2f", price))
             }
 

@@ -142,7 +142,7 @@ struct CalorieTrendCard: View {
                     .font(.footnote)
                     .foregroundStyle(Color.labelSecondary)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(trend.average == nil ? "–" : Int(max(0, model.total).rounded()).formatted())
+                    Text(trend.average == nil ? "–" : Int(max(0, model.total).rounded()).formatted(.number.grouping(.never)))
                         .font(.largeTitle.weight(.bold).monospacedDigit())
                         .foregroundStyle(Color.labelPrimary)
                     Text("kcal")
@@ -183,7 +183,7 @@ struct CalorieTrendCard: View {
             }
             .frame(height: 96)
             .accessibilityElement()
-            .accessibilityLabel("Daily calories, \(range.title)")
+            .accessibilityLabel("Daily calories, \(range.title)" as String)
             .accessibilityValue(Self.summary(trend, range: range))
             .accessibilityChartDescriptor(CalorieTrendChartDescriptor(trend: trend, range: range))
     }
@@ -230,7 +230,7 @@ struct CalorieTrendCard: View {
 
     static func summary(_ t: CalorieTrend, range: CalorieTrendRange) -> String {
         guard let avg = t.average else { return "Nothing logged in the last \(range.title)." }
-        var s = "Average \(avg.formatted()) kilocalories a day over the last \(range.title)"
+        var s = "Average \(avg.formatted(.number.grouping(.never))) kilocalories a day over the last \(range.title)"
         if let c = t.change {
             let r = Int(c.rounded())
             s += r == 0 ? ", unchanged from the \(range.title) before"

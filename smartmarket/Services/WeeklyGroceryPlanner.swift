@@ -9,8 +9,9 @@ import Foundation
 // a dairy food), and fits what's left of the weekly budget after the cart.
 //
 // When everything fits, everything is suggested, and money still left buys more
-// for the week: staples round the food groups (protein, vegetables, fruit, a carb,
-// dairy), each one only once, while they fit. When the budget is tight, the
+// for the week, round the food groups (protein, vegetables, fruit, a carb, dairy):
+// staples first, then other catalogue foods, each one only once, until less than
+// `minimumToSuggest` is left. When the budget is tight, the
 // balanced basics come first and then favourites, at most two from one food group,
 // until the money runs out.
 
@@ -147,24 +148,38 @@ enum WeeklyGroceryPlanner {
             if let staple { take(GroceryPlanLine(item: staple, price: price(staple), reason: .staple)) }
         }
         for item in favs { take(GroceryPlanLine(item: item, price: price(item), reason: .favourite)) }
+        // Whatever the picked foods left unspent still buys food for the week.
+        lines += more(after: lines, left: available - spent,
+                      usable: { usable($0) && perGroup[$0.category, default: 0] < 2 }, price: price)
         return GroceryPlan(lines: lines, available: available, tight: true)
     }
 
     /// The order money left over is spent in: the plate first, then the rest of the day.
     static let topUpOrder: [Role] = [.protein, .vegetable, .fruit, .carb, .vegetable, .dairy, .protein, .fruit, .vegetable]
-    static let maxMore = 9
+    /// A stop for the loop only; the money runs out long before.
+    static let maxMore = 60
 
-    /// Staples not yet in the cart or the list, round the food groups, while the money lasts.
+    /// Spends what is left, round the food groups, until less than `minimumToSuggest`
+    /// remains: the staples first, then any other catalogue food with a part in the
+    /// plan, so the list comes close to the budget instead of stopping when the
+    /// staples run out.
     static func more(after lines: [GroceryPlanLine], left: Double, usable: (CatalogItem) -> Bool,
                      price: (CatalogItem) -> Double) -> [GroceryPlanLine] {
         var taken = Set(lines.map(\.id)), left = left, out: [GroceryPlanLine] = []
+        var pool: [Role: [CatalogItem]] = [:]
+        for r in Role.allCases {
+            let first = (staples[r] ?? []).compactMap { id in CatalogItem.all.first { $0.id == id } }
+            let firstIDs = Set(first.map(\.id))
+            let rest = CatalogItem.all.filter { !firstIDs.contains($0.id) && role(of: $0) == r }
+            pool[r] = (first + rest).filter { usable($0) && !taken.contains($0.id) }
+        }
         var stuck = Set<Role>()
         while out.count < maxMore, left >= minimumToSuggest, stuck.count < Role.allCases.count {
             var added = false
-            for r in topUpOrder where out.count < maxMore && !stuck.contains(r) {
-                let next = (staples[r] ?? []).compactMap { id in CatalogItem.all.first { $0.id == id } }
-                    .first { usable($0) && !taken.contains($0.id) && price($0) <= left + 0.001 }
-                guard let next else { stuck.insert(r); continue }
+            for r in topUpOrder where out.count < maxMore && left >= minimumToSuggest && !stuck.contains(r) {
+                guard let next = pool[r]?.first(where: { !taken.contains($0.id) && price($0) <= left + 0.001 }) else {
+                    stuck.insert(r); continue
+                }
                 out.append(GroceryPlanLine(item: next, price: price(next), reason: .more))
                 taken.insert(next.id)
                 left -= price(next)

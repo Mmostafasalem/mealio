@@ -69,6 +69,6 @@ struct StatPill: View {
         .padding(.vertical, Spacing.sm)
         .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(value)")
+        .accessibilityLabel("\(title): \(value)" as String)
     }
 }

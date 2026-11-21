@@ -96,8 +96,8 @@ struct LikeBurstHeart: View {
         if reduceMotion {
             // Crossfade in place instead of rolling.
             ZStack {
-                Text(base.formatted()).opacity(1 - motionClamp(model.roll, 0, 1))
-                Text((base + 1).formatted()).opacity(motionClamp(model.roll, 0, 1))
+                Text(base.formatted(.number.grouping(.never))).opacity(1 - motionClamp(model.roll, 0, 1))
+                Text((base + 1).formatted(.number.grouping(.never))).opacity(motionClamp(model.roll, 0, 1))
             }
             .font(.headline.monospacedDigit())
             .foregroundStyle(Color.labelPrimary)
@@ -109,8 +109,8 @@ struct LikeBurstHeart: View {
 
     private func rollingCounter(_ base: Int) -> some View {
         VStack(spacing: 0) {
-            Text(base.formatted()).frame(height: row)
-            Text((base + 1).formatted()).frame(height: row)
+            Text(base.formatted(.number.grouping(.never))).frame(height: row)
+            Text((base + 1).formatted(.number.grouping(.never))).frame(height: row)
         }
         .font(.headline.monospacedDigit())
         .foregroundStyle(Color.labelPrimary)

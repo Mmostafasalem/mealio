@@ -31,7 +31,7 @@ struct CalorieRingView: View {
                 .frame(width: diameter, height: diameter)
 
             if showsPercent {
-                Text("\(Int((rawFraction * 100).rounded()))%")
+                Text("\(Int((rawFraction * 100).rounded()))%" as String)
                     .font(.system(size: size * 0.24, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.labelPrimary)
                     .monospacedDigit()
@@ -42,14 +42,14 @@ struct CalorieRingView: View {
             } else {
             // Center text
             VStack(spacing: 2) {
-                Text("\(consumed)")
+                Text("\(consumed)" as String)
                     .font(.system(size: size * 0.21, weight: .bold, design: .default))
                     .foregroundStyle(Color.labelPrimary)
                     .monospacedDigit()
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
                     .contentTransition(.numericText())
-                Text("/ \(goal) kcal")
+                Text("/ \(goal) kcal" as String)
                     .monospacedDigit()
                     .font(.system(size: size * 0.085, weight: .medium, design: .default))
                     .foregroundStyle(Color.labelSecondary)
@@ -71,8 +71,8 @@ struct CalorieRingView: View {
             withAnimation(reduceMotion ? .none : .snappyValue) { animatedProgress = rawFraction }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Consumed \(consumed) of \(goal) calories")
-        .accessibilityValue("\(Int(rawFraction * 100)) percent")
+        .accessibilityLabel("Consumed \(consumed) of \(goal) calories" as String)
+        .accessibilityValue("\(Int(rawFraction * 100)) percent" as String)
     }
 }
 

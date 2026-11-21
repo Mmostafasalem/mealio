@@ -69,7 +69,7 @@ struct WorkoutDetailView: View {
                                     .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                             }
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("\(index + 1). \(exercise.name)")
+                                Text("\(index + 1). \(exercise.name)" as String)
                                     .font(.headline)
                                     .foregroundStyle(Color.labelPrimary)
                                     .multilineTextAlignment(.leading)
@@ -142,7 +142,7 @@ struct WorkoutDetailView: View {
             Button("Start this one instead", role: .destructive) { startFresh() }
             Button("Keep the other one", role: .cancel) {}
         } message: {
-            Text("Starting this workout ends \(session.workout?.title ?? "the other one") without saving its sets.")
+            Text("Starting this workout ends \(session.workout?.title ?? "the other one") without saving its sets." as String)
         }
         .confirmationDialog("Stop this workout?", isPresented: $confirmStop, titleVisibility: .visible) {
             // Nothing done means nothing to save (and no calories counted).
@@ -328,7 +328,7 @@ struct WorkoutHistoryView: View {
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(session.title)
-                        Text("\(session.date.formatted(date: .abbreviated, time: .shortened)) · \(session.minutes) min · ~\(session.calories) kcal")
+                        Text("\(session.date.formatted(date: .abbreviated, time: .shortened)) · \(session.minutes) min · ~\(session.calories) kcal" as String)
                             .font(.caption).foregroundStyle(Color.labelSecondary)
                     }
                 }
@@ -404,7 +404,7 @@ struct ExerciseLibraryView: View {
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(exercise.name).font(.headline).foregroundStyle(Color.labelPrimary)
-                                Text("\(exercise.kind.title) · \(exercise.muscles)")
+                                Text("\(exercise.kind.title) · \(exercise.muscles)" as String)
                                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                             }
                             Spacer(minLength: Spacing.sm)

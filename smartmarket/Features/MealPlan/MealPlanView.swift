@@ -222,7 +222,7 @@ private struct MealSectionCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 Text(title).font(.headline)
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-                Text("\(entries.reduce(0) { $0 + $1.calories }) kcal")
+                Text("\(entries.reduce(0) { $0 + $1.calories }) kcal" as String)
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -292,7 +292,7 @@ private struct MealEntryRow: View {
                     .font(.caption).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let missing = entry.missing, !missing.isEmpty {
-                    Label("Not in your stock: \(missing.joined(separator: ", "))", systemImage: "cart.badge.plus")
+                    Label("Not in your stock: \(missing.joined(separator: ", "))" as String, systemImage: "cart.badge.plus")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.brandAmber)
                         .fixedSize(horizontal: false, vertical: true)
@@ -302,7 +302,7 @@ private struct MealEntryRow: View {
             .offset(y: -2 * q)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
-                Text("\(entry.calories) kcal")
+                Text("\(entry.calories) kcal" as String)
                     .font(.caption).fontWeight(.semibold)
                     .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 // The macro summary moves into the details while open.
@@ -311,7 +311,7 @@ private struct MealEntryRow: View {
                     if entry.macrosAvailable {
                         Text("Calculated from ingredient portions")
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
-                        Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
+                        Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))" as String)
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
                 }
@@ -341,7 +341,7 @@ private struct MealEntryRow: View {
                                 .font(.subheadline).foregroundStyle(Color.labelPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: Spacing.sm)
-                            Text("\(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue)")
+                            Text("\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)" as String)
                                 .font(.caption.weight(.medium)).foregroundStyle(Color.labelSecondary)
                                 .monospacedDigit()
                         }
@@ -365,7 +365,7 @@ private struct MealEntryRow: View {
             let chips = [("Protein", entry.proteinG), ("Carbs", entry.carbsG), ("Fat", entry.fatG)]
             FlowLayout(spacing: 6) {
                 ForEach(chips, id: \.0) { chip in
-                    Text("\(chip.0) \(chip.1.formatted(.number.precision(.fractionLength(0...1)))) g")
+                    Text("\(chip.0) \(chip.1.formatted(.number.precision(.fractionLength(0...1)))) g" as String)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.labelPrimary)
                         .monospacedDigit()
@@ -462,7 +462,7 @@ private struct RecommendationsSection: View {
                     .font(.headline)
                 Spacer()
                 if !remaining.isEmpty {
-                    Text("\(remaining.count) left")
+                    Text("\(remaining.count) left" as String)
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -675,6 +675,11 @@ private struct SkeletonWeekDayCard: View {
 private struct WeekDayCard: View {
     let plan: MealPlan
     @State private var recipe: RecipeTarget?
+    /// Days start folded to their header; today starts open.
+    @State private var expanded: Bool?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isExpanded: Bool { expanded ?? isToday }
 
     private struct RecipeTarget: Identifiable {
         let name: String
@@ -701,13 +706,31 @@ private struct WeekDayCard: View {
                         .background(Color.progress, in: Capsule())
                 }
                 Spacer(minLength: Spacing.sm)
-                Text("\(plan.totalCalories) kcal")
+                Text("\(plan.totalCalories) kcal" as String)
                     .font(.footnote.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.labelSecondary)
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(reduceMotion ? nil : .snappy) { expanded = !isExpanded }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
+            .accessibilityAddTraits([.isHeader, .isButton])
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint(isExpanded ? "Hides this day's meals" : "Shows this day's meals")
 
+            if !isExpanded {
+                Text(meals.isEmpty ? "Nothing planned" : meals.map(\.title).joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
+            } else {
             if meals.isEmpty {
                 Text("Nothing planned")
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
@@ -726,7 +749,7 @@ private struct WeekDayCard: View {
                                     .multilineTextAlignment(.leading)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Spacer(minLength: Spacing.sm)
-                                Text("\(entry.calories) kcal")
+                                Text("\(entry.calories) kcal" as String)
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(Color.labelSecondary)
                                 Image(systemName: "chevron.right")
@@ -741,6 +764,7 @@ private struct WeekDayCard: View {
                         .accessibilityHint("Opens the recipe")
                     }
                 }
+            }
             }
         }
         .padding(Spacing.lg)
@@ -780,7 +804,7 @@ private struct MissingFoodsBanner: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 Label("Some meals use food you don't have yet", systemImage: "cart.badge.plus")
                     .font(.subheadline.weight(.semibold))
-                Text("Not in your cart or stock: \(missing.map(\.name).joined(separator: ", ")). Add them so the plan is made from your own kitchen.")
+                Text("Not in your cart or stock: \(missing.map(\.name).joined(separator: ", ")). Add them so the plan is made from your own kitchen." as String)
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
@@ -790,7 +814,7 @@ private struct MissingFoodsBanner: View {
                     AgentLoop.rebuildPlanNow()
                     added &+= 1
                 } label: {
-                    Label("Add \(missing.count) to cart and stock", systemImage: "plus")
+                    Label("Add \(missing.count) to cart and stock" as String, systemImage: "plus")
                         .font(.subheadline.weight(.semibold))
                         .padding(.horizontal, Spacing.lg).frame(minHeight: 44)
                         .background(Color.dullPink, in: Capsule())

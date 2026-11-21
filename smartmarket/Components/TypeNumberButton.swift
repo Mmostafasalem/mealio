@@ -35,7 +35,7 @@ struct TypeNumberButton: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(ScalePressStyle())
-        .accessibilityLabel("Type \(title.lowercased())")
+        .accessibilityLabel("Type \(title.lowercased())" as String)
         .accessibilityIdentifier(identifier)
         .alert(title, isPresented: $showing) {
             // Empty, with the current value as the hint, so typing replaces it.

@@ -40,7 +40,7 @@ struct StockView: View {
                 Button { selected = item } label: {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(item.food.name).foregroundStyle(.primary)
-                        Text("\(item.amount.formatted()) \(item.food.basis.rawValue) available")
+                        Text("\(item.amount.formatted(.number.grouping(.never))) \(item.food.basis.rawValue) available" as String)
                             .font(.subheadline).foregroundStyle(.secondary)
                         if let expiry = item.expiryDay() {
                             let expired = item.isExpired()
@@ -106,7 +106,7 @@ private struct StockItemSheet: View {
         NavigationStack {
             Form {
                 Section(item.food.name) {
-                    Text("\(item.amount.formatted()) \(item.food.basis.rawValue) available")
+                    Text("\(item.amount.formatted(.number.grouping(.never))) \(item.food.basis.rawValue) available" as String)
                     TextField("Amount in \(item.food.basis.rawValue)", text: $amount).keyboardType(.decimalPad)
                         .accessibilityIdentifier("stock.amount")
                     Picker("Meal", selection: $slot) { ForEach(MealSlot.allCases) { Text($0.title).tag($0) } }
@@ -176,9 +176,9 @@ struct FoodHistoryView: View {
             ForEach(log.allEntries.reversed()) { entry in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.name)
-                    Text("\(entry.loggedAt.formatted(date: .abbreviated, time: .shortened)) · \(entry.slot.title)")
+                    Text("\(entry.loggedAt.formatted(date: .abbreviated, time: .shortened)) · \(entry.slot.title)" as String)
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("\(entry.amount.formatted()) \(entry.amountUnit) · \(entry.calories) kcal")
+                    Text("\(entry.amount.formatted(.number.grouping(.never))) \(entry.amountUnit) · \(entry.calories) kcal" as String)
                         .font(.subheadline)
                 }
                 .swipeActions { Button("Delete", role: .destructive) { log.remove(entry) } }

@@ -197,7 +197,9 @@ final class ReleaseSmokeTests: XCTestCase {
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
             XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
         }
-        tap("onboarding.favorites.finish", in: app)
+        advance("onboarding.favorites.finish", to: "onboarding.week.continue", in: app)
+        advance("onboarding.week.continue", to: "onboarding.alerts.finish", in: app)
+        tap("onboarding.alerts.finish", in: app)
         XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
     }
 

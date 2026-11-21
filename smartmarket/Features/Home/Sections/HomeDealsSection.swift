@@ -10,7 +10,7 @@ struct HomeDealsSection: View {
                 HomeCardTitle(title: "Grocery estimates", symbol: "basket.fill")
                 Spacer()
                 if !vm.nearbyDeals.isEmpty {
-                    Text("\(vm.nearbyDeals.count) items")
+                    Text("\(vm.nearbyDeals.count) items" as String)
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.onAccent)
                         .padding(.horizontal, Spacing.sm)

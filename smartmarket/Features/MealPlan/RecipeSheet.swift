@@ -152,7 +152,7 @@ struct RecipeSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(r.steps.enumerated()), id: \.offset) { idx, step in
                         HStack(alignment: .top, spacing: 14) {
-                            Text("\(idx + 1)")
+                            Text("\(idx + 1)" as String)
                                 .font(.caption).fontWeight(.bold)
                                 .foregroundStyle(Color.onAccent)
                                 .frame(width: 26, height: 26)

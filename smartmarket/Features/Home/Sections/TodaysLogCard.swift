@@ -13,7 +13,7 @@ struct TodaysLogCard: View {
                 // Title on one line, the remaining calories under it.
                 VStack(alignment: .leading, spacing: 2) {
                     HomeCardTitle(title: "Today's log", symbol: "list.bullet.clipboard.fill")
-                    Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")")
+                    Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")" as String)
                         .font(.footnote.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(Color.labelSecondary)
@@ -49,7 +49,7 @@ struct TodaysLogCard: View {
             Button("Remove", role: .destructive) { vm.removeLog(entry); pendingDelete = nil }
             Button("Keep it", role: .cancel) { pendingDelete = nil }
         } message: { entry in
-            Text("\(entry.calories) kcal come off today's total.")
+            Text("\(entry.calories) kcal come off today's total." as String)
         }
     }
 
@@ -90,7 +90,7 @@ struct MealSlotRow: View {
                 Text(slot.title).font(.subheadline).fontWeight(.semibold)
                 Spacer()
                 if kcal > 0 {
-                    Text("\(kcal) kcal")
+                    Text("\(kcal) kcal" as String)
                         .font(.footnote).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                         .contentTransition(.numericText())
@@ -104,7 +104,7 @@ struct MealSlotRow: View {
                 // 44pt target, with the glyph on the card's right edge.
                 .frame(width: 44, height: 44, alignment: .trailing)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Add to \(slot.title)")
+                .accessibilityLabel("Add to \(slot.title)" as String)
             }
 
             ForEach(entries) { entry in
@@ -116,7 +116,7 @@ struct MealSlotRow: View {
                         Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
                         Spacer()
                         Text(Self.amountText(entry)).font(.caption2).foregroundStyle(Color.labelSecondary)
-                        Text("\(entry.calories) kcal")
+                        Text("\(entry.calories) kcal" as String)
                             .font(.caption2).fontWeight(.semibold)
                             .foregroundStyle(Color.labelSecondary).monospacedDigit()
                     }
@@ -130,7 +130,7 @@ struct MealSlotRow: View {
                     .buttonStyle(.plain)
                     .frame(width: 44, height: 44, alignment: .trailing)
                     .contentShape(Rectangle())
-                    .accessibilityLabel("Remove \(entry.name)")
+                    .accessibilityLabel("Remove \(entry.name)" as String)
                 }
                 .padding(.leading, HomeGrid.textInset)
             }

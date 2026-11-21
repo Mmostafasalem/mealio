@@ -85,7 +85,7 @@ struct LogFoodSheet: View {
                                 }
                                 .accessibilityIdentifier("logFood.browseRecipes")
                             } footer: {
-                                Text("\(cookbook.isEmpty ? "About 1,500" : "\(cookbook.count)") recipes, logged per serving. Nutrition is estimated from USDA values for the ingredients.")
+                                Text("\(cookbook.isEmpty ? "About 1,500" : "\(cookbook.count)") recipes, logged per serving. Nutrition is estimated from USDA values for the ingredients." as String)
                             }
                         }
                         if !catalog.customFoods.isEmpty {
@@ -293,6 +293,20 @@ struct LogFoodSheet: View {
                 .accessibilityHint("Reads a package barcode with the camera")
                 .accessibilityIdentifier("logFood.scan")
             }
+            // Online AI names the foods in a meal photo (the logger closes; the photo sheet takes over).
+            if onSelect == nil && MealPhotoAccess.isUsable {
+                Button { NotificationCenter.default.post(name: .openMealPhoto, object: nil) } label: {
+                    Image(systemName: "camera.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.brandPrimary)
+                        .minTapTarget()
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("From a photo")
+                .accessibilityHint("Online AI names the foods in a photo of your meal")
+                .accessibilityIdentifier("logFood.photo")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -323,7 +337,7 @@ struct LogFoodSheet: View {
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
                     }
                     Spacer()
-                    Text("\(Int(food.kcal.rounded())) kcal / \(food.basis == .serving ? "serving" : "100 " + food.basis.rawValue)")
+                    Text("\(Int(food.kcal.rounded())) kcal / \(food.basis == .serving ? "serving" : "100 " + food.basis.rawValue)" as String)
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 }
@@ -412,11 +426,11 @@ struct LogFoodSheet: View {
             case .looking(let code):
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("Looking up \(code)…").font(.subheadline)
+                    Text("Looking up \(code)…" as String).font(.subheadline)
                 }
                 .accessibilityElement(children: .combine)
             case .noMatch(let code):
-                Text("No match for \(code). Enter it yourself.")
+                Text("No match for \(code). Enter it yourself." as String)
                     .font(.subheadline)
                     .accessibilityIdentifier("logFood.scanNoMatch")
                 scanFollowUps
@@ -604,11 +618,11 @@ struct ServingDetailView: View {
             VStack(spacing: 20) {
                 // Calorie hero for this serving
                 VStack(spacing: 4) {
-                    Text("\(kcal)")
+                    Text("\(kcal)" as String)
                         .font(.system(.largeTitle, design: .rounded).weight(.bold)).scaleEffect(1.35, anchor: .center)
                         .foregroundStyle(Color.labelPrimary).monospacedDigit()
                         .contentTransition(.numericText())
-                    Text("kcal · \(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)").font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    Text("kcal · \(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)" as String).font(.subheadline).foregroundStyle(Color.labelSecondary)
                     Text(food.brand ?? "Match the food's preparation to your portion")
                         .font(.subheadline).foregroundStyle(Color.labelSecondary)
 
@@ -677,15 +691,15 @@ struct ServingDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(food.sourceName).font(.headline)
                     if food.source == .openFoodFacts, let date = food.sourceDate {
-                        Text("Retrieved \(date)").font(.caption).foregroundStyle(Color.labelSecondary)
+                        Text("Retrieved \(date)" as String).font(.caption).foregroundStyle(Color.labelSecondary)
                     }
-                    Text("\(food.referenceLabel): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted()) g · Carbs \(food.carbs.formatted()) g · Fat \(food.fat.formatted()) g")
+                    Text("\(food.referenceLabel): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted(.number.grouping(.never))) g · Carbs \(food.carbs.formatted(.number.grouping(.never))) g · Fat \(food.fat.formatted(.number.grouping(.never))) g" as String)
                         .font(.footnote)
                     if let url = food.sourceURL { Link(food.source == .cookbook ? "Open the recipe on Wikibooks (CC BY-SA 4.0)" : "View original nutrition record", destination: url) }
                     if let recipe = food.recipeDetails {
-                        Text("Final weighed yield: \(recipe.cookedYieldG.formatted()) g").font(.footnote)
+                        Text("Final weighed yield: \(recipe.cookedYieldG.formatted(.number.grouping(.never))) g" as String).font(.footnote)
                         ForEach(recipe.ingredients) { ingredient in
-                            Text("\(ingredient.food.name) · \(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue)")
+                            Text("\(ingredient.food.name) · \(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)" as String)
                                 .font(.footnote)
                         }
                     }
@@ -742,7 +756,7 @@ struct ServingDetailView: View {
 
     private func macroChip(_ label: String, _ grams: Double, _ color: Color) -> some View {
         VStack(spacing: 3) {
-            Text("\(grams.formatted(.number.precision(.fractionLength(0...1)))) g")
+            Text("\(grams.formatted(.number.precision(.fractionLength(0...1)))) g" as String)
                 .font(.system(.headline, design: .rounded).weight(.bold))
                 .foregroundStyle(color).monospacedDigit()
             Text(label).font(.caption2).foregroundStyle(Color.labelSecondary)

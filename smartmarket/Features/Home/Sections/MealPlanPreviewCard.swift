@@ -78,12 +78,12 @@ struct MealPreviewRow: View {
 
             Text(title).font(.subheadline).fontWeight(.semibold).lineLimit(1)
             Spacer()
-            Text("\(calories) kcal")
+            Text("\(calories) kcal" as String)
                 .font(.footnote).fontWeight(.semibold)
                 .foregroundStyle(Color.labelSecondary).monospacedDigit()
         }
         .frame(minHeight: 44)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(calories) kilocalories")
+        .accessibilityLabel("\(title), \(calories) kilocalories" as String)
     }
 }

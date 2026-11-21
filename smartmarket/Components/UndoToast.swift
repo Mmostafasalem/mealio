@@ -24,7 +24,7 @@ struct UndoToast: View {
                     .contentShape(Rectangle())
             }
                 .accessibilityIdentifier("undoToast.undo")
-                .accessibilityLabel("Undo: \(message)")
+                .accessibilityLabel("Undo: \(message)" as String)
                 .buttonStyle(ScalePressStyle())
         }
         .padding(.horizontal, Spacing.lg)

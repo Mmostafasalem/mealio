@@ -47,13 +47,13 @@ struct CartButton: View {
                 HStack(spacing: 0) {
                     control(systemImage: quantity == 1 ? "trash" : "minus", delta: -1,
                             label: quantity == 1 ? "Remove \(name) from cart" : "Decrease quantity")
-                    Text("\(quantity)")
+                    Text("\(quantity)" as String)
                         .font(.system(.callout, design: .rounded).weight(.bold))
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(quantity)))
                         .frame(maxWidth: .infinity)
                         .offset(x: shake)
-                        .accessibilityLabel("\(quantity) \(name) in cart")
+                        .accessibilityLabel("\(quantity) \(name) in cart" as String)
                     Color.clear.frame(width: Self.side)
                 }
                 .foregroundStyle(Color.onAccent)
@@ -80,7 +80,7 @@ struct CartButton: View {
         .onTapGesture { if !isOpen { step(1) } }
         .overlay(alignment: .topTrailing) {
             if showLimit {
-                Text("Limit \(max)")
+                Text("Limit \(max)" as String)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.surface)
                     .padding(.horizontal, 8).padding(.vertical, 4)
@@ -169,7 +169,7 @@ struct CartButton: View {
     @Previewable @State var count = 0
     VStack(spacing: 24) {
         CartButton(quantity: count, max: 5, name: "Oats", onAdd: { count += 1 }, onRemove: { count -= 1 })
-        Text("In cart: \(count)")
+        Text("In cart: \(count)" as String)
     }
     .padding(40)
 }

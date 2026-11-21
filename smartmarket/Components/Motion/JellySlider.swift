@@ -471,7 +471,7 @@ private extension Color {
         JellySlider(value: $budget, in: 10...300, step: 5,
                     format: { "€\(Int($0))" }, tickLabels: [10, 50, 100, 200, 300])
             .accessibilityLabel("Weekly budget")
-        Text("€\(Int(budget))").font(.title2.weight(.semibold)).monospacedDigit()
+        Text("€\(Int(budget))" as String).font(.title2.weight(.semibold)).monospacedDigit()
         Button("Set to 150") { budget = 150 }
     }
     .padding(32)

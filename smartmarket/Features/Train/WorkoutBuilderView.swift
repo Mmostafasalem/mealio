@@ -267,19 +267,19 @@ private struct BuilderItemEditor: View {
                     }
                 }
                 Section {
-                    Stepper("Sets: \(item.sets)", value: $item.sets, in: 1...20)
+                    Stepper("Sets: \(item.sets)" as String, value: $item.sets, in: 1...20)
                     if item.tracking == .time {
                         // Up to two hours, for long steady blocks; whole minutes once past ten.
-                        Stepper("Time: \(TrainingFormat.duration(item.seconds))", value: $item.seconds, in: 5...7200,
+                        Stepper("Time: \(TrainingFormat.duration(item.seconds))" as String, value: $item.seconds, in: 5...7200,
                                 step: item.seconds >= 600 ? 60 : 5)
                     } else {
-                        Stepper("Reps: \(item.reps)", value: $item.reps, in: 1...100)
+                        Stepper("Reps: \(item.reps)" as String, value: $item.reps, in: 1...100)
                     }
                     if item.tracking == .weightReps {
-                        Stepper("Weight: \(item.weightKg > 0 ? TrainingFormat.weight(item.weightKg, unit) : "none yet")",
+                        Stepper("Weight: \(item.weightKg > 0 ? TrainingFormat.weight(item.weightKg, unit) : "none yet")" as String,
                                 value: $item.weightKg, in: 0...500, step: unit == .kg ? 2.5 : WeightUnit.kgPerPound * 5)
                     }
-                    Stepper("Rest: \(item.restSeconds) s", value: $item.restSeconds, in: 0...600, step: 15)
+                    Stepper("Rest: \(item.restSeconds) s" as String, value: $item.restSeconds, in: 0...600, step: 15)
                 } footer: {
                     if item.tracking == .weightReps {
                         Text("Leave the weight empty to start from what you lifted last time.")

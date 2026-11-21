@@ -38,7 +38,7 @@ struct MealSplitView: View {
                 Text("Or set your own")
             } footer: {
                 if split.total != 100 {
-                    Text("These add up to \(split.total)%. Make them add up to 100% to save.")
+                    Text("These add up to \(split.total)%. Make them add up to 100% to save." as String)
                         .foregroundStyle(Color.brandDanger)
                 } else {
                     Text("Each day of your plan follows this split. A snack of 0% leaves the snack out.")
@@ -62,7 +62,7 @@ struct MealSplitView: View {
             HStack {
                 Text(name)
                 Spacer()
-                Text("\(value.wrappedValue)% · \(target * value.wrappedValue / 100) kcal")
+                Text("\(value.wrappedValue)% · \(target * value.wrappedValue / 100) kcal" as String)
                     .foregroundStyle(Color.labelSecondary).monospacedDigit()
             }
         }

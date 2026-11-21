@@ -255,7 +255,7 @@ struct ProfileView: View {
                 NavigationLink {
                     HealthSettingsView(vm: vm)
                 } label: {
-                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))", systemImage: "scalemass")
+                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))" as String, systemImage: "scalemass")
                         .font(.subheadline)
                 }
                 .accessibilityHint("Review it before it replaces your profile weight")
@@ -278,7 +278,7 @@ struct ProfileView: View {
             .accessibilityIdentifier("profile.icloudSync")
             Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
             if let date = sync.lastSync {
-                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))")
+                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))" as String)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             if sync.isEnabled || sync.deletionPending {
@@ -320,7 +320,7 @@ struct ProfileView: View {
             Link(destination: Constants.Support.mailURL) {
                 Label("Email Support", systemImage: "envelope")
             }
-            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)")
+            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)" as String)
             .accessibilityIdentifier("profile.emailSupport")
             MorphPopover(footnote: "Opens Mail to \(Constants.Support.email). Nothing is sent until you tap Send there.") { message in
                 await SupportMail.send(message)
@@ -330,7 +330,7 @@ struct ProfileView: View {
             Text("Privacy & Help")
         } footer: {
             if OwnerAITestConfiguration.current != nil {
-                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
+                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection." as String)
             } else if AIAccountService.shared.offersOnlineAI {
                 Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
             } else {
@@ -362,7 +362,7 @@ private struct MetricTile: View {
         }
         .padding(.vertical, Spacing.xs)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(value) \(unit)")
+        .accessibilityLabel("\(title): \(value) \(unit)" as String)
     }
 }
 

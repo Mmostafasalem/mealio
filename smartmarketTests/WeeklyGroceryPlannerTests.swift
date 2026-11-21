@@ -67,6 +67,20 @@ final class WeeklyGroceryPlannerTests: XCTestCase {
         XCTAssertTrue(roles(plan).contains(.protein) && roles(plan).contains(.vegetable) && roles(plan).contains(.fruit))
     }
 
+    func testTheListComesCloseToTheBudgetEvenWhenEveryStapleIsInTheCart() {
+        // Every staple is already bought, and half the budget is left.
+        let ids = WeeklyGroceryPlanner.staples.values.flatMap { $0 }
+        let cart = ids.map { CartItem(id: UUID(), catalogId: $0, name: $0, store: "Catalogue", price: 1, category: "x", quantity: 1) }
+        let budget = Double(ids.count) + 31.4
+        let plan = WeeklyGroceryPlanner.plan(budget: budget, cart: cart, favourites: [], preferences: [], price: price)
+        XCTAssertLessThanOrEqual(plan.total, plan.available + 0.001)
+        XCTAssertLessThan(plan.available - plan.total, 5, "no more than a few euros of the budget is left unplanned")
+        XCTAssertTrue(plan.lines.allSatisfy { !ids.contains($0.item.id) && WeeklyGroceryPlanner.role(of: $0.item) != nil })
+        // With no favourites and an empty cart the same holds.
+        let fresh = WeeklyGroceryPlanner.plan(budget: 65, cart: [], favourites: [], preferences: [], price: price)
+        XCTAssertLessThan(fresh.available - fresh.total, 5)
+    }
+
     func testDietsAreRespected() {
         let plan = WeeklyGroceryPlanner.plan(budget: 100, cart: [], favourites: ["bacon", "chicken-breast"], preferences: [.vegetarian], price: price)
         XCTAssertFalse(plan.lines.contains { [.meat, .seafood].contains($0.item.category) })

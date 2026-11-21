@@ -180,12 +180,12 @@ private struct GrocerySummaryRow: View {
                 RollingNumber(value: bought)
                     .fontWeight(.semibold)
                     .foregroundStyle(Color.labelPrimary)
-                Text("of \(total) bought")
+                Text("of \(total) bought" as String)
                     .foregroundStyle(Color.labelSecondary)
             }
             .font(.subheadline)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(bought) of \(total) bought")
+            .accessibilityLabel("\(bought) of \(total) bought" as String)
             .accessibilityIdentifier("groceries.boughtCount")
             Spacer(minLength: Spacing.sm)
             CopyButton(title: "Copy list", doneTitle: "Copied", announcement: "Checklist copied") { copyText }
@@ -219,7 +219,7 @@ private struct FooterBar: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("Items")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
-                Text("\(count)")
+                Text("\(count)" as String)
                     .font(.title2).fontWeight(.bold)
                     .monospacedDigit()
                     .contentTransition(.numericText())

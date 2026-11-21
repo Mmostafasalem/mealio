@@ -19,6 +19,8 @@ extension Notification.Name {
     static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
     /// Home's microphone button: `MainTabView` shows the voice sheet.
     static let openVoice            = Notification.Name("openVoice")
+    /// The food logger's "From a photo" button: `MainTabView` shows the photo sheet.
+    static let openMealPhoto        = Notification.Name("openMealPhoto")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
     /// Logged food changed (added, removed, cleared, or logged from stock). Listeners
     /// (Apple Health, widgets) re-read `FoodLogStore.allEntries` and sync the difference.
@@ -93,6 +95,7 @@ enum Constants {
             static let shoppingAdvice   = "/api/shopping-advice"
             static let agentChat        = "/api/agent-chat"
             static let recipe           = "/api/recipe"
+            static let foodPhoto        = "/api/food-photo"
             static let workout          = "/api/workout"
         }
     }

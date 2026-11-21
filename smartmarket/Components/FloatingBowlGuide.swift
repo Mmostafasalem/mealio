@@ -153,10 +153,10 @@ struct FloatingBowlGuide: View {
                                    pageLabel: { "Step \($0 + 1) of \(tour.count): \(tour[$0].title)" },
                                    onSelect: goToStep)
                         .accessibilityElement(children: .contain)
-                        .accessibilityLabel("Tour step \(step + 1) of \(tour.count)")
+                        .accessibilityLabel("Tour step \(step + 1) of \(tour.count)" as String)
                         .accessibilityIdentifier("guide.dots")
                     Spacer(minLength: 0)
-                    Text("\(step + 1) / \(tour.count)").font(.caption.monospacedDigit())
+                    Text("\(step + 1) / \(tour.count)" as String).font(.caption.monospacedDigit())
                         .foregroundStyle(Color.labelSecondary)
                         .accessibilityHidden(true)
                 }

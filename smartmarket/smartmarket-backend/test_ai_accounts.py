@@ -468,9 +468,14 @@ def test_delete_and_recreate_keeps_same_day_spending(service):
     assert service.usage(recreated)['remaining'] == 10
 
 
+# A tiny valid-looking JPEG (starts with FF D8) in base64.
+PHOTO = '/9j/' + 'A' * 200
+
+
 @pytest.mark.parametrize('path,handler,body', [
     ('/api/meal-plan','handle_meal_plan',{}),
     ('/api/recipe','handle_recipe',{'mealName':'Unique invalid JSON recipe'}),
+    ('/api/food-photo','handle_food_photo',{'image':PHOTO}),
     ('/api/gap-fillers','handle_gap_fillers',{}),
     ('/api/shopping-advice','handle_shopping_advice',{}),
     ('/api/workout','handle_workout',{'kind':'gym','minutes':30}),
@@ -496,6 +501,7 @@ def test_unusable_json_keeps_only_minimal_charge_on_actual_endpoint(http_app, se
 @pytest.mark.parametrize('path,handler,body,cost', [
     ('/api/meal-plan','handle_meal_plan',{},5),
     ('/api/recipe','handle_recipe',{'mealName':'Valid unique online recipe'},1),
+    ('/api/food-photo','handle_food_photo',{'image':PHOTO},2),
     ('/api/gap-fillers','handle_gap_fillers',{},1),
     ('/api/shopping-advice','handle_shopping_advice',{},1),
     ('/api/workout','handle_workout',{'kind':'gym','minutes':30},1),
@@ -511,6 +517,7 @@ def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, pat
         'handle_workout': {'title':'Gym session','summary':'s','warmup':'w','cooldown':'c','exercises':[{'name':'Squat','sets':3,'reps':'8','minutes':0,'restSeconds':60,'note':''}]},
         'handle_gap_fillers': [{'name':'Rice','calories':100,'protein':2,'carbs':20,'fat':1,'reason':'Energy'}],
         'handle_shopping_advice':[{'produktas':'Rice','priezastis':'Affordable'}],
+        'handle_food_photo':{'foods':[{'name':'Banana','grams':120}]},
     }
     monkeypatch.setattr(business, 'nutrition_for', lambda **kwargs: None)
     monkeypatch.setattr(business, 'groq_client', SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(

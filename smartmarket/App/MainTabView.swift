@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat, quickActions, voice
+    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto
     case exercise(String)
 
     var id: String {
@@ -16,6 +16,7 @@ enum MainSheet: Identifiable, Equatable {
         case .chat: return "chat"
         case .quickActions: return "quickActions"
         case .voice: return "voice"
+        case .mealPhoto: return "mealPhoto"
         case .exercise(let id): return "exercise:" + id
         }
     }
@@ -48,26 +49,44 @@ struct MainTabView: View {
         })
     }
 
-    var body: some View {
-        // The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
-        TabView(selection: tabSelection) {
-            HomeView()
-                .background(TabBarInsetReader())
-                .tabItem { TabIcon(symbol: "house.fill", name: "Home") }
-                .tag(0)
-            NavigationStack { MealPlanView() }
-                .tabItem { TabIcon(symbol: "fork.knife", name: "Meals") }
-                .tag(1)
-            Color.clear
-                .tabItem { TabIcon(symbol: "plus.circle.fill", name: "Quick actions") }
-                .tag(Self.quickActionsTag)
-            StoreBrowserView()
-                .tabItem { TabIcon(symbol: "storefront.fill", name: "Shop") }
-                .tag(2)
-            TrainView()
-                .tabItem { TabIcon(symbol: "figure.run", name: "Train") }
-                .tag(3)
+    /// The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
+    /// From iOS 18 quick actions is a separate tab; on iOS 26 the system draws it as its
+    /// own round glass button at the end of the bar, apart from the four screens.
+    @ViewBuilder private var tabs: some View {
+        if #available(iOS 18, *) {
+            TabView(selection: tabSelection) {
+                Tab(value: 0) { HomeView().background(TabBarInsetReader()) } label: { TabIcon(symbol: "house.fill", name: "Home") }
+                Tab(value: 1) { NavigationStack { MealPlanView() } } label: { TabIcon(symbol: "fork.knife", name: "Meals") }
+                Tab(value: 2) { StoreBrowserView() } label: { TabIcon(symbol: "storefront.fill", name: "Shop") }
+                Tab(value: 3) { TrainView() } label: { TabIcon(symbol: "figure.run", name: "Train") }
+                Tab(value: Self.quickActionsTag, role: .search) { Color.clear } label: {
+                    TabIcon(symbol: "bolt.fill", name: "Quick actions")
+                }
+            }
+        } else {
+            TabView(selection: tabSelection) {
+                HomeView()
+                    .background(TabBarInsetReader())
+                    .tabItem { TabIcon(symbol: "house.fill", name: "Home") }
+                    .tag(0)
+                NavigationStack { MealPlanView() }
+                    .tabItem { TabIcon(symbol: "fork.knife", name: "Meals") }
+                    .tag(1)
+                StoreBrowserView()
+                    .tabItem { TabIcon(symbol: "storefront.fill", name: "Shop") }
+                    .tag(2)
+                TrainView()
+                    .tabItem { TabIcon(symbol: "figure.run", name: "Train") }
+                    .tag(3)
+                Color.clear
+                    .tabItem { TabIcon(symbol: "bolt.fill", name: "Quick actions") }
+                    .tag(Self.quickActionsTag)
+            }
         }
+    }
+
+    var body: some View {
+        tabs
         .tint(Color.brandPrimary)
         .sensoryFeedback(.selection, trigger: selection)
         .onPreferenceChange(TabBarInsetKey.self) { tabBarHeight = $0 }
@@ -88,6 +107,7 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
         .onReceive(NotificationCenter.default.publisher(for: .openVoice)) { _ in present(.voice) }
+        .onReceive(NotificationCenter.default.publisher(for: .openMealPhoto)) { _ in present(.mealPhoto) }
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
         // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
@@ -127,11 +147,14 @@ struct MainTabView: View {
                 AgentChatSheet(vm: quickLog)
             case .voice:
                 VoiceCommandSheet(close: { self.sheet = nil }, navigate: openFromVoice)
+            case .mealPhoto:
+                VoiceCommandSheet(photoMode: true, close: { self.sheet = nil }, navigate: openFromVoice)
             case .quickActions:
                 QuickActionsMenu(close: { self.sheet = nil }) { choice in
                     switch choice {
                     case .chat: present(.chat)
                     case .voice: present(.voice)
+                    case .mealPhoto: present(.mealPhoto)
                     case .action(let action): chooseQuickAction(action)
                     }
                 }
@@ -151,6 +174,8 @@ struct MainTabView: View {
     private func present(_ next: MainSheet?) {
         // Chat needs online AI: while it isn't offered, Siri, links and voice don't open it.
         if next == .chat && !AIAccountService.shared.offersOnlineAI { return }
+        // Meal photos need online AI that can be used right now (offered, allowed, signed in).
+        if next == .mealPhoto && !MealPhotoAccess.isUsable { return }
         if awaitingDismissal {
             // Something is already going away; show the newest request after it.
             queuedSheet = next
@@ -326,13 +351,14 @@ private struct TabBarInsetKey: PreferenceKey {
 
 /// What the "+" tab offers, as a native sheet.
 private struct QuickActionsMenu: View {
-    enum Choice { case action(MealioQuickAction), chat, voice }
+    enum Choice { case action(MealioQuickAction), chat, voice, mealPhoto }
     /// Closes the sheet through `MainTabView`'s own state (its single sheet path).
     let close: () -> Void
     let choose: (Choice) -> Void
 
     private let rows: [(id: String, title: String, symbol: String, choice: Choice)] = [
         ("voice", "Speak a command", "mic.fill", .voice),
+        ("mealPhoto", "Snap a meal", "camera.fill", .mealPhoto),
         (MealioQuickAction.logFood.rawValue, "Log food", "fork.knife", .action(.logFood)),
         (MealioQuickAction.cart.rawValue, "Cart", "cart", .action(.cart)),
         (MealioQuickAction.groceries.rawValue, "Checklist", "checklist", .action(.groceries)),
@@ -344,6 +370,7 @@ private struct QuickActionsMenu: View {
         NavigationStack {
             List(rows.filter { row in
                 if case .chat = row.choice { return AIAccountService.shared.offersOnlineAI }
+                if case .mealPhoto = row.choice { return MealPhotoAccess.isUsable }
                 return true
             }, id: \.id) { row in
                 Button { choose(row.choice) } label: {
@@ -360,7 +387,7 @@ private struct QuickActionsMenu: View {
                 }
             }
         }
-        .presentationDetents([.height(400), .medium])
+        .presentationDetents([.height(470), .large])
         .presentationDragIndicator(.visible)
     }
 }

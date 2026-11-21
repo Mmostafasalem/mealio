@@ -180,7 +180,7 @@ struct NameStepView: View {
             }
             .sensoryFeedback(.selection, trigger: vm.age)
             if typedAge == nil {
-                Text("Enter an age from \(Self.ageRange.lowerBound) to \(Self.ageRange.upperBound).")
+                Text("Enter an age from \(Self.ageRange.lowerBound) to \(Self.ageRange.upperBound)." as String)
                     .font(.caption)
                     .foregroundStyle(Color.brandDanger)
             }

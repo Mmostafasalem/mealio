@@ -16,7 +16,7 @@ struct CalorieSummaryCard: View {
             HStack(alignment: .firstTextBaseline) {
                 HomeCardTitle(title: "Calories", symbol: "flame.fill")
                 Spacer(minLength: Spacing.sm)
-                Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")")
+                Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")" as String)
                     .font(.footnote.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
                     .contentTransition(.numericText())
@@ -38,7 +38,7 @@ struct CalorieSummaryCard: View {
                 .popover(isPresented: $showCalorieDetail, attachmentAnchor: .point(.center), arrowEdge: .top) {
                     CalorieDetailPopover(vm: vm)
                 }
-                .accessibilityLabel("Calories: \(vm.consumed) of \(vm.goal) kilocalories")
+                .accessibilityLabel("Calories: \(vm.consumed) of \(vm.goal) kilocalories" as String)
                 .accessibilityHint("Tap for calorie breakdown")
 
             // Two columns of figures, each marked with its ring's colour; one column when text is very large.
@@ -116,7 +116,7 @@ struct CalorieSummaryCard: View {
                     .font(.system(.headline, design: .rounded).weight(.bold).monospacedDigit())
                     .foregroundStyle(Color.labelPrimary)
                     .contentTransition(.numericText())
-                Text(unit.uppercased())
+                Text(unit)
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(Color.labelSecondary)
             }
@@ -146,7 +146,7 @@ private struct CalorieDetailPopover: View {
                 value: "\(over > 0 ? over : remaining) kcal",
                 color: over > 0 ? .brandDanger : .brandPrimary)
             Divider()
-            Text("\(pct)% of daily goal").font(.caption).foregroundStyle(Color.labelSecondary)
+            Text("\(pct)% of daily goal" as String).font(.caption).foregroundStyle(Color.labelSecondary)
         }
         .font(.subheadline)
         .padding(Spacing.lg)

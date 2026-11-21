@@ -32,14 +32,14 @@ struct MacroProgressBarView: View {
                 .tint(color)
                 .animation(reduceMotion ? .none : .snappyValue, value: current)
 
-            Text("\(Int(current))g / \(Int(goal))g")
+            Text("\(Int(current))g / \(Int(goal))g" as String)
                 .font(.caption2).fontWeight(.medium)
                 .foregroundStyle(Color.labelSecondary)
                 .monospacedDigit()
                 .frame(width: 72, alignment: .trailing)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label): \(Int(current)) of \(Int(goal)) grams")
+        .accessibilityLabel("\(label): \(Int(current)) of \(Int(goal)) grams" as String)
     }
 }
 

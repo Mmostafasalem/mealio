@@ -26,10 +26,10 @@ struct AIAccountSection: View {
                         .monospacedDigit()
                         .accessibilityIdentifier("profile.aiRemaining")
                     if let reset = usage.resetDate {
-                        Text("Resets \(reset.formatted(date: .abbreviated, time: .shortened))")
+                        Text("Resets \(reset.formatted(date: .abbreviated, time: .shortened))" as String)
                             .font(.footnote).foregroundStyle(Color.labelSecondary)
                     }
-                    Text("Chat and AI recipes: \(usage.shortRequestCost) credit each. Meal plans, groceries and workouts are made on your iPhone and use no credits.")
+                    Text("Chat and AI recipes: \(usage.shortRequestCost) credit each. Meal plans, groceries and workouts are made on your iPhone and use no credits." as String)
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                 }
                 Button("Refresh allowance") { Task { try? await account.refreshAllowance() } }

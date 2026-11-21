@@ -238,7 +238,7 @@ struct ExpandCard<Header: View, Detail: View>: View {
                             Text(meal.1).font(.caption).foregroundStyle(Color.labelSecondary)
                         }
                         Spacer()
-                        Text("\(meal.2) kcal").font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
+                        Text("\(meal.2) kcal" as String).font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
                         Image(systemName: "chevron.right").font(.caption2)
                             .foregroundStyle(Color.labelTertiary)
                             .rotationEffect(.degrees(90 * p))

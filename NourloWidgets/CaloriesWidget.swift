@@ -103,7 +103,7 @@ private struct CaloriesHeadline: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("\(NourloWidgetFormat.headlineNumber(snapshot))")
+            Text("\(NourloWidgetFormat.headlineNumber(snapshot))" as String)
                 .font(numberFont)
                 .monospacedDigit()
                 .lineLimit(1)
@@ -169,7 +169,7 @@ private struct CaloriesCircular: View {
         Gauge(value: snapshot.progress) {
             Image(systemName: "flame")
         } currentValueLabel: {
-            Text("\(NourloWidgetFormat.headlineNumber(snapshot))")
+            Text("\(NourloWidgetFormat.headlineNumber(snapshot))" as String)
                 .monospacedDigit()
                 .minimumScaleFactor(0.5)
         }

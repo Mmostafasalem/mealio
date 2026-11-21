@@ -16,8 +16,13 @@ services:
     envVars:
       - key: MEALIO_ENV
         value: production
+      # Online AI is switched on and off in the Render dashboard (with its
+      # private settings: AI_DATABASE_URL, AI_SUBJECT_SECRET, AI_TOKEN_ENCRYPTION_KEY,
+      # AI_GUEST_ENABLED), so a blueprint sync never turns it off by itself.
       - key: AI_ACCOUNTS_ENABLED
-        value: "0"          # catalog-only until Apple + durable storage are activated
+        sync: false
+      - key: AI_DAILY_CREDITS
+        value: "15"         # AI credits per person per day
       # Proxies in front of the app: the client address is read from
       # X-Forwarded-For, this many entries from the right. Production refuses to
       # start without it. 1 is the documented value for Render; confirm it once

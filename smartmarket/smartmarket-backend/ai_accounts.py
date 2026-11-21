@@ -21,13 +21,17 @@ from account_storage import AccountStorage
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
-AI_PATHS = frozenset({'/api/meal-plan','/api/agent-chat','/api/recipe',
+AI_PATHS = frozenset({'/api/meal-plan','/api/agent-chat','/api/recipe','/api/food-photo',
                       '/api/gap-fillers','/api/shopping-advice','/api/workout'})
 
 # Credits kept when the provider answered but its output failed validation. The
 # provider call was paid for, so a full refund would let one account drain the
 # shared daily attempt ceiling for free.
 UNUSABLE_OUTPUT_COST = 1
+
+# Credits per request where it isn't 1. A photo reads an image (about 800 tokens
+# in, under 100 out), so it costs a little more than a chat message.
+PATH_COSTS = {'/api/meal-plan':5, '/api/food-photo':2}
 
 # Expired-row housekeeping runs at most this often per process (seconds). Every
 # read that depends on expiry also checks it directly, so a delay is harmless.
@@ -189,7 +193,7 @@ def default_guest_pool(global_limit):
 
 
 class AccountService:
-    def __init__(self,path,apple,cipher,subject_secret,daily_limit=30,global_limit=900,clock=time.time,guest_enabled=False,
+    def __init__(self,path,apple,cipher,subject_secret,daily_limit=15,global_limit=900,clock=time.time,guest_enabled=False,
                  guest_global_limit=None):
         if len(subject_secret) < 32:
             raise ValueError('AI subject secret must contain at least 32 bytes')
@@ -265,7 +269,7 @@ class AccountService:
             if not os.path.isabs(path) or os.environ.get('AI_STATE_PERSISTENT') != '1':
                 raise ValueError('Configure a persistent AI database')
             if not os.path.isdir(os.path.dirname(path)): raise ValueError('AI storage mount is unavailable')
-        limit = int(os.environ.get('AI_DAILY_CREDITS','30'))
+        limit = int(os.environ.get('AI_DAILY_CREDITS','15'))
         global_limit = int(os.environ.get('AI_GLOBAL_DAILY_ATTEMPTS','900'))
         if not 5 <= limit <= 10000 or not 1 <= global_limit <= 100000:
             raise ValueError('Invalid AI allowance configuration')
@@ -447,13 +451,13 @@ class AccountService:
     def _usage_view(self,used):
         reset=datetime.fromtimestamp(self.clock(),timezone.utc).replace(hour=0,minute=0,second=0,microsecond=0)+timedelta(days=1)
         return {'limit':self.daily_limit,'used':used,'remaining':max(0,self.daily_limit-used),
-                'resetsAt':iso(reset.timestamp()),'mealPlanCost':5,'shortRequestCost':1}
+                'resetsAt':iso(reset.timestamp()),'mealPlanCost':5,'shortRequestCost':1,'photoCost':PATH_COSTS['/api/food-photo']}
 
     def request_fingerprint(self, path, body):
         return hmac.new(self.subject_secret,path.encode()+b'\0'+body,hashlib.sha256).hexdigest()
 
     def reserve(self,user,path,request_key=None,fingerprint=None):
-        cost=5 if path=='/api/meal-plan' else 1; day=self._day(); reservation=secrets.token_urlsafe(32)
+        cost=PATH_COSTS.get(path,1); day=self._day(); reservation=secrets.token_urlsafe(32)
         if request_key is not None:
             if not isinstance(request_key,str) or not 8 <= len(request_key) <= 128 or not isinstance(fingerprint,str):
                 raise AccountError('Invalid request key.',400,'invalid_request')

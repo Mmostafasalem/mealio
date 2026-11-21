@@ -10,6 +10,8 @@ struct AIAllowance: Codable {
     let resetsAt: String
     let mealPlanCost: Int
     let shortRequestCost: Int
+    /// What reading a meal photo costs; older servers don't send it.
+    var photoCost: Int? = nil
     var resetDate: Date? { ISO8601DateFormatter().date(from: resetsAt) }
 }
 
@@ -319,7 +321,8 @@ final class AIAccountService {
               let left = response.value(forHTTPHeaderField: "X-AI-Remaining").flatMap(Int.init),
               let reset = response.value(forHTTPHeaderField: "X-AI-Reset") else { return }
         allowance = AIAllowance(limit: limit, used: max(0, limit-left), remaining: max(0, left),
-                                resetsAt: reset, mealPlanCost: 5, shortRequestCost: 1)
+                                resetsAt: reset, mealPlanCost: 5, shortRequestCost: 1,
+                                photoCost: allowance?.photoCost)
         if response.value(forHTTPHeaderField: "X-AI-Result") == "fallback" {
             // The service keeps 1 credit when the AI answered but the answer was unusable.
             message = response.value(forHTTPHeaderField: "X-AI-Fallback") == "unusable-output"

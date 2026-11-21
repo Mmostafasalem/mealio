@@ -63,12 +63,12 @@ struct ActivityCard: View {
     /// Whole numbers with grouping, or a dash while unknown.
     static func number(_ value: Double?) -> String {
         guard let value, value.isFinite else { return "–" }
-        return Int(value.rounded()).formatted()
+        return Int(value.rounded()).formatted(.number.grouping(.never))
     }
 
     static func accessibilityText(steps: Double?, kcal: Double?) -> String {
-        let stepsText = steps.map { "\(Int($0.rounded()).formatted()) steps" } ?? "steps not available"
-        let kcalText = kcal.map { "\(Int($0.rounded()).formatted()) active kilocalories" } ?? "active energy not available"
+        let stepsText = steps.map { "\(Int($0.rounded()).formatted(.number.grouping(.never))) steps" } ?? "steps not available"
+        let kcalText = kcal.map { "\(Int($0.rounded()).formatted(.number.grouping(.never))) active kilocalories" } ?? "active energy not available"
         return "Activity today from Apple Health: \(stepsText), \(kcalText)"
     }
 }

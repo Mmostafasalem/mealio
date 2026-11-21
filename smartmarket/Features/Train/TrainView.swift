@@ -136,7 +136,7 @@ struct TrainView: View {
         .padding(Spacing.lg)
         .premiumCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("This week: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories")
+        .accessibilityLabel("This week: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories" as String)
     }
 
     private func weekStat(_ value: String, _ label: String) -> some View {
@@ -166,7 +166,7 @@ struct TrainView: View {
             VStack(spacing: Spacing.xs) {
                 caption("Length")
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(Int(vm.minutes))")
+                    Text("\(Int(vm.minutes))" as String)
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                         .monospacedDigit()
                         .contentTransition(.numericText())

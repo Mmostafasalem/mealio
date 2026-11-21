@@ -90,7 +90,7 @@ struct ExerciseGuideSheet: View {
                             .font(.system(.title, design: .rounded).weight(.bold))
                             .foregroundStyle(Color.labelPrimary)
                         if let muscles = guide.muscles {
-                            Text("Works: \(muscles)").font(.subheadline).foregroundStyle(Color.labelSecondary)
+                            Text("Works: \(muscles)" as String).font(.subheadline).foregroundStyle(Color.labelSecondary)
                         }
                         if let prescription = guide.prescription, !prescription.isEmpty {
                             Text(prescription)
@@ -163,7 +163,7 @@ struct ExerciseGuideSheet: View {
                             Text("How to do it").font(.sectionTitle)
                             ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, step in
                                 HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
-                                    Text("\(index + 1)")
+                                    Text("\(index + 1)" as String)
                                         .font(.footnote.weight(.bold)).monospacedDigit()
                                         .foregroundStyle(Color.onAccent)
                                         .frame(width: 24, height: 24)
@@ -178,8 +178,8 @@ struct ExerciseGuideSheet: View {
 
                     if guide.equipment != nil || guide.level != nil {
                         VStack(alignment: .leading, spacing: Spacing.sm) {
-                            if let equipment = guide.equipment { Label("Equipment: \(equipment)", systemImage: "wrench.and.screwdriver") }
-                            if let level = guide.level { Label("Level: \(level)", systemImage: "chart.bar.fill") }
+                            if let equipment = guide.equipment { Label("Equipment: \(equipment)" as String, systemImage: "wrench.and.screwdriver") }
+                            if let level = guide.level { Label("Level: \(level)" as String, systemImage: "chart.bar.fill") }
                         }
                         .font(.subheadline)
                         .foregroundStyle(Color.labelSecondary)
@@ -210,12 +210,12 @@ struct ExerciseGuideSheet: View {
                 .frame(maxWidth: .infinity)
                 .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
-            Text("\(number). \(label)")
+            Text("\(number). \(label)" as String)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(Color.labelPrimary)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label) position")
+        .accessibilityLabel("\(label) position" as String)
     }
 }
 

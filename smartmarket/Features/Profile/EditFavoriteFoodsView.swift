@@ -22,7 +22,7 @@ struct EditFavoriteFoodsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if vm.favoriteFoodIDs.count > 0 {
-                    Text("\(vm.favoriteFoodIDs.count) selected")
+                    Text("\(vm.favoriteFoodIDs.count) selected" as String)
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.brandPrimary)
                 }
@@ -140,7 +140,7 @@ private struct SectionHeader: View {
             Text(category.displayName)
             Spacer()
             if count > 0 {
-                Text("\(count)").font(.caption2).fontWeight(.bold).foregroundStyle(Color.onAccent)
+                Text("\(count)" as String).font(.caption2).fontWeight(.bold).foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Color.dullPink, in: Capsule())
             }

@@ -20,6 +20,8 @@ struct OnboardingFlow: View {
                     case .pace:          PaceSelectionView(vm: vm)
                     case .diet:          DietaryPreferencesView(vm: vm)
                     case .favorites:     FavoriteFoodsView(vm: vm)
+                    case .week:          WeekStepView(vm: vm)
+                    case .alerts:        AlertsStepView(vm: vm)
                     }
                 }
         }
@@ -32,9 +34,10 @@ enum OnboardingStep: Int, Hashable, CaseIterable {
     case name, height, weight, activity
     case goal, pace
     case diet, favorites
+    case week, alerts
 
     /// `pace` only appears when losing weight, so it shares the goal's number.
-    static let total = 7
+    static let total = 9
 
     /// 1-based position shown as "3 / 11".
     var number: Int { rawValue < OnboardingStep.pace.rawValue ? rawValue + 1 : rawValue }
