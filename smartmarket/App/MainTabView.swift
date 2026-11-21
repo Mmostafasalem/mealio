@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat, quickActions, voice
+    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto
     case exercise(String)
 
     var id: String {
@@ -16,6 +16,7 @@ enum MainSheet: Identifiable, Equatable {
         case .chat: return "chat"
         case .quickActions: return "quickActions"
         case .voice: return "voice"
+        case .mealPhoto: return "mealPhoto"
         case .exercise(let id): return "exercise:" + id
         }
     }
@@ -31,6 +32,8 @@ struct MainTabView: View {
     @State private var dismissalTimeout: Task<Void, Never>?
     @State private var quickLog = HomeViewModel()
     @State private var keyboardVisible = false
+    /// A new week has started: ask whether to empty the cart and My Stock.
+    @State private var askNewWeek = false
     /// Height of the system tab bar above the home indicator (sizes the bowl's guide panel).
     @State private var tabBarHeight: CGFloat = 49
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,26 +49,44 @@ struct MainTabView: View {
         })
     }
 
-    var body: some View {
-        // The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
-        TabView(selection: tabSelection) {
-            HomeView()
-                .background(TabBarInsetReader())
-                .tabItem { TabIcon(symbol: "house.fill", name: "Home") }
-                .tag(0)
-            NavigationStack { MealPlanView() }
-                .tabItem { TabIcon(symbol: "fork.knife", name: "Meals") }
-                .tag(1)
-            Color.clear
-                .tabItem { TabIcon(symbol: "plus.circle.fill", name: "Quick actions") }
-                .tag(Self.quickActionsTag)
-            StoreBrowserView()
-                .tabItem { TabIcon(symbol: "storefront.fill", name: "Shop") }
-                .tag(2)
-            TrainView()
-                .tabItem { TabIcon(symbol: "figure.run", name: "Train") }
-                .tag(3)
+    /// The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
+    /// From iOS 18 quick actions is a separate tab; on iOS 26 the system draws it as its
+    /// own round glass button at the end of the bar, apart from the four screens.
+    @ViewBuilder private var tabs: some View {
+        if #available(iOS 18, *) {
+            TabView(selection: tabSelection) {
+                Tab(value: 0) { HomeView().background(TabBarInsetReader()) } label: { TabIcon(symbol: "house.fill", name: "Home") }
+                Tab(value: 1) { NavigationStack { MealPlanView() } } label: { TabIcon(symbol: "fork.knife", name: "Meals") }
+                Tab(value: 2) { StoreBrowserView() } label: { TabIcon(symbol: "storefront.fill", name: "Shop") }
+                Tab(value: 3) { TrainView() } label: { TabIcon(symbol: "figure.run", name: "Train") }
+                Tab(value: Self.quickActionsTag, role: .search) { Color.clear } label: {
+                    TabIcon(symbol: "bolt.fill", name: "Quick actions")
+                }
+            }
+        } else {
+            TabView(selection: tabSelection) {
+                HomeView()
+                    .background(TabBarInsetReader())
+                    .tabItem { TabIcon(symbol: "house.fill", name: "Home") }
+                    .tag(0)
+                NavigationStack { MealPlanView() }
+                    .tabItem { TabIcon(symbol: "fork.knife", name: "Meals") }
+                    .tag(1)
+                StoreBrowserView()
+                    .tabItem { TabIcon(symbol: "storefront.fill", name: "Shop") }
+                    .tag(2)
+                TrainView()
+                    .tabItem { TabIcon(symbol: "figure.run", name: "Train") }
+                    .tag(3)
+                Color.clear
+                    .tabItem { TabIcon(symbol: "bolt.fill", name: "Quick actions") }
+                    .tag(Self.quickActionsTag)
+            }
         }
+    }
+
+    var body: some View {
+        tabs
         .tint(Color.brandPrimary)
         .sensoryFeedback(.selection, trigger: selection)
         .onPreferenceChange(TabBarInsetKey.self) { tabBarHeight = $0 }
@@ -86,14 +107,22 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
         .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
         .onReceive(NotificationCenter.default.publisher(for: .openVoice)) { _ in present(.voice) }
+        .onReceive(NotificationCenter.default.publisher(for: .openMealPhoto)) { _ in present(.mealPhoto) }
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
         // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
-        .onAppear { AppRouter.shared.takeInbox(); routeRequest() }
+        .onAppear { AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek() }
         .onChange(of: AppRouter.shared.request?.id) { _, _ in routeRequest() }
         .onChange(of: scenePhase) { _, phase in
             // A link left by another process (the widget extension) has no in-process notification.
-            if phase == .active { AppRouter.shared.takeInbox(); routeRequest() }
+            if phase == .active { AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek() }
+        }
+        .confirmationDialog("A new week has started", isPresented: $askNewWeek, titleVisibility: .visible) {
+            Button("Empty cart and stock") { WeeklyReset.answer(.cartAndStock) }
+            Button("Empty the cart only") { WeeklyReset.answer(.cartOnly) }
+            Button("Keep everything", role: .cancel) { WeeklyReset.answer(.keep) }
+        } message: {
+            Text("Start this week fresh? Emptying clears last week's cart and the food in My Stock. Your food log and history stay. You can change your week's start day in Profile.")
         }
         .sheet(item: $sheet, onDismiss: { if awaitingDismissal { finishDismissal() } }) { sheet in
             switch sheet {
@@ -118,11 +147,14 @@ struct MainTabView: View {
                 AgentChatSheet(vm: quickLog)
             case .voice:
                 VoiceCommandSheet(close: { self.sheet = nil }, navigate: openFromVoice)
+            case .mealPhoto:
+                VoiceCommandSheet(photoMode: true, close: { self.sheet = nil }, navigate: openFromVoice)
             case .quickActions:
                 QuickActionsMenu(close: { self.sheet = nil }) { choice in
                     switch choice {
                     case .chat: present(.chat)
                     case .voice: present(.voice)
+                    case .mealPhoto: present(.mealPhoto)
                     case .action(let action): chooseQuickAction(action)
                     }
                 }
@@ -140,6 +172,10 @@ struct MainTabView: View {
     /// our sheets, or a sheet or popover another screen presented. The new one
     /// appears only after the old one has gone, so it is never dropped.
     private func present(_ next: MainSheet?) {
+        // Chat needs online AI: while it isn't offered, Siri, links and voice don't open it.
+        if next == .chat && !AIAccountService.shared.offersOnlineAI { return }
+        // Meal photos need online AI that can be used right now (offered, allowed, signed in).
+        if next == .mealPhoto && !MealPhotoAccess.isUsable { return }
         if awaitingDismissal {
             // Something is already going away; show the newest request after it.
             queuedSheet = next
@@ -192,8 +228,8 @@ struct MainTabView: View {
             case .home: present(nil); selection = 0
             case .meals: present(nil); selection = 1
             case .train: present(nil); selection = 3
-            // An open food logger stays and opens the scanner itself.
-            case .logFood, .scan: present(.logFood)
+            // An open food logger stays (with what was typed) and opens the scanner itself.
+            case .logFood, .scan: if sheet != .logFood { present(.logFood) }
             case .groceries: present(.groceries)
             }
         }
@@ -315,13 +351,14 @@ private struct TabBarInsetKey: PreferenceKey {
 
 /// What the "+" tab offers, as a native sheet.
 private struct QuickActionsMenu: View {
-    enum Choice { case action(MealioQuickAction), chat, voice }
+    enum Choice { case action(MealioQuickAction), chat, voice, mealPhoto }
     /// Closes the sheet through `MainTabView`'s own state (its single sheet path).
     let close: () -> Void
     let choose: (Choice) -> Void
 
     private let rows: [(id: String, title: String, symbol: String, choice: Choice)] = [
         ("voice", "Speak a command", "mic.fill", .voice),
+        ("mealPhoto", "Snap a meal", "camera.fill", .mealPhoto),
         (MealioQuickAction.logFood.rawValue, "Log food", "fork.knife", .action(.logFood)),
         (MealioQuickAction.cart.rawValue, "Cart", "cart", .action(.cart)),
         (MealioQuickAction.groceries.rawValue, "Checklist", "checklist", .action(.groceries)),
@@ -331,7 +368,11 @@ private struct QuickActionsMenu: View {
 
     var body: some View {
         NavigationStack {
-            List(rows, id: \.id) { row in
+            List(rows.filter { row in
+                if case .chat = row.choice { return AIAccountService.shared.offersOnlineAI }
+                if case .mealPhoto = row.choice { return MealPhotoAccess.isUsable }
+                return true
+            }, id: \.id) { row in
                 Button { choose(row.choice) } label: {
                     Label(row.title, systemImage: row.symbol)
                         .foregroundStyle(Color.labelPrimary)
@@ -346,7 +387,17 @@ private struct QuickActionsMenu: View {
                 }
             }
         }
-        .presentationDetents([.height(400), .medium])
+        .presentationDetents([.height(470), .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - New week
+
+extension MainTabView {
+    /// Asks once per new week whether to empty the cart and My Stock (see `WeeklyReset`).
+    fileprivate func checkNewWeek() {
+        let hasSomething = !ShoppingCartService.shared.cartItems.isEmpty || !StockStore.shared.items.isEmpty
+        if WeeklyReset.isDue(hasSomething: hasSomething) { askNewWeek = true }
     }
 }

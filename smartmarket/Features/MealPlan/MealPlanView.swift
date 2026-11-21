@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MealPlanView: View {
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var vm = MealPlanViewModel()
     /// One meal open at a time, across every section.
@@ -18,15 +19,6 @@ struct MealPlanView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Spacing.xl) {
-                if !sharingEnabled {
-                    Label("Online AI sharing is off. Local suggestions are shown. You can enable online AI in Profile.", systemImage: "iphone")
-                        .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        .padding(.horizontal, Spacing.lg)
-                } else if AppState.shared.weeklyMealPlan?.generationSource != "online" {
-                    Label("Local meal suggestions. A verified AI-generated plan is not currently shown.", systemImage: "iphone")
-                        .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        .padding(.horizontal, Spacing.lg)
-                }
                 if let message = vm.errorMessage, vm.todaysPlan != nil {
                     Text(message).font(.footnote).foregroundStyle(Color.brandDanger)
                         .padding(.horizontal, Spacing.lg)
@@ -46,6 +38,8 @@ struct MealPlanView: View {
                     .foregroundStyle(Color.labelSecondary)
                     .transition(.opacity)
                 }
+                MissingFoodsBanner()
+                    .padding(.horizontal, Spacing.lg)
                 switch vm.selectedTab {
                 case .today: todayContent
                 case .week:  weekContent
@@ -56,7 +50,7 @@ struct MealPlanView: View {
             .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.isGenerating)
         }
         .background { GrainyGradient().ignoresSafeArea() }
-        .navigationTitle("Meal Plan")
+        .navigationTitle("Meal plan")
         .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
         .task {
             if vm.todaysPlan == nil { await vm.loadTodaysPlan() }
@@ -69,6 +63,18 @@ struct MealPlanView: View {
                 await vm.loadTodaysPlan()
                 if vm.selectedTab == .week { await vm.loadWeekPlans() }
             }
+        }
+        // A new day (midnight, a time-zone change, or the app opened the next morning):
+        // "Today" moves on and the week starts from the new day.
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refreshDay() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in refreshDay() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refreshDay() } }
+    }
+
+    private func refreshDay() {
+        Task {
+            await vm.loadTodaysPlan()
+            if vm.selectedTab == .week { await vm.loadWeekPlans() }
         }
     }
 
@@ -104,10 +110,15 @@ struct MealPlanView: View {
                 RegenerateButton(isGenerating: vm.isGenerating) {
                     Task { await vm.regenerate() }
                 }
+                if let notice = vm.notice {
+                    Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("meals.regenerateNotice")
+                }
 
                 Text("Calorie & macro values are estimates and may vary by product and preparation.")
                     .font(.caption2)
-                    .foregroundStyle(Color.labelTertiary)
+                    .foregroundStyle(Color.labelSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 2)
@@ -119,7 +130,7 @@ struct MealPlanView: View {
         } else {
             EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
                            message: "Generate a plan tailored to your goals and favourite foods.",
-                           actionTitle: "Generate Plan") { Task { await vm.loadTodaysPlan() } }
+                           actionTitle: "Generate plan") { Task { await vm.loadTodaysPlan() } }
                 .padding(.top, Spacing.xxl)
         }
     }
@@ -152,6 +163,10 @@ struct MealPlanView: View {
                 // One request writes all seven days.
                 RegenerateButton(isGenerating: vm.isGenerating, idleTitle: "Regenerate week") {
                     Task { await vm.regenerate() }
+                }
+                if let notice = vm.notice {
+                    Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.center)
                 }
             }
             .padding(.horizontal, Spacing.lg)
@@ -207,7 +222,7 @@ private struct MealSectionCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 Text(title).font(.headline)
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-                Text("\(entries.reduce(0) { $0 + $1.calories }) kcal")
+                Text("\(entries.reduce(0) { $0 + $1.calories }) kcal" as String)
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -276,12 +291,18 @@ private struct MealEntryRow: View {
                 Text(subtitle)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let missing = entry.missing, !missing.isEmpty {
+                    Label("Not in your stock: \(missing.joined(separator: ", "))" as String, systemImage: "cart.badge.plus")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.brandAmber)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             // The title rides up a little as the card opens.
             .offset(y: -2 * q)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
-                Text("\(entry.calories) kcal")
+                Text("\(entry.calories) kcal" as String)
                     .font(.caption).fontWeight(.semibold)
                     .foregroundStyle(Color.labelSecondary).monospacedDigit()
                 // The macro summary moves into the details while open.
@@ -290,7 +311,7 @@ private struct MealEntryRow: View {
                     if entry.macrosAvailable {
                         Text("Calculated from ingredient portions")
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
-                        Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
+                        Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))" as String)
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
                 }
@@ -320,7 +341,7 @@ private struct MealEntryRow: View {
                                 .font(.subheadline).foregroundStyle(Color.labelPrimary)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: Spacing.sm)
-                            Text("\(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue)")
+                            Text("\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)" as String)
                                 .font(.caption.weight(.medium)).foregroundStyle(Color.labelSecondary)
                                 .monospacedDigit()
                         }
@@ -344,7 +365,7 @@ private struct MealEntryRow: View {
             let chips = [("Protein", entry.proteinG), ("Carbs", entry.carbsG), ("Fat", entry.fatG)]
             FlowLayout(spacing: 6) {
                 ForEach(chips, id: \.0) { chip in
-                    Text("\(chip.0) \(chip.1.formatted(.number.precision(.fractionLength(0...1)))) g")
+                    Text("\(chip.0) \(chip.1.formatted(.number.precision(.fractionLength(0...1)))) g" as String)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.labelPrimary)
                         .monospacedDigit()
@@ -375,9 +396,9 @@ private struct MealEntryRow: View {
                 }
             }
             if let missing, !missing.isEmpty, entry.stockOperationID != nil {
-                actionButton("Add missing ingredients to groceries", systemImage: "cart.badge.plus", prominent: false) {
+                actionButton("Add missing ingredients to checklist", systemImage: "cart.badge.plus", prominent: false) {
                     if PlannedMealStockSheet.addMissingToGroceries(entry: entry, missing: missing) {
-                        addedNotice = "Missing quantities added to Groceries."
+                        addedNotice = "Missing quantities added to your checklist."
                         addedTrigger.toggle()
                     }
                 }
@@ -394,7 +415,7 @@ private struct MealEntryRow: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(prominent ? Color.onAccent : Color.labelPrimary)
                 .padding(.horizontal, Spacing.md)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(prominent ? Color.progress : Color.surfaceSecondary,
                             in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
@@ -441,14 +462,14 @@ private struct RecommendationsSection: View {
                     .font(.headline)
                 Spacer()
                 if !remaining.isEmpty {
-                    Text("\(remaining.count) left")
+                    Text("\(remaining.count) left" as String)
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                         .monospacedDigit()
                         .contentTransition(.numericText())
                 }
             }
 
-            SwipeDeck(items: remaining, acceptLabel: "Add to groceries", skipLabel: "Skip",
+            SwipeDeck(items: remaining, acceptLabel: "Add to checklist", skipLabel: "Skip",
                       label: { item in
                           "\(item.foodName). \(item.reason). €\(String(format: "%.2f", item.estimatedPrice)). \(PriorityBadge.label(item.priority)) priority"
                       },
@@ -462,7 +483,7 @@ private struct RecommendationsSection: View {
                     Label("All done", systemImage: "checkmark.circle")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.labelPrimary)
-                    Text("Added items are in Groceries.")
+                    Text("Added items are in your checklist.")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -475,7 +496,7 @@ private struct RecommendationsSection: View {
                     onAddAll(remaining)
                     remaining = []
                 } label: {
-                    Label("Add all to grocery list", systemImage: "cart.badge.plus")
+                    Label("Add all to checklist", systemImage: "cart.badge.plus")
                         .font(.subheadline).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -548,7 +569,7 @@ private struct RegenerateButton: View {
 
     var body: some View {
         PrimaryButton(
-            title: isGenerating ? "Agent is thinking…" : idleTitle,
+            title: isGenerating ? "Building your plan…" : idleTitle,
             systemImage: isGenerating ? nil : "arrow.clockwise",
             isLoading: isGenerating,
             action: onTap
@@ -568,9 +589,11 @@ private struct SkeletonMealPlanContent: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemFill))
                 .frame(height: 54)
-                .shimmer()
         }
         .padding(.horizontal, 16)
+        // One band across the whole placeholder, not one animation per bar.
+        .shimmer()
+        .accessibilityHidden(true)
     }
 }
 
@@ -581,28 +604,23 @@ private struct SkeletonMealSection: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color(.systemFill))
                     .frame(width: 34, height: 34)
-                    .shimmer()
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.systemFill))
                     .frame(width: 110, height: 15)
-                    .shimmer()
                 Spacer()
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.systemFill))
                     .frame(width: 55, height: 13)
-                    .shimmer()
             }
             ForEach(0..<2, id: \.self) { i in
                 HStack(spacing: 10) {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemFill))
                         .frame(width: i == 0 ? 160 : 120, height: 13)
-                        .shimmer()
                     Spacer()
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemFill))
                         .frame(width: 48, height: 13)
-                        .shimmer()
                 }
                 .padding(.leading, 46)
             }
@@ -619,6 +637,8 @@ private struct SkeletonWeekContent: View {
         VStack(spacing: 12) {
             ForEach(0..<7, id: \.self) { _ in SkeletonWeekDayCard() }
         }
+        .shimmer()
+        .accessibilityHidden(true)
     }
 }
 
@@ -627,21 +647,21 @@ private struct SkeletonWeekDayCard: View {
         HStack(spacing: 14) {
             VStack(spacing: 4) {
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 24, height: 10).shimmer()
+                    .fill(Color(.systemFill)).frame(width: 24, height: 10)
                 RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 20, height: 18).shimmer()
+                    .fill(Color(.systemFill)).frame(width: 20, height: 18)
             }
             .frame(width: 36)
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 90, height: 14).shimmer()
+                        .fill(Color(.systemFill)).frame(width: 90, height: 14)
                     Spacer()
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 32, height: 12).shimmer()
+                        .fill(Color(.systemFill)).frame(width: 32, height: 12)
                 }
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.systemFill)).frame(height: 6).shimmer()
+                    .fill(Color(.systemFill)).frame(height: 6)
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
@@ -655,6 +675,11 @@ private struct SkeletonWeekDayCard: View {
 private struct WeekDayCard: View {
     let plan: MealPlan
     @State private var recipe: RecipeTarget?
+    /// Days start folded to their header; today starts open.
+    @State private var expanded: Bool?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isExpanded: Bool { expanded ?? isToday }
 
     private struct RecipeTarget: Identifiable {
         let name: String
@@ -681,13 +706,31 @@ private struct WeekDayCard: View {
                         .background(Color.progress, in: Capsule())
                 }
                 Spacer(minLength: Spacing.sm)
-                Text("\(plan.totalCalories) kcal")
+                Text("\(plan.totalCalories) kcal" as String)
                     .font(.footnote.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.labelSecondary)
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(reduceMotion ? nil : .snappy) { expanded = !isExpanded }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
+            .accessibilityAddTraits([.isHeader, .isButton])
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint(isExpanded ? "Hides this day's meals" : "Shows this day's meals")
 
+            if !isExpanded {
+                Text(meals.isEmpty ? "Nothing planned" : meals.map(\.title).joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
+            } else {
             if meals.isEmpty {
                 Text("Nothing planned")
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
@@ -706,7 +749,7 @@ private struct WeekDayCard: View {
                                     .multilineTextAlignment(.leading)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Spacer(minLength: Spacing.sm)
-                                Text("\(entry.calories) kcal")
+                                Text("\(entry.calories) kcal" as String)
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(Color.labelSecondary)
                                 Image(systemName: "chevron.right")
@@ -722,6 +765,7 @@ private struct WeekDayCard: View {
                     }
                 }
             }
+            }
         }
         .padding(Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -733,4 +777,58 @@ private struct WeekDayCard: View {
 
 #Preview {
     NavigationStack { MealPlanView() }
+}
+
+/// Shown when the plan uses foods that aren't in the cart or My Stock: what they
+/// are, and one tap to add them (the cart fills My Stock, and the plan is rebuilt).
+private struct MissingFoodsBanner: View {
+    @State private var appState = AppState.shared
+    @State private var added = 0
+
+    private var missing: [(id: String, name: String)] {
+        guard let plan = appState.weeklyMealPlan else { return [] }
+        var seen = Set<String>(), out: [(String, String)] = []
+        for day in plan.allDays.map(\.plan) {
+            for meal in [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].compactMap({ $0 }) {
+                for (i, id) in (meal.missingCatalogIds ?? []).enumerated() where seen.insert(id).inserted {
+                    out.append((id, meal.missing?.indices.contains(i) == true ? meal.missing![i] : id))
+                }
+            }
+        }
+        return out
+    }
+
+    var body: some View {
+        let missing = missing
+        if !missing.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Label("Some meals use food you don't have yet", systemImage: "cart.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                Text("Not in your cart or stock: \(missing.map(\.name).joined(separator: ", ")). Add them so the plan is made from your own kitchen." as String)
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    for m in missing {
+                        if let item = CatalogItem.all.first(where: { $0.id == m.id }) { ShoppingCartService.shared.add(item, store: .catalog) }
+                    }
+                    AgentLoop.rebuildPlanNow()
+                    added &+= 1
+                } label: {
+                    Label("Add \(missing.count) to cart and stock" as String, systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, Spacing.lg).frame(minHeight: 44)
+                        .background(Color.dullPink, in: Capsule())
+                        .foregroundStyle(Color.onAccent)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(ScalePressStyle())
+                .accessibilityIdentifier("meals.addMissing")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Spacing.lg)
+            .premiumCard(radius: Radius.tile)
+            .sensoryFeedback(.success, trigger: added)
+            .accessibilityElement(children: .contain)
+        }
+    }
 }

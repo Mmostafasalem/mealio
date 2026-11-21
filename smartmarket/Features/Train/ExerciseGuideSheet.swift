@@ -29,7 +29,7 @@ struct ExerciseGuide: Identifiable {
 
     /// A step in a workout. Uses the catalogue entry when the name matches one.
     init(step: WorkoutExercise) {
-        let known = Exercise.closestMatch(name: step.name)
+        let known = Self.catalogueEntry(named: step.name)
         name = step.name
         motion = known?.motion ?? ExerciseMotion.matching(name: step.name)
         drawingID = known?.id
@@ -38,6 +38,15 @@ struct ExerciseGuide: Identifiable {
         muscles = known?.muscles
         equipment = known?.equipment
         prescription = step.restSeconds > 0 ? "\(step.prescription) · rest \(step.restSeconds) sec" : step.prescription
+    }
+
+    /// The catalogue exercise a step is: by its name, or for an interval block
+    /// ("Jump rope intervals") by the drill it is made of.
+    static func catalogueEntry(named name: String) -> Exercise? {
+        if let known = Exercise.closestMatch(name: name) { return known }
+        let suffix = " intervals"
+        guard name.lowercased().hasSuffix(suffix) else { return nil }
+        return Exercise.closestMatch(name: String(name.dropLast(suffix.count)))
     }
 
     /// The hand-drawn frames, once the drawings have loaded and this one's paths are
@@ -81,7 +90,7 @@ struct ExerciseGuideSheet: View {
                             .font(.system(.title, design: .rounded).weight(.bold))
                             .foregroundStyle(Color.labelPrimary)
                         if let muscles = guide.muscles {
-                            Text("Works: \(muscles)").font(.subheadline).foregroundStyle(Color.labelSecondary)
+                            Text("Works: \(muscles)" as String).font(.subheadline).foregroundStyle(Color.labelSecondary)
                         }
                         if let prescription = guide.prescription, !prescription.isEmpty {
                             Text(prescription)
@@ -154,7 +163,7 @@ struct ExerciseGuideSheet: View {
                             Text("How to do it").font(.sectionTitle)
                             ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, step in
                                 HStack(alignment: .firstTextBaseline, spacing: Spacing.md) {
-                                    Text("\(index + 1)")
+                                    Text("\(index + 1)" as String)
                                         .font(.footnote.weight(.bold)).monospacedDigit()
                                         .foregroundStyle(Color.onAccent)
                                         .frame(width: 24, height: 24)
@@ -169,8 +178,8 @@ struct ExerciseGuideSheet: View {
 
                     if guide.equipment != nil || guide.level != nil {
                         VStack(alignment: .leading, spacing: Spacing.sm) {
-                            if let equipment = guide.equipment { Label("Equipment: \(equipment)", systemImage: "wrench.and.screwdriver") }
-                            if let level = guide.level { Label("Level: \(level)", systemImage: "chart.bar.fill") }
+                            if let equipment = guide.equipment { Label("Equipment: \(equipment)" as String, systemImage: "wrench.and.screwdriver") }
+                            if let level = guide.level { Label("Level: \(level)" as String, systemImage: "chart.bar.fill") }
                         }
                         .font(.subheadline)
                         .foregroundStyle(Color.labelSecondary)
@@ -201,12 +210,12 @@ struct ExerciseGuideSheet: View {
                 .frame(maxWidth: .infinity)
                 .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
-            Text("\(number). \(label)")
+            Text("\(number). \(label)" as String)
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(Color.labelPrimary)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label) position")
+        .accessibilityLabel("\(label) position" as String)
     }
 }
 

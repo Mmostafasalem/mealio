@@ -134,7 +134,7 @@ struct StackPanel: View {
                 .padding(.leading, Spacing.md)
                 .frame(height: Self.headerHeight)
                 .opacity(progress)
-                .accessibilityLabel("Back to \(under.title)")
+                .accessibilityLabel("Back to \(under.title)" as String)
                 .accessibilityIdentifier("stackPanel.back")
             }
             Text(topTitle)

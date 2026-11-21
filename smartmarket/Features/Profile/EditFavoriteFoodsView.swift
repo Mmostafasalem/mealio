@@ -17,12 +17,12 @@ struct EditFavoriteFoodsView: View {
         .searchable(text: $query, prompt: "Search \(CatalogItem.all.count) products…")
         .onChange(of: query)            { _, _ in scheduleFilter() }
         .onChange(of: selectedCategory) { _, _ in scheduleFilter() }
-        .navigationTitle("Favorite Foods")
+        .navigationTitle("Favourite foods")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if vm.favoriteFoodIDs.count > 0 {
-                    Text("\(vm.favoriteFoodIDs.count) selected")
+                    Text("\(vm.favoriteFoodIDs.count) selected" as String)
                         .font(.caption).fontWeight(.semibold)
                         .foregroundStyle(Color.brandPrimary)
                 }
@@ -117,6 +117,9 @@ private struct CategoryChip: View {
                 .background(isSelected ? Color.dullPink : Color(.tertiarySystemFill))
                 .foregroundStyle(isSelected ? Color.onAccent : Color.labelPrimary)
                 .clipShape(Capsule())
+                // The chip stays small; the tap area is 44 pt.
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         // Colour-only change, so it stays animated under Reduce Motion.
@@ -137,7 +140,7 @@ private struct SectionHeader: View {
             Text(category.displayName)
             Spacer()
             if count > 0 {
-                Text("\(count)").font(.caption2).fontWeight(.bold).foregroundStyle(Color.onAccent)
+                Text("\(count)" as String).font(.caption2).fontWeight(.bold).foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Color.dullPink, in: Capsule())
             }

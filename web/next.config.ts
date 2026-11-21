@@ -3,8 +3,7 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 
 // The site only loads its own assets: next/font self-hosts Geist at build time,
-// there are no external images or scripts, and the browser only talks to the
-// same-origin /api/backend proxy. 'unsafe-inline' is needed for Next's inline
+// there are no external images or scripts, and the page talks to nothing else. 'unsafe-inline' is needed for Next's inline
 // bootstrap scripts (no nonce middleware) and for inline style attributes
 // (motion, React style props). 'unsafe-eval' and ws: are dev-only (HMR).
 const csp = [

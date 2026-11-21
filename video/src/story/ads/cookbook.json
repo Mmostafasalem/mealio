@@ -1,0 +1,249 @@
+{
+ "id": "cookbook",
+ "dur": 21.461,
+ "bpm": 92,
+ "music": {
+  "style": "lofi",
+  "bars": [
+   "Gmaj7",
+   "Em7",
+   "Am9",
+   "D9",
+   "Gmaj7",
+   "Em7",
+   "Am9",
+   "Gmaj7"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 7
+ },
+ "scenes": [
+  {
+   "kind": "kinetic",
+   "at": 0,
+   "cut": "dissolve",
+   "words": [
+    "1,500",
+    "recipes",
+    "offline",
+    "free"
+   ],
+   "every": 1.304,
+   "colors": [
+    "#C2410C",
+    "#111114",
+    "#111114",
+    "#C2410C"
+   ]
+  },
+  {
+   "kind": "stock",
+   "at": 5.217,
+   "cut": "slide",
+   "label": "Cook what you have",
+   "mark": [
+    "have"
+   ]
+  },
+  {
+   "kind": "recipe",
+   "at": 10.435,
+   "cut": "rise",
+   "label": "Nutrition, worked out",
+   "mark": [
+    "worked"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 15.652,
+   "cut": "zoom",
+   "label": "Dinner, solved",
+   "mark": [
+    "solved"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 18.861,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1500,
+   "size": 520
+  },
+  {
+   "t": 5.117,
+   "x": 540,
+   "y": 1500,
+   "size": 520
+  },
+  {
+   "t": 5.717,
+   "x": 220,
+   "y": 800,
+   "size": 380,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 6.117,
+   "x": 220,
+   "y": 800,
+   "size": 380
+  },
+  {
+   "t": 6.617,
+   "x": 540,
+   "y": 800,
+   "size": 380,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 7.017,
+   "x": 540,
+   "y": 800,
+   "size": 380
+  },
+  {
+   "t": 7.517,
+   "x": 860,
+   "y": 800,
+   "size": 380,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 8.226,
+   "x": 860,
+   "y": 800,
+   "size": 380
+  },
+  {
+   "t": 8.826,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 10.135,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 10.835,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 15.452,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 16.152,
+   "x": 540,
+   "y": 1360,
+   "size": 640,
+   "move": "jump",
+   "arc": 220
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood happy"
+  ],
+  [
+   1.304,
+   "hop"
+  ],
+  [
+   2.609,
+   "mood love"
+  ],
+  [
+   3.913,
+   "hop"
+  ],
+  [
+   8.826,
+   "mood love"
+  ],
+  [
+   12.235,
+   "mood celebrate"
+  ],
+  [
+   16.152,
+   "mood happy"
+  ],
+  [
+   18.461,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   5.717,
+   "pop"
+  ],
+  [
+   6.617,
+   "pop"
+  ],
+  [
+   7.517,
+   "pop"
+  ],
+  [
+   11.985,
+   "tap"
+  ],
+  [
+   12.235,
+   "success"
+  ],
+  [
+   16.552,
+   "pop"
+  ]
+ ],
+ "theme": "paper",
+ "overlays": [
+  {
+   "kind": "float",
+   "at": 0,
+   "items": [
+    "🍅",
+    "🧄",
+    "🥕",
+    "🍋",
+    "🌶️",
+    "🥔",
+    "🧅",
+    "🥬",
+    "🍄",
+    "🫑"
+   ]
+  },
+  {
+   "kind": "bubble",
+   "at": 16.552,
+   "until": 18.261,
+   "text": "Shakshuka tonight? 🍳",
+   "side": "right"
+  }
+ ]
+}

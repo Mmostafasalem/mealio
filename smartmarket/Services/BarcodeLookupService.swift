@@ -150,7 +150,7 @@ final class BarcodeLookupService {
     private func fetch(_ code: String) async throws -> NutritionFood? {
         guard let url = Self.requestURL(for: code) else { return nil }
         var request = URLRequest(url: url, timeoutInterval: 8)
-        request.setValue("Nourlo/1.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.setValue("Nourlo/1.0 (nourlo.app.support@gmail.com)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let (data, response) = try await session.data(for: request)
         try Task.checkCancellation()

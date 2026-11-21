@@ -1,21 +1,19 @@
 @import "tailwindcss";
 
 /*
-  Nourlo web design system.
-  Palette: neutral zinc base + ONE calibrated green accent (no teal tint, no
-  purple/blue "AI glow"). Depth from soft tinted shadows, not gradients.
+  Nourlo landing site. Warm almond page with the app's pink accent, black in dark mode.
 */
 
 :root {
-  --background: #fafafa;
+  --background: #fbf3f0;
   --surface: #ffffff;
   --surface-elevated: #f4f4f5; /* zinc-100 */
   --foreground: #18181b;       /* zinc-900 */
   --muted: #71717a;            /* zinc-500 */
   --hairline: rgba(0, 0, 0, 0.06);
 
-  --brand: #16a34a;            /* green-600 */
-  --brand-dark: #15803d;       /* green-700 */
+  --brand: #e8698a;
+  --brand-dark: #c94e70;
   --brand-amber: #d97706;
   --brand-danger: #dc2626;
 
@@ -34,8 +32,8 @@
     --muted: #a1a1aa;            /* zinc-400 */
     --hairline: rgba(255, 255, 255, 0.08);
 
-    --brand: #22c55e;            /* green-500 */
-    --brand-dark: #16a34a;
+    --brand: #e8698a;
+    --brand-dark: #c94e70;
     --brand-amber: #f59e0b;
     --brand-danger: #ef4444;
 

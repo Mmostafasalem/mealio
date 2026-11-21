@@ -50,145 +50,221 @@ enum FallbackData {
         )
     }
 
-    // MARK: - Meal plan (local generator)
+    // MARK: - Meal plan (built on the phone)
+    //
+    // One set of rules for every day of the week (and so for Today): breakfast is a
+    // grain, a fruit and a dairy food; lunch and dinner are a plate of half protein,
+    // a quarter carb and a quarter vegetables; the snack is a fruit and nuts. The
+    // day's calories are split by the person's `MealSplit`, and portions are scaled
+    // to each meal's share with believable caps. Foods come from the cart and My
+    // Stock first; a role nothing owned can fill takes a catalogue food, marked as
+    // missing so the person can add it.
 
     private struct StockFood {
         let name: String
         let category: String   // lowercased category key
         let kcal100: Int       // realistic kcal per 100g
         var allergens: [String] = []
+        /// In the cart or My Stock (not just suggested from the catalogue).
+        var owned = true
+        /// The catalogue item to add when it isn't owned.
+        var catalogId: String? = nil
+        /// The food record behind it (stock's own, or the cart's match), for macros and logging.
+        var nutrition: NutritionFood? = nil
+        /// The full name, for rules that need more than the short display name.
+        var key: String? = nil
+        /// The person put it in their cart or My Stock themselves (a legacy pantry list didn't),
+        /// so their own choice of meat is trusted under halal.
+        var chosen = false
 
         func isAllowed(by prefs: Set<DietaryPreference>) -> Bool {
-            prefs.allows(name: name, category: category, allergens: allergens)
+            prefs.allows(name: key ?? name, category: category, allergens: allergens, owned: chosen)
         }
     }
 
-    /// Builds a realistic offline 7-day plan. Composes balanced meals
-    /// (protein + carb + veg) from the user's in-stock foods at believable
-    /// serving sizes — not one giant single food. Calories 25/35/30/10.
-    ///
-    /// Every food (cart items and built-in defaults) is checked against the
-    /// user's diets and allergies; a conflicting food is substituted with a
-    /// safe alternative or left out, never shown.
+    /// The catalogue foods used when nothing owned fills a role, in order of preference.
+    private static func suggested(_ name: String, _ category: String, _ kcal: Int, _ id: String?) -> StockFood {
+        let record = id.flatMap { catalogNutrition($0) }
+        return StockFood(name: name, category: category, kcal100: record.map { max(Int($0.kcal.rounded()), 1) } ?? kcal,
+                         owned: false, catalogId: id, nutrition: record)
+    }
+
+    /// How many times the person asked for another plan. Each step pairs the foods
+    /// differently (a protein with another carb, other vegetables), so "Regenerate"
+    /// changes the plan even when the cart and stock haven't. Rebuilds keep it.
+    static let variationKey = "mealPlanVariation_v1"
+
     static func mealPlan(targetKcal: Int, pantry: [Deal] = [],
-                         preferences: Set<DietaryPreference> = .load()) -> WeeklyMealPlan {
+                         preferences: Set<DietaryPreference> = .load(), split: MealSplit? = nil,
+                         variation: Int? = nil) -> WeeklyMealPlan {
+        let split = split ?? .current
+        let s = max(0, variation ?? UserDefaults.standard.integer(forKey: variationKey))
         let kcal = max(targetKcal, 1200)
-        let (allStock, baseMessage) = resolveStock(pantry: pantry)
-        let stock = allStock.filter { $0.isAllowed(by: preferences) }
-        guard !stock.isEmpty else { return genericMealPlan(targetKcal: kcal, preferences: preferences) }
+        let stock = ownedFoods(pantry: pantry).filter { $0.isAllowed(by: preferences) }
 
-        // Group in-stock foods by culinary role.
-        let proteins = stock.filter { ["meat", "poultry", "seafood", "fish", "eggs", "legumes"].contains($0.category) }
-        let carbs    = stock.filter { ["grains", "pasta", "bread", "rice"].contains($0.category) }
-        let veg       = stock.filter { $0.category == "vegetables" }
-        let fruits   = stock.filter { ["fruit", "fruits"].contains($0.category) }
-        let dairy    = stock.filter { $0.category == "dairy" }
-        let nutsSnacks = stock.filter { ["nuts", "snacks", "seeds"].contains($0.category) }
+        func role(_ categories: [String]) -> [StockFood] { stock.filter { categories.contains($0.category) } }
+        let proteins = role(["meat", "poultry", "seafood", "fish", "eggs", "legumes"])
+        let carbs    = role(["grains", "pasta", "bread", "rice"])
+        let veg      = role(["vegetables"])
+        let fruits   = role(["fruit", "fruits"])
+        let dairy    = role(["dairy"])
+        let nuts     = role(["nuts"])
+        let grains   = carbs.filter { c in ["oat", "buckwheat", "muesli", "granola", "porridge"].contains(where: (c.key ?? c.name).lowercased().contains) }
 
-        // Only claim the plan is built around the stock when a stock item
-        // actually fills a meal (drinks, oils or sauces alone fill none).
-        let fillsAMeal = !(proteins + carbs + veg + fruits + dairy + nutsSnacks).isEmpty
-        var planMessage = fillsAMeal
-            ? baseMessage
-            : "Offline plan targeting \(kcal) kcal/day with standard foods — nothing in your list fits a meal yet."
-        if fillsAMeal && stock.count < allStock.count {
-            planMessage += " Items that conflict with your dietary preferences were left out."
+        /// Owned foods for a role, else the first suggestion the diet allows.
+        func pool(_ owned: [StockFood], _ suggestions: [StockFood]) -> [StockFood] {
+            if !owned.isEmpty { return owned }
+            return suggestions.first { $0.isAllowed(by: preferences) }.map { [$0] } ?? []
         }
+        let proteinPool = pool(proteins, [suggested("Chicken breast", "meat", 165, "chicken-breast"), suggested("Eggs", "eggs", 155, "free-range-eggs"),
+                                          suggested("Red lentils", "legumes", 116, "red-lentils"), suggested("Chickpeas", "legumes", 139, "chickpeas-canned")])
+        // Breakfast grains (oats, buckwheat) stay at breakfast; plates take the other carbs.
+        let plateCarbs = carbs.filter { c in !grains.contains { $0.name == c.name } }
+        let carbPool    = pool(plateCarbs, [suggested("Brown rice", "grains", 123, "brown-rice"), suggested("Potatoes", "vegetables", 87, "potato")])
+        let vegPool     = pool(veg, [suggested("Broccoli", "vegetables", 34, "broccoli"), suggested("Mixed vegetables", "vegetables", 42, "frozen-veg-mix")])
+        let fruitPool   = pool(fruits, [suggested("Banana", "fruits", 89, "banana"), suggested("Apple", "fruits", 52, "apple")])
+        let grainPool   = pool(grains, [suggested("Oats", "grains", 389, "oats"), suggested("Buckwheat", "grains", 343, "buckwheat")])
+        let dairyPool   = pool(dairy, [suggested("Greek yogurt", "dairy", 97, "greek-yogurt"), suggested("Kefir", "dairy", 52, "kefir"),
+                                       suggested("Oat milk", "dairy", 46, "oat-milk")])
+        let nutPool     = pool(nuts, [suggested("Almonds", "nuts", 579, "almonds"), suggested("Pumpkin seeds", "nuts", 559, "pumpkin-seeds")])
 
-        func firstSafe(_ options: [StockFood]) -> StockFood? {
-            options.first { $0.isAllowed(by: preferences) }
-        }
-        // Balanced defaults so meals stay realistic even if the cart is one-note.
-        // Each slot lists safe-for-more-diets alternatives after the usual pick.
-        let mixedVeg = StockFood(name: "Mixed vegetables", category: "vegetables", kcal100: 42)
-        let defCarb  = firstSafe(carbs + [StockFood(name: "Rice", category: "grains", kcal100: 130),
-                                          StockFood(name: "Potatoes", category: "vegetables", kcal100: 87)])
-        let defVeg   = firstSafe(veg) ?? mixedVeg
-        let defFruit = firstSafe(fruits + [StockFood(name: "Banana", category: "fruits", kcal100: 89),
-                                           StockFood(name: "Strawberries", category: "fruits", kcal100: 32)])
-        let grain    = firstSafe([StockFood(name: "Oats", category: "grains", kcal100: 389),
-                                  StockFood(name: "Buckwheat", category: "grains", kcal100: 343)])
-        let yogurt   = firstSafe(dairy + [StockFood(name: "Greek yogurt", category: "dairy", kcal100: 97),
-                                          StockFood(name: "Soy yogurt", category: "legumes", kcal100: 60),
-                                          StockFood(name: "Chia pudding", category: "seeds", kcal100: 120)])
-        let snackNut = firstSafe(nutsSnacks + [StockFood(name: "Almonds", category: "nuts", kcal100: 579),
-                                               StockFood(name: "Pumpkin seeds", category: "seeds", kcal100: 559)])
-        let defaultProteins = [StockFood(name: "Chicken breast", category: "meat", kcal100: 165),
-                               StockFood(name: "Baked cod", category: "fish", kcal100: 105),
-                               StockFood(name: "Eggs", category: "eggs", kcal100: 155),
-                               StockFood(name: "Tofu", category: "legumes", kcal100: 144),
-                               StockFood(name: "Lentils", category: "legumes", kcal100: 116)]
-        let safeProteins = proteins.isEmpty ? defaultProteins.filter { $0.isAllowed(by: preferences) } : proteins
-        func protein(_ i: Int) -> StockFood? {
-            safeProteins.isEmpty ? nil : safeProteins[i % safeProteins.count]
-        }
+        func at(_ list: [StockFood], _ i: Int) -> StockFood? { list.isEmpty ? nil : list[i % list.count] }
 
         typealias Component = (food: StockFood, base: Int, maxG: Int, label: String)
-        // Serving caps are sized for about 2,000 kcal a day and grow with
-        // higher targets, so a 3,000–4,000 kcal plan still reaches its target.
         let capScale = max(1, Double(kcal) / 2000)
-        // Compose a meal from components, nudging portions toward the calorie
-        // target but capping them so servings stay believable.
-        func compose(_ comps: [Component?], target: Int, name: (([StockFood]) -> String)? = nil) -> MealItem {
-            var comps = comps.compactMap { $0 }
-            if comps.isEmpty { comps = [(mixedVeg, 200, 300, "1 bowl")] }
+        func compose(_ comps: [Component?], target: Int, title: (([StockFood]) -> String)? = nil) -> MealItem? {
+            let comps = comps.compactMap { $0 }
+            guard target > 0, !comps.isEmpty else { return nil }
             let baseKcal = comps.reduce(0) { $0 + $1.base * $1.food.kcal100 / 100 }
             let factor = baseKcal > 0 ? Double(target) / Double(baseKcal) : 1
+            var caps = comps.map { Double($0.maxG) * capScale }
+            var grams = zip(comps, caps).map { c, cap in min(max(Double(c.base) * factor, 20), cap) }
+            func kcalNow() -> Double { zip(comps, grams).reduce(0) { $0 + $1.1 * Double($1.0.food.kcal100) / 100 } }
+            // Short of the target because something hit its cap: the rest of the plate takes
+            // up the difference; only if everything is capped do the caps give a little.
+            var relaxed = false
+            for _ in 0..<4 {
+                let deficit = Double(target) - kcalNow()
+                guard deficit > Double(target) * 0.03 else { break }
+                let open = comps.indices.filter { grams[$0] < caps[$0] - 0.5 }
+                if open.isEmpty {
+                    guard !relaxed else { break }
+                    caps = caps.map { $0 * 1.35 }
+                    relaxed = true
+                    continue
+                }
+                let openKcal = open.reduce(0.0) { $0 + grams[$1] * Double(comps[$1].food.kcal100) / 100 }
+                guard openKcal > 0 else { break }
+                for i in open { grams[i] = min(grams[i] * (1 + deficit / openKcal), caps[i]) }
+            }
             var total = 0
             var ings: [String] = []
-            for c in comps {
-                let g = min(max(Int(Double(c.base) * factor), 20), Int(Double(c.maxG) * capScale))
+            var records: [NutritionIngredient] = []
+            for (c, amount) in zip(comps, grams) {
+                let g = Int(amount)
                 total += g * c.food.kcal100 / 100
-                ings.append("\(c.food.name) · \(c.label) (\(g)g)")
+                // Grains and pulses planned from their dry record say so ("70 g dry" of rice is a plateful).
+                let dry = ["grains", "legumes"].contains(c.food.category) && c.food.kcal100 >= 250
+                ings.append("\(c.food.name) · \(c.label) (\(g)g\(dry ? " dry" : ""))")
+                if let food = c.food.nutrition { records.append(NutritionIngredient(food: food, amount: Double(g))) }
             }
             let foods = comps.map(\.food)
-            let title = name?(foods) ?? Self.title(foods)
-            return MealItem(pavadinimas: title, ingredientai: ings, kcal: total)
+            let missing = foods.filter { !$0.owned }
+            var item = MealItem(pavadinimas: title?(foods) ?? Self.title(foods), ingredientai: ings, kcal: total)
+            // Every food matched to a record: the meal shows its macros and can be logged in one go.
+            if records.count == comps.count {
+                item.nutritionIngredients = records
+                item.portions = records.map { PlannedPortion(foodID: $0.food.id, amount: $0.amount) }
+            }
+            if !missing.isEmpty {
+                item.missing = missing.map(\.name)
+                item.missingCatalogIds = missing.compactMap(\.catalogId)
+            }
+            return item
         }
-        func plate(_ p: StockFood?, carbBase: Int, carbMax: Int, target: Int) -> MealItem {
-            compose([
-                p.map { ($0, 170, 250, "½ plate") },
-                defCarb.map { ($0, carbBase, carbMax, "¼ plate") },
-                (defVeg, 120, 200, "¼ plate"),
-            ], target: target) { foods in
-                guard let first = foods.first else { return "Vegetables" }
-                let rest = foods.dropFirst().map { $0.name == defVeg.name ? "veg" : $0.name.lowercased() }
-                return rest.isEmpty ? first.name : "\(first.name) with \(rest.joined(separator: " & "))"
+
+        // Portions by what the food is: a plate takes far less dry rice than cooked, more raw
+        // chicken than dry lentils, and potatoes by the handful. (base grams, most grams)
+        func proteinSize(_ f: StockFood) -> (Int, Int) {
+            if f.kcal100 >= 300 { return (80, 130) }            // dry pulses
+            if f.category == "eggs" { return (150, 220) }       // three to four eggs
+            return f.kcal100 >= 200 ? (150, 250) : (180, 320)   // fattier cuts, then lean meat and fish
+        }
+        func carbSize(_ f: StockFood) -> (Int, Int) {
+            switch f.kcal100 {
+            case 300...: return (70, 110)      // dry rice, pasta, grains
+            case 200..<300: return (80, 140)   // bread
+            case 100..<200: return (150, 280)  // cooked grains
+            default: return (280, 420)         // potatoes
             }
         }
+        func grainSize(_ f: StockFood) -> (Int, Int) { f.kcal100 >= 300 ? (60, 100) : (150, 250) }
 
-        let bT = Int(Double(kcal) * 0.25)
-        let lT = Int(Double(kcal) * 0.35)
-        let dT = Int(Double(kcal) * 0.30)
-        let sT = kcal - bT - lT - dT
-
+        let t = split.targets(for: kcal)
         func day(_ i: Int) -> DayPlan {
             let breakfast = compose([
-                grain.map    { ($0, 60, 100, "1 bowl") },
-                defFruit.map { ($0, 120, 160, "1 piece") },
-                yogurt.map   { ($0, 150, 250, "½ cup") },
-            ], target: bT)
-            let lunch  = plate(protein(i),     carbBase: 150, carbMax: 250, target: lT)
-            let dinner = plate(protein(i + 1), carbBase: 130, carbMax: 220, target: dT)
+                at(grainPool, i + s).map { ($0, grainSize($0).0, grainSize($0).1, "1 bowl") },
+                at(fruitPool, i + 2 * s).map { ($0, 120, 160, "1 piece") },
+                at(dairyPool, i + 3 * s).map { ($0, 150, 250, "½ cup") },
+            ], target: t.breakfast)
+            func plate(_ offset: Int, carbShare: Int, target: Int) -> MealItem? {
+                let v = at(vegPool, i + offset + 3 * s)
+                return compose([
+                    at(proteinPool, i + offset + s).map { ($0, proteinSize($0).0, proteinSize($0).1, "½ plate") },
+                    at(carbPool, i + offset + 2 * s).map { ($0, carbSize($0).0 * carbShare / 100, carbSize($0).1, "¼ plate") },
+                    v.map { ($0, 120, 200, "¼ plate") },
+                ], target: target) { foods in
+                    guard let first = foods.first else { return "Vegetables" }
+                    let rest = foods.dropFirst().map { $0.name == v?.name ? "veg" : $0.name.lowercased() }
+                    return rest.isEmpty ? first.name : "\(first.name) with \(rest.joined(separator: " & "))"
+                }
+            }
+            let lunch = plate(0, carbShare: 100, target: t.lunch)
+            let dinner = plate(1, carbShare: 88, target: t.dinner)   // a slightly lighter carb in the evening
             let snack = compose([
-                defFruit.map { ($0, 120, 160, "1 piece") },
-                snackNut.map { ($0, 25, 40, "1 handful") },
-            ], target: sT)
-            let total = breakfast.kcal + lunch.kcal + dinner.kcal + snack.kcal
+                at(fruitPool, i + 1 + 2 * s).map { ($0, 120, 160, "1 piece") },
+                at(nutPool, i + s).map { ($0, 25, 40, "1 handful") },
+            ], target: t.snack)
+            let total = [breakfast, lunch, dinner, snack].compactMap { $0?.kcal }.reduce(0, +)
             return DayPlan(pusryciai: breakfast, pietus: lunch, vakariene: dinner, uzkandziai: snack, visoKcal: total)
         }
 
-        return WeeklyMealPlan(
-            agentMessage: planMessage,
-            pirmadienis:    day(0),
-            antradienis:    day(1),
-            treciadienis:   day(2),
-            ketvirtadienis: day(3),
-            pentadienis:    day(4),
-            sestadienis:    day(5),
-            sekmadienis:    day(6)
-        )
+        let days = (0..<7).map(day)
+        let missing = Set(days.flatMap { [$0.pusryciai, $0.pietus, $0.vakariene, $0.uzkandziai].compactMap { $0?.missing }.flatMap { $0 } })
+        // Only claim the cart when something in it actually fills a meal (oil or drinks alone don't).
+        let ownedInMeals = !(proteins + carbs + veg + fruits + dairy + nuts).isEmpty
+        let cartItems = ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1")
+        var message: String
+        if !ownedInMeals {
+            message = "Nothing in your cart or stock makes a meal yet, so this plan uses catalogue foods (\(kcal) kcal a day)."
+        } else if !cartItems.isEmpty {
+            let saved = UserDefaults.standard.double(forKey: "weeklyBudget")
+            message = cartMessage(itemCount: cartItems.count, total: cartItems.reduce(0) { $0 + $1.lineTotal },
+                                  budget: saved > 0 ? saved : 60)
+        } else {
+            message = "Plan built from your stock: \(kcal) kcal a day."
+        }
+        if ownedInMeals, !missing.isEmpty {
+            message += " Not in your cart or stock yet: \(missing.sorted().joined(separator: ", "))."
+        }
+        return WeeklyMealPlan(agentMessage: message,
+                              pirmadienis: days[0], antradienis: days[1], treciadienis: days[2], ketvirtadienis: days[3],
+                              pentadienis: days[4], sestadienis: days[5], sekmadienis: days[6])
     }
+
+    /// The food record for a catalogue item: the same match the cart uses for My Stock, so
+    /// "Review and log" finds it there. Nothing until the catalogue has been read.
+    private static func catalogNutrition(_ catalogId: String) -> NutritionFood? {
+        guard NutritionCatalogService.isLoaded else { return nil }
+        if let cached = recordCache[catalogId] { return cached }
+        let found: NutritionFood? = CatalogItem.all.first(where: { $0.id == catalogId })
+            .flatMap { CartStockLink.food(for: $0) }
+            .flatMap { $0.basis == .serving ? nil : $0 }
+        recordCache[catalogId] = .some(found)
+        return found
+    }
+    /// One search per catalogue item, not one per plan rebuild.
+    private static var recordCache: [String: NutritionFood?] = [:]
 
     /// "Oats, banana & greek yogurt" from the meal's component names.
     private static func title(_ foods: [StockFood]) -> String {
@@ -197,39 +273,108 @@ enum FallbackData {
         return names.dropLast().joined(separator: ", ") + " & " + names.last!
     }
 
-    // MARK: - Stock resolution
+    // MARK: - What the person has
 
-    private static func resolveStock(pantry: [Deal]) -> (stock: [StockFood], message: String) {
-        let items = ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1")
-        if !items.isEmpty {
-            let cart = cartPantry(items)
-            // Same default as ShoppingCartService when no budget was saved.
-            let saved = UserDefaults.standard.double(forKey: "weeklyBudget")
-            let budget = saved > 0 ? saved : 60
-            let total = items.reduce(0) { $0 + $1.lineTotal }
-            return (cart, cartMessage(itemCount: cart.count, total: total, budget: budget))
+    /// The cart, then My Stock (without the packs the cart itself put there), then any
+    /// pantry passed in. Each food once.
+    private static func ownedFoods(pantry: [Deal]) -> [StockFood] {
+        var foods: [StockFood] = []
+        var seen = Set<String>()
+        func add(_ f: StockFood) { if seen.insert(f.name.lowercased()).inserted { foods.append(f) } }
+        let links = UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]
+        let stockItems = StockStore.shared.items
+        for item in ResilientStorage.loadArray(CartItem.self, key: "shoppingCart_v1") {
+            guard let role = planRole(name: item.name, category: item.category.lowercased()) else { continue }
+            // The record My Stock holds for this cart line (so "Review and log" finds it), else the match.
+            let linked = links[item.catalogId].flatMap { id in stockItems.first { $0.id.uuidString == id }?.food }
+            let record = linked.flatMap { $0.basis == .serving ? nil : $0 } ?? catalogNutrition(item.catalogId)
+            let kcal = record.map { max(Int($0.kcal.rounded()), 1) } ?? itemKcal[item.catalogId] ?? categoryKcal[role] ?? 150
+            add(StockFood(name: item.name, category: role, kcal100: kcal, catalogId: item.catalogId, nutrition: record, key: item.name, chosen: true))
         }
-        let groceries = groceryPantry()
-        if !groceries.isEmpty {
-            return (groceries, "Offline plan built around your shopping list — \(groceries.count) items.")
+        let fromCart = Set(links.values)
+        var seenRecords = Set(foods.compactMap { $0.nutrition?.id })
+        for item in stockItems where !fromCart.contains(item.id.uuidString) && item.amount > 0 && !item.isExpired() {
+            guard seenRecords.insert(item.food.id).inserted, let food = stockFood(item.food) else { continue }
+            add(food)
         }
-        let deals = pantry.map {
-            StockFood(name: $0.name, category: $0.category.lowercased(), kcal100: max($0.kcalPer100g, 1),
-                      allergens: $0.allergens)
+        for deal in pantry {
+            add(StockFood(name: deal.name, category: deal.category.lowercased(), kcal100: max(deal.kcalPer100g, 1), allergens: deal.allergens))
         }
-        if !deals.isEmpty {
-            return (deals, "Offline plan built from this week's deals.")
-        }
-        return ([], "")
+        return foods
     }
 
-    /// Shop-tab cart (ShoppingCartService) read from disk, with real per-item
-    /// calories via the catalog id.
-    private static func cartPantry(_ items: [CartItem]) -> [StockFood] {
-        items.map { item in
-            let cat = item.category.lowercased()
-            let kcal = itemKcal[item.catalogId] ?? categoryKcal[cat] ?? 150
-            return StockFood(name: item.name, category: cat, kcal100: kcal)
+    /// A My Stock food as a plan food: a short name and its role.
+    private static func stockFood(_ food: NutritionFood) -> StockFood? {
+        guard let role = planRole(name: food.name, category: "") else { return nil }
+        // "Fish, salmon, Atlantic, raw" is Salmon, not Fish: group words give way to what follows.
+        let parts = food.name.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let groups: Set<String> = ["fish", "nuts", "seeds", "cheese", "cereals", "beans", "crustaceans", "mollusks", "squash",
+                                   "peppers", "spices", "beverages", "soup", "babyfood", "snacks", "nut"]
+        var short = parts.first ?? food.name
+        if parts.count > 1, groups.contains(short.lowercased()) {
+            let second = parts[1]
+            let lead = short.lowercased()
+            short = ["cheese", "squash", "beans", "peppers"].contains(lead) ? "\(second) \(lead)" : second
+        }
+        let kcal100 = food.basis == .grams ? max(Int(food.kcal.rounded()), 1) : (categoryKcal[role] ?? 150)
+        let display = short.prefix(1).uppercased() + short.dropFirst()
+        return StockFood(name: display, category: role, kcal100: kcal100, nutrition: food.basis == .serving ? nil : food, key: food.name, chosen: true)
+    }
+
+    /// The part of the plan a food can play, from whole words of its name (then its shop
+    /// category): "eggs" (protein), "seafood", "meat", "legumes", "dairy" (spoonable or
+    /// drinkable, for breakfast), "grains" (potatoes count as the plate's carb),
+    /// "fruits", "nuts" (nuts and seeds only), "vegetables". Fats, cheeses, sweets,
+    /// sauces and seasonings play no part (nil), so butter is never breakfast's "½ cup"
+    /// and an eggplant is never the protein.
+    static func planRole(name: String, category: String) -> String? {
+        let words = name.lowercased().folding(options: .diacriticInsensitive, locale: nil)
+            .components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
+        let set = Set(words)
+        func word(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w == $0 || w == $0 + "s" || w == $0 + "es" } } }
+        func prefix(_ keys: [String]) -> Bool { words.contains { w in keys.contains { w.hasPrefix($0) } } }
+        // Never a plan component, whatever the category says.
+        let excluded = ["onion", "onions", "shallot", "shallots", "chili", "chilli", "lemon", "lemons", "lime", "limes", "coconut",
+                        "croissant", "croissants", "crumbs", "broth", "paste", "puree", "coffee", "tea", "garlic", "ginger", "herb", "herbs", "seasoning", "cocoa", "butter", "ghee", "margarine", "cream", "oil", "sauce", "ketchup", "mayonnaise", "mayo", "dressing", "jam", "honey",
+                        "syrup", "sugar", "salt", "flour", "spice", "spices", "chips", "crisps", "chocolate", "candy", "cookie", "cookies",
+                        "biscuit", "biscuits", "cake", "doughnut", "donut", "nutella", "nutmeg", "peppermint", "graham", "crackers",
+                        "juice", "soda", "cola", "stock", "bouillon", "vinegar", "mustard", "gelatin", "yeast", "powder"]
+        let peanutButter = set.contains("peanut") && set.contains("butter")
+        if !peanutButter && words.contains(where: excluded.contains) && !set.contains("cottage") { return nil }
+        // Seasonings, drinks, sauces and baking goods by shop category play no part either.
+        if ["spices", "beverages", "condiments", "oils", "baking", "snacks"].contains(category) && !peanutButter && !word(["nut", "almond", "seed"]) { return nil }
+        // Ground pepper is a spice; bell and sweet peppers are vegetables.
+        if word(["pepper", "peppercorn"]) && !set.isDisjoint(with: ["black", "white", "cayenne", "ground", "peppercorn", "peppercorns"]) { return nil }
+        if set.contains("eggplant") || set.contains("aubergine") { return "vegetables" }
+        if word(["noodle"]) { return "grains" }      // egg noodles are pasta, not eggs
+        if word(["tomato"]) { return "vegetables" }  // cherry tomatoes aren't cherries
+        if word(["egg"]) { return "eggs" }
+        if word(["salmon", "tuna", "cod", "fish", "shrimp", "prawn", "trout", "mackerel", "herring", "sardine", "hake", "pollock", "tilapia", "bass", "seafood"]) { return "seafood" }
+        if word(["chicken", "turkey", "beef", "pork", "lamb", "ham", "veal", "duck", "steak", "mince", "sausage", "meatball"]) { return "meat" }
+        if word(["lentil", "chickpea", "tofu", "tempeh", "edamame"]) || (word(["bean"]) && !set.contains("green")) { return "legumes" }
+        if peanutButter || word(["almond", "walnut", "cashew", "peanut", "hazelnut", "pistachio", "pecan", "nut", "seed"]) && !set.contains("milk") { return "nuts" }
+        // Cheese is a topping here, not a breakfast bowl; cottage cheese and quark are.
+        if word(["yogurt", "yoghurt", "kefir", "milk", "quark", "skyr", "curd", "cottage", "buttermilk"]) { return "dairy" }
+        if set.contains("cheese") || word(["feta", "mozzarella", "cheddar", "parmesan", "gouda", "edam", "brie"]) { return nil }
+        if word(["potato", "yam"]) { return "grains" }
+        if prefix(["oat"]) || word(["rice", "pasta", "spaghetti", "penne", "fusilli", "bread", "buckwheat", "quinoa", "couscous", "noodle",
+                                    "bulgur", "barley", "millet", "rigatoni", "tagliatelle", "macaroni", "tortilla", "wrap", "bagel", "granola", "muesli"]) { return "grains" }
+        if prefix(["berr"]) || word(["apple", "banana", "berry", "orange", "pear", "grape", "kiwi", "mango", "peach", "plum", "melon",
+                                    "cherry", "cherrie", "apricot", "pineapple", "strawberr", "raspberr", "blueberr", "lemon", "lime", "fig", "date"]) { return "fruits" }
+        if word(["broccoli", "spinach", "carrot", "tomato", "cucumber", "pepper", "zucchini", "courgette", "cabbage", "onion", "lettuce", "kale",
+                 "cauliflower", "pea", "beet", "beetroot", "mushroom", "squash", "vegetable", "veg", "asparagus", "celery", "leek", "radish", "salad"])
+            || (set.contains("green") && word(["bean"])) { return "vegetables" }
+        // Nothing in the name: trust the shop's category for the clear cases only.
+        switch category {
+        case "meat", "poultry": return "meat"
+        case "seafood", "fish": return "seafood"
+        case "eggs": return "eggs"
+        case "legumes": return "legumes"
+        case "vegetables": return "vegetables"
+        case "fruits", "fruit": return "fruits"
+        case "nuts": return "nuts"
+        case "grains", "pasta", "bread": return "grains"
+        default: return nil
         }
     }
 
@@ -244,20 +389,7 @@ enum FallbackData {
         } else {
             budgetNote = String(format: " (€%.2f, €%.2f over your €%.2f budget)", total, total - budget, budget)
         }
-        return "Offline plan built around your cart — \(items)\(budgetNote)."
-    }
-
-    private static func groceryPantry() -> [StockFood] {
-        GroceryStorage.load().map { item in
-            if let f = Food.catalog.first(where: {
-                $0.id == item.foodId
-                || "\($0.backendId ?? -1)" == item.foodId
-                || $0.nameEn.lowercased() == item.foodName.lowercased()
-            }) {
-                return StockFood(name: f.nameEn, category: f.category.rawValue.lowercased(), kcal100: max(f.caloriesPer100g, 1))
-            }
-            return StockFood(name: item.foodName, category: "other", kcal100: 150)
-        }
+        return "Plan built around your cart — \(items)\(budgetNote)."
     }
 
     // MARK: - Nutrition tables
@@ -279,7 +411,7 @@ enum FallbackData {
         // Carbs / grains
         "white-rice": 130, "brown-rice": 123, "basmati-rice": 130, "potato": 87,
         "sweet-potato": 90, "spaghetti": 158, "penne": 158, "fusilli": 158,
-        "oats": 389, "instant-oats": 389, "buckwheat": 92, "quinoa": 120, "couscous": 112,
+        "oats": 389, "instant-oats": 389, "buckwheat": 343, "quinoa": 120, "couscous": 112,
         // Bread
         "whole-grain-bread": 247, "rye-bread": 259, "white-bread": 265, "sourdough-bread": 250,
         // Veg
@@ -300,69 +432,10 @@ enum FallbackData {
     private static let categoryKcal: [String: Int] = [
         "meat": 200, "poultry": 170, "fish": 130, "seafood": 110, "dairy": 90,
         "eggs": 155, "bread": 260, "bakery": 300, "vegetables": 35, "fruits": 55,
-        "fruit": 55, "grains": 360, "pasta": 360, "legumes": 130, "snacks": 450,
+        "fruit": 55, "grains": 130, "pasta": 158, "legumes": 130, "snacks": 450,
         "nuts": 600, "beverages": 40, "frozen": 120, "oils": 880, "condiments": 150,
         "canned": 90, "spices": 100, "baking": 380,
     ]
 
-    /// 7 balanced template days — used when no groceries are logged yet.
-    /// A template meal that conflicts with the user's diets/allergies is
-    /// replaced by the next safe alternative for that slot.
-    private static func genericMealPlan(targetKcal: Int, preferences: Set<DietaryPreference>) -> WeeklyMealPlan {
-        let kcal = max(targetKcal, 1200)
-        let b = Int(Double(kcal) * 0.25)
-        let l = Int(Double(kcal) * 0.35)
-        let d = Int(Double(kcal) * 0.30)
-        let s = kcal - b - l - d
 
-        // (breakfast, lunch, dinner, snack)
-        let days: [(String, String, String, String)] = [
-            ("Oatmeal with banana",     "Chicken breast with rice",  "Salmon with vegetables",     "Greek yogurt"),
-            ("Scrambled eggs on toast", "Tuna salad wrap",           "Beef stir-fry with noodles", "Cottage cheese"),
-            ("Greek yogurt & berries",  "Lentil soup",               "Baked cod with broccoli",    "Handful of almonds"),
-            ("Protein pancakes",        "Turkey & rice bowl",        "Pork tenderloin & potatoes", "Banana"),
-            ("Avocado toast with eggs", "Chicken Caesar salad",      "Pasta with tomato sauce",    "Oats with milk"),
-            ("Cottage cheese & fruit",  "Salmon rice bowl",          "Beef burger (no bun)",       "Apple & peanut butter"),
-            ("Muesli with milk",        "Vegetable omelette",        "Roast chicken & veggies",    "Mixed nuts"),
-        ]
-        // Substitutes in rough order of how many diets they suit. The last
-        // entry in each list conflicts with no DietaryPreference case.
-        let alternatives: [[String]] = [
-            ["Tofu scramble with spinach", "Buckwheat porridge with berries", "Chia pudding with berries",
-             "Avocado, tomato & cucumber plate"],
-            ["Chickpea & vegetable stew", "Quinoa & roasted vegetable bowl", "Baked cod with green beans",
-             "Mixed vegetable salad with olive oil"],
-            ["Vegetable curry with rice", "Stuffed peppers with rice", "Grilled salmon with broccoli",
-             "Roasted vegetables with olive oil"],
-            ["Apple", "Hummus & carrot sticks", "Strawberries", "Cucumber & carrot sticks"],
-        ]
-        func safe(_ name: String) -> Bool { preferences.allows(name: name) }
-        func pick(_ name: String, slot: Int, day: Int) -> String {
-            if safe(name) { return name }
-            let options = alternatives[slot].filter(safe)
-            return options.isEmpty ? alternatives[slot].last! : options[day % options.count]
-        }
-
-        func meal(_ name: String, _ c: Int) -> MealItem {
-            MealItem(pavadinimas: name, ingredientai: [], kcal: c)
-        }
-        func day(_ i: Int) -> DayPlan {
-            let t = days[i]
-            return DayPlan(pusryciai: meal(pick(t.0, slot: 0, day: i), b), pietus: meal(pick(t.1, slot: 1, day: i), l),
-                           vakariene: meal(pick(t.2, slot: 2, day: i), d), uzkandziai: meal(pick(t.3, slot: 3, day: i), s),
-                           visoKcal: kcal)
-        }
-
-        let note = preferences.isEmpty ? "" : " Meals follow your dietary preferences."
-        return WeeklyMealPlan(
-            agentMessage: "Offline plan targeting \(kcal) kcal/day.\(note) Connect to get AI-personalised plans.",
-            pirmadienis:  day(0),
-            antradienis:  day(1),
-            treciadienis: day(2),
-            ketvirtadienis: day(3),
-            pentadienis:  day(4),
-            sestadienis:  day(5),
-            sekmadienis:  day(6)
-        )
-    }
 }

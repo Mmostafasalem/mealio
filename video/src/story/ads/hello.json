@@ -1,0 +1,191 @@
+{
+ "id": "hello",
+ "dur": 16.6,
+ "bpm": 100,
+ "music": {
+  "style": "song",
+  "bars": [
+   "Fmaj7",
+   "Am7",
+   "Dm9",
+   "Bbmaj7",
+   "Csus",
+   "Fmaj7",
+   "Am7",
+   "Bbmaj7",
+   "Fadd9"
+  ],
+  "drumsFrom": 2,
+  "drumsTo": 8
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "none"
+  },
+  {
+   "kind": "end",
+   "at": 14.0,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 1460,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 0.2,
+   "x": 1460,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 1.6,
+   "x": 540,
+   "y": 1250,
+   "size": 760,
+   "move": "walk"
+  }
+ ],
+ "rig": [
+  [
+   1.7,
+   "mood happy"
+  ],
+  [
+   1.7,
+   "wave"
+  ],
+  [
+   1.8,
+   "mood happy"
+  ],
+  [
+   3.8,
+   "mood thinking"
+  ],
+  [
+   3.8,
+   "look -0.6 -0.8"
+  ],
+  [
+   5.3,
+   "look none"
+  ],
+  [
+   5.8,
+   "mood love"
+  ],
+  [
+   7.8,
+   "mood happy"
+  ],
+  [
+   9.8,
+   "mood flex"
+  ],
+  [
+   10.4,
+   "resize 0.9"
+  ],
+  [
+   11.8,
+   "mood cheeky"
+  ],
+  [
+   13.8,
+   "mood love"
+  ]
+ ],
+ "sfx": [
+  [
+   1.8,
+   "pop"
+  ],
+  [
+   3.8,
+   "pop"
+  ],
+  [
+   5.8,
+   "pop"
+  ],
+  [
+   7.8,
+   "pop"
+  ],
+  [
+   9.8,
+   "pop"
+  ],
+  [
+   11.8,
+   "pop"
+  ]
+ ],
+ "theme": "white",
+ "overlays": [
+  {
+   "kind": "float",
+   "at": 0,
+   "items": [
+    "🍓",
+    "🥑",
+    "🍌",
+    "🥦",
+    "🍳",
+    "🫐",
+    "🥕",
+    "🍎",
+    "🥛",
+    "🍚"
+   ]
+  },
+  {
+   "kind": "bubble",
+   "at": 1.8,
+   "until": 3.5,
+   "text": "Hi! I'm Nourlo 👋",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 3.8,
+   "until": 5.5,
+   "text": "I plan your meals",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 5.8,
+   "until": 7.5,
+   "text": "I fit your groceries to your budget",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 7.8,
+   "until": 9.5,
+   "text": "I count every calorie",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 9.8,
+   "until": 11.5,
+   "text": "I even lift 💪",
+   "side": "left"
+  },
+  {
+   "kind": "bubble",
+   "at": 11.8,
+   "until": 13.5,
+   "text": "Download me?",
+   "side": "right"
+  }
+ ]
+}

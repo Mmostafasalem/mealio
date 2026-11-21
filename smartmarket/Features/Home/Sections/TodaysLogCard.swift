@@ -4,14 +4,16 @@ import SwiftUI
 struct TodaysLogCard: View {
     let vm: HomeViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Asked before removing, so a stray tap on the minus doesn't erase a meal.
+    @State private var pendingDelete: FoodLogEntry?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack(spacing: Spacing.md) {
                 // Title on one line, the remaining calories under it.
                 VStack(alignment: .leading, spacing: 2) {
-                    HomeCardTitle(title: "Today's Log", symbol: "list.bullet.clipboard.fill")
-                    Text("\(vm.remaining) kcal left")
+                    HomeCardTitle(title: "Today's log", symbol: "list.bullet.clipboard.fill")
+                    Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")" as String)
                         .font(.footnote.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(Color.labelSecondary)
@@ -31,7 +33,7 @@ struct TodaysLogCard: View {
                     slot: slot,
                     entries: vm.entries(for: slot),
                     onAdd: { vm.openLog(slot: slot) },
-                    onDelete: { vm.removeLog($0) }
+                    onDelete: { pendingDelete = $0 }
                 )
                 if idx < MealSlot.allCases.count - 1 {
                     Divider().padding(.leading, HomeGrid.textInset)
@@ -41,6 +43,14 @@ struct TodaysLogCard: View {
         .padding(Spacing.lg)
         .premiumCard()
         .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
+        .confirmationDialog("Remove \(pendingDelete?.name ?? "this food") from today?",
+                            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible, presenting: pendingDelete) { entry in
+            Button("Remove", role: .destructive) { vm.removeLog(entry); pendingDelete = nil }
+            Button("Keep it", role: .cancel) { pendingDelete = nil }
+        } message: { entry in
+            Text("\(entry.calories) kcal come off today's total." as String)
+        }
     }
 
     /// Goo menu bubbles, one per meal slot (ids are `MealSlot` raw values).
@@ -61,6 +71,13 @@ struct MealSlotRow: View {
 
     private var kcal: Int { entries.reduce(0) { $0 + $1.calories } }
 
+    /// "150 g", "0.25 serving", "2 servings".
+    static func amountText(_ entry: FoodLogEntry) -> String {
+        let number = entry.amount.formatted(.number.precision(.fractionLength(0...2)))
+        guard entry.amountUnit == "serving" else { return "\(number) \(entry.amountUnit)" }
+        return "\(number) \(entry.amount > 1 ? "servings" : "serving")"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(spacing: HomeGrid.gap) {
@@ -73,7 +90,7 @@ struct MealSlotRow: View {
                 Text(slot.title).font(.subheadline).fontWeight(.semibold)
                 Spacer()
                 if kcal > 0 {
-                    Text("\(kcal) kcal")
+                    Text("\(kcal) kcal" as String)
                         .font(.footnote).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary).monospacedDigit()
                         .contentTransition(.numericText())
@@ -87,7 +104,7 @@ struct MealSlotRow: View {
                 // 44pt target, with the glyph on the card's right edge.
                 .frame(width: 44, height: 44, alignment: .trailing)
                 .contentShape(Rectangle())
-                .accessibilityLabel("Add to \(slot.title)")
+                .accessibilityLabel("Add to \(slot.title)" as String)
             }
 
             ForEach(entries) { entry in
@@ -98,12 +115,13 @@ struct MealSlotRow: View {
                         // Name only: where the numbers come from is shown in the food's own detail view.
                         Text(entry.name).font(.caption).foregroundStyle(Color.labelPrimary).lineLimit(2)
                         Spacer()
-                        Text("\(entry.amount.formatted(.number.precision(.fractionLength(0...1)))) \(entry.amountUnit)").font(.caption2).foregroundStyle(Color.labelSecondary)
-                        Text("\(entry.calories)")
+                        Text(Self.amountText(entry)).font(.caption2).foregroundStyle(Color.labelSecondary)
+                        Text("\(entry.calories) kcal" as String)
                             .font(.caption2).fontWeight(.semibold)
                             .foregroundStyle(Color.labelSecondary).monospacedDigit()
                     }
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(entry.name), \(Self.amountText(entry)), \(entry.calories) kilocalories")
                     Button { onDelete(entry) } label: {
                         Image(systemName: "minus.circle.fill")
                             .font(.system(size: 16))
@@ -112,7 +130,7 @@ struct MealSlotRow: View {
                     .buttonStyle(.plain)
                     .frame(width: 44, height: 44, alignment: .trailing)
                     .contentShape(Rectangle())
-                    .accessibilityLabel("Remove \(entry.name)")
+                    .accessibilityLabel("Remove \(entry.name)" as String)
                 }
                 .padding(.leading, HomeGrid.textInset)
             }

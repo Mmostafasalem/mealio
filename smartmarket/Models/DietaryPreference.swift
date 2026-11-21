@@ -72,39 +72,56 @@ extension DietaryPreference {
     /// Conservative keyword match over a food's name, category and allergen
     /// tags. False positives are acceptable; a missed conflict is not, so
     /// anything ambiguous (e.g. a "snacks" category for nut allergy) counts.
-    func conflicts(name: String, category: String = "", allergens: [String] = []) -> Bool {
+    /// `owned`: the food is the person's own (cart or stock), so their choice of meat is trusted.
+    func conflicts(name: String, category: String = "", allergens: [String] = [], owned: Bool = false) -> Bool {
         let text = ([name, category] + allergens).joined(separator: " ").lowercased()
         let cat = category.lowercased()
-        func has(_ words: [String]) -> Bool { words.contains { text.contains($0) } }
+        // Allergies match anywhere in the text (a false alarm is fine, a miss is not).
+        func anywhere(_ words: [String]) -> Bool { words.contains { text.contains($0) } }
+        // Diets match whole words, so buckwheat isn't wheat, eggplant isn't egg, a pear isn't a pea.
+        let tokens = text.components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty }
+        let stems: Set<String> = ["berr", "strawberr", "raspberr", "blackberr", "anchov"]
+        func has(_ words: [String]) -> Bool {
+            words.contains { k in
+                if k.contains(" ") || k.contains("-") { return text.contains(k) }
+                return tokens.contains { t in stems.contains(k) ? t.hasPrefix(k) : (t == k || t == k + "s" || t == k + "es") }
+            }
+        }
+        let greenBeans = tokens.contains("green") && (tokens.contains("beans") || tokens.contains("bean"))
         typealias K = DietaryPreference.Keywords
+        // Plant milks (oat, almond, soy…) are sold next to dairy but contain none.
+        let plantMilk = has(["oat milk", "almond milk", "soy milk", "soya milk", "rice milk", "coconut milk", "oat drink", "plant-based"])
         switch self {
         case .nutAllergy:
-            return has(K.nuts) || ["nuts", "snacks", "bakery"].contains(cat)
+            return anywhere(K.nuts) || ["nuts", "snacks", "bakery"].contains(cat)
         case .shellfishAllergy:
-            return has(K.shellfish) || cat == "seafood"
+            return anywhere(K.shellfish) || cat == "seafood"
         case .glutenFree:
             if has(["gluten-free", "gluten free"]) { return false }
             return has(K.gluten) || ["bread", "bakery", "pasta", "baking"].contains(cat)
                 || (cat == "grains" && !has(K.glutenFreeGrains))
         case .lactoseFree:
-            if has(["lactose-free", "lactose free"]) { return false }
+            if has(["lactose-free", "lactose free"]) || plantMilk { return false }
             return has(K.dairy) || cat == "dairy"
         case .vegetarian:
             return has(K.meat + K.pork + K.fish + K.shellfish + ["gelatin"])
                 || ["meat", "poultry", "fish", "seafood"].contains(cat)
         case .vegan:
-            return DietaryPreference.vegetarian.conflicts(name: name, category: category, allergens: allergens)
-                || has(K.dairy + K.eggs + ["honey"]) || ["dairy", "eggs", "bakery"].contains(cat)
+            if DietaryPreference.vegetarian.conflicts(name: name, category: category, allergens: allergens) { return true }
+            if plantMilk { return has(K.eggs + ["honey"]) }
+            return has(K.dairy + K.eggs + ["honey"]) || ["dairy", "eggs", "bakery"].contains(cat)
         case .keto:
-            return has(K.highCarb + K.gluten)
+            return (has(K.highCarb + K.gluten) && !greenBeans)
                 || ["grains", "pasta", "bread", "bakery", "rice", "legumes", "baking"].contains(cat)
                 || (["fruit", "fruits"].contains(cat) && !has(K.ketoFruit))
         case .paleo:
-            return has(K.gluten + K.glutenFreeGrains + K.legumes + K.dairy)
+            return (has(K.gluten + K.glutenFreeGrains + K.legumes + K.dairy) && !(greenBeans && !has(K.gluten + K.dairy)))
                 || ["grains", "pasta", "bread", "bakery", "rice", "legumes", "dairy", "baking"].contains(cat)
         case .halal:
             // Pork and alcohol are never halal; other meat is only safe when labelled.
             if has(K.pork + K.alcohol + ["gelatin"]) { return true }
+            // Unlabelled meat isn't suggested; meat the person bought themselves is their call.
+            if owned || ["seafood", "fish"].contains(cat) { return false }
             return (has(K.meat) || ["meat", "poultry"].contains(cat)) && !text.contains("halal")
         case .noPork:
             return has(K.pork + ["gelatin"])
@@ -127,7 +144,7 @@ extension DietaryPreference {
                             "caesar", "pancake", "latte"]
         static let eggs = ["egg", "omelette", "omelet", "mayonnaise", "pancake", "caesar"]
         static let gluten = ["gluten", "bread", "toast", "pasta", "spaghetti", "penne", "fusilli", "noodle",
-                             "wheat", "rye", "barley", "couscous", "oat", "muesli", "granola", "wrap",
+                             "wheat", "rye", "barley", "couscous", "oat", "oatmeal", "muesli", "granola", "wrap",
                              "pancake", "bun", "burger", "flour", "bulgur", "seitan", "cracker",
                              "biscuit", "cereal", "croissant", "pizza", "spelt", "semolina"]
         static let glutenFreeGrains = ["rice", "buckwheat", "quinoa", "corn", "millet", "amaranth", "potato"]
@@ -143,7 +160,7 @@ extension DietaryPreference {
 
 extension Set where Element == DietaryPreference {
     /// True when no selected diet or allergy conflicts with the food.
-    func allows(name: String, category: String = "", allergens: [String] = []) -> Bool {
-        !contains { $0.conflicts(name: name, category: category, allergens: allergens) }
+    func allows(name: String, category: String = "", allergens: [String] = [], owned: Bool = false) -> Bool {
+        !contains { $0.conflicts(name: name, category: category, allergens: allergens, owned: owned) }
     }
 }

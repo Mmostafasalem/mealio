@@ -18,13 +18,14 @@ struct StoreBrowserView: View {
                     budgetCard
                     // Inline under the card, so it never covers the Edit button.
                     TipView(budgetTip, arrowEdge: .top)
+                    WeeklyGroceryCard()
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
                 }
                 .padding(.horizontal, Spacing.lg)
                 .padding(.top, Spacing.sm)
                 .padding(.bottom, Spacing.xxl)
-                .animation(.snappyValue, value: cart.itemCount)
+                .animation(reduceMotion ? nil : .snappyValue, value: cart.itemCount)
             }
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Shop")
@@ -54,7 +55,7 @@ struct StoreBrowserView: View {
                 : AnyLayout(HStackLayout())
             headerLayout {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Weekly Budget")
+                    Text("Weekly budget")
                         .font(.subheadline).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary)
                     let amountsLayout = dynamicTypeSize.isAccessibilitySize
@@ -87,6 +88,9 @@ struct StoreBrowserView: View {
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(Color.brandLight, in: Capsule())
                         .foregroundStyle(Color.brandPrimary)
+                        // The pill stays small; the tap area is 44 pt.
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
             }
 
@@ -95,7 +99,8 @@ struct StoreBrowserView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemFill)).frame(height: 8)
                     Capsule()
-                        .fill(Color.dullPink)
+                        // Red from 90% of the budget, as the budget sheet says.
+                        .fill(cart.budgetFraction >= 0.9 ? Color.brandDanger : Color.dullPink)
                         .frame(width: geo.size.width * cart.budgetFraction, height: 8)
                         .animation(reduceMotion ? .none : .snappyValue, value: cart.budgetFraction)
                 }
@@ -107,7 +112,7 @@ struct StoreBrowserView: View {
 
             HStack {
                 Spacer()
-                Text("\(String(format: "€%.2f", max(cart.budgetRemaining, 0))) left")
+                Text(cart.budgetRemaining < 0 ? "\(String(format: "€%.2f", -cart.budgetRemaining)) over" : "\(String(format: "€%.2f", cart.budgetRemaining)) left")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
@@ -131,7 +136,7 @@ struct StoreBrowserView: View {
             NavigationLink {
                 StockView()
             } label: {
-                ShopLinkCard(symbol: "cabinet.fill", title: "My stock",
+                ShopLinkCard(symbol: "cabinet.fill", title: "My Stock",
                              detail: "Food you have at home · add your own")
             }
             .buttonStyle(.plain)
@@ -147,8 +152,14 @@ struct StoreBrowserView: View {
                 Text("In Cart")
                     .font(.headline)
                 Spacer()
-                NavigationLink("View all", destination: CartView())
-                    .font(.subheadline).foregroundStyle(Color.brandPrimary)
+                NavigationLink {
+                    CartView()
+                } label: {
+                    Text("View all")
+                        .font(.subheadline).foregroundStyle(Color.brandPrimary)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
             }
 
             ForEach(cart.cartItems.prefix(3)) { item in
@@ -163,7 +174,7 @@ struct StoreBrowserView: View {
                         )
                     Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
                     Spacer()
-                    Text("×\(item.quantity)")
+                    Text("×\(item.quantity)" as String)
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                     Text(String(format: "€%.2f", item.lineTotal))
                         .font(.subheadline).fontWeight(.semibold).monospacedDigit()
@@ -171,7 +182,7 @@ struct StoreBrowserView: View {
             }
 
             if cart.cartItems.count > 3 {
-                Text("+ \(cart.cartItems.count - 3) more items")
+                Text("+ \(cart.cartItems.count - 3) more items" as String)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
@@ -221,11 +232,11 @@ struct StoreBrowserView: View {
                     }
                 }
                 Section {
-                    Text("We'll warn you as you approach your limit while shopping.")
+                    Text("The budget bar fills as your cart grows and turns red once you have used 90% of the budget. Under it you see how much is left.")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
             }
-            .navigationTitle("Set Budget")
+            .navigationTitle("Set budget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -262,9 +273,9 @@ private struct ShopLinkCard: View {
         HStack(spacing: Spacing.md) {
             Image(systemName: symbol)
                 .font(.title3)
-                .foregroundStyle(Color.almond)
+                .foregroundStyle(Color.labelPrimary)
                 .frame(width: 44, height: 44)
-                .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.chip))
+                .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(title).font(.headline).foregroundStyle(Color.labelPrimary)
@@ -294,7 +305,7 @@ struct CartBadge: View {
                 .font(.system(size: 18))
                 .foregroundStyle(Color.brandPrimary)
             if count > 0 {
-                Text("\(min(count, 99))")
+                Text("\(min(count, 99))" as String)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.onAccent)
                     .padding(3)
@@ -337,9 +348,11 @@ struct CartView: View {
                             Text(String(format: "€%.2f", cart.total)).fontWeight(.semibold).monospacedDigit()
                         }
                         HStack {
-                            Text("Budget remaining")
+                            Text(cart.budgetRemaining < 0 ? "Over budget" : "Budget remaining")
                             Spacer()
-                            Text(String(format: "€%.2f", max(cart.budgetRemaining, 0)))
+                            Text(cart.budgetRemaining < 0
+                                 ? String(format: "€%.2f over budget", -cart.budgetRemaining)
+                                 : String(format: "€%.2f", cart.budgetRemaining))
                                 .foregroundStyle(cart.budgetColor).monospacedDigit()
                         }
                     }
@@ -394,7 +407,8 @@ private struct CartItemRow: View {
                             onRemove: { cart.remove(item.catalogId, store: item.store) })
             Text(String(format: "€%.2f", item.lineTotal))
                 .font(.subheadline).fontWeight(.semibold).monospacedDigit()
-                .frame(width: 52, alignment: .trailing)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 }

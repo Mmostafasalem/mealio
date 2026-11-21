@@ -95,14 +95,14 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
             }
             .frame(height: 4)
 
-            Text("\(step.number) / \(OnboardingStep.total)")
+            Text("\(step.number) / \(OnboardingStep.total)" as String)
                 .font(.footnote.weight(.medium))
                 .monospacedDigit()
                 .foregroundStyle(Color.labelSecondary)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Setup progress")
-        .accessibilityValue("Step \(step.number) of \(OnboardingStep.total)")
+        .accessibilityValue("Step \(step.number) of \(OnboardingStep.total)" as String)
     }
 }
 
@@ -126,7 +126,7 @@ struct OnboardingNextButton: View {
 
 // MARK: - Option row
 
-/// A single-choice card: icon tile, title, optional detail and a radio mark.
+/// A single-choice card: icon tile, title and optional detail. The outline alone shows the choice.
 struct OnboardingOptionRow: View {
     let symbol: String
     let title: String
@@ -144,7 +144,7 @@ struct OnboardingOptionRow: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundStyle(Color.labelPrimary)
                     .frame(width: 44, height: 44)
-                    .background(isSelected ? Color.brandLight : Color.surfaceSecondary,
+                    .background(Color.surfaceSecondary,
                                 in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -155,6 +155,8 @@ struct OnboardingOptionRow: View {
                         Text(subtitle)
                             .font(.footnote)
                             .foregroundStyle(Color.labelSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                 }
                 .multilineTextAlignment(.leading)
@@ -166,13 +168,9 @@ struct OnboardingOptionRow: View {
                         .font(.footnote.weight(.medium))
                         .monospacedDigit()
                         .foregroundStyle(Color.labelSecondary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
                 }
-
-                ZStack {
-                    Circle().strokeBorder(isSelected ? Color.progress : Color.labelTertiary, lineWidth: 1.5)
-                    Circle().fill(Color.progress).padding(5).scaleEffect(isSelected ? 1 : 0.01).opacity(isSelected ? 1 : 0)
-                }
-                .frame(width: 24, height: 24)
             }
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.md)
@@ -180,7 +178,7 @@ struct OnboardingOptionRow: View {
             .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-                    .strokeBorder(isSelected ? Color.progress : Color.hairline, lineWidth: isSelected ? 1.5 : 1)
+                    .strokeBorder(isSelected ? Color.progress : Color.hairline, lineWidth: isSelected ? 2 : 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         }

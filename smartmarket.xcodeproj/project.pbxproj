@@ -320,11 +320,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+				INFOPLIST_KEY_CFBundleName = Nourlo;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food, and to read a photo of your meal when you ask it to.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -364,11 +365,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+				INFOPLIST_KEY_CFBundleName = Nourlo;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food, and to read a photo of your meal when you ask it to.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;

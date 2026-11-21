@@ -25,23 +25,10 @@ final class TrainViewModel {
         guard !isGenerating else { return }
         isGenerating = true
         defer { isGenerating = false }
-        let profile = AppState.shared.userProfile
-        let request = WorkoutRequest(kind: kind, level: level, minutes: Int(minutes), focus: focus,
-                                     wishes: wishes, profile: profile)
-        do {
-            generated = try await APIService.shared.generateWorkout(request)
-            localReason = nil
-        } catch {
-            let hadWishes = !request.request.isEmpty
-            if case APIError.aiConsentRequired = error {
-                localReason = "Built on your phone. Turn on online AI in Profile to have sessions written around your request."
-            } else {
-                localReason = "Online AI wasn't available, so this was built on your phone."
-                    + (hadWishes ? " Your note wasn't used." : "")
-            }
-            generated = WorkoutBuilder.build(kind: kind, level: level, minutes: Int(minutes),
-                                             focus: focus, goal: profile.weightGoal)
-        }
+        // Built on the phone from the catalogue (online AI is only for chat and recipes).
+        localReason = nil
+        generated = WorkoutBuilder.build(kind: kind, level: level, minutes: Int(minutes),
+                                         focus: focus, goal: AppState.shared.userProfile.weightGoal)
     }
 }
 
@@ -49,18 +36,36 @@ struct TrainView: View {
 
     @State private var vm = TrainViewModel()
     @State private var store = WorkoutStore.shared
-    @FocusState private var wishesFocused: Bool
     @State private var showLibrary = false
     @State private var guide: ExerciseGuide?
+    @State private var building = false
+    @State private var editingWorkout: Workout?
+    /// Workout mode reopened for a workout still running (after the app was closed).
+    @State private var resumed: WorkoutModeModel?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
+                    if let running = WorkoutSession.shared.workout, WorkoutSession.shared.state != nil {
+                        Button { resumed = WorkoutModeModel(workout: running) } label: {
+                            TrainLinkRow(symbol: "figure.run", title: "Workout in progress",
+                                         detail: "\(running.title) · tap to continue")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("train.resume")
+                    }
                     weekCard
                     builderCard
-                    if !store.saved.isEmpty { savedSection }
+                    savedSection
                     exerciseBrowser
+                    NavigationLink { TrainingProgressView() } label: {
+                        TrainLinkRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
+                                     detail: progressDetail)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("train.progress")
                     if !store.completed.isEmpty {
                         NavigationLink { WorkoutHistoryView() } label: {
                             TrainLinkRow(symbol: "clock.fill", title: "History",
@@ -79,6 +84,11 @@ struct TrainView: View {
             .navigationBarTitleDisplayMode(.large)
             .navigationDestination(isPresented: $showLibrary) { ExerciseLibraryView() }
             .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
+            .sheet(isPresented: $building) { WorkoutBuilderView() }
+            .sheet(item: $editingWorkout) { WorkoutBuilderView(editing: $0) }
+            .fullScreenCover(isPresented: Binding(get: { resumed != nil }, set: { if !$0 { resumed = nil } })) {
+                if let resumed { WorkoutModeView(model: resumed) { self.resumed = nil } }
+            }
             .navigationDestination(item: $vm.generated) { workout in
                 WorkoutDetailView(workout: workout, localReason: vm.localReason)
             }
@@ -86,6 +96,14 @@ struct TrainView: View {
         // "Start a cardio workout" from Siri or Shortcuts preselects that kind.
         .onAppear { applyRequestedKind() }
         .onChange(of: AppRouter.shared.workoutKind) { _, _ in applyRequestedKind() }
+    }
+
+    /// "12 workouts · 3 records", or what Progress will show once there's something.
+    private var progressDetail: String {
+        let log = TrainingLogStore.shared
+        guard !log.workouts.isEmpty else { return "Sets, weights and records from workout mode" }
+        let records = log.workouts.reduce(0) { $0 + $1.records.count }
+        return "\(log.workouts.count) workout\(log.workouts.count == 1 ? "" : "s") logged" + (records > 0 ? " · \(records) record\(records == 1 ? "" : "s")" : "")
     }
 
     /// Applies a workout kind Siri or Shortcuts asked for (once).
@@ -104,6 +122,7 @@ struct TrainView: View {
 
     // MARK: This week
 
+    /// This week, from the person's own week start: the same week Progress counts.
     private var weekCard: some View {
         let week = store.thisWeek
         return HStack(spacing: Spacing.lg) {
@@ -117,7 +136,7 @@ struct TrainView: View {
         .padding(Spacing.lg)
         .premiumCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Last 7 days: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories")
+        .accessibilityLabel("This week: \(week.count) sessions, \(week.reduce(0) { $0 + $1.minutes }) minutes, about \(week.reduce(0) { $0 + $1.calories }) kilocalories" as String)
     }
 
     private func weekStat(_ value: String, _ label: String) -> some View {
@@ -147,14 +166,18 @@ struct TrainView: View {
             VStack(spacing: Spacing.xs) {
                 caption("Length")
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(Int(vm.minutes))")
+                    Text("\(Int(vm.minutes))" as String)
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                         .monospacedDigit()
                         .contentTransition(.numericText())
                     Text("min").font(.headline).foregroundStyle(Color.labelSecondary)
                 }
-                .animation(.snappyValue, value: vm.minutes)
+                .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.minutes)
                 .accessibilityHidden(true)
+                TypeNumberButton(title: "Workout length", unit: "minutes", current: "\(Int(vm.minutes))",
+                                 hint: "From 10 to 90 minutes.", keyboard: .numberPad, identifier: "train.minutes.type") { text in
+                    if let m = TypedNumber.parse(text) { vm.minutes = TypedNumber.fitted(m, range: 10...90, step: 5) }
+                }
                 RulerPicker(value: $vm.minutes, range: 10...90, step: 5, majorEvery: 2, midEvery: 1, spacing: 22,
                             accessibilityName: "Duration", spokenValue: { "\(Int($0)) minutes" })
                     .frame(height: 96)
@@ -182,31 +205,15 @@ struct TrainView: View {
                 .transition(.opacity)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                caption("Anything specific?")
-                TextField("e.g. only dumbbells, easy on the knees", text: $vm.wishes, axis: .vertical)
-                    .lineLimit(1...3)
-                    .focused($wishesFocused)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.md)
-                    .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-                        .strokeBorder(wishesFocused ? Color.labelPrimary : Color.hairline, lineWidth: wishesFocused ? 1.5 : 1))
-                    .accessibilityIdentifier("train.wishes")
-                Text("Used when online AI writes the session.")
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-            }
-
             PrimaryButton(title: vm.isGenerating ? "Building…" : "Generate workout",
-                          systemImage: "sparkles", isLoading: vm.isGenerating) {
-                wishesFocused = false
+                          systemImage: "wand.and.stars", isLoading: vm.isGenerating) {
                 Task { await vm.generate() }
             }
             .accessibilityIdentifier("train.generate")
         }
         .padding(Spacing.lg)
         .premiumCard()
-        .animation(.snappyValue, value: vm.kind)
+        .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.kind)
     }
 
     private func caption(_ text: String) -> some View {
@@ -220,13 +227,25 @@ struct TrainView: View {
 
     private var savedSection: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("Saved workouts").font(.sectionTitle)
+            Text("My workouts").font(.sectionTitle)
+            Button { building = true } label: {
+                TrainLinkRow(symbol: "plus.square.on.square", title: "Create your own workout",
+                             detail: "Pick exercises from the library or add your own")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("train.createWorkout")
             ForEach(store.saved) { workout in
                 NavigationLink { WorkoutDetailView(workout: workout, localReason: nil) } label: {
-                    TrainLinkRow(symbol: workout.kind.symbol, title: workout.title,
-                                 detail: "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · \(workout.level.title)")
+                    TrainLinkRow(symbol: workout.source == "custom" ? "person.crop.circle.fill" : workout.kind.symbol, title: workout.title,
+                                 detail: workout.source == "custom"
+                                    ? "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · built by you"
+                                    : "\(workout.durationMinutes) min · \(workout.exercises.count) exercises · \(workout.level.title)")
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button { editingWorkout = workout } label: { Label("Edit", systemImage: "pencil") }
+                    Button(role: .destructive) { store.remove(workout) } label: { Label("Delete", systemImage: "trash") }
+                }
             }
         }
     }
@@ -345,6 +364,7 @@ struct ChoiceChip: View {
     let label: String
     let isSelected: Bool
     let onTap: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
@@ -357,7 +377,7 @@ struct ChoiceChip: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .animation(.snappyValue, value: isSelected)
+        .animation(reduceMotion ? .reducedFade : .snappyValue, value: isSelected)
         .sensoryFeedback(.selection, trigger: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

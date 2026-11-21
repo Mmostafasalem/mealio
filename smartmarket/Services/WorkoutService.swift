@@ -31,8 +31,8 @@ enum WorkoutBuilder {
     }
 
     // Strength: exercises for the focus at the chosen level (topped up from the level
-    // below, never above), one per movement family where possible, sets scaled with
-    // experience and reps with the goal.
+    // below, never above), one per movement family where possible, reps scaled with the
+    // goal, and sets and rest chosen so the session about fills the time asked for.
     private static func strength(kind: ExerciseKind, level: ExerciseLevel, minutes: Int,
                                  focus: ExerciseFocus, goal: WeightGoal, rng: inout SeededGenerator) -> Workout {
         let available = pool(kind: kind, level: level)
@@ -50,8 +50,10 @@ enum WorkoutBuilder {
         for area in areas { queues[area] = ranked(available.filter { $0.focus == area }, for: level, rng: &rng) }
 
         let total = areas.reduce(0) { $0 + (queues[$1]?.count ?? 0) }
-        let working = max(minutes - 8, 5)                     // minus warm-up and cool-down
-        let count = min(max(working / 5, 3), min(total, 8))
+        // Warm-up and cool-down: 5 and 3 minutes, less in a short session.
+        let warm = min(5, max(2, minutes / 5)), cool = min(3, max(1, minutes / 10))
+        let working = max(minutes - warm - cool, 4)
+        let count = min(max(working / 5, working < 10 ? 2 : 3), min(total, minutes > 60 ? 10 : 8))
         var picked: [Exercise] = []
         var usedFamilies: Set<String> = []
         func take(_ area: ExerciseFocus, newFamily: Bool) -> Exercise? {
@@ -76,25 +78,75 @@ enum WorkoutBuilder {
             usedFamilies.insert(next.family)
         }
 
-        let sets = [ExerciseLevel.beginner: 2, .intermediate: 3, .advanced: 4][level] ?? 3
-        let rest = kind == .gym ? (goal == .gain ? 90 : 60) : 30
-        let exercises = picked.map { exercise in
-            WorkoutExercise(name: exercise.name, sets: sets, reps: reps(from: exercise.prescription, goal: goal),
-                            minutes: 0, restSeconds: rest, note: exercise.howTo)
+        let usualSets = [ExerciseLevel.beginner: 2, .intermediate: 3, .advanced: 4][level] ?? 3
+        let usualRest = kind == .gym ? (goal == .gain ? 90 : 60) : 30
+        let repTexts = picked.map { reps(from: $0.prescription, goal: goal) }
+        let plan = fit(reps: repTexts, seconds: working * 60, usualSets: usualSets, usualRest: usualRest)
+        var exercises: [WorkoutExercise] = []
+        for (index, exercise) in picked.enumerated() {
+            exercises.append(WorkoutExercise(name: exercise.name, sets: plan.sets[index], reps: repTexts[index],
+                                             minutes: 0, restSeconds: plan.rests[index], note: exercise.howTo))
         }
+        let fewest = plan.sets.min() ?? usualSets, most = plan.sets.max() ?? usualSets
+        let setsText = fewest == most ? "\(most) set\(most == 1 ? "" : "s") each" : "\(fewest) to \(most) sets each"
         let place = kind == .gym ? "gym" : "home"
         return Workout(
             title: "\(focus.title) \(place) session",
-            summary: "\(exercises.count) exercises, \(sets) sets each. Pick loads that make the last two reps hard but clean.",
-            kind: kind, level: level, durationMinutes: minutes,
-            warmup: "5 minutes of easy movement, then one light set of the first exercise.",
-            cooldown: "3 minutes of slow breathing and light stretching.",
+            summary: "\(exercises.count) exercises, \(setsText). Pick loads that make the last two reps hard but clean.",
+            kind: kind, level: level,
+            // The time the sets and rests really add up to, so the label and calories are honest.
+            durationMinutes: Workout.estimatedMinutes(of: exercises, extraSeconds: (warm + cool) * 60),
+            warmup: "\(warm) minutes of easy movement, then one light set of the first exercise.",
+            cooldown: cool == 1 ? "A minute of slow breathing and light stretching."
+                                : "\(cool) minutes of slow breathing and light stretching.",
             exercises: exercises, safetyNote: safetyNote)
     }
 
+    /// Sets and rest for each exercise, so the work about fills `seconds`: as many sets
+    /// as fit (up to two more than usual, 5 at most; fewer than 2 only when 2 don't fit),
+    /// then longer rests take up what is left (up to 90 s over the usual rest).
+    static func fit(reps: [String], seconds: Int, usualSets: Int, usualRest: Int) -> (sets: [Int], rests: [Int]) {
+        guard !reps.isEmpty else { return ([], []) }
+        func total(_ sets: [Int], _ rests: [Int]) -> Int {
+            var sum = 0
+            for (index, text) in reps.enumerated() {
+                sum += WorkoutExercise(name: "", sets: sets[index], reps: text, minutes: 0,
+                                       restSeconds: rests[index], note: "").estimatedSeconds
+            }
+            return sum
+        }
+        let usual = Array(repeating: usualRest, count: reps.count)
+        let top = min(usualSets + 2, 5)
+        var sets = Array(repeating: 1, count: reps.count)
+        for candidate in stride(from: top, through: 1, by: -1) {
+            let even = Array(repeating: candidate, count: reps.count)
+            if total(even, usual) <= seconds { sets = even; break }
+        }
+        // One more set on the first exercises while it still fits.
+        for index in sets.indices where sets[index] < top {
+            var more = sets
+            more[index] += 1
+            if total(more, usual) <= seconds { sets = more }
+        }
+        let pauses = sets.reduce(0) { $0 + $1 - 1 }
+        guard pauses > 0 else { return (sets, usual) }
+        // The same longer rest everywhere, then 5 s more on the first exercises while it fits.
+        let longest = usualRest + 90
+        let spare = Double(max(seconds - total(sets, usual), 0)) / Double(pauses)
+        let even = min(Int((Double(usualRest) + spare) / 5) * 5, longest)
+        var rests = Array(repeating: even, count: reps.count)
+        for index in rests.indices where sets[index] > 1 && rests[index] + 5 <= longest {
+            var more = rests
+            more[index] += 5
+            if total(sets, more) <= seconds { rests = more }
+        }
+        return (sets, rests)
+    }
+
     private static func cardio(level: ExerciseLevel, minutes: Int, goal: WeightGoal, rng: inout SeededGenerator) -> Workout {
-        let warm = max(3, minutes / 6), cool = max(3, minutes / 8)
-        let main = max(minutes - warm - cool, 5)
+        // A short session keeps its warm-up and cool-down short, so the blocks add up to `minutes`.
+        let warm = minutes < 15 ? 2 : max(3, minutes / 6), cool = minutes < 15 ? 2 : max(3, minutes / 8)
+        let main = max(minutes - warm - cool, 3)
         let cardioPool = pool(kind: .cardio, level: level)
         // Steady work: something you can keep going for a while ("30 min", not "4 × 30 sec").
         let steadyChoices = cardioPool.filter { exercise in
@@ -111,13 +163,18 @@ enum WorkoutBuilder {
         if level == .beginner {
             blocks.append(steadyBlock(main, note: "Take short breaks whenever you need them."))
         } else {
-            let steadyMinutes = main / 2, rounds = max((main - steadyMinutes) / 3, 2)
-            blocks.append(steadyBlock(steadyMinutes, note: "Keep an effort you could hold for an hour."))
+            // Three-minute rounds for about half the main part (two at least, when
+            // they fit); steady work takes the minutes left.
+            let rounds = min(max((main - main / 2) / 3, 2), max(main / 3, 1))
+            let steadyMinutes = main - rounds * 3
+            if steadyMinutes > 0 {
+                blocks.append(steadyBlock(steadyMinutes, note: "Keep an effort you could hold for an hour."))
+            }
             // Intervals: a short, hard drill at the chosen level (or the one below).
             let drills = ranked(cardioPool.filter { $0.prescription.contains("×") }, for: level, rng: &rng)
             let drill = drills.first
             let cue = "Hard means you could only say a few words. Recover fully in the easy part."
-            blocks.append(WorkoutExercise(name: drill.map { "\($0.name) intervals" } ?? "Intervals", sets: rounds,
+            blocks.append(WorkoutExercise(name: drill.map { intervalName($0.name) } ?? "Intervals", sets: rounds,
                                           reps: "1 min hard, 2 min easy", minutes: rounds * 3, restSeconds: 0,
                                           note: drill.map { $0.howTo + " " + cue } ?? cue))
         }
@@ -126,29 +183,42 @@ enum WorkoutBuilder {
         return Workout(
             title: level == .beginner ? "Steady cardio" : "Steady cardio with intervals",
             summary: goal == .lose ? "Mostly easy effort, which is what you can repeat often." : "Builds your base, with a short push at the end.",
-            kind: .cardio, level: level, durationMinutes: minutes,
+            kind: .cardio, level: level, durationMinutes: blocks.reduce(0) { $0 + $1.minutes },
             warmup: "Included as the first block.", cooldown: "Included as the last block.",
             exercises: blocks, safetyNote: safetyNote)
     }
 
+    /// "Jump rope" → "Jump rope intervals"; a drill already called "… intervals" keeps its name.
+    static func intervalName(_ drill: String) -> String {
+        drill.lowercased().hasSuffix("intervals") ? drill : "\(drill) intervals"
+    }
+
     private static func mobility(level: ExerciseLevel, minutes: Int, rng: inout SeededGenerator) -> Workout {
         let candidates = ranked(pool(kind: .mobility, level: level), for: level, rng: &rng)
-        let count = min(max(minutes / 4, 4), candidates.count)
         // One of each kind of stretch first, then repeats only if the session is long.
-        var picked: [Exercise] = []
+        var ordered: [Exercise] = []
         var families: Set<String> = []
-        for exercise in candidates where picked.count < count && !families.contains(exercise.family) {
-            picked.append(exercise); families.insert(exercise.family)
+        for exercise in candidates where !families.contains(exercise.family) {
+            ordered.append(exercise); families.insert(exercise.family)
         }
-        for exercise in candidates where picked.count < count && !picked.contains(exercise) { picked.append(exercise) }
-        let exercises = picked.map { exercise in
-            WorkoutExercise(name: exercise.name, sets: 0, reps: exercise.prescription, minutes: 0,
-                            restSeconds: 0, note: exercise.howTo)
+        for exercise in candidates where !ordered.contains(exercise) { ordered.append(exercise) }
+        // As many stretches as fit the time (three at least); the catalogue is the limit,
+        // so a long request gives a shorter session, labelled with its real length.
+        let room = max(minutes - 2, 1) * 60                   // minus the easy start and finish
+        var exercises: [WorkoutExercise] = []
+        var used = 0
+        for exercise in ordered {
+            let step = WorkoutExercise(name: exercise.name, sets: 0, reps: exercise.prescription, minutes: 0,
+                                       restSeconds: 0, note: exercise.howTo)
+            if exercises.count >= 3 && used + step.estimatedSeconds > room { break }
+            exercises.append(step)
+            used += step.estimatedSeconds
         }
         return Workout(
             title: "Mobility and stretch",
             summary: "Slow, comfortable ranges. Nothing here should hurt.",
-            kind: .mobility, level: level, durationMinutes: minutes,
+            kind: .mobility, level: level,
+            durationMinutes: Workout.estimatedMinutes(of: exercises, extraSeconds: 120),
             warmup: "A minute of easy walking or marching on the spot.",
             cooldown: "Finish lying down with a few slow breaths.",
             exercises: exercises, safetyNote: safetyNote)
@@ -243,7 +313,19 @@ final class WorkoutStore {
     func save(_ workout: Workout) {
         guard !isSaved(workout) else { return }
         saved.insert(workout, at: 0)
-        saved = Array(saved.prefix(30))
+        // Only generated workouts are dropped past the newest 30; ones the person built stay.
+        var generated = 0
+        saved = saved.filter { kept in
+            if kept.source == "custom" { return true }
+            generated += 1
+            return generated <= 30
+        }
+        persist()
+    }
+
+    /// Replaces a saved workout with its edited version (kept in the same place).
+    func update(_ workout: Workout) {
+        if let i = saved.firstIndex(where: { $0.id == workout.id }) { saved[i] = workout } else { saved.insert(workout, at: 0) }
         persist()
     }
 
@@ -266,9 +348,12 @@ final class WorkoutStore {
     /// nothing, even if it was generated again. Returns whether a session was added.
     /// `tracked` is the real start and finish of a session run with Start workout; only
     /// tracked sessions go to Apple Health. Tracking a session already marked as done
-    /// today adds its times to that entry instead of logging it twice.
+    /// today adds its times to that entry instead of logging it twice. A tracked session
+    /// that stopped early counts the minutes really trained (one at least), and its
+    /// calories in proportion. `logID` is the workout-mode log saved for the same session.
     @discardableResult
-    func complete(_ workout: Workout, weightKg: Double, now: Date = Date(), tracked: DateInterval? = nil) -> Bool {
+    func complete(_ workout: Workout, weightKg: Double, now: Date = Date(), tracked: DateInterval? = nil,
+                  logID: UUID? = nil) -> Bool {
         guard !isCompletedToday(workout, now: now) else {
             if let tracked, let index = completed.firstIndex(where: { session in
                 Calendar.current.isDate(session.date, inSameDayAs: now)
@@ -277,15 +362,24 @@ final class WorkoutStore {
             }) {
                 completed[index].trackedStart = tracked.start
                 completed[index].trackedEnd = tracked.end
+                if completed[index].logID == nil { completed[index].logID = logID }
                 persist()
             }
             return false
         }
+        var minutes = workout.durationMinutes
+        var calories = workout.estimatedCalories(weightKg: weightKg)
+        if let tracked {
+            let trained = max(1, Int((tracked.duration / 60).rounded()))
+            if trained < minutes {
+                calories = Int((Double(calories) * Double(trained) / Double(minutes)).rounded())
+                minutes = trained
+            }
+        }
         completed.insert(CompletedWorkout(workoutID: workout.id, contentKey: workout.contentKey,
                                           title: workout.title, kind: workout.kind,
-                                          minutes: workout.durationMinutes,
-                                          calories: workout.estimatedCalories(weightKg: weightKg), date: now,
-                                          trackedStart: tracked?.start, trackedEnd: tracked?.end), at: 0)
+                                          minutes: minutes, calories: calories, date: now,
+                                          trackedStart: tracked?.start, trackedEnd: tracked?.end, logID: logID), at: 0)
         completed = Array(completed.prefix(200))
         persist()
         return true
@@ -296,9 +390,16 @@ final class WorkoutStore {
         persist()
     }
 
-    /// Sessions done in the last seven days, including today.
+    /// Removes the session whose workout-mode log was deleted in Progress.
+    func removeCompleted(logID: UUID) {
+        guard completed.contains(where: { $0.logID == logID }) else { return }
+        completed.removeAll { $0.logID == logID }
+        persist()
+    }
+
+    /// Sessions done this week, counted from the person's own week start (as Progress does).
     var thisWeek: [CompletedWorkout] {
-        let start = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+        let start = WeeklyReset.weekStart(of: Date())
         return completed.filter { $0.date >= start }
     }
 

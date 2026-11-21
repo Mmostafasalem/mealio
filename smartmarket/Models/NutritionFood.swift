@@ -2,10 +2,10 @@ import Foundation
 import CoreFoundation
 
 /// A source record, not an AI estimate. Nutrients always describe 100 of `basis`.
-struct NutritionFood: Codable, Hashable, Identifiable {
+nonisolated struct NutritionFood: Codable, Hashable, Identifiable, Sendable {
     enum Basis: String, Codable { case grams = "g", millilitres = "ml", serving = "serving" }
     /// `regional`: Nourlo's own dishes, calculated from typical recipes (`RegionalDishes.json`).
-    enum Source: String, Codable { case usda, openFoodFacts, recipe, menu, regional }
+    enum Source: String, Codable { case usda, openFoodFacts, recipe, menu, regional, cookbook }
     let id: String
     let name: String
     let brand: String?
@@ -43,6 +43,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
         case .recipe: return "Your recipe · calculated estimate"
         case .menu: return "Menu nutrition · entered by you"
         case .regional: return "Nourlo recipe estimate · USDA ingredients"
+        case .cookbook: return "Wikibooks Cookbook recipe · USDA ingredients"
         }
     }
     var sourceExplanation: String {
@@ -54,6 +55,9 @@ struct NutritionFood: Codable, Hashable, Identifiable {
         case .regional:
             let method = "Calculated by Nourlo from a typical recipe: its ingredients' USDA values divided by the weight of the finished dish. Home and restaurant versions vary, so treat this as an estimate and weigh what you ate."
             return [summary, method].compactMap { $0 }.joined(separator: " ")
+        case .cookbook:
+            let method = "A recipe from the Wikibooks Cookbook (CC BY-SA 4.0). Nourlo read each ingredient into grams of a USDA food and divided the total by the servings, so treat this as an estimate."
+            return [summary, method].compactMap { $0 }.joined(separator: " ")
         }
     }
     var sourceURL: URL? {
@@ -63,14 +67,15 @@ struct NutritionFood: Codable, Hashable, Identifiable {
         case .recipe: return nil
         case .menu: return menuURL.flatMap(URL.init(string:))
         case .regional: return nil
+        case .cookbook: return menuURL.flatMap(URL.init(string:))
         }
     }
     var subtitle: String { [brand, referenceLabel].compactMap { $0 }.joined(separator: " · ") }
     var isValid: Bool {
         let identifierValid: Bool
         if source == .recipe || source == .menu { identifierValid = UUID(uuidString: sourceID) != nil }
-        else if source == .regional {
-            identifierValid = !sourceID.isEmpty && sourceID.count <= 60 && id == "regional:" + sourceID &&
+        else if source == .regional || source == .cookbook {
+            identifierValid = !sourceID.isEmpty && sourceID.count <= 60 && id == source.rawValue + ":" + sourceID &&
                 sourceID.allSatisfy { $0.isASCII && ($0.isLowercase || $0.isNumber || $0 == "-") }
         }
         else { identifierValid = !sourceID.isEmpty && sourceID.allSatisfy { $0.isASCII && $0.isNumber } }
@@ -139,7 +144,7 @@ struct NutritionFood: Codable, Hashable, Identifiable {
     }
 }
 
-enum NutritionDatabase {
+nonisolated enum NutritionDatabase {
     private struct Catalog: Decodable { let foods: [NutritionFood] }
     static func load(bundle: Bundle = .main) throws -> [NutritionFood] {
         guard let url = bundle.url(forResource: "NutritionCatalog", withExtension: "json") else {

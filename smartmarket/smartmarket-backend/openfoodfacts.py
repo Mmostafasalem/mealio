@@ -2,8 +2,9 @@
 Open Food Facts nutrition lookup.
 
 Provides real per-100g nutrition (kcal, protein, carbs, fat) for a product by
-barcode (preferred, exact) or by name search (fuzzy). Results — including
-"not found" — are cached on disk so repeated/cold starts stay fast.
+barcode only (exact). There is no name search: it returned whatever product
+ranked first, which is not reliable enough to show as a food's nutrition.
+Successful lookups are cached on disk so repeated/cold starts stay fast.
 
 All failures degrade gracefully to None so the caller can fall back to its own
 category-average estimates. Open Food Facts is free, open data (ODbL).
@@ -20,7 +21,7 @@ import urllib.request
 
 _OFF_BASE = "https://world.openfoodfacts.org"
 # OFF asks every caller to identify itself with a descriptive User-Agent.
-_USER_AGENT = "Nourlo/1.0 (nutrition lookup; https://github.com/Mmostafasalem/mealio)"
+_USER_AGENT = "Nourlo/1.0 (nourlo.app.support@gmail.com)"
 _TIMEOUT = 4  # seconds — keep cold-start catalog builds bounded
 
 _CACHE_PATH = os.path.join(os.path.dirname(__file__), "off_cache.json")
@@ -52,7 +53,10 @@ def _load_cache() -> None:
         try:
             with open(_CACHE_PATH, encoding="utf-8") as f:
                 loaded = json.load(f)
-            _cache = loaded if isinstance(loaded, dict) else {}
+            # Only barcode entries are used; name-search entries from older
+            # versions are dropped.
+            _cache = ({k: v for k, v in loaded.items() if isinstance(k, str) and k.startswith("b:")}
+                      if isinstance(loaded, dict) else {})
         except (OSError, ValueError):
             _cache = {}
         _loaded = True
@@ -162,42 +166,22 @@ def _by_barcode(barcode: str):
     return None
 
 
-def _by_name(name: str):
-    params = urllib.parse.urlencode({
-        "search_terms": name,
-        "search_simple": 1,
-        "action": "process",
-        "json": 1,
-        "page_size": 1,
-        "fields": "nutriments",
-    })
-    data = _http_json(f"{_OFF_BASE}/cgi/search.pl?{params}")
-    if isinstance(data, dict):
-        products = data.get("products") or []
-        if products:
-            return _extract(products[0].get("nutriments", {}))
-    return None
-
-
-def nutrition_for(name: str | None = None, barcode: str | None = None):
+def nutrition_for(barcode: str | None = None):
     """
-    Return {kcal, protein, carbs, fat} per 100g, or None if unavailable.
-    Looks up by barcode first (exact), then by name. Cached (incl. misses).
+    Return {kcal, protein, carbs, fat} per 100g for a barcode, or None if
+    unavailable. Successful lookups are cached.
     """
-    key = f"b:{barcode}" if barcode else f"n:{(name or '').strip().lower()}"
-    if key in ("b:", "n:"):
+    barcode = str(barcode).strip() if barcode else ""
+    if not barcode:
         return None
+    key = f"b:{barcode}"
 
     _load_cache()
     with _lock:
         if key in _cache:
             return _cache[key]
 
-    result = None
-    if barcode:
-        result = _by_barcode(barcode)
-    if result is None and name:
-        result = _by_name(name)
+    result = _by_barcode(barcode)
 
     # Only cache successful lookups. A None here may be a transient OFF outage
     # (e.g. a 503), so we don't poison the cache — it'll be retried next time.

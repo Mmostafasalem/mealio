@@ -1,0 +1,536 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#111}canvas{display:block;height:100vh;margin:auto}</style>
+</head><body><canvas id="cv"></canvas>
+<script src="timeline.js"></script>
+<script>
+// Nourlo "Download now": every frame painted on this canvas. Look from ref.jpg (see STYLE.md).
+const W = 1080, H = 1920, FPS = 30, NF = Math.round(T.dur * FPS);
+const cv = document.getElementById('cv'); cv.width = W; cv.height = H;
+const X = cv.getContext('2d', { willReadFrequently: true });
+
+// ---------- palette ----------
+const C = {
+  sky: ['#D27BCB', '#C468BB', '#BD66B8', '#AE5FAD', '#9E57A4', '#8E5193', '#774E83'],
+  column: ['#5B4569', '#4C3A5E', '#604F6D'], mid: '#8A5A90', midRim: '#C87ABA', near: '#6A4A7E',
+  slate: '#2F3F50', slateDeep: '#23303C', salmon: '#E8877A', peach: '#F3A88F', mint: '#9BE0C0',
+  cream: '#FFF1E6', oats: '#F0D7C2', oatsShade: '#B48AB2', ink: '#1C2230',
+  grassTop: ['#C79BC5', '#B48AB5', '#A27AA8', '#8B6C96'], grassLow: ['#3F5D50', '#4E6E5E', '#2F4A42', '#5D7A6A', '#6B5A7E'],
+  banana: '#EFD98E', bananaShade: '#CDB26E', seed: '#C9A85A', berry: '#3D4D85', berryShade: '#2A365F',
+  straw: '#D9535F', strawShade: '#8E2F4E', strawSeed: '#F4DE9A', leaf: '#5C8E6E',
+  gold: '#E3A93A', goldShade: '#9A6A28', goldLight: '#F6CF72',
+};
+
+// ---------- small helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = t => 1 - Math.pow(1 - t, 3);
+const eIn = t => t * t;
+const eInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const eBack = t => { const c = 1.7; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+function rng(seed) { let a = (seed * 2654435761) >>> 0 || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const pick = (arr, r) => arr[Math.floor(r() * arr.length) % arr.length];
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+const probe = mk(4, 4).getContext('2d');
+
+// ---------- shapes ----------
+function bez(p0, p1, p2, p3, n = 40) { const o = []; for (let i = 0; i <= n; i++) { const t = i / n, u = 1 - t; o.push([u*u*u*p0[0] + 3*u*u*t*p1[0] + 3*u*t*t*p2[0] + t*t*t*p3[0], u*u*u*p0[1] + 3*u*u*t*p1[1] + 3*u*t*t*p2[1] + t*t*t*p3[1]]); } return o; }
+function ell(cx, cy, rx, ry, n = 90, a0 = 0, a1 = Math.PI * 2) { const o = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]); } return o; }
+function pathOf(pts) { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); p.closePath(); return p; }
+function rot(pts, cx, cy, a) { const c = Math.cos(a), s = Math.sin(a); return pts.map(([x, y]) => [cx + (x - cx) * c - (y - cy) * s, cy + (x - cx) * s + (y - cy) * c]); }
+
+/** The dry-brush comb: short bristles from the edge of a shape, outward (or inward with dir -1). */
+function fringe(g, pts, path, col, r, o = {}) {
+  const len = o.len || [7, 24], step = o.step || 2.2, w = o.w || [1, 2.6], dir = o.dir || 1, only = o.only, dens = o.dens ?? 0.85;
+  const seg = []; let L = 0;
+  for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]); seg.push([a, b, d, L]); L += d; }
+  g.strokeStyle = col; g.lineCap = 'round';
+  let si = 0;
+  for (let s = 0; s < L; s += step * (0.6 + 0.8 * r())) {
+    while (si < seg.length - 1 && seg[si][3] + seg[si][2] < s) si++;
+    const [a, b, d, s0] = seg[si]; if (d === 0) continue;
+    const t = (s - s0) / d, x = lerp(a[0], b[0], t), y = lerp(a[1], b[1], t);
+    if (only && !only(x, y)) continue;
+    if (r() > dens) continue;
+    let nx = -(b[1] - a[1]) / d, ny = (b[0] - a[0]) / d;
+    if (probe.isPointInPath(path, x + nx * 2, y + ny * 2)) { nx = -nx; ny = -ny; }
+    nx *= dir; ny *= dir;
+    const ang = Math.atan2(ny, nx) + (r() - .5) * 0.5, l = lerp(len[0], len[1], Math.pow(r(), 1.6));
+    g.globalAlpha = 0.65 + 0.35 * r(); g.lineWidth = lerp(w[0], w[1], r());
+    g.beginPath(); g.moveTo(x - nx * 2.5, y - ny * 2.5); g.lineTo(x + Math.cos(ang) * l, y + Math.sin(ang) * l); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+/** A flat shape with its brush edge. */
+function paint(g, pts, col, r, o = {}) { const p = pathOf(pts); g.fillStyle = col; g.fill(p); if (o.fringe !== false) fringe(g, pts, p, col, r, o); return p; }
+
+/** A bristle stroke: several thin hairs side by side. */
+function bristle(g, x, y, ang, len, w, col, a, r) {
+  const n = Math.max(2, Math.round(w / 2.4)), ca = Math.cos(ang), sa = Math.sin(ang), px = -sa, py = ca;
+  g.strokeStyle = col; g.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const o = (i / (n - 1) - .5) * w, L = len * (0.5 + 0.5 * r()), s0 = r() * 0.18 * len, bend = (r() - .5) * len * 0.06;
+    g.globalAlpha = a * (0.5 + 0.5 * r()); g.lineWidth = Math.max(0.8, (w / n) * (0.8 + r()));
+    const x0 = x + px * o + ca * s0, y0 = y + py * o + sa * s0, x1 = x + px * o + ca * L, y1 = y + py * o + sa * L;
+    g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo((x0 + x1) / 2 + px * bend, (y0 + y1) / 2 + py * bend, x1, y1); g.stroke();
+  }
+  g.globalAlpha = 1;
+}
+/** An ink ribbon along points: tapered ends, a little wobble that changes every 2 frames. */
+function ribbon(g, pts, w, col, seed, p = 1, taper = 0.5) {
+  const n = Math.max(2, Math.round(pts.length * p)); if (n < 2) return;
+  const r = rng(seed), L = [], R = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], s = i / (n - 1);
+    let tx = b[0] - a[0], ty = b[1] - a[1]; const d = Math.hypot(tx, ty) || 1; tx /= d; ty /= d;
+    const ww = w * Math.pow(Math.sin(Math.PI * clamp(s, 0.03, 0.97)), taper) * (0.9 + 0.2 * r()) / 2;
+    L.push([pts[i][0] - ty * ww, pts[i][1] + tx * ww]); R.push([pts[i][0] + ty * ww, pts[i][1] - tx * ww]);
+  }
+  g.fillStyle = col; g.fill(pathOf(L.concat(R.reverse())));
+}
+
+// ---------- assets ----------
+const A = {};
+const VAR = 3; // boil variants, cycled every 2 frames
+
+function makeSky(seed) {
+  const c = mk(W, 1440), g = c.getContext('2d'), r = rng(seed);
+  g.fillStyle = C.sky[2]; g.fillRect(0, 0, W, 1440);
+  for (let i = 0; i < 2600; i++) {
+    const x = r() * W, y = -100 + r() * 1500, d = Math.abs(x - 540) / 540;
+    const k = clamp(d * 0.9 + (y < 300 ? 0.12 : 0) + (r() - .5) * 0.45, 0, 0.999);
+    bristle(g, x, y, Math.PI / 2 + (r() - .5) * 0.05, 120 + r() * 520, 6 + r() * 22, C.sky[Math.floor(k * C.sky.length)], 0.35 + r() * 0.4, r);
+  }
+  // dark violet columns at the edges, with combed edges
+  for (const side of [0, 1]) {
+    const pts = []; const x0 = side ? 1080 : 0, inner = side ? 960 : 120;
+    pts.push([x0, -20]);
+    for (let y = -20; y <= 1460; y += 40) pts.push([inner + (side ? 1 : -1) * (Math.sin(y / 170 + seed) * 50 + r() * 40) + (side ? 70 : -70) * Math.sin(y / 420 + seed), y]);
+    pts.push([x0, 1460]);
+    g.globalAlpha = 0.5; paint(g, pts, pick(C.column, r), r, { len: [10, 46], w: [1, 3], dens: 0.95 }); g.globalAlpha = 1;
+    for (let i = 0; i < 220; i++) { const x = side ? 880 + Math.pow(r(), 0.6) * 200 : 200 - Math.pow(r(), 0.6) * 200; bristle(g, x, r() * 1440, Math.PI / 2, 100 + r() * 400, 4 + r() * 14, pick(C.column, r), 0.2 + r() * 0.35, r); }
+  }
+  // far and near hills at the horizon, rim-lit on top
+  const hill = (base, amp, f, ph, col, rim) => {
+    const pts = [[-20, 1440]];
+    for (let x = -20; x <= 1100; x += 16) pts.push([x, base - amp * (0.6 * Math.sin(x / f + ph) + 0.4 * Math.sin(x / (f * 0.43) + ph * 2))]);
+    pts.push([1100, 1440]);
+    const p = paint(g, pts, col, r, { len: [6, 22], w: [1, 2.2] });
+    fringe(g, pts, p, rim, r, { len: [4, 14], w: [1.5, 3], dir: -1, only: (x, y) => y < base + amp && x > -10 && x < 1090, dens: 0.6 });
+  };
+  hill(1265, 55, 120, seed * 1.3, C.mid, C.midRim);
+  hill(1320, 38, 90, seed * 2.1 + 1, C.near, C.mid);
+  return c;
+}
+
+function makeGrass(seed) {
+  const c = mk(W, 600), g = c.getContext('2d'), r = rng(seed);
+  const gr = g.createLinearGradient(0, 0, 0, 600); gr.addColorStop(0, '#9A78A6'); gr.addColorStop(0.35, '#6C6A80'); gr.addColorStop(0.6, '#425F54'); gr.addColorStop(1, '#2C463F');
+  // ragged top edge
+  const top = [[-10, 600]]; for (let x = -10; x <= 1090; x += 12) top.push([x, 8 + Math.sin(x / 50 + seed) * 4 + r() * 6]); top.push([1090, 600]);
+  g.fillStyle = gr; g.fill(pathOf(top));
+  fringe(g, top, pathOf(top), '#B48AB5', r, { only: (x, y) => y < 30 && x > -5 && x < 1085, len: [4, 14], w: [1, 2.5], dir: 1 });
+  for (let i = 0; i < 1500; i++) { // lavender scribble loops near the horizon
+    const x = r() * W, y = 10 + Math.pow(r(), 1.4) * 280, rr = 6 + r() * 20;
+    g.strokeStyle = pick(C.grassTop, r); g.globalAlpha = 0.45 + r() * 0.5; g.lineWidth = 1.2 + r() * 2.2;
+    const a0 = r() * 6.28; g.beginPath(); g.ellipse(x, y, rr * 1.4, rr * 0.7, (r() - .5) * 0.6, a0, a0 + 3.5 + r() * 3); g.stroke();
+  }
+  for (let i = 0; i < 2600; i++) { // green upright strokes lower down
+    const x = r() * W, y = 140 + Math.pow(r(), 0.7) * 470, l = 18 + r() * 60, lean = (r() - .5) * 0.5;
+    g.globalAlpha = 0.55 + r() * 0.45; g.strokeStyle = pick(C.grassLow, r); g.lineWidth = 1.5 + r() * 3.5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + lean * l * 0.3, y - l * 0.6, x + lean * l, y - l); g.stroke();
+  }
+  g.globalAlpha = 1; return c;
+}
+
+function makeForeground(seed) { // dense grass that overlaps the bowl's base
+  const c = mk(W, 470), g = c.getContext('2d'), r = rng(seed);
+  const top = [[-10, 470]]; for (let x = -10; x <= 1090; x += 10) top.push([x, 70 + Math.sin(x / 70 + seed) * 18 + r() * 14]); top.push([1090, 470]);
+  const gr = g.createLinearGradient(0, 60, 0, 470); gr.addColorStop(0, '#3F5D50'); gr.addColorStop(1, '#1F332E');
+  g.fillStyle = gr; g.fill(pathOf(top));
+  for (let i = 0; i < 1700; i++) {
+    const x = r() * W, base = 120 + r() * 360, l = 30 + r() * 90, lean = (r() - .5) * 0.6;
+    g.strokeStyle = r() < 0.12 ? pick(C.grassTop, r) : pick(['#2C463F', '#355247', '#3F5D50', '#4E6E5E', '#26403A'], r);
+    g.globalAlpha = 0.7 + r() * 0.3; g.lineWidth = 2 + r() * 4; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, base); g.quadraticCurveTo(x + lean * 10, base - l * 0.6, x + lean * l * 0.5, base - l); g.stroke();
+  }
+  for (let i = 0; i < 260; i++) { // blades poking above the ragged top
+    const x = r() * W, base = 95 + r() * 30, l = 20 + r() * 50;
+    g.strokeStyle = pick(['#3F5D50', '#4E6E5E', '#5D7A6A', '#A27AA8'], r); g.globalAlpha = 0.8; g.lineWidth = 2 + r() * 3;
+    g.beginPath(); g.moveTo(x, base); g.lineTo(x + (r() - .5) * 18, base - l); g.stroke();
+  }
+  g.globalAlpha = 1; return c;
+}
+
+// The bowl, in its own space: 1000 × 600, rim centre (500,150), bottom (500,560).
+const BODY = bez([60, 150], [66, 420], [300, 560], [500, 560]).concat(bez([500, 560], [700, 560], [934, 420], [940, 150]).slice(1));
+function makeBody(seed) {
+  const c = mk(1000, 640), g = c.getContext('2d'), r = rng(seed);
+  const body = paint(g, BODY, C.salmon, r, { len: [6, 18] });
+  g.save(); g.clip(body);
+  // lit edge on the left
+  const lit = ell(70, 300, 70, 330, 60);
+  paint(g, lit, C.peach, r, { len: [6, 20], dir: 1 });
+  // slate shadow on the right, biting into the salmon with the comb
+  const sh = bez([735, 60], [690, 300], [640, 470], [430, 640], 50).concat([[1010, 640], [1010, 60]]);
+  paint(g, sh, C.slate, r, { len: [10, 34], w: [1, 3], only: (x, y) => x < 1000 && y < 635 && y > 62, dens: 0.95 });
+  const deep = bez([880, 60], [860, 300], [800, 470], [640, 640], 40).concat([[1010, 640], [1010, 60]]);
+  paint(g, deep, C.slateDeep, r, { len: [8, 26], only: (x, y) => x < 1000 && y < 635 && y > 62 });
+  // mint rim on the far edge
+  fringe(g, BODY, body, C.mint, r, { only: (x, y) => x > 880 && y < 380, len: [5, 16], w: [2, 4], dir: -1, dens: 0.9 });
+  g.restore();
+  return c;
+}
+const RING_OUT = ell(500, 150, 440, 100, 120), RING_IN = ell(500, 146, 405, 80, 120);
+function ringPath() { const p = new Path2D(); p.addPath(pathOf(RING_OUT)); p.addPath(pathOf(RING_IN.slice().reverse())); return p; }
+function makeRing(seed, front) {
+  const c = mk(1000, 640), g = c.getContext('2d'), r = rng(seed), ring = ringPath();
+  g.save(); g.clip(ring, 'evenodd');
+  if (front) { g.beginPath(); g.rect(0, 150, 1000, 200); g.clip(); }
+  g.fillStyle = C.peach; g.fillRect(0, 0, 1000, 300);
+  const sh = bez([760, 0], [740, 100], [720, 200], [700, 300], 20).concat([[1000, 300], [1000, 0]]);
+  paint(g, sh, C.slate, r, { len: [8, 22], only: (x, y) => x < 990 && y > 2 && y < 298 });
+  fringe(g, RING_OUT, pathOf(RING_OUT), C.mint, r, { only: (x, y) => x > 860 && y < 200, len: [4, 12], w: [2, 3], dir: -1 });
+  g.restore();
+  fringe(g, RING_OUT, pathOf(RING_OUT), front ? C.peach : C.salmon, r, { only: (x, y) => x < 720 && (!front || y > 150), len: [4, 12] });
+  return c;
+}
+function makeOats(seed) {
+  const c = mk(1000, 640), g = c.getContext('2d'), r = rng(seed), inner = pathOf(RING_IN);
+  g.save(); g.clip(inner);
+  g.fillStyle = C.oatsShade; g.fillRect(0, 0, 1000, 300);
+  paint(g, ell(500, 172, 405, 80, 100), C.oats, r, { len: [5, 16], only: (x, y) => y < 172 });
+  for (let i = 0; i < 220; i++) { const x = 120 + r() * 760, y = 110 + r() * 110; g.fillStyle = r() < 0.5 ? '#E3C4AE' : '#F8E6D6'; g.globalAlpha = 0.6; g.beginPath(); g.ellipse(x, y, 4 + r() * 6, 2 + r() * 3, 0, 0, 6.28); g.fill(); }
+  g.globalAlpha = 1; g.restore(); return c;
+}
+function makeShadow(seed) { const c = mk(1000, 160), g = c.getContext('2d'), r = rng(seed); g.globalAlpha = 0.55; paint(g, ell(500, 80, 470, 52, 80), '#24203A', r, { len: [6, 20] }); g.globalAlpha = 1; return c; }
+
+// Food and friends
+function makeFruit(seed) {
+  const c = mk(620, 280), g = c.getContext('2d'), r = rng(seed);
+  for (const [x, y, rr] of [[115, 160, 64], [212, 180, 56]]) {
+    const p = paint(g, ell(x, y, rr, rr * 0.8, 50), C.banana, r, { len: [4, 12] });
+    g.save(); g.clip(p); paint(g, ell(x + rr * 0.55, y + rr * 0.2, rr * 0.6, rr, 40), C.bananaShade, r, { len: [5, 14] }); g.restore();
+    g.fillStyle = C.seed; for (let k = 0; k < 5; k++) { const a = k / 5 * 6.28 - 1.57; g.beginPath(); g.ellipse(x + Math.cos(a) * rr * 0.32, y + Math.sin(a) * rr * 0.26, 6, 4, a, 0, 6.28); g.fill(); }
+  }
+  const strawberry = (x, y, w, tilt) => {
+    const shape = rot(bez([x, y + w * 0.95], [x - w * 0.4, y + w * 0.7], [x - w * 0.7, y + w * 0.1], [x - w * 0.6, y - w * 0.3], 20)
+      .concat(bez([x - w * 0.6, y - w * 0.3], [x - w * 0.5, y - w * 0.75], [x + w * 0.5, y - w * 0.75], [x + w * 0.6, y - w * 0.3], 20).slice(1))
+      .concat(bez([x + w * 0.6, y - w * 0.3], [x + w * 0.7, y + w * 0.1], [x + w * 0.4, y + w * 0.7], [x, y + w * 0.95], 20).slice(1)), x, y, tilt);
+    const p = paint(g, shape, C.straw, r, { len: [4, 14] });
+    g.save(); g.clip(p); paint(g, rot(ell(x + w * 0.5, y + w * 0.15, w * 0.42, w, 40), x, y, tilt), C.strawShade, r, { len: [6, 18] }); g.restore();
+    g.fillStyle = C.strawSeed;
+    for (const [sx, sy] of [[-0.3, 0], [0.12, 0.05], [-0.1, 0.38], [0.22, 0.42], [-0.32, 0.35], [-0.05, -0.2], [0.3, -0.12]]) { const [px, py] = rot([[x + sx * w, y + sy * w]], x, y, tilt)[0]; g.beginPath(); g.ellipse(px, py, 4.5, 6.5, tilt, 0, 6.28); g.fill(); }
+    for (const a of [-0.9, -0.3, 0.3, 0.9]) { const [lx, ly] = rot([[x, y - w * 0.45]], x, y, tilt)[0]; const leaf = rot(ell(lx, ly - w * 0.2, w * 0.12, w * 0.24, 20), lx, ly, a + tilt); paint(g, leaf, C.leaf, r, { len: [3, 8] }); }
+  };
+  strawberry(455, 125, 96, 0.15); strawberry(545, 165, 74, -0.25);
+  for (const [x, y, rr] of [[318, 168, 31], [362, 146, 29], [350, 198, 30]]) {
+    const p = paint(g, ell(x, y, rr, rr * 0.93, 40), C.berry, r, { len: [3, 9] });
+    g.save(); g.clip(p); paint(g, ell(x + rr * 0.55, y + rr * 0.25, rr * 0.6, rr, 30), C.berryShade, r, { len: [3, 9] }); g.restore();
+    fringe(g, ell(x, y, rr, rr * 0.93, 40), p, C.mint, r, { only: (px) => px > x + rr * 0.55, len: [3, 8], w: [1.5, 2.5], dir: -1 });
+    g.fillStyle = C.peach; g.globalAlpha = 0.8; g.beginPath(); g.ellipse(x - rr * 0.4, y - rr * 0.42, rr * 0.22, rr * 0.16, -0.5, 0, 6.28); g.fill(); g.globalAlpha = 1;
+  }
+  return c;
+}
+function makeCoinFace(seed) {
+  const c = mk(140, 140), g = c.getContext('2d'), r = rng(seed);
+  paint(g, ell(70, 70, 58, 58, 60), C.goldShade, r, { len: [3, 10] });
+  paint(g, ell(66, 66, 50, 50, 60), C.gold, r, { len: [3, 9] });
+  g.fillStyle = C.goldShade; g.font = '900 64px Nunito'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('€', 66, 70);
+  g.fillStyle = C.goldLight; g.globalAlpha = 0.8; g.beginPath(); g.ellipse(46, 40, 12, 7, -0.6, 0, 6.28); g.fill(); g.globalAlpha = 1;
+  return c;
+}
+function makeCoinLying(seed) {
+  const c = mk(160, 80), g = c.getContext('2d'), r = rng(seed);
+  paint(g, ell(80, 46, 66, 22, 50).concat([[146, 46]]), C.goldShade, r, { len: [3, 8] });
+  g.fillStyle = C.goldShade; g.fillRect(14, 32, 132, 14);
+  paint(g, ell(80, 32, 66, 22, 50), C.gold, r, { len: [3, 9] });
+  g.fillStyle = C.goldLight; g.globalAlpha = 0.7; g.beginPath(); g.ellipse(58, 26, 22, 6, 0, 0, 6.28); g.fill(); g.globalAlpha = 1;
+  return c;
+}
+function makeDumbbell(seed) {
+  const c = mk(560, 190), g = c.getContext('2d'), r = rng(seed);
+  paint(g, [[70, 82], [490, 82], [490, 108], [70, 108]], C.slate, r, { len: [3, 10] });
+  fringe(g, [[70, 82], [490, 82]], pathOf([[70, 82], [490, 82], [490, 108], [70, 108]]), C.peach, r, { len: [3, 8], dir: -1 });
+  for (const [x, w, h] of [[70, 34, 112], [490, 34, 112], [118, 62, 160], [442, 62, 160]]) {
+    const rr = [[x - w / 2, 95 - h / 2], [x + w / 2, 95 - h / 2], [x + w / 2, 95 + h / 2], [x - w / 2, 95 + h / 2]];
+    const p = paint(g, rr, C.slate, r, { len: [4, 12] });
+    fringe(g, rr, p, C.salmon, r, { only: (px) => px < x - w * 0.2, len: [4, 12], w: [2, 3.5], dir: -1, dens: 1 });
+    fringe(g, rr, p, C.mint, r, { only: (px) => px > x + w * 0.3, len: [3, 9], w: [1.5, 3], dir: -1 });
+  }
+  return c;
+}
+function makePill(seed) {
+  const c = mk(680, 180), g = c.getContext('2d'), r = rng(seed);
+  const pts = ell(150, 90, 70, 70, 30, Math.PI / 2, Math.PI * 1.5).concat(ell(530, 90, 70, 70, 30, -Math.PI / 2, Math.PI / 2));
+  paint(g, pts, C.cream, r, { len: [4, 14] });
+  return c;
+}
+function makeEye(seed) { const c = mk(90, 100), g = c.getContext('2d'), r = rng(seed); paint(g, ell(45, 50, 30, 36, 40), C.ink, r, { len: [3, 9] }); return c; }
+function makeGrain(seed) {
+  const c = mk(540, 960), g = c.getContext('2d'), d = g.createImageData(540, 960), r = rng(seed);
+  for (let i = 0; i < d.data.length; i += 4) { const v = 128 + (r() - .5) * 120; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+  g.putImageData(d, 0, 0); return c;
+}
+
+function makeAssets() {
+  const list = (fn, base) => Array.from({ length: VAR }, (_, i) => fn(base + i * 17));
+  A.sky = list(makeSky, 1); A.grass = list(makeGrass, 2); A.fore = list(makeForeground, 3);
+  A.body = list(makeBody, 4); A.ring = list(s => makeRing(s, false), 5); A.ringFront = list(s => makeRing(s, true), 5);
+  A.oats = list(makeOats, 6); A.shadow = list(makeShadow, 7);
+  A.fruit = list(makeFruit, 8); A.coinFace = list(makeCoinFace, 9); A.coinLying = list(makeCoinLying, 10);
+  A.dumbbell = list(makeDumbbell, 11); A.pill = list(makePill, 12); A.eye = list(makeEye, 13);
+  A.grain = Array.from({ length: 4 }, (_, i) => makeGrain(100 + i));
+}
+
+// ---------- scene geometry ----------
+const BOWL_X = 40, BOWL_Y = 1000; // bowl space (0,0) in the world
+const REST = { // where each drop ends up, in bowl space (centre of its picture)
+  fruit: { x: 450, y: 110 }, dumbbell: { x: 500, y: 92, a: -0.04 },
+  coin: [{ x: 800, y: 150 }, { x: 800, y: 130 }, { x: 800, y: 110 }],
+};
+const HOVER = { fruit: [490, 760], dumbbell: [540, 730], coin: [[760, 720], [840, 700], [920, 720]] };
+
+function restOf(d) { return d.kind === 'coin' ? REST.coin[d.i] : REST[d.kind]; }
+function hoverOf(d) { return d.kind === 'coin' ? HOVER.coin[d.i] : HOVER[d.kind]; }
+
+const IMPACTS = [{ t: T.hook.hit, amp: 0.05, x: 540, y: 1150, cols: [C.peach, C.cream, C.mint], n: 22 }]
+  .concat(T.drops.map(d => {
+    const rest = restOf(d), amp = d.kind === 'dumbbell' ? 0.11 : d.kind === 'fruit' ? 0.08 : 0.035;
+    const cols = d.kind === 'fruit' ? [C.banana, C.straw, C.berry, C.leaf] : d.kind === 'coin' ? [C.gold, C.goldLight, C.peach] : [C.slate, C.peach, C.mint];
+    return { t: d.land, amp, x: BOWL_X + rest.x, y: BOWL_Y + rest.y, cols, n: d.kind === 'dumbbell' ? 40 : d.kind === 'coin' ? 12 : 30 };
+  }))
+  .concat([{ t: T.payoff.hopLand, amp: 0.09, x: 540, y: 1150, cols: [C.peach, C.cream, C.mint, C.gold], n: 30 }]);
+
+function squash(t) {
+  let q = 0;
+  for (const im of IMPACTS) { const dt = t - im.t; if (dt >= 0 && dt < 1.6) q += im.amp * Math.exp(-7 * dt) * Math.cos(20 * dt); }
+  return q;
+}
+function hopY(t) { const p = prog(t, T.payoff.bloom, T.payoff.hopLand); return p > 0 && p < 1 ? -Math.sin(Math.PI * p) * 130 : 0; }
+
+// ---------- drawing pieces ----------
+function drawSprite(img, x, y, sx = 1, sy = sx, a = 0) {
+  X.save(); X.translate(x, y); if (a) X.rotate(a); X.scale(sx, sy); X.drawImage(img, -img.width / 2, -img.height / 2); X.restore();
+}
+
+function drawItem(d, b, t, world) {
+  // world: drawn while hovering or falling; otherwise in bowl space at rest
+  if (d.kind === 'fruit') return drawSprite(A.fruit[b], world.x, world.y, world.s);
+  if (d.kind === 'dumbbell') return drawSprite(A.dumbbell[b], world.x, world.y, world.s, world.s, world.a || 0);
+  if (world.lying) return drawSprite(A.coinLying[b], world.x, world.y, world.s);
+  const spin = Math.cos((t - d.show) * 7 + d.i);
+  return drawSprite(A.coinFace[b], world.x, world.y, world.s * (0.25 + 0.75 * Math.abs(spin)), world.s);
+}
+
+function itemState(d, t) {
+  if (t < d.show) return null;
+  const [hx, hy] = hoverOf(d), rest = restOf(d);
+  if (t >= d.land) return { rested: true, x: rest.x, y: rest.y, s: 1, a: rest.a, lying: true };
+  const appear = eBack(prog(t, d.show, d.show + 0.4));
+  const bob = Math.sin((t - d.show) * 4.2 + (d.i || 0)) * 10;
+  if (t < d.fall) return { x: hx, y: hy + bob, s: 0.4 + 0.6 * appear, alpha: prog(t, d.show, d.show + 0.25), a: (rest.a || 0) + Math.sin((t - d.show) * 2) * 0.06 };
+  const p = prog(t, d.fall, d.land), rx = BOWL_X + rest.x, ry = BOWL_Y + rest.y;
+  return { x: lerp(hx, rx, eInOut(p)), y: lerp(hy + Math.sin((d.fall - d.show) * 4.2 + (d.i || 0)) * 10, ry, eIn(p)), s: 1, fallP: p, a: rest.a };
+}
+
+function drawStreak(x, y0, y1, w, col, a, seed) {
+  X.save(); X.globalAlpha = a;
+  const pts = []; for (let i = 0; i <= 24; i++) pts.push([x + Math.sin(i * 0.7 + seed) * 2, lerp(y0, y1, i / 24)]);
+  ribbon(X, pts, w, col, seed, 1, 0.8); X.restore();
+}
+
+function drawFace(t, f, look) {
+  const awake = t >= T.wake;
+  const eyes = [[400, 330], [600, 330]];
+  if (!awake) {
+    X.save(); X.globalAlpha = 0.9;
+    for (const [ex, ey] of eyes) ribbon(X, ell(ex, ey - 6, 24, 14, 20, 0.15 * Math.PI, 0.85 * Math.PI), 10, C.ink, Math.floor(f / 2) + ex);
+    X.restore();
+  } else {
+    // blink: on waking, before the breath's look, and every so often
+    const blinks = [T.wake, T.breath.blink, 3.0, 8.6, 14.6];
+    let open = 1; for (const bt of blinks) { const d = t - bt; if (d >= 0 && d < 0.2) open = Math.min(open, Math.abs(d - 0.1) / 0.1); }
+    const b = Math.floor(f / 2) % VAR;
+    for (const [ex, ey] of eyes) {
+      drawSprite(A.eye[b], ex, ey, 1, Math.max(0.12, open));
+      if (open > 0.5) { X.fillStyle = C.cream; X.beginPath(); X.ellipse(ex - 11 + look[0] * 0.5, ey - 15 + look[1] * 0.4, 8, 9, 0, 0, 6.28); X.fill(); }
+    }
+  }
+  // smile: small until the payoff, then wide
+  const big = eOut(prog(t, T.payoff.bloom, T.payoff.bloom + 0.4));
+  const rr = 46 + big * 22, cy = 392 + big * 4;
+  ribbon(X, ell(500, cy - rr * 0.55, rr, rr * (0.75 + big * 0.15), 30, 0.2 * Math.PI, 0.8 * Math.PI), 15 + big * 3, C.ink, Math.floor(f / 2) + 3);
+  X.fillStyle = C.peach; X.globalAlpha = 0.55;
+  X.beginPath(); X.ellipse(320, 400, 38, 20, 0, 0, 6.28); X.fill();
+  X.fillStyle = '#7C4A63'; X.globalAlpha = 0.45; X.beginPath(); X.ellipse(672, 400, 32, 17, 0, 0, 6.28); X.fill(); // the far cheek, in shadow
+  X.globalAlpha = 1;
+}
+
+function drawFlecks(t, f) {
+  for (let k = 0; k < IMPACTS.length; k++) {
+    const im = IMPACTS[k], dt = t - im.t; if (dt < 0 || dt > 0.9) continue;
+    const r = rng(1000 + k), fade = 1 - dt / 0.9;
+    for (let i = 0; i < im.n; i++) {
+      const ang = -Math.PI / 2 + (r() - .5) * 2.6, sp = 380 + r() * 700, vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp;
+      const x = im.x + (r() - .5) * 120 + vx * dt, y = im.y + vy * dt + 0.5 * 2600 * dt * dt;
+      const vxx = vx, vyy = vy + 2600 * dt, a = Math.atan2(vyy, vxx), col = pick(im.cols, r), len = 12 + r() * 26, w = 4 + r() * 6;
+      bristle(X, x, y, a, len, w, col, 0.95 * fade, rng(k * 97 + i + Math.floor(f / 2)));
+    }
+    // a ring at the rim
+    const p = prog(dt, 0, 0.5);
+    if (p < 1) { X.save(); X.strokeStyle = C.peach; X.globalAlpha = 0.55 * (1 - p); X.lineWidth = 10 * (1 - p) + 1; X.beginPath(); X.ellipse(540, 1150 + hopY(t), 440 * (1 + 0.28 * eOut(p)), 100 * (1 + 0.28 * eOut(p)), 0, 0, 6.28); X.stroke(); X.restore(); }
+  }
+}
+
+function drawMotes(t, light) {
+  const r = rng(77);
+  for (let i = 0; i < 60; i++) {
+    const x0 = r() * W, y0 = r() * 1300, sp = 12 + r() * 30, sz = 2 + r() * 5, col = r() < 0.5 ? C.cream : C.peach;
+    const y = ((y0 - t * sp) % 1300 + 1300) % 1300, x = x0 + Math.sin(t * 0.8 + i) * 18;
+    X.globalAlpha = (0.15 + r() * 0.35) * light; X.fillStyle = col; X.beginPath(); X.ellipse(x, y, sz, sz * 1.4, 0, 0, 6.28); X.fill();
+  }
+  X.globalAlpha = 1;
+}
+
+function setFont(weight, size, family = 'Nunito') { X.font = `${weight} ${size}px ${family}`; }
+
+function drawLines(t) {
+  const shadow = () => { X.shadowColor = 'rgba(40,18,60,0.55)'; X.shadowBlur = 28; X.shadowOffsetY = 6; };
+  for (let li = 0; li < T.lines.length; li++) {
+    const L = T.lines[li], next = T.lines[li + 1], end = next ? next.at : T.linesOut;
+    const start = L.at + (li > 0 ? 0.22 : 0);
+    if (t < start || t > end + 0.3) continue;
+    const out = prog(t, end, end + 0.2);
+    setFont(900, 88); X.textAlign = 'center'; X.textBaseline = 'alphabetic'; X.fillStyle = C.cream;
+    let wi = 0;
+    L.text.forEach((row, ri) => {
+      const words = row.split(' '), widths = words.map(w => X.measureText(w + ' ').width), total = widths.reduce((a, b) => a + b, 0) - X.measureText(' ').width;
+      let x = 540 - total / 2;
+      words.forEach((w, k) => {
+        const p = eOut(prog(t, start + wi * 0.07, start + wi * 0.07 + 0.24));
+        X.save(); shadow(); X.globalAlpha = p * (1 - out); X.textAlign = 'left';
+        X.fillText(w, x, 300 + ri * 104 + (1 - p) * 30 - out * 40); X.restore();
+        x += widths[k]; wi++;
+      });
+    });
+  }
+}
+
+function drawEndCard(t, f) {
+  const P = T.payoff;
+  if (t < P.word) return;
+  const shadow = () => { X.shadowColor = 'rgba(40,18,60,0.5)'; X.shadowBlur = 30; X.shadowOffsetY = 8; };
+  setFont(700, 220, 'Comfortaa'); X.textBaseline = 'alphabetic';
+  const letters = [...'nourlo'], ws = letters.map(l => X.measureText(l).width), total = ws.reduce((a, b) => a + b, 0);
+  let x = 540 - total / 2;
+  letters.forEach((l, i) => {
+    const p = eBack(prog(t, P.word + i * 0.08, P.word + i * 0.08 + 0.35)), a = prog(t, P.word + i * 0.08, P.word + i * 0.08 + 0.15);
+    X.save(); shadow(); X.globalAlpha = a; X.fillStyle = C.cream; X.translate(x + ws[i] / 2, 420); X.scale(0.6 + 0.4 * p, 0.6 + 0.4 * p); X.translate(0, (1 - p) * 40);
+    X.textAlign = 'center'; X.fillText(l, 0, 0); X.restore(); x += ws[i];
+  });
+  // a brush stroke paints on under the name
+  const up = eInOut(prog(t, P.word + 0.35, P.word + 0.95));
+  if (up > 0) { const pts = []; for (let i = 0; i <= 40; i++) pts.push([300 + i * 12, 478 + Math.sin(i / 6) * 5]); X.save(); X.globalAlpha = 0.95; ribbon(X, pts, 16, C.peach, Math.floor(f / 2), up, 0.6); X.restore(); }
+  const s = eOut(prog(t, P.sub, P.sub + 0.35));
+  if (s > 0) { X.save(); shadow(); setFont(800, 48); X.textAlign = 'center'; X.fillStyle = C.cream; X.globalAlpha = s; X.fillText('Meals · budget · training', 540, 575 + (1 - s) * 20); X.restore(); }
+  const bt = prog(t, P.button, P.button + 0.4);
+  if (bt > 0) {
+    const sc = eBack(bt) * (1 + Math.sin((t - P.button) * 5) * 0.012 * (bt >= 1 ? 1 : 0));
+    X.save(); X.globalAlpha = Math.min(1, bt * 3); X.translate(540, 720); X.scale(sc, sc);
+    X.shadowColor = 'rgba(40,18,60,0.45)'; X.shadowBlur = 30; X.shadowOffsetY = 10;
+    X.drawImage(A.pill[Math.floor(f / 2) % VAR], -340, -90); X.shadowColor = 'transparent';
+    setFont(900, 66); X.textAlign = 'center'; X.textBaseline = 'middle'; X.fillStyle = C.slateDeep; X.fillText('Download now', 0, 4); X.restore();
+    X.save(); shadow(); setFont(700, 38); X.textAlign = 'center'; X.fillStyle = C.cream; X.globalAlpha = prog(t, P.button + 0.2, P.button + 0.5); X.fillText('on the App Store', 540, 880); X.restore();
+  }
+}
+
+// ---------- the frame ----------
+function render(f) {
+  const t = f / FPS, b = Math.floor(f / 2) % VAR;
+  X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = 1; X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.shadowColor = 'transparent';
+  const light = t < T.hook.hit ? 0 : eOut(prog(t, T.hook.hit, T.hook.hit + 0.5));
+  const bloom = Math.exp(-Math.max(0, t - T.payoff.bloom) * 2.2) * (t >= T.payoff.bloom ? 1 : 0);
+
+  X.drawImage(A.sky[b], 0, 0);
+  // warm light behind the bowl
+  const glow = X.createRadialGradient(540, 1150, 40, 540, 1150, 760);
+  glow.addColorStop(0, `rgba(255,190,200,${0.1 + 0.32 * light + 0.3 * bloom})`); glow.addColorStop(1, 'rgba(255,190,200,0)');
+  X.fillStyle = glow; X.fillRect(0, 0, W, H);
+  drawMotes(t, light);
+
+  // things hovering in the sky, with a streak of light that lowered them
+  const states = T.drops.map(d => itemState(d, t));
+  T.drops.forEach((d, k) => {
+    const s = states[k]; if (!s || s.rested || s.fallP !== undefined) return;
+    const [hx, hy] = hoverOf(d), sp = prog(t, d.show, d.show + 0.6);
+    if (sp < 1) drawStreak(hx, -40, hy, 22, C.cream, 0.7 * (1 - sp), k * 13 + Math.floor(f / 2));
+    X.save(); X.globalAlpha = s.alpha; drawItem(d, b, t, s); X.restore();
+  });
+
+  X.drawImage(A.grass[b], 0, 1320);
+  const q = squash(t), hy = hopY(t), breathe = t > T.wake ? Math.sin(t * 2.3) * 0.006 : 0;
+  // shadow shrinks while the bowl is in the air
+  drawSprite(A.shadow[b], 540, 1548, 1 + hy / 900, 1 + hy / 900);
+
+  const bowlSpace = () => { X.translate(540, 1560 + hy); X.scale(1 + q + breathe, 1 - q - breathe); X.translate(-500, -560); };
+  // looking: up at whatever hovers, down as it falls, at us otherwise
+  let look = [0, 0];
+  T.drops.forEach((d, k) => { const s = states[k]; if (s && !s.rested) { const dx = (s.x - 540) / 12; look = [clamp(dx, -14, 14), s.fallP === undefined ? -16 : lerp(-16, 6, s.fallP)]; } });
+
+  X.save(); bowlSpace();
+  X.drawImage(A.body[b], 0, 0); drawFace(t, f, look); X.drawImage(A.ring[b], 0, 0); X.drawImage(A.oats[b], 0, 0);
+  T.drops.forEach((d, k) => { const s = states[k]; if (s && s.rested && d.kind === 'dumbbell') drawItem(d, b, t, s); });
+  T.drops.forEach((d, k) => { const s = states[k]; if (s && s.rested && d.kind !== 'dumbbell') drawItem(d, b, t, s); });
+  X.restore();
+  // things falling in, in the world, with a motion trail
+  T.drops.forEach((d, k) => {
+    const s = states[k]; if (!s || s.fallP === undefined) return;
+    drawStreak(s.x, s.y - 60 - 300 * s.fallP, s.y - 40, 26, C.cream, 0.45 * Math.sin(Math.PI * s.fallP), k * 7 + Math.floor(f / 2));
+    drawItem(d, b, t, s);
+  });
+  X.save(); bowlSpace(); X.drawImage(A.ringFront[b], 0, 0); X.restore();
+
+  drawFlecks(t, f);
+  X.drawImage(A.fore[b], 0, 1460);
+
+  drawLines(t);
+  drawEndCard(t, f);
+
+  // edges, the dark before the light, the falling light itself, flashes
+  const vig = X.createRadialGradient(540, 980, 520, 540, 980, 1250);
+  vig.addColorStop(0, 'rgba(30,14,44,0)'); vig.addColorStop(1, 'rgba(30,14,44,0.5)');
+  X.fillStyle = vig; X.fillRect(0, 0, W, H);
+  if (light < 1) { X.fillStyle = `rgba(24,10,36,${0.66 * (1 - light)})`; X.fillRect(0, 0, W, H); }
+  if (t >= T.hook.start && t < T.hook.hit + 0.05) {
+    const p = eIn(prog(t, T.hook.start, T.hook.hit)), head = lerp(-120, 1150, p);
+    X.save(); X.shadowColor = '#FFC2A8'; X.shadowBlur = 40; drawStreak(540, head - 620, head, 30, '#FFE9DC', 1, Math.floor(f / 2)); X.restore();
+    X.fillStyle = '#FFF4EC'; X.beginPath(); X.ellipse(540, head, 16, 22, 0, 0, 6.28); X.fill();
+  }
+  const flash = (at, k) => { const d = t - at; if (d >= 0 && d < 0.35) { X.fillStyle = `rgba(255,214,196,${k * (1 - d / 0.35)})`; X.fillRect(0, 0, W, H); } };
+  flash(T.hook.hit, 0.45); flash(T.payoff.bloom, 0.35);
+  if (bloom > 0.01) {
+    X.save(); X.globalCompositeOperation = 'screen';
+    const bl = X.createRadialGradient(540, 1150, 0, 540, 1150, 400 + 1200 * eOut(prog(t, T.payoff.bloom, T.payoff.bloom + 0.8)));
+    bl.addColorStop(0, `rgba(255,200,170,${0.55 * bloom})`); bl.addColorStop(1, 'rgba(255,200,170,0)');
+    X.fillStyle = bl; X.fillRect(0, 0, W, H); X.restore();
+  }
+  // film grain
+  X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = 0.16; X.drawImage(A.grain[f % 4], 0, 0, W, H); X.restore();
+}
+
+// ---------- start ----------
+(async () => {
+  const fonts = [new FontFace('Nunito', 'url(Nunito.ttf)', { weight: '200 1000' }), new FontFace('Comfortaa', 'url(Comfortaa.ttf)', { weight: '300 700' })];
+  for (const font of fonts) { await font.load(); document.fonts.add(font); }
+  makeAssets();
+  window.READY = true;
+  if (!location.search.includes('render')) {
+    const t0 = performance.now();
+    const loop = () => { render(Math.floor((performance.now() - t0) / 1000 * FPS) % NF); requestAnimationFrame(loop); };
+    loop();
+  }
+})();
+</script>
+</body></html>

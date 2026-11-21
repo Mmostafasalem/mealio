@@ -41,12 +41,17 @@ nonisolated struct NourloSnapshot: Codable, Equatable, Sendable {
 
     var caloriesLeft: Int { max(calorieGoal - caloriesEaten, 0) }
     var progress: Double { calorieGoal > 0 ? min(Double(caloriesEaten) / Double(calorieGoal), 1) : 0 }
+    /// No goal yet (the app hasn't been set up, or has never written a snapshot):
+    /// widgets ask the person to open Nourlo instead of showing made-up numbers.
+    var needsSetup: Bool { calorieGoal <= 0 }
+    static let setupPrompt = "Open Nourlo to set up"
 
     /// Whether this snapshot describes the given day (a widget must not show yesterday's totals).
     func isFor(_ day: Date, calendar: Calendar = .current) -> Bool { calendar.isDate(date, inSameDayAs: day) }
 
     /// What a widget shows before the app has written anything, or on a new day.
-    static func empty(on day: Date = Date(), goal: Int = 2000) -> NourloSnapshot {
+    /// No goal is invented: 0 means "not set up yet".
+    static func empty(on day: Date = Date(), goal: Int = 0) -> NourloSnapshot {
         NourloSnapshot(date: day, caloriesEaten: 0, calorieGoal: goal, proteinG: 0, proteinGoalG: 0,
                        carbsG: 0, carbsGoalG: 0, fatG: 0, fatGoalG: 0, meals: [], streakDays: 0)
     }

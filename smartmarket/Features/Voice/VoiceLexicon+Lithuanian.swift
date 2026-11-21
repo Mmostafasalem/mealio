@@ -14,7 +14,7 @@ extension VoiceLexicon {
             #" (?:prasau|prasom|aciu|dekui)$"#,
         ],
         calorieWords: ["kalorij", "kcal"],
-        calorieCues: ["liko", "like", "kiek", "dar galiu", "likutis"],
+        calorieCues: ["liko", "like", "dar galiu", "likutis"],
         exercisePatterns: [
             #"^(?:parodyk |parodyk man |paaiskink )?kaip (?:daryti|atlikti|darau|daromas|daromi|daroma|daromos|reikia daryti) (.+)$"#,
             #"^(?:parodyk|atidaryk|rodyk)(?: man)? pratima (.+)$"#,

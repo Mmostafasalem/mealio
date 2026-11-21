@@ -20,6 +20,19 @@ final class VoiceCommandModel {
         case review
         case done
         case failed(String)
+        /// Photo mode: waiting for the person to take or choose a photo.
+        case choosingPhoto
+        /// Photo mode: online AI is naming the foods in the photo.
+        case readingPhoto
+    }
+
+    /// Opened to log a meal from a photo instead of listening.
+    let photoMode: Bool
+    /// The review card came from a photo read by online AI (shown on the card; never saves by itself).
+    private(set) var fromPhoto = false
+
+    init(photoMode: Bool = false) {
+        self.photoMode = photoMode
     }
 
     private(set) var phase: Phase = .starting
@@ -61,6 +74,9 @@ final class VoiceCommandModel {
     /// Nothing heard at all for this long gives up.
     static let nothingHeard: TimeInterval = 8
     static let autoConfirmSeconds = 4
+    /// The offline model hears any loud sound as a voice, so a noisy room would
+    /// never end the listening: it stops here whatever is heard.
+    static let longestOfflineListening: TimeInterval = 30
 
     /// The language being listened for (chosen in Profile).
     private(set) var language = VoiceLanguage.current
@@ -75,6 +91,7 @@ final class VoiceCommandModel {
 
     func start() {
         cancelTimers()
+        stopEngine()
         session += 1
         let session = session
         transcript = ""
@@ -85,8 +102,13 @@ final class VoiceCommandModel {
         undo = nil
         permissionDenied = false
         helper = nil
+        fromPhoto = false
         hasSpoken = false
         language = VoiceLanguage.current
+        if photoMode {
+            phase = .choosingPhoto
+            return
+        }
         phase = .starting
         if let phrase = Self.testPhrase {
             transcript = phrase
@@ -171,6 +193,7 @@ final class VoiceCommandModel {
                 let quietFor = now.timeIntervalSince(self.lastHeardAt)
                 let spoke = !self.transcript.isEmpty || self.hasSpoken
                 if spoke, quietFor > Self.endOfSpeech { self.stopListening(); return }
+                if !self.showsLiveText, now.timeIntervalSince(self.startedAt) > Self.longestOfflineListening { self.stopListening(); return }
                 if !spoke, now.timeIntervalSince(self.startedAt) > Self.nothingHeard { self.stopListening(); return }
             }
         }
@@ -191,6 +214,11 @@ final class VoiceCommandModel {
             // The final pass can be shorter than what was shown; keep the fuller one.
             let text = final.count >= transcript.count ? final : transcript
             transcript = text
+            // Reading the recording failed: say so, instead of "I didn't hear anything".
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let error = engine?.lastError {
+                fail(error)
+                return
+            }
             understand(text)
         }
     }
@@ -242,9 +270,72 @@ final class VoiceCommandModel {
             phase = .review
             // A model's reading, or one that allowed for misheard words, is shown for a tap;
             // only the rules' exact readings save by themselves.
-            if plan.isComplete, helper == nil, !guessed { startCountdown() }
+            if plan.isComplete, helper == nil, !fromPhoto, !guessed, !plan.isGuessed { startCountdown() }
         } else {
             run(plan)
+        }
+    }
+
+    // MARK: Photo
+
+    static let nothingInPhoto = "I couldn't make out any food in that photo."
+
+    /// Sends a photo to online AI, which names the foods and guesses their grams.
+    /// Nothing is logged here: the foods go to the review card and wait for a tap.
+    func readPhoto(_ image: UIImage) {
+        guard photoMode else { return }
+        cancelTimers()
+        session += 1
+        let session = session
+        plan = nil
+        message = ""
+        phase = .readingPhoto
+        Task {
+            let encoded = await Task.detached(priority: .userInitiated) {
+                MealPhotoEncoder.base64JPEG(from: image)
+            }.value
+            guard session == self.session else { return }
+            guard let encoded else {
+                phase = .failed("That photo couldn't be read. Try another one.")
+                return
+            }
+            do {
+                let response = try await APIService.shared.readFoodPhoto(base64: encoded)
+                guard session == self.session else { return }
+                start(photoFoods: response.phrases)
+            } catch {
+                guard session == self.session else { return }
+                phase = .failed(Self.photoFailure(error))
+            }
+        }
+    }
+
+    /// The foods online AI saw, as name and grams, shown on the review card as a model's
+    /// reading: matched to the on-device food data and saved only on a tap.
+    func start(photoFoods: [VoiceFoodPhrase]) {
+        cancelTimers()
+        guessed = false
+        helper = nil
+        fromPhoto = true
+        let plan = VoiceCommandRunner.plan(for: .logFood(items: photoFoods, slot: nil))
+        guard !photoFoods.isEmpty, case .food(let matches, _, _) = plan, !matches.isEmpty else {
+            self.plan = nil
+            phase = .failed(Self.nothingInPhoto)
+            return
+        }
+        present(plan)
+    }
+
+    private static func photoFailure(_ error: Error) -> String {
+        switch error {
+        case let account as AIAccountError:
+            return account.errorDescription ?? "Online AI isn't available right now. Please try again later."
+        case APIError.aiConsentRequired:
+            return "Turn on online AI in Profile to read meal photos."
+        case APIError.unverifiedAIResponse:
+            return "Online AI isn't available right now. Please try again later."
+        default:
+            return "Couldn't reach Nourlo. Check your connection and try again."
         }
     }
 
@@ -275,6 +366,8 @@ final class VoiceCommandModel {
         countdown = Self.autoConfirmSeconds
         // A UI test confirms by hand, so it never races the timer.
         guard Self.testPhrase == nil else { countdown = nil; return }
+        // VoiceOver and Switch Control take longer than the countdown: wait for a tap.
+        guard !UIAccessibility.isVoiceOverRunning, !UIAccessibility.isSwitchControlRunning else { countdown = nil; return }
         let session = session
         countdownTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -387,6 +480,8 @@ final class VoiceCommandModel {
     // MARK: Ending
 
     private func fail(_ error: Error) {
+        // The microphone must not stay live behind an error message.
+        stopEngine()
         if let capture = error as? SpeechCaptureError, capture == .microphoneDenied || capture == .speechDenied {
             permissionDenied = true
         }
@@ -400,13 +495,18 @@ final class VoiceCommandModel {
         countdown = nil
     }
 
+    /// Lets go of the engine and stops its microphone.
+    private func stopEngine() {
+        guard let engine else { return }
+        self.engine = nil
+        Task { _ = await engine.stop() }
+    }
+
     /// The sheet is going away: stop the microphone, keep whatever was saved.
     func cancel() {
         cancelTimers()
         session += 1
-        let engine = engine
-        self.engine = nil
-        Task { _ = await engine?.stop() }
+        stopEngine()
     }
 }
 
@@ -415,7 +515,7 @@ extension SpeechCaptureError: Equatable {
         switch (a, b) {
         case (.microphoneDenied, .microphoneDenied), (.speechDenied, .speechDenied),
              (.unsupportedLanguage, .unsupportedLanguage), (.unavailable, .unavailable),
-             (.needsOfflineModel, .needsOfflineModel): return true
+             (.needsOfflineModel, .needsOfflineModel), (.transcriptionFailed, .transcriptionFailed): return true
         case let (.audio(x), .audio(y)): return x == y
         default: return false
         }

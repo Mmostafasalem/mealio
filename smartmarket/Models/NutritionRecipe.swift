@@ -1,11 +1,11 @@
 import Foundation
 
-struct NutritionIngredient: Codable, Hashable, Identifiable {
+nonisolated struct NutritionIngredient: Codable, Hashable, Identifiable, Sendable {
     var id = UUID()
     let food: NutritionFood
     var amount: Double
 }
-struct NutritionRecipe: Codable, Hashable {
+nonisolated struct NutritionRecipe: Codable, Hashable, Sendable {
     let ingredients: [NutritionIngredient]
     let cookedYieldG: Double
 }

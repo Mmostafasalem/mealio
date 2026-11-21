@@ -8,6 +8,7 @@ final class MealsFixesTests: XCTestCase {
     private let domain = Bundle.main.bundleIdentifier ?? "com.mostafa.mealio"
 
     override func setUp() async throws {
+        StockStore.shared.clearItems()   // the plan reads My Stock; start each test with an empty shelf
         savedDomain = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
     }
 

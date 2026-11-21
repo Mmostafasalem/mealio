@@ -30,6 +30,13 @@ struct AgentChatSheet: View {
     var body: some View {
             VStack(spacing: 0) {
                 assistantHeader
+                Text("AI answers can be wrong and aren't medical advice. Check allergens and ingredients yourself.")
+                    .font(.caption2)
+                    .foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.bottom, Spacing.xs)
+                    .accessibilityIdentifier("chat.disclaimer")
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: Spacing.md) {
@@ -124,7 +131,7 @@ struct AgentChatSheet: View {
             }
             Button("Not now", role: .cancel) { pendingOwnerMessage = nil }
         } message: {
-            Text("AI requests can include your message, nutrition goals, body measurements, food preferences, shopping items, owned food quantities and remaining daily targets. This private test sends them \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the model on your Mac. Keep the Mac awake. You can turn sharing off in Profile.")
+            Text("AI requests can include your message, nutrition goals, body measurements, food preferences, shopping items, owned food quantities and remaining daily targets. This private test sends them \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the model on your Mac. Keep the Mac awake. You can turn sharing off in Profile." as String)
         }
         .onChange(of: vm.chatNotice) { _, notice in
             if UIAccessibility.isVoiceOverRunning, let notice, !notice.isEmpty {
@@ -324,6 +331,7 @@ private struct ChatAISetupView: View {
                 AIAccountSection()
                 Section {
                     Toggle("Allow online AI suggestions", isOn: $sharingConsent)
+                        .toggleStyle(.spring)
                         .accessibilityIdentifier("chat.aiConsent")
                     NavigationLink("Privacy Policy") { LegalDocumentView(resource: "Privacy", title: "Privacy Policy") }
                 } header: {
@@ -332,7 +340,7 @@ private struct ChatAISetupView: View {
                     Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through Nourlo's backend to Groq. Account access and sharing are separate choices. Turning sharing off stops future AI requests. Read the Privacy Policy before enabling.")
                 }
             }
-            .navigationTitle("Online AI")
+            .navigationTitle("Set up Ask Nourlo")
             .toolbar { ToolbarItem(placement: .confirmationAction) {
                 Button("Done") { dismiss() }.accessibilityIdentifier("chat.setupDone")
             } }
@@ -370,7 +378,7 @@ private struct ChatBubble: View {
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
         .padding(.horizontal, Spacing.lg)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(isUser ? "You: \(message.content)" : "Online assistant: \(message.content)")
+        .accessibilityLabel(isUser ? "You: \(message.content)" : "Nourlo: \(message.content)")
     }
 }
 

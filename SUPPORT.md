@@ -63,7 +63,7 @@ are not assumed to be zero. Choose grams or millilitres as shown; the app does n
 convert between them. Quick-add logs the displayed 100 g/ml, while tapping a food
 opens its source and an adjustable portion. Selected packaged products remain
 available offline in Recent and search. New online searches need internet access.
-Meal-plan totals remain estimates; they cannot be one-tap logged as sourced nutrition. Log the actual ingredients and amounts instead.
+Meal-plan totals are estimates. A planned meal whose foods are all matched to food records shows its protein, carbs and fat and can be logged in one go with "Review and log"; otherwise log the foods and amounts you ate.
 
 
 **How do I use the bowl guide?**
@@ -92,19 +92,24 @@ starting if you have a medical condition or injury. Calorie figures for
 workouts are rough estimates.
 
 **My meal plan didn't update after I changed my cart.**
-You can tap **Regenerate** on the Meals tab. Online AI features require the
-optional sharing permission, Sign in with Apple in Profile, available credits
-and a working backend. Local suggestions
-remain available when sharing is off or the service cannot be reached.
+Tap **Regenerate** on the Meals tab. Meal plans are always built on your iPhone
+from your cart, My Stock and your preferences, so this works without internet,
+an account or AI.
 
 **How does the AI allowance work?**
-Sign in with Apple in Profile to share one daily allowance across devices.
-Signing in does not enable sharing by itself. The default allowance is 30 credits;
-meal plans use 5 and short requests use 1. It resets at midnight UTC, shown in your
-local time. Failed AI calls and cached responses do not spend personal credits.
-Overall provider capacity can still cause temporary limits. Local features remain
-available without sign-in or online AI. This pre-release service still requires
-account-side activation; a disabled sign-in button does not mean your device is faulty.
+Online AI is used for two things only: chatting with Nourlo and AI recipes. Meal
+plans, workouts and shopping suggestions are built on your iPhone and use no
+credits. To use online AI, sign in with Apple in Profile (one daily allowance
+shared across your devices) or continue as a guest where that is offered (the
+allowance belongs to that one device). Signing in does not enable sharing by
+itself. The default allowance is 15 credits a day; each chat message or AI recipe
+uses 1. It resets at midnight UTC, shown in your local time. No credit is used
+when a request fails before the AI answers or when a recipe you already asked for
+is served again. If the AI answers but the answer can't be used, 1 credit is kept
+and the app tells you. Overall provider capacity can still cause temporary limits.
+Local features remain available without sign-in or online AI. If online AI isn't
+switched on for the service, the app doesn't offer it; a disabled sign-in button
+does not mean your device is faulty.
 
 **Are the calorie numbers exact?**
 No — calorie and macro values are **estimates** and vary by product and

@@ -98,7 +98,7 @@ final class LetterLimitModel {
         if Date().timeIntervalSince(lastAnnounce) > 2 {
             lastAnnounce = Date()
             UIAccessibility.post(notification: .announcement,
-                                 argument: "Messages can be up to \(limit.formatted()) characters. The extra text was not added.")
+                                 argument: "Messages can be up to \(limit.formatted(.number.grouping(.never))) characters. The extra text was not added.")
         }
         UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.6)
         guard !MotionSettings.reduceMotion else { return }
@@ -226,7 +226,7 @@ struct LetterLimitRing: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Characters left")
-        .accessibilityValue("\(left.formatted()) of \(limit.formatted())")
+        .accessibilityValue("\(left.formatted(.number.grouping(.never))) of \(limit.formatted(.number.grouping(.never)))" as String)
         .accessibilityHidden(!(isNear || isFull))
     }
 }

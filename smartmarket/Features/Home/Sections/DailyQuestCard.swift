@@ -57,7 +57,7 @@ struct DailyQuestCard: View {
                     .foregroundStyle(Color.labelSecondary)
             } else {
                 HStack(spacing: 4) {
-                    Text("\(state.streak)")
+                    Text("\(state.streak)" as String)
                         .font(.system(.title2, design: .rounded).weight(.bold).monospacedDigit())
                         .contentTransition(.numericText())
                     Text(state.streak == 1 ? "day" : "days")
@@ -70,7 +70,7 @@ struct DailyQuestCard: View {
                     ForEach(0..<state.saversHeld, id: \.self) { _ in
                         Image(systemName: "shield.fill").font(.caption2)
                     }
-                    Text("saver\(state.saversHeld == 1 ? "" : "s")").font(.caption2.weight(.medium))
+                    Text("saver\(state.saversHeld == 1 ? "" : "s")" as String).font(.caption2.weight(.medium))
                 }
                 .foregroundStyle(Color.brandPrimary)
             }
@@ -133,7 +133,7 @@ private struct QuestRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Quest, \(quest.title), " + (quest.goal > 1 ? "\(Int(quest.current)) of \(Int(quest.goal)) \(quest.unit), " : "") + (quest.isDone ? "done" : "not done"))
+        .accessibilityLabel("Quest, \(quest.title), " as String + (quest.goal > 1 ? "\(Int(quest.current)) of \(Int(quest.goal)) \(quest.unit), " : "") + (quest.isDone ? "done" : "not done"))
         .accessibilityAddTraits(.isButton)
     }
 }
@@ -155,7 +155,7 @@ private struct WeekDots: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("This week: \(days.filter { $0 == .kept || $0 == .today(kept: true) }.count) days counted")
+        .accessibilityLabel("This week: \(days.filter { $0 == .kept || $0 == .today(kept: true) }.count) days counted" as String)
     }
 
     @ViewBuilder private func marker(_ dot: WeekDot) -> some View {
@@ -165,7 +165,7 @@ private struct WeekDots: View {
                 .overlay(Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(Color.onAccent))
         case .saved:
             Circle().fill(Color.progress.opacity(0.25))
-                .overlay(Image(systemName: "shield.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.onAccent))
+                .overlay(Image(systemName: "shield.fill").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.labelPrimary))
         case .today(kept: false):
             Circle().strokeBorder(Color.progress, style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
         case .open:

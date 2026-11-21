@@ -17,6 +17,28 @@ final class DailyQuestTests: XCTestCase {
         }
     }
 
+    func testEveryDayHasANutritionQuest() {
+        for n in 0..<30 {
+            let i = F.inputs(cartHasItems: true, hasStock: true, now: F.date(n))
+            let ids = DailyLoop.quests(for: i.today, i).map(\.id)
+            XCTAssertTrue(ids.contains { DailyLoop.nutritionQuests.contains($0) }, "day \(n): \(ids)")
+        }
+    }
+
+    func testVegetablesAndFruitCountWhatWasEaten() {
+        let now = F.date(0)
+        func entry(_ name: String, _ slot: MealSlot) -> FoodLogEntry {
+            FoodLogEntry(name: name, slot: slot, servingG: 100, calories: 50, proteinG: 1, carbsG: 5, fatG: 0, loggedAt: now)
+        }
+        var i = F.inputs(now: now)
+        i.foodEntries = [entry("Broccoli, raw", .lunch), entry("Chicken breast", .lunch), entry("Banana", .snack)]
+        XCTAssertEqual(q(.vegetables, i).current, 1)
+        XCTAssertFalse(q(.vegetables, i).isDone)
+        XCTAssertTrue(q(.fruit, i).isDone)
+        i.foodEntries.append(entry("Spinach", .dinner))
+        XCTAssertTrue(q(.vegetables, i).isDone)
+    }
+
     func testSelectionIsStableForADay() {
         let i = F.inputs(cartHasItems: true, hasStock: true)
         XCTAssertEqual(DailyLoop.quests(for: i.today, i).map(\.id), DailyLoop.quests(for: i.today, i).map(\.id))
@@ -126,7 +148,8 @@ final class DailyQuestTests: XCTestCase {
         XCTAssertFalse(DailyLoop.isPerfect(day: i.today, i))
         // Satisfy everything any quest could ask for.
         var food = [F.food(-2, foodId: "old")]
-        food += [F.food(slot: .breakfast, foodId: "new1", id: "s1"), F.food(slot: .lunch), F.food(slot: .dinner)]
+        food += [F.food(slot: .breakfast, foodId: "new1", id: "s1", name: "Banana"), F.food(slot: .lunch, name: "Broccoli"),
+                 F.food(slot: .dinner, name: "Spinach")]
         let all = F.inputs(food: food, stockIDs: ["s1"], workouts: [F.workout(minutes: 30)], calorieGoal: 0, proteinGoal: 0,
                            cartHasItems: true, hasStock: true, ledger: [.budgetCheckIn(F.day())])
         XCTAssertEqual(DailyLoop.quests(for: all.today, all).count, 3, "\(ids)")

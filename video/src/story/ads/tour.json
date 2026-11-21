@@ -1,0 +1,322 @@
+{
+ "id": "tour",
+ "dur": 25.5,
+ "bpm": 128,
+ "music": {
+  "style": "garage",
+  "bars": [
+   "Bbmaj9",
+   "Am7",
+   "Gm9",
+   "C13",
+   "Bbmaj9",
+   "Am7",
+   "Gm9",
+   "C13",
+   "Bbmaj9",
+   "Am7",
+   "Gm9",
+   "C13",
+   "Fmaj9",
+   "Fmaj9"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 13
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "Take a look inside",
+   "mark": [
+    "inside"
+   ],
+   "titleSize": 120
+  },
+  {
+   "kind": "phone",
+   "at": 1.875,
+   "cut": "zoom",
+   "label": "Say it. It's logged.",
+   "mark": [
+    "logged"
+   ],
+   "from": 41.2,
+   "top": 330,
+   "scale": 0.8,
+   "titleTop": 150,
+   "titleSize": 80
+  },
+  {
+   "kind": "phone",
+   "at": 5.625,
+   "cut": "slide",
+   "label": "Plans from your kitchen",
+   "mark": [
+    "kitchen"
+   ],
+   "from": 66.5,
+   "top": 330,
+   "scale": 0.8,
+   "titleTop": 150,
+   "titleSize": 80
+  },
+  {
+   "kind": "phone",
+   "at": 9.375,
+   "cut": "slide",
+   "label": "Cook what you have",
+   "mark": [
+    "have"
+   ],
+   "from": 82.4,
+   "top": 330,
+   "scale": 0.8,
+   "titleTop": 150,
+   "titleSize": 80
+  },
+  {
+   "kind": "phone",
+   "at": 13.125,
+   "cut": "slide",
+   "label": "Groceries on budget",
+   "mark": [
+    "budget"
+   ],
+   "from": 111.6,
+   "top": 330,
+   "scale": 0.8,
+   "titleTop": 150,
+   "titleSize": 80
+  },
+  {
+   "kind": "phone",
+   "at": 16.875,
+   "cut": "slide",
+   "label": "Train anywhere",
+   "mark": [
+    "anywhere"
+   ],
+   "from": 120.6,
+   "top": 330,
+   "scale": 0.8,
+   "titleTop": 150,
+   "titleSize": 80
+  },
+  {
+   "kind": "title",
+   "at": 20.625,
+   "cut": "zoom",
+   "label": "Meet Nourlo",
+   "mark": [
+    "nourlo"
+   ],
+   "titleTop": 300,
+   "titleSize": 130
+  },
+  {
+   "kind": "end",
+   "at": 22.9,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 1.625,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 2.225,
+   "x": 930,
+   "y": 1640,
+   "size": 360,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 5.375,
+   "x": 930,
+   "y": 1640,
+   "size": 360
+  },
+  {
+   "t": 5.975,
+   "x": 150,
+   "y": 1640,
+   "size": 360,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 9.125,
+   "x": 150,
+   "y": 1640,
+   "size": 360
+  },
+  {
+   "t": 9.725,
+   "x": 930,
+   "y": 1640,
+   "size": 360,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 12.875,
+   "x": 930,
+   "y": 1640,
+   "size": 360
+  },
+  {
+   "t": 13.475,
+   "x": 150,
+   "y": 1640,
+   "size": 360,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 16.625,
+   "x": 150,
+   "y": 1640,
+   "size": 360
+  },
+  {
+   "t": 17.225,
+   "x": 930,
+   "y": 1640,
+   "size": 360,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 20.425,
+   "x": 930,
+   "y": 1640,
+   "size": 360
+  },
+  {
+   "t": 21.125,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 260
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood happy"
+  ],
+  [
+   0.8,
+   "wave"
+  ],
+  [
+   2.275,
+   "look -0.9 -0.6"
+  ],
+  [
+   6.025,
+   "look 0.9 -0.6"
+  ],
+  [
+   9.775,
+   "look -0.9 -0.6"
+  ],
+  [
+   13.525,
+   "look 0.9 -0.6"
+  ],
+  [
+   17.275,
+   "look -0.9 -0.6"
+  ],
+  [
+   18.075,
+   "mood flex"
+  ],
+  [
+   21.125,
+   "mood love"
+  ],
+  [
+   21.125,
+   "look none"
+  ],
+  [
+   22.5,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   2.475,
+   "pop"
+  ],
+  [
+   6.225,
+   "pop"
+  ],
+  [
+   9.975,
+   "pop"
+  ],
+  [
+   13.725,
+   "pop"
+  ],
+  [
+   17.475,
+   "pop"
+  ]
+ ],
+ "theme": "dark",
+ "overlays": [
+  {
+   "kind": "bubble",
+   "at": 2.475,
+   "until": 5.225,
+   "text": "Two eggs and a banana? Done.",
+   "side": "left"
+  },
+  {
+   "kind": "bubble",
+   "at": 6.225,
+   "until": 8.975,
+   "text": "Missing something? One tap.",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 9.975,
+   "until": 12.725,
+   "text": "1,500 recipes for your stock",
+   "side": "left"
+  },
+  {
+   "kind": "bubble",
+   "at": 13.725,
+   "until": 16.475,
+   "text": "Fitted to your budget",
+   "side": "right"
+  },
+  {
+   "kind": "bubble",
+   "at": 17.475,
+   "until": 20.225,
+   "text": "Workouts sized to your time",
+   "side": "left"
+  }
+ ]
+}

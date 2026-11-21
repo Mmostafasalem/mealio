@@ -42,6 +42,32 @@ enum VoiceFoodRanker {
     /// Catalogue groups that lead a name ("Fish, salmon, raw"): the food is the word after them.
     private static let groups: Set<String> = ["fish", "nut", "beverage", "cereal", "vegetable", "fruit", "seed", "spice", "bean", "pork", "beef", "lamb"]
 
+    /// Words said to the app, not eaten: never looked up as a food by themselves.
+    private static let notFood: Set<String> = [
+        "stop", "no", "yes", "yeah", "yep", "nope", "help", "hi", "hello", "hey", "run", "test", "ok", "okay",
+        "cancel", "thanks", "start", "go", "back", "undo", "done", "what", "why", "how", "nothing", "never mind",
+    ]
+
+    /// True when a name said with nothing around it ("banana") plainly names this
+    /// food: every word is a whole word of the food's name, one of them in its
+    /// leading part ("Banana, raw"; "Fish, salmon, raw"). A word that only starts
+    /// a food's name ("no" in "Noodles") doesn't count.
+    static func plainlyNames(_ spoken: String, _ food: NutritionFood) -> Bool {
+        let said = spoken.lowercased().trimmingCharacters(in: .whitespaces)
+        guard !said.isEmpty, !notFood.contains(said) else { return false }
+        // A known everyday name ("toast", "fries") was searched by its catalogue name.
+        if synonyms[said] != nil { return true }
+        let wanted = Set(IntentSearch.words(said))
+        guard !wanted.isEmpty else { return false }
+        // A dish listed under these words ("cepelinai").
+        if let names = food.searchNames, names.contains(where: { wanted.isSubset(of: Set(IntentSearch.words($0))) }) { return true }
+        let segments = food.name.split(separator: ",").map { Set(IntentSearch.words(String($0))) }
+        let all = segments.reduce(into: Set<String>()) { $0.formUnion($1) }
+        guard wanted.isSubset(of: all), let first = segments.first else { return false }
+        if !first.isDisjoint(with: wanted) { return true }
+        return first.isSubset(of: groups) && segments.count > 1 && !segments[1].isDisjoint(with: wanted)
+    }
+
     /// Foods for a spoken name, most likely first.
     static func foods(for name: String, limit: Int = 6,
                       search: (String) -> [NutritionFood]? = { _ in nil },

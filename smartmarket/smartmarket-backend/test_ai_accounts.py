@@ -8,7 +8,7 @@ import pytest
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from ai_accounts import AccountError, AccountService, AppleAuthority
+from ai_accounts import AccountError, AccountService, AppleAuthority, AppleGrantRevoked
 
 
 @pytest.fixture
@@ -231,10 +231,214 @@ def test_daily_apple_refresh_revocation_invalidates_every_session(service):
     first, _ = login(service)
     second, _ = login(service)
     service.test_clock[0] += 86401
-    def revoked(_): raise AccountError('Sign in with Apple again.')
+    def revoked(_): raise AppleGrantRevoked()
     service.apple.refresh = revoked
     with pytest.raises(AccountError): service.authenticate('Bearer '+first['token'])
+    service.apple.refresh = lambda _: pytest.fail('a deleted account must not be checked again')
     with pytest.raises(AccountError): service.authenticate('Bearer '+second['token'])
+    with service.transaction() as db:
+        assert db.execute('SELECT COUNT(*) FROM accounts').fetchone()[0] == 0
+
+
+def _apple_http_error(monkeypatch, status, body):
+    """A real AppleAuthority whose HTTP call to Apple fails with this answer."""
+    import io
+    import urllib.error
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    pem = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    authority = AppleAuthority('com.mostafa.mealio', 'TEAMID1234', 'KEYID12345', pem)
+    def fail(request, timeout=None):
+        if isinstance(status, Exception): raise status
+        raise urllib.error.HTTPError(request.full_url, status, 'error', {}, io.BytesIO(body))
+    monkeypatch.setattr('urllib.request.urlopen', fail)
+    return authority
+
+
+@pytest.mark.parametrize('status,body,revoked', [
+    (400, b'{"error":"invalid_grant"}', True),
+    (400, b'{"error":"invalid_client"}', False),
+    (400, b'{"error":"invalid_request"}', False),
+    (400, b'not json', False),
+    (400, b'["invalid_grant"]', False),
+    (500, b'{"error":"invalid_grant"}', False),
+    (503, b'', False),
+    (OSError('network down'), b'', False),
+])
+def test_only_invalid_grant_from_apple_means_revoked(monkeypatch, status, body, revoked):
+    authority = _apple_http_error(monkeypatch, status, body)
+    with pytest.raises(AccountError) as error: authority.refresh('refresh-token')
+    assert isinstance(error.value, AppleGrantRevoked) is revoked
+    assert error.value.status == (401 if revoked else 503)
+
+
+def test_apple_error_other_than_invalid_grant_never_deletes_the_account(service):
+    signed, user = login(service)
+    service.test_clock[0] += 73*3600  # past the outage grace period
+    def unavailable(_): raise AccountError('Apple sign-in is temporarily unavailable.',503,'ai_unavailable')
+    service.apple.refresh = unavailable
+    with pytest.raises(AccountError) as error: service.authenticate('Bearer '+signed['token'])
+    assert error.value.status == 503
+    # An unverifiable answer is refused too, but the account is still there.
+    service.apple.refresh = lambda _: {'id_token': 'not-a-token-but-long-enough-to-check'}
+    with pytest.raises(AccountError) as error: service.authenticate('Bearer '+signed['token'])
+    assert error.value.status == 401
+    service.apple.refresh = lambda _: {'id_token': token(service, {'nonce':'unused'})}
+    assert service.authenticate('Bearer '+signed['token']).account_id == user.account_id
+
+
+def test_apple_outage_allows_a_grace_period_since_the_last_check(service):
+    signed, user = login(service)
+    start = service.test_clock[0]
+    attempts = []
+    def unavailable(_):
+        attempts.append(True)
+        raise AccountError('Apple sign-in is temporarily unavailable.',503,'ai_unavailable')
+    service.apple.refresh = unavailable
+    service.test_clock[0] = start + 86401
+    assert service.authenticate('Bearer '+signed['token']).account_id == user.account_id
+    # While Apple is down it is not asked again on every request.
+    assert service.authenticate('Bearer '+signed['token']).account_id == user.account_id
+    assert len(attempts) == 1
+    service.test_clock[0] += 301
+    assert service.authenticate('Bearer '+signed['token']).account_id == user.account_id
+    assert len(attempts) == 2
+    # The grace period is measured from the last successful check, and it ends.
+    service.test_clock[0] = start + 72*3600
+    with pytest.raises(AccountError) as error: service.authenticate('Bearer '+signed['token'])
+    assert error.value.status == 503
+    with service.transaction() as db:
+        assert db.execute('SELECT COUNT(*) FROM accounts').fetchone()[0] == 1
+    # A successful check ends the outage and restarts the day.
+    service.apple.refresh = lambda _: {'id_token': token(service, {'nonce':'unused'})}
+    assert service.authenticate('Bearer '+signed['token']).account_id == user.account_id
+    service.apple.refresh = lambda _: pytest.fail('checked within the last day')
+    assert service.authenticate('Bearer '+signed['token']).account_id == user.account_id
+    # A revoked grant ends the session even inside the grace window.
+    service.test_clock[0] += 86401
+    def revoked(_): raise AppleGrantRevoked()
+    service.apple.refresh = revoked
+    with pytest.raises(AppleGrantRevoked): service.authenticate('Bearer '+signed['token'])
+
+
+def test_apple_sign_in_switched_off_gives_503_and_still_allows_deletion(http_app, service):
+    signed, user = login(service)
+    headers = {'Authorization': 'Bearer '+signed['token']}
+    service.apple = None
+    client = http_app.test_client()
+    # Within a day of the last check the account keeps working.
+    assert client.get('/api/ai/usage', headers=headers).status_code == 200
+    service.test_clock[0] += 86401
+    for response in (client.get('/api/ai/usage', headers=headers),
+                     client.post('/api/agent-chat', headers=headers, json={'mode': 'online'})):
+        assert response.status_code == 503 and response.headers['X-AI-Error'] == 'ai_unavailable'
+    assert client.get('/api/auth/apple/challenge').status_code == 503
+    with service.transaction() as db:
+        assert db.execute('SELECT COUNT(*) FROM accounts').fetchone()[0] == 1
+    # Deleting needs no Apple call: nothing can be revoked, the account still goes.
+    assert client.delete('/api/auth/account', headers=headers).status_code == 204
+    with service.transaction() as db:
+        assert db.execute('SELECT COUNT(*) FROM accounts').fetchone()[0] == 0
+    assert client.delete('/api/auth/account', headers=headers).status_code == 401
+
+
+def test_sign_out_and_deletion_do_not_wait_for_apple(http_app, service):
+    def unavailable(_): raise AccountError('Apple sign-in is temporarily unavailable.',503,'ai_unavailable')
+    first, _ = login(service); second, _ = login(service)
+    service.test_clock[0] += 80*3600
+    service.apple.refresh = unavailable
+    client = http_app.test_client()
+    assert client.post('/api/auth/logout', headers={'Authorization': 'Bearer '+first['token']}).status_code == 204
+    # Deletion still has to revoke at Apple, so an outage fails it without deleting.
+    service.apple.revoke = unavailable
+    headers = {'Authorization': 'Bearer '+second['token']}
+    assert client.delete('/api/auth/account', headers=headers).status_code == 503
+    # A grant Apple already dropped leaves nothing to revoke.
+    def gone(_): raise AppleGrantRevoked()
+    service.apple.revoke = gone
+    assert client.delete('/api/auth/account', headers=headers).status_code == 204
+
+
+def test_one_address_cannot_fill_the_challenge_table(service, monkeypatch):
+    import ai_accounts
+    victim = service.challenge('198.51.100.20')
+    issued = []
+    for n in range(40):  # forty addresses in one /64
+        service.test_clock[0] += 0.01
+        issued.append(service.challenge('2001:db8:5:5::%x' % n))
+    with service.transaction() as db:
+        assert db.execute('SELECT COUNT(*) FROM challenges').fetchone()[0] == ai_accounts.CHALLENGES_PER_CLIENT+1
+        stored = str([tuple(r) for r in db.execute('SELECT * FROM challenges')])
+    assert '198.51.100.20' not in stored and '2001:db8' not in stored
+    # The other address's challenge still signs in; so does the flooder's newest.
+    t = token(service, victim)
+    assert service.login(t, t, victim['id'])['token']
+    t = token(service, issued[-1], 'person-two')
+    assert service.login(t, t, issued[-1]['id'])['token']
+    t = token(service, issued[0], 'person-two')
+    with pytest.raises(AccountError): service.login(t, t, issued[0]['id'])
+    # The overall bound still holds and counts only live challenges.
+    monkeypatch.setattr(ai_accounts, 'CHALLENGES_TOTAL', 12)
+    service.challenge('203.0.113.1'); service.challenge('203.0.113.2'); service.challenge('203.0.113.3')
+    with pytest.raises(AccountError) as busy: service.challenge('203.0.113.4')
+    assert busy.value.status == 503
+    service._last_cleanup = service.test_clock[0] + 400  # housekeeping not due
+    service.test_clock[0] += 301
+    assert service.challenge('203.0.113.4')['id']
+
+
+def test_guests_have_their_own_smaller_pool_inside_the_shared_ceiling(service):
+    service.guest_enabled = True
+    service.global_limit, service.guest_global_limit = 6, 2
+    _, member = login(service)
+    guests = [service.authenticate('Bearer '+service.guest_login(str(n)*43, f'192.0.2.{n}')['token']) for n in range(3)]
+    # A request the provider never saw gives its place in both pools back.
+    cached = service.reserve(guests[0], '/api/recipe')
+    assert service.finish(cached, succeeded=False, attempted=False)
+    for guest in guests[:2]:
+        assert service.finish(service.reserve(guest, '/api/agent-chat'), succeeded=True, attempted=True)
+    with pytest.raises(AccountError) as full: service.reserve(guests[2], '/api/agent-chat')
+    assert full.value.code == 'ai_shared_capacity' and full.value.status == 503
+    assert service.usage(guests[2])['remaining'] == 10
+    # Signed-in people still have the rest of the shared ceiling.
+    for _ in range(4):
+        assert service.finish(service.reserve(member, '/api/agent-chat'), succeeded=True, attempted=True)
+    with pytest.raises(AccountError) as full: service.reserve(member, '/api/agent-chat')
+    assert full.value.code == 'ai_shared_capacity'
+    with service.transaction() as db:
+        assert db.execute('SELECT used FROM global_quota').fetchone()['used'] == 6
+        assert db.execute('SELECT used FROM guest_global_quota').fetchone()['used'] == 2
+    service.test_clock[0] += 86400
+    assert service.reserve(guests[2], '/api/agent-chat')
+
+
+def test_guest_pool_configuration(monkeypatch, tmp_path):
+    import ai_accounts
+    assert ai_accounts.default_guest_pool(900) == 225 and ai_accounts.default_guest_pool(1) == 1
+    for name, value in dict(AI_ACCOUNTS_ENABLED='1', AI_STATE_DB=str(tmp_path/'a.sqlite'), AI_STATE_PERSISTENT='1',
+                            AI_GUEST_ENABLED='1', AI_APPLE_ENABLED='0', AI_SUBJECT_SECRET='s'*40,
+                            AI_TOKEN_ENCRYPTION_KEY=Fernet.generate_key().decode()).items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.delenv('AI_DATABASE_URL', raising=False)
+    monkeypatch.delenv('AI_DAILY_CREDITS', raising=False)
+    monkeypatch.delenv('AI_GUEST_GLOBAL_DAILY_ATTEMPTS', raising=False)
+    monkeypatch.delenv('AI_GLOBAL_DAILY_ATTEMPTS', raising=False)
+    assert AccountService.from_env().guest_global_limit == 225
+    monkeypatch.setenv('AI_GUEST_GLOBAL_DAILY_ATTEMPTS', '50')
+    assert AccountService.from_env().guest_global_limit == 50
+    for bad in ('0', '901', 'many'):
+        monkeypatch.setenv('AI_GUEST_GLOBAL_DAILY_ATTEMPTS', bad)
+        with pytest.raises(ValueError): AccountService.from_env()
+
+
+def test_guest_setup_limit_counts_an_ipv6_network(service):
+    service.guest_enabled = True
+    for index in range(5): service.guest_login(str(index)*43, f'2001:db8:9:9::{index+1}')
+    with pytest.raises(AccountError) as error: service.guest_login('x'*43, '2001:db8:9:9:ffff::1')
+    assert error.value.status == 429
+    assert service.guest_login('x'*43, '2001:db8:9:a::1')['token']       # another /64
+    assert service.guest_login('y'*43, '192.0.2.50')['token']             # IPv4 is per address
 
 
 def test_apple_refresh_verifies_returned_identity(service):
@@ -264,9 +468,14 @@ def test_delete_and_recreate_keeps_same_day_spending(service):
     assert service.usage(recreated)['remaining'] == 10
 
 
+# A tiny valid-looking JPEG (starts with FF D8) in base64.
+PHOTO = '/9j/' + 'A' * 200
+
+
 @pytest.mark.parametrize('path,handler,body', [
     ('/api/meal-plan','handle_meal_plan',{}),
     ('/api/recipe','handle_recipe',{'mealName':'Unique invalid JSON recipe'}),
+    ('/api/food-photo','handle_food_photo',{'image':PHOTO}),
     ('/api/gap-fillers','handle_gap_fillers',{}),
     ('/api/shopping-advice','handle_shopping_advice',{}),
     ('/api/workout','handle_workout',{'kind':'gym','minutes':30}),
@@ -292,6 +501,7 @@ def test_unusable_json_keeps_only_minimal_charge_on_actual_endpoint(http_app, se
 @pytest.mark.parametrize('path,handler,body,cost', [
     ('/api/meal-plan','handle_meal_plan',{},5),
     ('/api/recipe','handle_recipe',{'mealName':'Valid unique online recipe'},1),
+    ('/api/food-photo','handle_food_photo',{'image':PHOTO},2),
     ('/api/gap-fillers','handle_gap_fillers',{},1),
     ('/api/shopping-advice','handle_shopping_advice',{},1),
     ('/api/workout','handle_workout',{'kind':'gym','minutes':30},1),
@@ -307,6 +517,7 @@ def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, pat
         'handle_workout': {'title':'Gym session','summary':'s','warmup':'w','cooldown':'c','exercises':[{'name':'Squat','sets':3,'reps':'8','minutes':0,'restSeconds':60,'note':''}]},
         'handle_gap_fillers': [{'name':'Rice','calories':100,'protein':2,'carbs':20,'fat':1,'reason':'Energy'}],
         'handle_shopping_advice':[{'produktas':'Rice','priezastis':'Affordable'}],
+        'handle_food_photo':{'foods':[{'name':'Banana','grams':120}]},
     }
     monkeypatch.setattr(business, 'nutrition_for', lambda **kwargs: None)
     monkeypatch.setattr(business, 'groq_client', SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
@@ -319,7 +530,7 @@ def test_usable_json_charges_actual_endpoint(http_app, service, monkeypatch, pat
     assert service.usage(user)['remaining'] == 10-cost
 
 
-def test_idempotent_http_replay_does_not_call_or_charge_twice(http_app, service):
+def test_repeated_request_key_is_refused_not_rerun_or_replayed(http_app, service):
     calls = []
     original = http_app.view_functions['chat']
     def counted():
@@ -331,13 +542,15 @@ def test_idempotent_http_replay_does_not_call_or_charge_twice(http_app, service)
     client=http_app.test_client()
     first=client.post('/api/agent-chat',headers=headers,json={'mode':'online'})
     second=client.post('/api/agent-chat',headers=headers,json={'mode':'online'})
-    assert first.status_code == second.status_code == 200
-    assert second.get_json() == first.get_json()
-    assert second.headers['X-AI-Result'] == 'replayed-online'
+    assert first.status_code == 200 and first.headers['X-AI-Result'] == 'online'
+    # The answer is not kept, so the repeat gets a clear refusal, never a replay.
+    assert second.status_code == 409 and second.headers['X-AI-Error'] == 'ai_request_repeated'
+    assert 'already processed' in second.get_json()['error'] and 'reply' not in second.get_json()
+    assert 'X-AI-Result' not in second.headers
     assert len(calls) == 1
-    assert service.usage(user)['remaining'] == 9
+    assert service.usage(user)['remaining'] == 9 and int(second.headers['X-AI-Remaining']) == 9
     conflict=client.post('/api/agent-chat',headers=headers,json={'mode':'cached'})
-    assert conflict.status_code == 409
+    assert conflict.status_code == 409 and conflict.headers['X-AI-Error'] == 'ai_request_conflict'
     assert service.usage(user)['remaining'] == 9
 
 
@@ -377,7 +590,7 @@ def test_idempotency_claim_survives_service_restart(service):
     assert restarted.usage(user)['remaining'] == 9
 
 
-def test_response_replay_outlives_the_old_three_minute_window(http_app, service):
+def test_request_key_marker_lasts_a_day_then_is_forgotten(http_app, service):
     calls=[]
     original=http_app.view_functions['chat']
     def counted():
@@ -385,37 +598,49 @@ def test_response_replay_outlives_the_old_three_minute_window(http_app, service)
         return original()
     http_app.view_functions['chat']=counted
     signed,user=login(service)
-    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'expire-replay-12345'}
-    first=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
+    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'expire-marker-12345'}
+    first=http_app.test_client().post('/api/agent-chat',json={'mode':'cached'},headers=headers)
     assert first.status_code == 200
     service.test_clock[0] += 3600
-    repeated=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
-    assert repeated.status_code == 200 and repeated.get_json() == first.get_json()
-    assert repeated.headers['X-AI-Result'] == 'replayed-online'
-    assert len(calls) == 1 and service.usage(user)['remaining'] == 9
+    repeated=http_app.test_client().post('/api/agent-chat',json={'mode':'cached'},headers=headers)
+    assert repeated.status_code == 409 and len(calls) == 1
+    service.test_clock[0] += 86400
+    service.apple.refresh = lambda _: {'id_token': token(service, {'nonce':'unused'})}
+    later=http_app.test_client().post('/api/agent-chat',json={'mode':'cached'},headers=headers)
+    assert later.status_code == 200 and len(calls) == 2
+    assert service.usage(user)['remaining'] == 10
 
 
-def test_stored_replays_are_bounded_and_encrypted(http_app, service):
-    from ai_accounts import REPLAY_MAX_PER_ACCOUNT
+def test_ai_responses_are_never_stored(http_app, service):
     signed,user=login(service)
     headers={'Authorization':'Bearer '+signed['token']}
     client=http_app.test_client()
-    for number in range(REPLAY_MAX_PER_ACCOUNT+1):
-        service.test_clock[0] += 1
-        response=client.post('/api/agent-chat',json={'mode':'cached'},headers={
-            **headers,'Idempotency-Key':f'bounded-replay-{number:05d}'})
-        assert response.status_code == 200
-    repeated=client.post('/api/agent-chat',json={'mode':'cached'},headers={
-        **headers,'Idempotency-Key':'bounded-replay-00000'})
-    assert repeated.status_code == 409  # oldest body dropped, durable no-rerun claim kept
-    newest=client.post('/api/agent-chat',json={'mode':'cached'},headers={
-        **headers,'Idempotency-Key':f'bounded-replay-{REPLAY_MAX_PER_ACCOUNT:05d}'})
-    assert newest.status_code == 200 and newest.get_json() == {'reply':'cached'}
-    assert service.usage(user)['remaining'] == 10
+    for number,mode in enumerate(['online','cached','unusable','fallback','invalid']):
+        client.post('/api/agent-chat',json={'mode':mode},headers={
+            **headers,'Idempotency-Key':f'nothing-stored-{number:05d}'})
     with service.transaction() as db:
-        stored=[bytes(r['response']) for r in db.execute('SELECT response FROM ai_requests WHERE response IS NOT NULL')]
-    assert len(stored) == REPLAY_MAX_PER_ACCOUNT
-    assert all(b'cached' not in body for body in stored)  # never plaintext on disk
+        rows=[dict(r) for r in db.execute('SELECT * FROM ai_requests')]
+    # Finished claims (online, cached) stay as markers; failed ones were released.
+    assert len(rows) == 2
+    assert all(r['response'] is None and r['status'] is None and r['content_type'] is None
+               and r['result'] is None and r['reservation'] is None for r in rows)
+    import glob
+    on_disk=b''.join(open(path,'rb').read() for path in glob.glob(service.path+'*'))
+    assert b'"reply"' not in on_disk and b'unusable' not in on_disk
+
+
+def test_bodies_stored_by_an_older_version_are_erased_at_startup(service):
+    _,user=login(service)
+    with service.transaction() as db:
+        db.execute('INSERT INTO ai_requests(account,key,fingerprint,created,response,status,content_type,result) '
+                   'VALUES(?,?,?,?,?,?,?,?)',(user.account_id,'old-key','f',service.clock(),
+                                              b'old encrypted body',200,'application/json','online'))
+    restarted=AccountService(service.path,service.apple,service.cipher,service.subject_secret,
+                             daily_limit=10,global_limit=1000,clock=service.clock)
+    with restarted.transaction() as db:
+        row=db.execute('SELECT * FROM ai_requests').fetchone()
+    assert row['response'] is None and row['status'] is None and row['result'] is None
+    assert row['key'] == 'old-key'  # the no-rerun marker itself is kept
 
 
 def test_late_ai_completion_cannot_restore_deleted_response_or_overwrite_recreated_account(http_app, service):
@@ -446,9 +671,8 @@ def test_late_ai_completion_cannot_restore_deleted_response_or_overwrite_recreat
         finally: release.set()
         late=old.result(timeout=5)
     assert late.status_code != 200
-    replay=http_app.test_client().post('/api/agent-chat',json={'mode':'new private reply'},headers=headers)
-    assert replay.status_code == 200
-    assert replay.get_json() == {'reply':'new private reply'}
+    repeat=http_app.test_client().post('/api/agent-chat',json={'mode':'new private reply'},headers=headers)
+    assert repeat.status_code == 409 and 'private reply' not in repeat.get_data(as_text=True)
     assert service.usage(user)['remaining'] == 9  # cancelled/deleted reservation refunded
 
 
@@ -505,41 +729,41 @@ def test_failed_recipe_is_not_cached_and_retry_reaches_provider(recipe_http, mon
     monkeypatch.setattr(case.business.groq_client.chat.completions, 'create', complete)
     failed = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
     assert failed.headers['X-AI-Result'] == 'fallback'
-    assert 'rice' not in case.business._recipe_cache
+    assert not case.business._recipe_cache
     retried = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
     assert retried.headers['X-AI-Result'] == 'online' and len(case.calls) == 1
 
 
-def test_verified_recipe_replay_retains_source_and_does_not_charge(recipe_http, service):
+def test_repeated_key_on_cached_recipe_is_refused_and_not_charged(recipe_http, service):
     case = recipe_http
     body = {'mealName':'Rice'}
     case.client.post('/api/recipe', json=body, headers=case.headers)
-    headers = {**case.headers, 'Idempotency-Key':'verified-cache-replay-123'}
+    headers = {**case.headers, 'Idempotency-Key':'verified-cache-repeat-123'}
     cached = case.client.post('/api/recipe', json=body, headers=headers)
-    replayed = case.client.post('/api/recipe', json=body, headers=headers)
+    repeated = case.client.post('/api/recipe', json=body, headers=headers)
     assert cached.headers['X-AI-Result'] == 'cached-online'
-    assert replayed.headers['X-AI-Result'] == 'replayed-online'
-    assert replayed.get_json() == cached.get_json()
+    assert repeated.status_code == 409 and repeated.headers['X-AI-Error'] == 'ai_request_repeated'
     assert len(case.calls) == 1 and service.usage(case.user)['remaining'] == 9
 
 
-@pytest.mark.parametrize('mode', ['cached'])
-def test_unverified_replay_never_gains_online_provenance(http_app, service, mode):
-    signed, user = login(service)
-    headers = {'Authorization':'Bearer '+signed['token'], 'Idempotency-Key':'unverified-replay-123'}
-    client = http_app.test_client()
-    first = client.post('/api/agent-chat', json={'mode':mode}, headers=headers)
-    repeated = client.post('/api/agent-chat', json={'mode':mode}, headers=headers)
-    assert repeated.headers['X-AI-Result'] == 'replayed'
-    assert repeated.get_json() == first.get_json()
-    assert repeated.status_code == first.status_code
-    assert service.usage(user)['remaining'] == 10
+def test_recipe_cache_is_never_shared_between_accounts(recipe_http, service):
+    case = recipe_http
+    case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
+    other, other_user = login(service, 'person-two')
+    response = case.client.post('/api/recipe', json={'mealName':'Rice'},
+                                headers={'Authorization':'Bearer '+other['token']})
+    assert response.headers['X-AI-Result'] == 'online' and len(case.calls) == 2
+    assert service.usage(other_user)['remaining'] == 9
+    assert set(case.business._recipe_cache) == {(case.user.account_id,'rice'),(other_user.account_id,'rice')}
+    # Deleting an account drops its cached recipes; the other account's stay.
+    service.delete_account(other_user)
+    assert set(case.business._recipe_cache) == {(case.user.account_id,'rice')}
 
 
 def test_unknown_recipe_cache_entry_does_not_gain_verified_provenance(recipe_http, service):
     case = recipe_http
     unknown = {'mealName':'Rice', 'steps':['Unverified local content']}
-    case.business._recipe_cache['rice'] = unknown
+    case.business._recipe_cache[(case.user.account_id,'rice')] = unknown
     response = case.client.post('/api/recipe', json={'mealName':'Rice'}, headers=case.headers)
     assert response.headers['X-AI-Result'] == 'cached'
     assert response.get_json() == unknown
@@ -667,7 +891,7 @@ def test_failed_request_releases_idempotency_key_for_retry(http_app, service, mo
     assert second.status_code == 200 and second.headers['X-AI-Result'] == 'online'
     assert 'X-AI-Request-Key' not in second.headers and 'X-AI-Fallback' not in second.headers
     third = client.post('/api/agent-chat', json={'mode': 'online'}, headers=online_headers)
-    assert third.headers['X-AI-Result'] == 'replayed-online'
+    assert third.status_code == 409 and third.headers['X-AI-Error'] == 'ai_request_repeated'
 
 
 @pytest.mark.parametrize('mode,reason,remaining', [('unusable', 'unusable-output', 9),
@@ -732,11 +956,11 @@ def _counted_chat(http_app):
     return calls
 
 
-def test_retry_after_restart_returns_stored_response_without_charging(http_app, service, monkeypatch):
+def test_retry_after_restart_is_refused_without_running_or_charging(http_app, service, monkeypatch):
     from flask import Flask
     from ai_account_routes import register_ai_accounts
     signed,user=login(service)
-    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'restart-replay-12345'}
+    headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':'restart-repeat-12345'}
     calls=_counted_chat(http_app)
     first=http_app.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
     assert first.status_code == 200 and len(calls) == 1
@@ -749,8 +973,7 @@ def test_retry_after_restart_returns_stored_response_without_charging(http_app, 
     reran=[]
     worker.add_url_rule('/api/agent-chat','chat',lambda: reran.append(True) or ('{}',200),methods=['POST'])
     retry=worker.test_client().post('/api/agent-chat',json={'mode':'online'},headers=headers)
-    assert retry.status_code == 200 and retry.get_json() == first.get_json()
-    assert retry.headers['X-AI-Result'] == 'replayed-online'
+    assert retry.status_code == 409 and retry.headers['X-AI-Error'] == 'ai_request_repeated'
     assert reran == [] and len(calls) == 1
     assert restarted.usage(user)['remaining'] == 9 and int(retry.headers['X-AI-Remaining']) == 9
 
@@ -764,7 +987,7 @@ def test_killed_worker_claim_is_released_after_reservation_expires(http_app, ser
     assert service.usage(user)['remaining'] == 9
     with pytest.raises(AccountError) as busy:
         service.reserve(user,'/api/agent-chat',request_key=key,fingerprint=fingerprint)
-    assert busy.value.code == 'ai_request_repeated' and busy.value.replay is None  # still in flight
+    assert busy.value.code == 'ai_request_repeated' and 'still being processed' in busy.value.message
     service.test_clock[0] += 181
     calls=_counted_chat(http_app)
     headers={'Authorization':'Bearer '+signed['token'],'Idempotency-Key':key,'Content-Type':'application/json'}
@@ -773,7 +996,7 @@ def test_killed_worker_claim_is_released_after_reservation_expires(http_app, ser
     assert len(calls) == 1
     assert service.usage(user)['remaining'] == 9  # dead attempt refunded, retry charged once
     again=http_app.test_client().post('/api/agent-chat',data=b'{"mode": "online"}',headers=headers)
-    assert again.headers['X-AI-Result'] == 'replayed-online' and len(calls) == 1
+    assert again.status_code == 409 and len(calls) == 1
     assert service.usage(user)['remaining'] == 9
 
 
@@ -796,14 +1019,15 @@ def test_late_finish_of_expired_request_cannot_settle_the_retry(service):
     old=service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
     service.test_clock[0] += 181
     new=service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
-    assert service.finish(old,succeeded=True,attempted=True,replay=(b'old',200,'application/json','online')) is False
+    assert service.finish(old,succeeded=True,attempted=True) is False
+    assert service.finish_with_usage(old,succeeded=True,attempted=True) is None
     with pytest.raises(AccountError) as running:
         service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
-    assert running.value.replay is None  # the retry is still in flight
-    assert service.finish(new,succeeded=True,attempted=True,replay=(b'new',200,'application/json','online'))
+    assert 'still being processed' in running.value.message  # the retry is still in flight
+    assert service.finish_with_usage(new,succeeded=True,attempted=True)['remaining'] == 9
     with pytest.raises(AccountError) as done:
         service.reserve(user,'/api/agent-chat',request_key='late-finish-12345',fingerprint='f')
-    assert done.value.replay == (b'new',200,'application/json','online')
+    assert 'already processed' in done.value.message
     assert service.usage(user)['remaining'] == 9
 
 
@@ -816,7 +1040,7 @@ def test_old_claim_table_is_migrated(tmp_path):
     s=AccountService(path,None,Fernet(Fernet.generate_key()),b'test-subject-secret-at-least-32-bytes')
     with s.transaction() as db:
         columns={r['name'] for r in db.execute('PRAGMA table_info(ai_requests)')}
-    assert {'reservation','response','status','content_type','result'} <= columns
+    assert 'reservation' in columns
 
 
 def test_deeply_nested_json_on_ai_route_is_400_and_refunded(http_app, service):

@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum MascotMood: String, CaseIterable {
-    case idle, thinking, celebrate, help, happy, sleepy, cheeky, worried, love
+    case idle, thinking, celebrate, help, happy, sleepy, cheeky, worried, love, flex
 
     var description: String {
         switch self {
@@ -15,6 +15,7 @@ enum MascotMood: String, CaseIterable {
         case .cheeky: return "Has an idea"
         case .worried: return "Something went wrong"
         case .love: return "Loves this"
+        case .flex: return "Strong"
         }
     }
 }

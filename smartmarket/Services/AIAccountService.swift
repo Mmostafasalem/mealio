@@ -10,6 +10,8 @@ struct AIAllowance: Codable {
     let resetsAt: String
     let mealPlanCost: Int
     let shortRequestCost: Int
+    /// What reading a meal photo costs; older servers don't send it.
+    var photoCost: Int? = nil
     var resetDate: Date? { ISO8601DateFormatter().date(from: resetsAt) }
 }
 
@@ -62,12 +64,34 @@ final class AIAccountService {
 
     private var stored: StoredSession? = KeychainHelper.load(StoredSession.self, key: sessionKey)
     private var challenge: Challenge?
+    /// When the current challenge stops being usable, by this iPhone's clock.
+    private var challengeExpires: Date?
+    @ObservationIgnored private var challengeRefresh: Task<Void, Never>?
+    @ObservationIgnored private var challengeAutoRefreshes = 0
+    @ObservationIgnored private var isAutoRefreshingChallenge = false
+    /// The challenge the Apple sign-in sheet was opened with, until the sheet reports back.
+    @ObservationIgnored private var signInSheetChallengeID: String?
+    /// Stop offering a challenge this long before the server drops it, so a sign-in
+    /// started at the last moment isn't refused.
+    private static let challengeMargin: TimeInterval = 30
+    /// How often an expired challenge is replaced without anyone asking, before the
+    /// screen asks for a tap instead.
+    private static let maxChallengeAutoRefreshes = 2
     private var generation = UUID()
     var allowance: AIAllowance?
     var isAvailable = false
     var guestAvailable = false
     var appleAvailable = false
     var isGuest: Bool { stored?.appleUserID.isEmpty == true }
+
+    /// Whether the app shows online AI at all (chat, AI recipes, the AI section in Profile):
+    /// the backend said it's switched on (remembered from the last answer), the person is
+    /// signed in, or it's the owner's private test build. While the hosted service runs
+    /// without AI, nobody is offered something that can't work.
+    static let offeredKey = "onlineAIOffered_v1"
+    var offersOnlineAI: Bool {
+        OwnerAITestConfiguration.current != nil || isAvailable || isSignedIn || UserDefaults.standard.bool(forKey: Self.offeredKey)
+    }
     var isWorking = false
     var message: String?
     private var retainedAccountIDs: [String] { KeychainHelper.load([String].self, key: Self.retainedAccountsKey) ?? [] }
@@ -97,7 +121,49 @@ final class AIAccountService {
         guard let stored, let expires = ISO8601DateFormatter().date(from: stored.expiresAt) else { return false }
         return expires > Date()
     }
-    var canStartSignIn: Bool { isAvailable && appleAvailable && BuildCapabilities.supportsAppleServices && challenge != nil && !isWorking }
+    /// A challenge the server still accepts: it lasts five minutes there.
+    private var hasLiveChallenge: Bool {
+        guard challenge != nil, let challengeExpires else { return false }
+        return challengeExpires > Date()
+    }
+    var canStartSignIn: Bool { isAvailable && appleAvailable && BuildCapabilities.supportsAppleServices && hasLiveChallenge && !isWorking }
+
+    /// Remembers when `challenge` runs out and replaces it when it does, so the
+    /// sign-in button never starts a sign-in the server would refuse.
+    private func scheduleChallengeRefresh() {
+        challengeRefresh?.cancel()
+        challengeRefresh = nil
+        guard let challenge else { challengeExpires = nil; return }
+        // The server's time is trusted only when it makes sense on this iPhone's
+        // clock; a wrong clock must not make every challenge look expired.
+        let stated = ISO8601DateFormatter().date(from: challenge.expiresAt)?.timeIntervalSinceNow ?? 0
+        let lifetime = stated > Self.challengeMargin && stated <= 600 ? stated : 270
+        let usable = max(lifetime - Self.challengeMargin, 5)
+        challengeExpires = Date().addingTimeInterval(usable)
+        let id = challenge.id
+        challengeRefresh = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(usable))
+            guard !Task.isCancelled, let self, self.challenge?.id == id else { return }
+            // A sign-in sheet that is open was started with this challenge: leave it, and
+            // let complete(_:) deal with the outcome.
+            guard self.signInSheetChallengeID != id else { return }
+            await self.replaceExpiredChallenge()
+        }
+    }
+
+    private func replaceExpiredChallenge() async {
+        challenge = nil
+        challengeExpires = nil
+        guard !isSignedIn else { return }
+        guard !isWorking, challengeAutoRefreshes < Self.maxChallengeAutoRefreshes else {
+            if !isWorking { message = "Sign-in setup timed out. Tap Retry sign-in setup to continue." }
+            return
+        }
+        challengeAutoRefreshes += 1
+        isAutoRefreshingChallenge = true
+        await prepare()
+        isAutoRefreshingChallenge = false
+    }
 
     func authorization() throws -> String {
         guard isSignedIn, let stored else { throw AIAccountError.signInRequired }
@@ -113,7 +179,7 @@ final class AIAccountService {
             return
         }
         guard !isWorking else { return }
-        let expected = generation
+        var expected = generation
         isWorking = true
         defer { isWorking = false }
         do {
@@ -121,6 +187,7 @@ final class AIAccountService {
             guard generation == expected else { return }
             let config = try JSONDecoder().decode(Configuration.self, from: data)
             isAvailable = config.enabled
+            UserDefaults.standard.set(config.enabled, forKey: Self.offeredKey)
             guestAvailable = config.enabled && config.guestEnabled == true
             appleAvailable = config.enabled && (config.appleEnabled ?? true) && BuildCapabilities.supportsAppleServices
             guard isAvailable else { message = AIAccountError.unavailable.localizedDescription; return }
@@ -130,16 +197,26 @@ final class AIAccountService {
                     guard generation == expected else { return }
                     if state == .revoked || state == .notFound { clearLocalSession() }
                 }
-                if isSignedIn { try await refreshAllowance(); return }
+                if isSignedIn {
+                    do { try await refreshAllowance(); return }
+                    catch AIAccountError.signInRequired where stored == nil {
+                        // The server no longer accepts this session, so it was cleared
+                        // (see handleRejectedSession). Carry on and offer sign-in again.
+                        expected = generation
+                    }
+                }
             }
             guard appleAvailable else {
                 challenge = nil
+                scheduleChallengeRefresh()
                 message = guestAvailable ? "Continue as a guest to use AI on this device. Apple sign-in is unavailable in this build or service." : AIAccountError.unavailable.localizedDescription
                 return
             }
             let raw = try await request("/api/auth/apple/challenge")
             guard generation == expected else { return }
             challenge = try JSONDecoder().decode(Challenge.self, from: raw)
+            if !isAutoRefreshingChallenge { challengeAutoRefreshes = 0 }
+            scheduleChallengeRefresh()
             message = nil
         } catch {
             guard generation == expected else { return }
@@ -188,9 +265,12 @@ final class AIAccountService {
         // No name or email is requested. Apple user identity is used only for the allowance.
         request.requestedScopes = []
         request.nonce = challenge?.nonce
+        signInSheetChallengeID = challenge?.id
+        challengeAutoRefreshes = 0
     }
 
     func complete(_ result: Result<ASAuthorization, Error>) async {
+        signInSheetChallengeID = nil
         guard !isWorking else { return }
         preserveLegacyAccount()
         let expected = generation
@@ -241,7 +321,8 @@ final class AIAccountService {
               let left = response.value(forHTTPHeaderField: "X-AI-Remaining").flatMap(Int.init),
               let reset = response.value(forHTTPHeaderField: "X-AI-Reset") else { return }
         allowance = AIAllowance(limit: limit, used: max(0, limit-left), remaining: max(0, left),
-                                resetsAt: reset, mealPlanCost: 5, shortRequestCost: 1)
+                                resetsAt: reset, mealPlanCost: 5, shortRequestCost: 1,
+                                photoCost: allowance?.photoCost)
         if response.value(forHTTPHeaderField: "X-AI-Result") == "fallback" {
             // The service keeps 1 credit when the AI answered but the answer was unusable.
             message = response.value(forHTTPHeaderField: "X-AI-Fallback") == "unusable-output"
@@ -251,7 +332,8 @@ final class AIAccountService {
     }
 
     func signOut() async {
-        if isSignedIn { _ = try? await request("/api/auth/logout", method: "POST", authenticated: true) }
+        // The session is cleared just below either way, so a refusal needs no extra handling.
+        if isSignedIn { _ = try? await request("/api/auth/logout", method: "POST", authenticated: true, recoverRejectedSession: false) }
         clearLocalSession()
         await prepare()
     }
@@ -285,23 +367,70 @@ final class AIAccountService {
         if retainAccount, let stored { rememberAccount(stored.accountID) }
         generation = UUID()
         stored = nil; allowance = nil; challenge = nil; message = nil
+        challengeExpires = nil; challengeAutoRefreshes = 0
+        challengeRefresh?.cancel(); challengeRefresh = nil
         KeychainHelper.delete(key: Self.sessionKey)
     }
 
+    /// For "erase this iPhone's data anyway", when the server account could not be deleted.
+    /// An Apple account is still remembered, so a later Delete All Data asks the person to
+    /// sign in and finish deleting it. A guest account is forgotten together with its device
+    /// secret: without the secret nobody can sign in to it again, so remembering it would
+    /// block every later deletion. The server removes an unused guest account on its own.
+    func clearLocalSessionForLocalErase() {
+        if let stored {
+            if stored.appleUserID.isEmpty {
+                let remaining = retainedAccountIDs.filter { $0 != stored.accountID }
+                if remaining.isEmpty {
+                    KeychainHelper.delete(key: Self.retainedAccountsKey)
+                    if KeychainHelper.load(Bool.self, key: Self.unknownLegacyKey) != true {
+                        KeychainHelper.delete(key: Self.retainedAccountKey)
+                    }
+                } else {
+                    KeychainHelper.save(remaining, key: Self.retainedAccountsKey)
+                }
+                KeychainHelper.delete(key: Self.guestKey)
+            } else {
+                rememberAccount(stored.accountID)
+            }
+        }
+        clearLocalSession(retainAccount: false)
+    }
+
+    /// The server answered 401 to a call made with this session: it expired there, was
+    /// signed out, or the account is gone. Forget it on this iPhone and get sign-in ready
+    /// again, so the app stops presenting a session nothing accepts. `authorization` is the
+    /// header value the refused call was sent with; a session replaced since then is kept.
+    func handleRejectedSession(authorization: String) async {
+        guard let stored, authorization == "Bearer \(stored.token)" else { return }
+        clearLocalSession()
+        // While prepare() is already running it notices the cleared session itself.
+        if !isWorking { await prepare() }
+    }
+
     private func request(_ path: String, method: String = "GET", body: Data? = nil,
-                         authenticated: Bool = false, bearer: String? = nil) async throws -> Data {
+                         authenticated: Bool = false, bearer: String? = nil,
+                         recoverRejectedSession: Bool = true) async throws -> Data {
         guard let url = URL(string: Constants.API.baseURL + path) else { throw APIError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = method; request.httpBody = body; request.timeoutInterval = 90
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !Constants.API.appKey.isEmpty { request.setValue(Constants.API.appKey, forHTTPHeaderField: "X-API-Key") }
         if let bearer { request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization") }
-        if authenticated { request.setValue(try authorization(), forHTTPHeaderField: "Authorization") }
+        let sessionHeader: String? = try authenticated ? authorization() : nil
+        if let sessionHeader { request.setValue(sessionHeader, forHTTPHeaderField: "Authorization") }
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw APIError.noResponse }
         guard (200..<300).contains(http.statusCode) else {
             if http.statusCode == 404 || http.statusCode == 503 { throw AIAccountError.unavailable }
-            if http.statusCode == 401 { throw authenticated || bearer != nil ? AIAccountError.signInRequired : AIAccountError.unavailable }
+            if http.statusCode == 401 {
+                // Only the account service's own refusal counts, not a 401 from anything in between.
+                if recoverRejectedSession, let sessionHeader,
+                   http.value(forHTTPHeaderField: "X-AI-Error") == "ai_sign_in_required" {
+                    await handleRejectedSession(authorization: sessionHeader)
+                }
+                throw authenticated || bearer != nil ? AIAccountError.signInRequired : AIAccountError.unavailable
+            }
             let failure = try? JSONDecoder().decode(Failure.self, from: data)
             throw AIAccountError.message(failure?.error ?? "Could not complete sign-in. Please try again.")
         }

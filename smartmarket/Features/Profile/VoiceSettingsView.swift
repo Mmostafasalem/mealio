@@ -91,7 +91,7 @@ struct VoiceSettingsView: View {
             case .downloading(let progress):
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     ProgressView(value: progress) {
-                        Text("Downloading… \(Int((progress * 100).rounded()))%").font(.subheadline)
+                        Text("Downloading… \(Int((progress * 100).rounded()))%" as String).font(.subheadline)
                     }
                     .tint(Color.progress)
                     Button("Cancel", role: .cancel) { offline.cancelDownload() }

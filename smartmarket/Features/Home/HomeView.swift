@@ -93,13 +93,8 @@ struct HomeView: View {
                                         .contentShape(Circle())
                                 }
                                 .accessibilityLabel("Speak a command")
+                                .accessibilityHint("Say what you ate or want, like two eggs for breakfast. The sheet shows examples.")
                                 .accessibilityIdentifier("home.voice")
-                                // The same small "i" as the macros, centred just above the microphone,
-                                // in the gap under the header, so the row stays symmetrical.
-                                .overlay {
-                                    InfoTooltip(text: "Tap the microphone and say what you ate or want, like \u{201C}two eggs for breakfast\u{201D}, \u{201C}add milk to my cart\u{201D} or \u{201C}start a 30 minute workout\u{201D}. It listens on this iPhone and shows what it understood before saving.")
-                                        .offset(y: -34)
-                                }
                                 NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
                             }
                             .buttonStyle(ScalePressStyle())
@@ -208,7 +203,10 @@ struct HomeView: View {
         }
         .font(.footnote.weight(.semibold))
         .foregroundStyle(Color.labelPrimary)
-        .lineLimit(1)
+        // The streak sentence needs room at larger text sizes.
+        .lineLimit(2)
+        .minimumScaleFactor(0.85)
+        .multilineTextAlignment(.leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .accessibilityElement(children: .combine)

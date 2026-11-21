@@ -1,6 +1,6 @@
 # Nourlo — Privacy Policy
 
-_Last updated: 2026-11-14_
+_Last updated: 2026-11-18_
 
 Nourlo ("we", "the app") helps you estimate grocery costs, plan meals, and
 track calories. This policy explains what data the app uses and why. We do not
@@ -44,7 +44,7 @@ Health data stays on your iPhone and in Apple Health and is not sent anywhere:
 not to Nourlo's servers, to Groq or any other AI provider, to iCloud shopping
 sync, or used for advertising. If you choose to use your Health weight in your
 profile, it becomes your profile weight and is used like a weight you type in,
-including in AI meal plans if you have allowed online AI. You can turn Apple
+including in your meal plans. You can turn Apple
 Health off in Profile or change access in the Health app (Sharing → Apps →
 Nourlo). Turning it off, or using Delete All Data, stops syncing but leaves data
 already saved in Apple Health; you can review or delete it in the Health app.
@@ -85,7 +85,9 @@ community database; compare branded products with their current package labels.
 Product lookup sends no location.
 When you scan a barcode, the camera image is processed only on your device; only
 the barcode number is looked up (and only when that product isn't already saved on
-your device), with a generic app identifier and no account or device identifier.
+your device). Requests to Open Food Facts say that they come from the Nourlo app
+and give our support email address, as Open Food Facts asks apps to do. They carry
+no account or device identifier.
 
 ## Voice commands (optional)
 
@@ -127,28 +129,39 @@ device. Spotlight indexes only the exercise catalogue, never your personal data.
 
 ## Information sent to our servers
 
-Online AI features are optional and require a guest or Apple session plus the
-sharing permission in Profile. Without both, nothing is sent to the AI and meal
-plans are built on your device; those offline plans follow the diets and
-allergies you selected. With sharing on, an online meal plan is requested when
-you tap regenerate, and by the background agent only when you have no plan,
-once a day, when your agent grocery list grows, or when live deals first load.
-Editing the Shop cart never sends an online request; it only rebuilds an
-on-device plan. Workouts are built on your device unless sharing is on; with
-sharing on, generating a workout sends your age, gender, weight, height, activity
-level, goal, the workout options you picked and the note you typed. When sharing
-is enabled and you generate a meal plan, ask the
-in-app assistant, or request a recipe, we
-send the relevant inputs (e.g. age, gender, weight, height, calorie target, dietary preferences, favourite
-foods, shopping list, owned food names, quantities, units and reference nutrition,
-remaining daily calorie and macro totals, your message and up to the 20 most
-recent chat messages for context) to our backend, which uses **Groq** (an AI
-provider) to generate the response. Product nutrition is looked up from **Open
-Food Facts**. We send the minimum needed for the feature and do not attach your name. Online AI requests use a Nourlo session linked to
-your optional Apple account. The session and Apple identifier are not included
-in prompts sent to Groq. Chat text may contain personal
-information that you choose to enter. Turning sharing off prevents future AI
-requests; it cannot retract requests already transmitted to a provider.
+Online AI is used for two things only: chatting with Nourlo and writing recipes.
+Both are optional and require a guest or Apple session plus the sharing permission
+in Profile. Meal plans, workouts and shopping suggestions are always built on your
+device and never sent to an AI; they follow the diets and allergies you selected.
+When sharing is enabled, this is what the app sends to our backend, which uses
+**Groq** (an AI provider) to write the answer:
+
+- **When you chat with the assistant:** your message and up to the 20 most recent
+  chat messages; your goal (lose, maintain or gain) and daily calorie target; the
+  calories you have eaten today; the calories, protein, carbohydrate and fat you
+  have left today; the names of your favourite foods; what is in My Stock (food
+  names, amounts and their reference nutrition); your dietary preferences and
+  allergies; and your language.
+- **When you ask for a recipe:** the name of the meal, and nothing else about you.
+
+Your name, age, gender, weight, height and the individual entries in your food
+log are not sent. Online AI requests use a Nourlo session linked to your guest or
+Apple account. The session and Apple identifier are not included in prompts sent
+to Groq. Chat text may contain personal information that you choose to enter.
+Turning sharing off prevents future AI requests; it cannot retract requests
+already transmitted to a provider.
+
+Our backend runs on **Render**, a hosting company. Like any host, Render's
+systems carry each request, so they see your IP address and the content of AI
+requests while they pass through. Our backend does not log request or response
+text. To stop abuse, it counts requests per network address (one IPv4 address, or
+one IPv6 /64 network) in memory for a few minutes; these counts are not written
+to disk.
+
+The catalogue of products and estimated prices comes from our backend. Its
+nutrition values are set by us; for a catalogue product that has a barcode, the
+backend may look the barcode up on **Open Food Facts**. Those lookups contain
+nothing about you.
 
 We do **not**: track you across other apps or websites, sell or rent your data,
 serve advertising, or use third-party analytics.
@@ -161,31 +174,49 @@ Keychain; it is sent only to our backend to recover that guest account. The back
 stores a keyed hash of the guest identity and hashes of session tokens, not the
 raw device secret. No name or email is requested for guest access. New guest
 accounts are limited per network each UTC day using a daily keyed network hash
-and count, removed on subsequent activity after that day. Guest access is not
+and count, removed on subsequent activity after that day (an IPv6 network is
+counted as its /64). Guest access is not
 anonymous: requests still include normal network information such as your IP
 address. Guest allowances are per device credential, not shared across devices.
 We do not request your Apple name or email. The backend stores a keyed hash of your Apple
 user identifier, hashes of app session tokens, an encrypted Apple refresh grant,
 account timestamps, daily request counters, and hashed request keys/fingerprints. These records provide one daily
-allowance across devices, validate access and support account deletion. Apple
+allowance across devices, validate access and support account deletion. About
+once a day, when you use online AI, the backend asks Apple whether your sign-in is
+still valid. If Apple says it was withdrawn, the account and its sessions are
+deleted. If Apple can't be reached, the session keeps working for up to 72 hours
+after the last successful check. A sign-in that is waiting to finish is stored for
+five minutes with a keyed hash of the network it came from, so one network can't
+block sign-in for everyone. Apple
 processes sign-in under its own terms. Signing in or continuing as a guest does not enable AI sharing.
 
 Account records and allowance counters are stored in our private Neon Postgres
 database. It stores the account metadata described above, not your food log,
-profile or chat bodies. Database connections use certificate-verified encryption.
+profile, chat messages or AI answers. Database connections use
+certificate-verified encryption.
 
 Credits reset at midnight UTC. The app displays the reset in your time zone.
-Personal allowances still share our provider's overall capacity. Failed AI
-calls and cached responses do not spend personal credits.
+Personal allowances still share our provider's overall capacity, and guests share
+a smaller part of it. These do not spend credits: a request that is refused
+before it reaches the AI, a recipe served from the cache described below, and a
+request the AI provider fails to answer. If the AI does answer but the answer
+can't be used, 1 credit is kept, because the provider was still called; the app
+tells you when that happens.
 
-Duplicate-request safeguards retain hashed request keys and keyed input
-fingerprints for 24 hours, removed on subsequent activity or account deletion.
-They contain no request or response text. To replay a retried response without
-calling AI again, the backend temporarily holds up to 128 responses in memory,
-with a three-minute replay window. This may include generated nutrition or chat
-content. Expired entries are removed on subsequent replay activity, evicted as
-new entries arrive, cleared on account deletion in that process, or lost on
-restart. They are never written to the account database or backed up.
+**What is kept about an AI request.** Each AI request carries a one-time request
+key. The backend keeps a hash of that key and a keyed fingerprint of the input for
+24 hours (removed on subsequent activity or account deletion) so the same request
+is never run or charged twice. These contain no request or response text. AI
+answers are not stored: if the same request key arrives again, the backend replies
+that the request was already processed and does not send the answer again.
+
+There is one short-lived exception, held in the server's memory only. A recipe the
+AI wrote for you is kept so that asking for the same meal again doesn't call the AI
+a second time. It is kept only for your account and is never shown to anyone else.
+The server holds at most 500 recipes in total; yours is dropped when you delete
+your account, when newer recipes replace it, or when the server restarts. It is
+never written to the database, to disk or to backups. Chat messages and chat
+answers are not kept at all once the reply has been sent.
 
 ## Data retention
 Use **Profile → Delete All Data** to clear the local profile, log, cart, budget,
@@ -208,7 +239,10 @@ removed on subsequent service activity. Cleanup is activity-driven.
 
 If an AI account is saved on this device, Delete All Data first requires a
 connection and valid sign-in to revoke any Apple grant and erase its server
-account and sessions. A keyed subject hash and today’s spent-credit count are
+account and sessions. (If Apple sign-in is switched off on our service at that
+moment, the account and sessions are still erased, but we can't withdraw the
+app's access at Apple for you: remove Nourlo under Sign in with Apple in your
+Apple Account settings.) A keyed subject hash and today’s spent-credit count are
 retained solely to prevent deletion/recreation from resetting the daily allowance;
 they expire at the next UTC day and are removed on subsequent service activity. If that step fails (for example
 offline or the session can't sign in again), the app explains that the server AI
@@ -230,10 +264,15 @@ or submitted content under their own retention policies; clearing local data
 does not automatically erase provider records.
 
 ## Third parties
-- **Groq** — AI meal plans, chat, recipes and workouts ([groq.com](https://groq.com)).
+- **Groq** — AI chat and AI recipes only ([groq.com](https://groq.com)).
+- **Render** — hosts our backend; its systems see IP addresses and the content of
+  AI requests while they pass through ([render.com](https://render.com/privacy)).
 - **Neon** — private account and allowance database ([neon.com](https://neon.com/privacy-policy)).
-- **Open Food Facts** — product nutrition ([openfoodfacts.org](https://openfoodfacts.org)).
-- **Apple** — optional CloudKit shopping sync and optional Apple Health (on device).
+- **Open Food Facts** — product search and nutrition ([openfoodfacts.org](https://openfoodfacts.org)).
+- **Hugging Face** — only if you download the optional offline speech model; it
+  sees that download and your IP address ([huggingface.co](https://huggingface.co/privacy)).
+- **Apple** — optional Sign in with Apple, optional CloudKit shopping sync and
+  optional Apple Health (on device).
 
 ## Children
 Nourlo is not directed at children under 13, and setup does not accept an age

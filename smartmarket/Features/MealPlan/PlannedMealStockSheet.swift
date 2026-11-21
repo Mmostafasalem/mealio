@@ -17,9 +17,9 @@ struct PlannedMealStockSheet: View {
             Form {
                 Section(entry.foodName) {
                     if entry.macrosAvailable {
-                        Text("\(entry.calories) kcal · P \(entry.proteinG.formatted()) g · C \(entry.carbsG.formatted()) g · F \(entry.fatG.formatted()) g")
+                        Text("\(entry.calories) kcal · P \(entry.proteinG.formatted(.number.grouping(.never))) g · C \(entry.carbsG.formatted(.number.grouping(.never))) g · F \(entry.fatG.formatted(.number.grouping(.never))) g" as String)
                     } else {
-                        Text("\(entry.calories) kcal · protein, carbs and fat not available")
+                        Text("\(entry.calories) kcal · protein, carbs and fat not available" as String)
                     }
                     Text("Calculated from these ingredient portions. Review the preparation and quantities before logging. Logging removes these amounts from My Stock.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -28,7 +28,7 @@ struct PlannedMealStockSheet: View {
                     ForEach(ingredients) { ingredient in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(ingredient.food.name)
-                            Text("\(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue) · \(ingredient.food.sourceName)")
+                            Text("\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue) · \(ingredient.food.sourceName)" as String)
                                 .font(.caption).foregroundStyle(.secondary)
                             if let url = ingredient.food.sourceURL { Link("Nutrition source", destination: url).font(.caption) }
                         }
@@ -39,9 +39,9 @@ struct PlannedMealStockSheet: View {
                 } else if let missing, !missing.isEmpty {
                     Section("Needed before cooking") {
                         ForEach(missing) { ingredient in
-                            Text("\(ingredient.food.name) · \(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue) missing")
+                            Text("\(ingredient.food.name) · \(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue) missing" as String)
                         }
-                        Button("Add missing ingredients to groceries") { addMissing(missing) }
+                        Button("Add missing ingredients to checklist") { addMissing(missing) }
                             .accessibilityIdentifier("plannedMeal.addMissing")
                         Text("No store or price is assumed. After buying, add the actual quantity to My Stock.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -62,7 +62,7 @@ struct PlannedMealStockSheet: View {
                 }
                 if let notice { Section { Text(notice).accessibilityIdentifier("plannedMeal.notice") } }
             }
-            .navigationTitle("Review Meal")
+            .navigationTitle("Review meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
@@ -70,7 +70,7 @@ struct PlannedMealStockSheet: View {
 
     private func addMissing(_ missing: [NutritionIngredient]) {
         guard Self.addMissingToGroceries(entry: entry, missing: missing) else { return }
-        notice = "Missing quantities added to Groceries."
+        notice = "Missing quantities added to your checklist."
     }
 
     /// Adds (or refreshes) the missing quantities as unbought grocery rows. Shared
@@ -82,7 +82,7 @@ struct PlannedMealStockSheet: View {
         var groceries = GroceryStorage.load()
         for ingredient in missing {
             let id = "planned_" + operationID + "_" + ingredient.food.id
-            let quantity = "\(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue)"
+            let quantity = "\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)"
             if let index = groceries.firstIndex(where: { $0.id == id }) {
                 groceries[index].quantity = quantity
                 groceries[index].isBought = false

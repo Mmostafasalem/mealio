@@ -11,7 +11,7 @@ extension VoiceLexicon {
             #" (?:bitte|danke|danke schön)$"#,
         ],
         calorieWords: ["kalorie", "kcal"],
-        calorieCues: ["übrig", "noch", "wie viele", "wie viel", "verbleib", "darf ich"],
+        calorieCues: ["übrig", "noch", "verbleib", "darf ich"],
         exercisePatterns: [
             #"^(?:zeig mir |zeige mir |erklär mir |erkläre mir )?wie (?:mache ich|macht man|mach ich|geht|gehen|funktioniert|funktionieren) (?:einen |eine |ein |den |die |das )?(.+)$"#,
             #"^(?:zeig|zeige|öffne)(?: mir)? (?:die )?übung (.+)$"#,

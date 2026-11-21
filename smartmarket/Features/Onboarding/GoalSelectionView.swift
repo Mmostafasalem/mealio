@@ -8,13 +8,13 @@ struct GoalSelectionView: View {
 
     var body: some View {
         OnboardingScaffold(vm: vm, step: .goal, title: "What's your goal?",
-                           subtitle: "Your body burns about \(vm.liveTDEE.formatted()) kcal a day.") {
+                           subtitle: "Your body burns about \(vm.liveTDEE.formatted(.number.grouping(.never))) kcal a day.") {
             VStack(spacing: Spacing.md) {
                 OnboardingOptionList {
                     ForEach(vm.availableGoals) { goal in
                         OnboardingOptionRow(symbol: goal.sfSymbol, title: goal.displayName,
                                             subtitle: goal.description,
-                                            trailing: "\(calorieTarget(for: goal).formatted()) kcal",
+                                            trailing: "\(calorieTarget(for: goal).formatted(.number.grouping(.never))) kcal",
                                             isSelected: vm.weightGoal == goal) { vm.weightGoal = goal }
                     }
                 }
@@ -46,7 +46,7 @@ struct PaceSelectionView: View {
                 OnboardingOptionList {
                     ForEach(LossPace.allCases) { pace in
                         OnboardingOptionRow(symbol: PaceStyle.symbol(for: pace), title: pace.displayName,
-                                            subtitle: vm.isCappedBySafetyFloor(pace) ? "Capped at your safe minimum" : nil,
+                                            subtitle: vm.isCappedBySafetyFloor(pace) ? "Kept from going too low" : nil,
                                             trailing: PaceStyle.deficitText(vm.effectiveDeficit(for: pace)),
                                             isSelected: vm.lossPace == pace) { vm.lossPace = pace }
                     }
@@ -131,7 +131,7 @@ private struct DailyTargetCard: View {
                 .font(.subheadline)
                 .foregroundStyle(Color.labelSecondary)
             Spacer()
-            Text("\(calories.formatted()) kcal")
+            Text("\(calories.formatted(.number.grouping(.never))) kcal" as String)
                 .font(.title3.weight(.bold))
                 .monospacedDigit()
                 .foregroundStyle(Color.labelPrimary)

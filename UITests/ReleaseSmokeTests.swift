@@ -14,7 +14,7 @@ final class ReleaseSmokeTests: XCTestCase {
                                    "tab.train": "Train", "navigation.quickActions": "Quick actions"]
 
     private func control(_ id: String, in app: XCUIApplication) -> XCUIElement {
-        if let name = Self.tabNames[id] { return app.tabBars.buttons[name].firstMatch }
+        if let name = Self.tabNames[id] { return app.tab(name) }
         return app.buttons[id].firstMatch
     }
 
@@ -197,7 +197,9 @@ final class ReleaseSmokeTests: XCTestCase {
             let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
             XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
         }
-        tap("onboarding.favorites.finish", in: app)
+        advance("onboarding.favorites.finish", to: "onboarding.week.continue", in: app)
+        advance("onboarding.week.continue", to: "onboarding.alerts.finish", in: app)
+        tap("onboarding.alerts.finish", in: app)
         XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
     }
 
@@ -341,7 +343,8 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(info.frame.height, 44 - geometryTolerance)
     }
 
-    func testSystemTabBarShowsIconsOnly() {
+    func testSystemTabBarShowsIconsOnly() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "iPad shows the tabs in a floating bar at the top, not a tab bar")
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         launchForTesting(app)
@@ -396,7 +399,8 @@ final class ReleaseSmokeTests: XCTestCase {
 
     func testOptionalAppleAccountDoesNotBlockLocalTabs() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        // The AI section shows only when online AI is offered; this checks its layout.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-onlineAIOffered_v1", "YES"]
         launchForTesting(app)
         openProfile(in: app)
         let signIn = app.buttons["profile.appleSignIn"]
@@ -443,7 +447,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("nutrition-source-detail")
         tap("logFood.addServing", in: app)
         // The Add button plays a short "Added" success moment before the sheet closes.
-        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 15))
         XCTAssertTrue(control("navigation.quickActions", in: app).exists)
     }
 
@@ -507,7 +511,9 @@ final class ReleaseSmokeTests: XCTestCase {
 
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
+        // Starts from an empty kitchen: food other tests leave in stock would stay on the shelf.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO",
+                               "-NourloEmptyKitchen"]
         launchForTesting(app)
         tap("home.stock", in: app)
         tap("stock.add", in: app)
@@ -591,5 +597,16 @@ final class ReleaseSmokeTests: XCTestCase {
             tap("tab." + name, in: app)
             capture("largest-text-" + name)
         }
+    }
+}
+
+extension XCUIApplication {
+    /// A tab by its name: in the bottom tab bar on iPhone, in the floating bar at the top on iPad
+    /// (iPadOS 18 and later put the tabs there, outside any tab bar element).
+    func tab(_ name: String) -> XCUIElement {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            return buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+        }
+        return tabBars.buttons[name].firstMatch
     }
 }

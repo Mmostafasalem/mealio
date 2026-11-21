@@ -5,6 +5,9 @@ extension Notification.Name {
     static let mealPlanDidUpdate    = Notification.Name("mealPlanDidUpdate")
     static let groceryListDidChange = Notification.Name("groceryListDidChange")
     static let cartDidChange        = Notification.Name("cartDidChange")
+    /// Something the meal plan is built from changed that isn't a cart edit (My Stock, the
+    /// budget, the meal split): the plan rebuilds, but it doesn't count as shopping.
+    static let planInputsDidChange  = Notification.Name("planInputsDidChange")
     /// Ask Home to show Profile (it lives behind the avatar, not in the tab bar).
     static let openProfile          = Notification.Name("openProfile")
     /// Ask the tab bar to show Train (from a workout reminder).
@@ -16,6 +19,8 @@ extension Notification.Name {
     static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
     /// Home's microphone button: `MainTabView` shows the voice sheet.
     static let openVoice            = Notification.Name("openVoice")
+    /// The food logger's "From a photo" button: `MainTabView` shows the photo sheet.
+    static let openMealPhoto        = Notification.Name("openMealPhoto")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
     /// Logged food changed (added, removed, cleared, or logged from stock). Listeners
     /// (Apple Health, widgets) re-read `FoodLogStore.allEntries` and sync the difference.
@@ -90,6 +95,7 @@ enum Constants {
             static let shoppingAdvice   = "/api/shopping-advice"
             static let agentChat        = "/api/agent-chat"
             static let recipe           = "/api/recipe"
+            static let foodPhoto        = "/api/food-photo"
             static let workout          = "/api/workout"
         }
     }

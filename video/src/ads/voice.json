@@ -1,0 +1,13 @@
+{
+  "dur": 23.4,
+  "plus": 0.8,
+  "menu": 1.0,
+  "pick": 1.8,
+  "one": { "at": 2.05, "say": 2.5, "text": "Two eggs and a banana for breakfast", "wps": 3.2, "card": 4.9, "saved": 6.0 },
+  "rings": 6.4,
+  "head": { "at": 8.7, "out": 10.4 },
+  "two": { "at": 10.6, "say": 10.9, "text": "I ran 5k this morning", "wps": 3.0, "card": 12.3 },
+  "three": { "at": 14.3, "say": 14.6, "text": "Add milk and eggs to my cart", "wps": 3.2, "card": 16.2 },
+  "final": { "at": 17.6 },
+  "end": 18.6
+}

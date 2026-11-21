@@ -43,6 +43,8 @@ struct DayKey: Hashable, Comparable, Codable, CustomStringConvertible {
 
 enum QuestID: String, Codable, CaseIterable {
     case logAny, breakfast, threeMeals, protein, onTarget, workout, anyWorkout, fromStock, newFood, budget
+    /// Nutrition quests: what was eaten, not only that something was logged.
+    case vegetables, fruit
 }
 
 /// What the ledger stores. Append-only; cleared only with all personal data.
@@ -227,6 +229,8 @@ struct Quest: Identifiable, Equatable {
 
 extension DailyLoop {
     static let easyQuests: [QuestID] = [.logAny, .breakfast, .anyWorkout]
+    /// About the food itself. Every day has one of these, in the middle slot.
+    static let nutritionQuests: [QuestID] = [.protein, .onTarget, .vegetables, .fruit]
 
     /// Quests that make sense for this user on this day.
     static func available(day: DayKey, _ i: LoopInputs) -> [QuestID] {
@@ -238,7 +242,7 @@ extension DailyLoop {
             case .budget: return i.cartHasItems
             case .fromStock: return i.hasStock
             case .workout, .anyWorkout: return workoutDay
-            case .logAny, .breakfast, .threeMeals, .newFood: return true
+            case .logAny, .breakfast, .threeMeals, .newFood, .vegetables, .fruit: return true
             }
         }
     }
@@ -260,7 +264,8 @@ extension DailyLoop {
         let ids = available(day: day, i).sorted { stableHash(seed, $0) < stableHash(seed, $1) }
         let easy = ids.filter { easyQuests.contains($0) }
         var picked = Array(easy.prefix(1))
-        picked += ids.filter { !easyQuests.contains($0) }.prefix(2)
+        picked += ids.filter { nutritionQuests.contains($0) }.prefix(1)
+        picked += ids.filter { !easyQuests.contains($0) && !picked.contains($0) }.prefix(3 - picked.count)
         if picked.count < 3 { picked += easy.dropFirst().prefix(3 - picked.count) }
         return picked
     }
@@ -311,6 +316,12 @@ extension DailyLoop {
                 fresh = entries.contains { $0.foodId.map { !seen.contains($0) } ?? false }
             }
             return make("Try something new", "sparkles", fresh ? 1 : 0, 1, .logFood)
+        case .vegetables:
+            let meals = Set(entries.filter { FallbackData.planRole(name: $0.name, category: "") == "vegetables" }.map(\.slot)).count
+            return make("Vegetables in 2 meals", "carrot.fill", Double(meals), 2, unit: "meals", .logFood)
+        case .fruit:
+            let any = entries.contains { FallbackData.planRole(name: $0.name, category: "") == "fruits" }
+            return make("Have some fruit", "leaf.fill", any ? 1 : 0, 1, .logFood)
         case .budget:
             return make("Shop within budget", "cart.fill", i.ledger.contains(.budgetCheckIn(day)) ? 1 : 0, 1, .shop)
         }
@@ -341,7 +352,7 @@ extension DailyLoop {
     static func saverEvents(_ i: LoopInputs) -> [LoopEvent] {
         guard let start = loopStart(i) else { return [] }
         let kept = keptDays(i)
-        var ledger = Set(i.ledger.compactMap(SaverMark.init))
+        var ledger = Set(i.ledger.compactMap { SaverMark($0) })
         var out: [LoopEvent] = []
         var run = 0, held = 0
         var previousSaved = false

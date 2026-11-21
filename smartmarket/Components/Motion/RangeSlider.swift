@@ -359,7 +359,7 @@ final class RangeSliderEngine {
         Text("Price").font(.headline)
         RangeSlider(lower: $low, upper: $high, in: 0.3...12, step: 0.1,
                     lowerLabel: "Minimum price", upperLabel: "Maximum price", format: euro)
-        Text("\(euro(low)) – \(euro(high))").font(.subheadline).monospacedDigit()
+        Text("\(euro(low)) – \(euro(high))" as String).font(.subheadline).monospacedDigit()
         Button("Clear filter") { low = 0.3; high = 12 }
     }
     .padding(24)

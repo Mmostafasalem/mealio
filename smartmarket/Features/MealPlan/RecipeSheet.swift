@@ -8,6 +8,8 @@ struct RecipeSheet: View {
     @State private var recipe: Recipe?
     @State private var isLoading: Bool
     @State private var failed = false
+    /// Wikibooks recipes for this meal's foods, shown when AI recipes aren't available.
+    @State private var cookbook: [CookbookRecipe]? = nil
     /// Why the last load failed: the error screen says so, instead of always blaming the connection.
     @State private var failure = Failure.connection
     @State private var speaker = ReadAlongSpeaker()
@@ -37,6 +39,8 @@ struct RecipeSheet: View {
                     loadingView
                 } else if let recipe {
                     recipeContent(recipe)
+                } else if let cookbook {
+                    cookbookList(cookbook)
                 } else if failed {
                     errorView
                 }
@@ -148,7 +152,7 @@ struct RecipeSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(r.steps.enumerated()), id: \.offset) { idx, step in
                         HStack(alignment: .top, spacing: 14) {
-                            Text("\(idx + 1)")
+                            Text("\(idx + 1)" as String)
                                 .font(.caption).fontWeight(.bold)
                                 .foregroundStyle(Color.onAccent)
                                 .frame(width: 26, height: 26)
@@ -209,7 +213,9 @@ struct RecipeSheet: View {
                 .padding(.horizontal, Spacing.md)
                 .frame(minHeight: 36)
                 .background(Color.surfaceSecondary, in: Capsule())
-                .contentShape(Capsule())
+                // The pill stays 36 pt; the tap area is 44.
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
                 .contentTransition(.opacity)
         }
         .buttonStyle(ScalePressStyle())
@@ -242,13 +248,67 @@ struct RecipeSheet: View {
     private func loadRecipe() async {
         isLoading = true
         failed    = false
+        // Without online AI, the offline cookbook answers instead of a dead end.
+        guard AIAccountService.shared.offersOnlineAI else {
+            cookbook = await Self.cookbookMatches(for: mealName)
+            isLoading = false
+            return
+        }
         do {
             recipe = try await APIService.shared.fetchRecipe(mealName: mealName)
         } catch {
             failure = Failure(error)
+            if failure == .aiOff { cookbook = await Self.cookbookMatches(for: mealName) }
             failed = true
         }
         isLoading = false
+    }
+
+    /// Recipes that use this meal's main food (and ideally its other foods): "Chicken breast
+    /// with brown rice & veg" finds chicken recipes, ones with rice first.
+    static func cookbookMatches(for meal: String) async -> [CookbookRecipe] {
+        let prefs = Set<DietaryPreference>.load()
+        return await Task.detached(priority: .userInitiated) {
+            let parts = meal.lowercased()
+                .replacingOccurrences(of: " with ", with: ",").replacingOccurrences(of: "&", with: ",")
+                .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && $0 != "veg" }
+            guard let main = parts.first else { return [] }
+            let mainKitchen = KitchenMatcher(names: [main]), all = KitchenMatcher(names: parts)
+            let scored: [(CookbookRecipe, Int)] = CookbookLibrary.recipes.compactMap { r in
+                guard r.course != .sauce, r.course != .dessert, r.fits(prefs),
+                      r.keyIngredients.contains(where: mainKitchen.has) else { return nil }
+                return (r, r.keyIngredients.filter(all.has).count)
+            }
+            return scored.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.title < $1.0.title }.prefix(15).map(\.0)
+        }.value
+    }
+
+    private func cookbookList(_ recipes: [CookbookRecipe]) -> some View {
+        List {
+            Section {
+                if recipes.isEmpty {
+                    Text("No cookbook recipe uses these foods yet. Browse every recipe from Add Food or My Stock.")
+                        .foregroundStyle(Color.labelSecondary)
+                }
+                ForEach(recipes) { r in
+                    NavigationLink { CookbookRecipeView(recipe: r) } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(r.title).font(.subheadline.weight(.semibold))
+                            Text([r.course.title, r.minutes.map { "\($0) min" }, "\(Int(r.perServing.kcal)) kcal a serving"].compactMap { $0 }.joined(separator: " · "))
+                                .font(.footnote).foregroundStyle(Color.labelSecondary)
+                        }
+                    }
+                    .accessibilityIdentifier("recipe.cookbook.\(r.id)")
+                }
+            } header: {
+                Text("Recipes for this meal")
+            } footer: {
+                Text("From the Wikibooks Cookbook, with nutrition estimated from USDA data. Your plan's portions are on the meal itself.")
+            }
+            Section { CookbookCredit(recipe: nil) }.listRowBackground(Color.clear)
+        }
+        .listStyle(.insetGrouped)
+        .accessibilityIdentifier("recipe.cookbook")
     }
 
     /// Recipes are written by the online AI, so most failures are about AI not

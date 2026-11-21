@@ -143,8 +143,9 @@ struct HeaderBowl: View {
             .frame(width: 56, height: 44)
             .overlay(alignment: .bottomTrailing) {
                 if loop.state.streak > 0 {
-                    Text("\(loop.state.streak)")
-                        .font(.system(size: 11, weight: .heavy, design: .rounded).monospacedDigit())
+                    Text("\(loop.state.streak)" as String)
+                        .font(.system(.caption2, design: .rounded).weight(.heavy).monospacedDigit())
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .foregroundStyle(Color.onAccent)
                         .padding(.horizontal, 5)
                         .frame(minWidth: 18, minHeight: 18)
@@ -152,7 +153,7 @@ struct HeaderBowl: View {
                         .overlay(Capsule().strokeBorder(Color.surfaceGrouped, lineWidth: 2))
                         .contentTransition(.numericText())
                         .offset(x: 2, y: 2)
-                        .accessibilityLabel("\(loop.state.streak)-day streak")
+                        .accessibilityLabel("\(loop.state.streak)-day streak" as String)
                         .accessibilityIdentifier("home.streakBadge")
                         .allowsHitTesting(false)
                 }

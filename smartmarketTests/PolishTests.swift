@@ -175,7 +175,7 @@ final class PolishTests: XCTestCase {
         // Saved only when the person logs it (the food logger calls `remember`).
         XCTAssertNil(catalog.find("off:5901234123457"), "a scanned product isn't saved before it's confirmed")
         let request = try XCTUnwrap(BarcodeStubProtocol.requests.first)
-        XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "Nourlo/1.0 (iOS)")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "Nourlo/1.0 (nourlo.app.support@gmail.com)")
         XCTAssertNil(request.httpBody)
 
         _ = await lookup.lookup("5901234123457")

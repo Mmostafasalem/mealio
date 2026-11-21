@@ -11,7 +11,7 @@ struct EditGoalView: View {
             Section {
                 ForEach(vm.availableGoals) { goal in
                     choiceRow(symbol: goal.sfSymbol, title: goal.displayName, subtitle: goal.description,
-                              trailing: "\(vm.targets(goal: goal).dailyGoal.formatted()) kcal",
+                              trailing: "\(vm.targets(goal: goal).dailyGoal.formatted(.number.grouping(.never))) kcal",
                               isSelected: vm.profile.weightGoal == goal) { vm.setGoal(goal) }
                 }
             } header: {
@@ -24,7 +24,7 @@ struct EditGoalView: View {
                 Section {
                     ForEach(LossPace.allCases) { pace in
                         choiceRow(symbol: PaceStyle.symbol(for: pace), title: pace.displayName,
-                                  subtitle: vm.isCappedBySafetyFloor(pace) ? "Capped at your safe minimum" : nil,
+                                  subtitle: vm.isCappedBySafetyFloor(pace) ? "Kept from going too low" : nil,
                                   trailing: PaceStyle.deficitText(vm.effectiveDeficit(for: pace)),
                                   isSelected: vm.profile.lossPace == pace) { vm.setPace(pace) }
                     }
@@ -39,7 +39,7 @@ struct EditGoalView: View {
                 HStack {
                     Text("Your daily target")
                     Spacer()
-                    Text("\(vm.profile.dailyCalorieGoal.formatted()) kcal")
+                    Text("\(vm.profile.dailyCalorieGoal.formatted(.number.grouping(.never))) kcal" as String)
                         .fontWeight(.semibold)
                         .monospacedDigit()
                         .foregroundStyle(Color.brandPrimary)

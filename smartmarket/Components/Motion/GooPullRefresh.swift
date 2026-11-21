@@ -347,7 +347,7 @@ final class GooPullEngine {
     }) {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Text("Today").font(.largeTitle.weight(.bold))
-            Text("Updated \(updated.formatted(date: .omitted, time: .standard))")
+            Text("Updated \(updated.formatted(date: .omitted, time: .standard))" as String)
                 .font(.footnote).foregroundStyle(Color.labelSecondary)
             ForEach(["Breakfast", "Lunch", "Dinner", "Snack"], id: \.self) { slot in
                 Text(slot)

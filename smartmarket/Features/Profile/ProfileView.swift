@@ -14,6 +14,10 @@ struct ProfileView: View {
     @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
     @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
     @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
+    @AppStorage(WeeklyReset.startDayKey) private var weekStartDay = 2
+    /// Watched so the split's name updates when it changes in its own screen.
+    @AppStorage(MealSplit.storageKey) private var mealSplitData = Data()
+    @AppStorage(WeeklyReset.askKey) private var weeklyResetAsk = true
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -22,6 +26,7 @@ struct ProfileView: View {
                 headerSection
                 statsSection
                 editSection
+                weekSection
                 appearanceSection
                 Section {
                     Toggle("Bowl guide", isOn: $bowlGuideVisible)
@@ -32,7 +37,7 @@ struct ProfileView: View {
                 } footer: {
                     Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
                 }
-                AIAccountSection()
+                if AIAccountService.shared.offersOnlineAI { AIAccountSection() }
                 voiceSection
                 healthSection
                 syncSection
@@ -102,7 +107,7 @@ struct ProfileView: View {
 
     @ViewBuilder private var metricTiles: some View {
         MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
-        MetricTile(title: "Daily Goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
+        MetricTile(title: "Daily goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
         MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
     }
 
@@ -110,7 +115,7 @@ struct ProfileView: View {
         Section("Edit") {
             NavigationLink {
                 EditBodyStatsView(vm: vm)
-            } label: { Label("Body Stats", systemImage: "figure") }
+            } label: { Label("Body stats", systemImage: "figure") }
 
             NavigationLink {
                 EditGoalView(vm: vm)
@@ -123,7 +128,7 @@ struct ProfileView: View {
 
             NavigationLink {
                 EditFavoriteFoodsView(vm: vm)
-            } label: { Label("Favorite Foods", systemImage: "heart") }
+            } label: { Label("Favourite foods", systemImage: "heart") }
 
             NavigationLink {
                 RemindersView()
@@ -138,6 +143,28 @@ struct ProfileView: View {
             get: { appearanceOverride == "light" || (appearanceOverride.isEmpty && colorScheme == .light) },
             set: { appearanceOverride = $0 ? "light" : "dark" }
         )
+    }
+
+    private var weekSection: some View {
+        Section {
+            Picker("Week starts on", selection: $weekStartDay) {
+                ForEach(WeeklyReset.dayNames, id: \.day) { Text($0.name).tag($0.day) }
+            }
+            .accessibilityIdentifier("profile.weekStart")
+            .onChange(of: weekStartDay) { _, _ in WeeklyReset.startDayChanged() }
+            NavigationLink { MealSplitView() } label: {
+                let split = (try? JSONDecoder().decode(MealSplit.self, from: mealSplitData)).flatMap { $0.isValid ? $0 : nil } ?? .balanced
+                LabeledContent("Daily calorie split", value: MealSplit.presets.first { $0.split == split }?.name ?? "Your own")
+            }
+            .accessibilityIdentifier("profile.mealSplit")
+            Toggle("Ask to empty cart and stock each week", isOn: $weeklyResetAsk)
+                .toggleStyle(.spring)
+                .accessibilityIdentifier("profile.weeklyReset")
+        } header: {
+            Text("Your week and meals")
+        } footer: {
+            Text("Weeks in Progress start on this day. When a new week starts, Nourlo asks whether to start fresh; nothing is cleared without your yes, and your food log always stays.")
+        }
     }
 
     private var appearanceSection: some View {
@@ -228,7 +255,7 @@ struct ProfileView: View {
                 NavigationLink {
                     HealthSettingsView(vm: vm)
                 } label: {
-                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))", systemImage: "scalemass")
+                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))" as String, systemImage: "scalemass")
                         .font(.subheadline)
                 }
                 .accessibilityHint("Review it before it replaces your profile weight")
@@ -251,7 +278,7 @@ struct ProfileView: View {
             .accessibilityIdentifier("profile.icloudSync")
             Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
             if let date = sync.lastSync {
-                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))")
+                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))" as String)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
             if sync.isEnabled || sync.deletionPending {
@@ -273,9 +300,11 @@ struct ProfileView: View {
 
     private var privacySection: some View {
         Section {
-            Toggle("Allow online AI suggestions", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
-                .toggleStyle(.spring)
-                .accessibilityIdentifier("profile.aiConsent")
+            if AIAccountService.shared.offersOnlineAI {
+                Toggle("Online AI for chat and recipes", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
+                    .toggleStyle(.spring)
+                    .accessibilityIdentifier("profile.aiConsent")
+            }
             NavigationLink {
                 LegalDocumentView(resource: "Privacy", title: "Privacy Policy")
             } label: { Label("Privacy Policy", systemImage: "hand.raised") }
@@ -284,10 +313,14 @@ struct ProfileView: View {
                 LegalDocumentView(resource: "Support", title: "Help & Support")
             } label: { Label("Help & Support", systemImage: "questionmark.circle") }
             .accessibilityIdentifier("profile.support")
+            NavigationLink {
+                LegalDocumentView(resource: "Acknowledgements", title: "Acknowledgements")
+            } label: { Label("Acknowledgements", systemImage: "heart.text.square") }
+            .accessibilityIdentifier("profile.acknowledgements")
             Link(destination: Constants.Support.mailURL) {
                 Label("Email Support", systemImage: "envelope")
             }
-            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)")
+            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)" as String)
             .accessibilityIdentifier("profile.emailSupport")
             MorphPopover(footnote: "Opens Mail to \(Constants.Support.email). Nothing is sent until you tap Send there.") { message in
                 await SupportMail.send(message)
@@ -297,9 +330,11 @@ struct ProfileView: View {
             Text("Privacy & Help")
         } footer: {
             if OwnerAITestConfiguration.current != nil {
-                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection.")
-            } else {
+                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection." as String)
+            } else if AIAccountService.shared.offersOnlineAI {
                 Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
+            } else {
+                Text("Meal plans, groceries, workouts, recipes and food logging all work on this iPhone. Your food log and body measurements stay on it.")
             }
         }
     }
@@ -327,7 +362,7 @@ private struct MetricTile: View {
         }
         .padding(.vertical, Spacing.xs)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(value) \(unit)")
+        .accessibilityLabel("\(title): \(value) \(unit)" as String)
     }
 }
 

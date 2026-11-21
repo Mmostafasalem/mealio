@@ -1,0 +1,78 @@
+{
+  "bpm": 132,
+  "dur": 23.14,
+  "hook": [
+    0,
+    1.818
+  ],
+  "beats": [
+    {
+      "id": "plan",
+      "label": "Plan your week",
+      "mood": "happy",
+      "span": [
+        1.818,
+        4.091
+      ]
+    },
+    {
+      "id": "budget",
+      "label": "Stay on budget",
+      "mood": "love",
+      "span": [
+        4.091,
+        6.364
+      ]
+    },
+    {
+      "id": "voice",
+      "label": "Log food by voice",
+      "mood": "hello",
+      "span": [
+        6.364,
+        8.636
+      ]
+    },
+    {
+      "id": "scan",
+      "label": "Or just scan it",
+      "mood": "cheeky",
+      "span": [
+        8.636,
+        10.909
+      ]
+    },
+    {
+      "id": "stock",
+      "label": "Cook what you have",
+      "mood": "thinking",
+      "span": [
+        10.909,
+        13.182
+      ]
+    },
+    {
+      "id": "train",
+      "label": "Train anywhere",
+      "mood": "help",
+      "span": [
+        13.182,
+        15.455
+      ]
+    },
+    {
+      "id": "cheer",
+      "label": "With a bowl that cheers you on",
+      "mood": "celebrate",
+      "span": [
+        15.455,
+        17.727
+      ]
+    }
+  ],
+  "outro": [
+    17.727,
+    18.636
+  ],
+  "end": 18.636
+}

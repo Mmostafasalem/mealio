@@ -3,9 +3,9 @@ import SwiftUI
 // MARK: - About you (name, age, gender)
 
 /// The first screen: who you are, on one page. Name and surname are optional
-/// and sit side by side; gender is a three-way switch; age is a number with
-/// minus and plus (tap the number to type it). Nothing scrolls, and the
-/// keyboard covers only the space under the fields.
+/// and sit side by side; age is a number with minus and plus (tap the number to
+/// type it); gender is a three-way switch. Nothing scrolls: the fields you type
+/// in sit above the keyboard even on a 667 pt screen, gender is under them.
 struct NameStepView: View {
 
     @Bindable var vm: OnboardingViewModel
@@ -13,11 +13,13 @@ struct NameStepView: View {
     private enum Field { case firstName, lastName, age }
     @FocusState private var focusedField: Field?
     @State private var ageText = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let ageRange = Constants.Onboarding.minimumAge...Constants.Onboarding.maximumAge
 
     private var typedAge: Int? {
-        guard let age = Int(ageText), Self.ageRange.contains(age) else { return nil }
+        // Any keyboard's digits ("٣٠") read as a number.
+        guard let age = Int(TypedNumber.western(ageText)), Self.ageRange.contains(age) else { return nil }
         return age
     }
 
@@ -33,13 +35,17 @@ struct NameStepView: View {
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
                 }
+                // Age sits above gender, so the keyboard never covers it on a small phone.
+                ageStepper
                 VStack(alignment: .leading, spacing: 6) {
                     label("Gender")
                     SpringSegmentedControl(selection: $vm.gender, options: Gender.allCases,
                                            label: \.displayName, accessibilityName: "Gender")
                 }
-                ageStepper
             }
+            .animation(reduceMotion ? nil : .smoothCard, value: focusedField == nil)
+            // Tapping anywhere outside a field closes the keyboard too.
+            .background(Color.clear.contentShape(Rectangle()).onTapGesture { focusedField = nil })
         } footer: {
             OnboardingNextButton(vm: vm, next: .height, identifier: "onboarding.name.continue")
                 .disabled(typedAge == nil)
@@ -57,8 +63,8 @@ struct NameStepView: View {
         }
         .onAppear { if ageText.isEmpty { ageText = String(vm.age) } }
         .onChange(of: ageText) { _, text in
-            // Digits only, three at most.
-            let digits = String(text.filter(\.isNumber).prefix(3))
+            // Western digits only, three at most.
+            let digits = String(TypedNumber.western(text).filter { $0.isASCII && $0.isNumber }.prefix(3))
             if digits != text { ageText = digits; return }
             if let typedAge { vm.age = typedAge }
         }
@@ -104,7 +110,7 @@ struct NameStepView: View {
     /// One year down or up from the current age (or from the nearest limit when
     /// the box is empty or out of range).
     private func step(_ delta: Int) {
-        let current = Int(ageText).map { min(max($0, Self.ageRange.lowerBound), Self.ageRange.upperBound) } ?? vm.age
+        let current = Int(TypedNumber.western(ageText)).map { min(max($0, Self.ageRange.lowerBound), Self.ageRange.upperBound) } ?? vm.age
         ageText = String(min(max(current + delta, Self.ageRange.lowerBound), Self.ageRange.upperBound))
     }
 
@@ -126,37 +132,55 @@ struct NameStepView: View {
     private var ageStepper: some View {
         VStack(alignment: .leading, spacing: 6) {
             label("Age")
-            fieldFrame(focused: focusedField == .age, invalid: typedAge == nil && focusedField != .age, padding: 0) {
-                HStack(spacing: 0) {
-                    stepButton("minus", name: "One year younger", delta: -1,
-                               disabled: (typedAge ?? Self.ageRange.upperBound) <= Self.ageRange.lowerBound)
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        TextField("", text: $ageText)
-                            .font(.title3.weight(.semibold))
-                            .keyboardType(.numberPad)
-                            .monospacedDigit()
-                            .multilineTextAlignment(.trailing)
-                            .focused($focusedField, equals: .age)
-                            .fixedSize()
-                            .frame(minWidth: 30)
-                            .accessibilityLabel("Age in years")
-                            .accessibilityIdentifier("onboarding.age")
-                        Text("years")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.labelSecondary)
-                            .accessibilityHidden(true)
+            HStack(spacing: Spacing.md) {
+                fieldFrame(focused: focusedField == .age, invalid: typedAge == nil && focusedField != .age, padding: 0) {
+                    HStack(spacing: 0) {
+                        stepButton("minus", name: "One year younger", delta: -1,
+                                   disabled: (typedAge ?? Self.ageRange.upperBound) <= Self.ageRange.lowerBound)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            TextField("", text: $ageText)
+                                .font(.title3.weight(.semibold))
+                                .keyboardType(.numberPad)
+                                .monospacedDigit()
+                                .multilineTextAlignment(.trailing)
+                                .focused($focusedField, equals: .age)
+                                .fixedSize()
+                                .frame(minWidth: 30)
+                                .accessibilityLabel("Age in years")
+                                .accessibilityIdentifier("onboarding.age")
+                            Text("years")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.labelSecondary)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(maxWidth: .infinity)
+                        // Tapping anywhere in the middle starts typing.
+                        .contentShape(Rectangle())
+                        .onTapGesture { focusedField = .age }
+                        stepButton("plus", name: "One year older", delta: 1,
+                                   disabled: (typedAge ?? Self.ageRange.lowerBound) >= Self.ageRange.upperBound)
                     }
-                    .frame(maxWidth: .infinity)
-                    // Tapping anywhere in the middle starts typing.
-                    .contentShape(Rectangle())
-                    .onTapGesture { focusedField = .age }
-                    stepButton("plus", name: "One year older", delta: 1,
-                               disabled: (typedAge ?? Self.ageRange.lowerBound) >= Self.ageRange.upperBound)
+                }
+                // The number pad has no return key and the keyboard bar doesn't always show,
+                // so a plain button closes it. Beside the field, it stays above the keyboard.
+                if focusedField != nil {
+                    Button { focusedField = nil } label: {
+                        Text("Done")
+                            .font(.headline)
+                            .foregroundStyle(Color.onAccent)
+                            .padding(.horizontal, Spacing.xl)
+                            .frame(minHeight: 52)
+                            .background(Color.dullPink, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(ScalePressStyle())
+                    .accessibilityIdentifier("onboarding.closeKeyboard")
+                    .transition(.opacity)
                 }
             }
             .sensoryFeedback(.selection, trigger: vm.age)
             if typedAge == nil {
-                Text("Enter an age from \(Self.ageRange.lowerBound) to \(Self.ageRange.upperBound).")
+                Text("Enter an age from \(Self.ageRange.lowerBound) to \(Self.ageRange.upperBound)." as String)
                     .font(.caption)
                     .foregroundStyle(Color.brandDanger)
             }
@@ -185,8 +209,21 @@ struct HeightStepView: View {
     var body: some View {
         OnboardingScaffold(vm: vm, step: .height, title: "What's your height?", contentPadding: 0) {
             VStack(spacing: Spacing.md) {
-                UnitToggle(selection: $unit, options: HeightUnit.allCases, label: \.label,
-                           accessibilityName: "Height unit")
+                HStack(spacing: Spacing.sm) {
+                    UnitToggle(selection: $unit, options: HeightUnit.allCases, label: \.label,
+                               accessibilityName: "Height unit")
+                    TypeNumberButton(title: "Your height", unit: unit == .cm ? "cm" : "feet and inches",
+                                     current: unit == .cm ? String(format: "%.0f", vm.height) : HeightRuler.text(vm.height, .ft),
+                                     hint: unit == .cm ? "Enter your height in centimetres." : "For example 5'11.",
+                                     keyboard: unit == .cm ? .numberPad : .numbersAndPunctuation,
+                                     identifier: "onboarding.height.type") { text in
+                        if unit == .cm, let cm = TypedNumber.parse(text) {
+                            vm.height = TypedNumber.fitted(cm, range: range, step: 1)
+                        } else if unit == .ft, let inches = TypedNumber.inches(text) {
+                            vm.height = HeightRuler.centimetres(fromInches: inches, range: range)
+                        }
+                    }
+                }
                 HeightScene(growth: growth, height: $vm.height, unit: unit, range: range, pose: mascot.pose)
             }
         } footer: {
@@ -301,8 +338,16 @@ struct WeightStepView: View {
     var body: some View {
         OnboardingScaffold(vm: vm, step: .weight, title: "What's your current weight?", contentPadding: 0) {
             VStack(spacing: Spacing.sm) {
-                UnitToggle(selection: $unit, options: WeightUnit.allCases, label: \.label,
-                           accessibilityName: "Weight unit")
+                HStack(spacing: Spacing.sm) {
+                    UnitToggle(selection: $unit, options: WeightUnit.allCases, label: \.label,
+                               accessibilityName: "Weight unit")
+                    TypeNumberButton(title: "Your weight", unit: unit.suffix, current: WeightRuler.number(vm.weight, unit),
+                                     identifier: "onboarding.weight.type") { text in
+                        guard let number = TypedNumber.parse(text) else { return }
+                        vm.weight = unit == .kg ? TypedNumber.fitted(number, range: WeightRuler.defaultRange, step: 0.5)
+                                                : WeightRuler.kilograms(fromPounds: number.rounded())
+                    }
+                }
                 Spacer()
                 OnboardingReadout(number: WeightRuler.number(vm.weight, unit), unit: unit.suffix)
                 WeightRuler(kilograms: $vm.weight, unit: unit)

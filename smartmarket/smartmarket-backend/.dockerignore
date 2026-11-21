@@ -9,3 +9,7 @@ venv/
 off_cache.json
 ngrok-policy.yml
 .DS_Store
+# Tests and their data are not part of the service.
+test_*.py
+test_data/
+.pytest_cache/

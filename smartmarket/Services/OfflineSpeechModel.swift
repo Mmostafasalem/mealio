@@ -82,9 +82,11 @@ final class OfflineSpeechModel {
                 var values = URLResourceValues()
                 values.isExcludedFromBackup = true
                 try? folder.setResourceValues(values)
+                // Progress arrives off the main actor; hop back with a fresh weak reference.
+                let owner = WeakOfflineModel(self)
                 _ = try await AsrModels.download(to: Self.directory, version: .v3) { progress in
-                    Task { @MainActor [weak self] in
-                        guard let self, case .downloading = self.state else { return }
+                    Task { @MainActor in
+                        guard let self = owner.value, case .downloading = self.state else { return }
                         self.state = .downloading(min(max(progress.fractionCompleted, 0), 1))
                     }
                 }
@@ -169,11 +171,15 @@ nonisolated final class ParakeetSpeechEngine: SpeechEngine, @unchecked Sendable 
     private var language = VoiceLanguage.english
     private var directory: URL
     private var events: SpeechCaptureEvents?
+    private var stopError: Error?
+
+    var lastError: Error? { lock.withLock { stopError } }
 
     /// 16 kHz mono, as the model expects.
     private static let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
-    /// About 60 seconds: far more than a command, and a bound on memory.
-    private static let maximumSamples = 16_000 * 60
+    /// About 30 seconds: far more than a command, and a bound on memory.
+    /// (The voice sheet stops listening at the same point.)
+    private static let maximumSamples = 16_000 * 30
     /// Loudness above this counts as someone speaking.
     private static let speechLevel: Float = 0.3
 
@@ -209,6 +215,9 @@ nonisolated final class ParakeetSpeechEngine: SpeechEngine, @unchecked Sendable 
         do {
             return try await ParakeetRuntime.shared.transcribe(recorded, language: language, directory: directory)
         } catch {
+            // Kept for the caller to read after `stop()`: a `failed` event sent now
+            // would arrive after listening has ended and be dropped.
+            lock.withLock { stopError = SpeechCaptureError.transcriptionFailed }
             events?.failed(error)
             return ""
         }
@@ -216,3 +225,9 @@ nonisolated final class ParakeetSpeechEngine: SpeechEngine, @unchecked Sendable 
 }
 
 #endif
+
+/// A weak reference that can cross into the download's progress callback.
+private final class WeakOfflineModel: @unchecked Sendable {
+    weak var value: OfflineSpeechModel?
+    init(_ value: OfflineSpeechModel?) { self.value = value }
+}

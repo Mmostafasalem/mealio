@@ -11,6 +11,10 @@ struct WorkoutDetailView: View {
     @State private var session = WorkoutSession.shared
     @State private var markedDone = false
     @State private var guide: ExerciseGuide?
+    @State private var mode: WorkoutModeModel?
+    /// Asking before the running session is stopped, with the sets done so far.
+    @State private var confirmStop = false
+    @State private var setsDoneAtStop = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var weight: Double { AppState.shared.userProfile.weight }
@@ -30,11 +34,12 @@ struct WorkoutDetailView: View {
                         fact("chart.bar.fill", workout.level.title)
                         fact("flame.fill", "~\(workout.estimatedCalories(weightKg: weight)) kcal")
                     }
-                    Label(workout.isFromAI ? "Written by online AI for your stats and request" : (localReason ?? "Built on your phone"),
-                          systemImage: workout.isFromAI ? "sparkles" : "iphone")
-                        .font(.footnote)
-                        .foregroundStyle(Color.labelSecondary)
-                        .accessibilityIdentifier("workout.source")
+                    if workout.isFromAI {
+                        Label("Written by online AI for your stats and request", systemImage: "sparkles")
+                            .font(.footnote)
+                            .foregroundStyle(Color.labelSecondary)
+                            .accessibilityIdentifier("workout.source")
+                    }
                 }
                 .padding(.vertical, Spacing.xs)
             }
@@ -64,7 +69,7 @@ struct WorkoutDetailView: View {
                                     .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                             }
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("\(index + 1). \(exercise.name)")
+                                Text("\(index + 1). \(exercise.name)" as String)
                                     .font(.headline)
                                     .foregroundStyle(Color.labelPrimary)
                                     .multilineTextAlignment(.leading)
@@ -133,6 +138,25 @@ struct WorkoutDetailView: View {
             }
         }
         .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
+        .confirmationDialog("Another workout is in progress", isPresented: $confirmReplace, titleVisibility: .visible) {
+            Button("Start this one instead", role: .destructive) { startFresh() }
+            Button("Keep the other one", role: .cancel) {}
+        } message: {
+            Text("Starting this workout ends \(session.workout?.title ?? "the other one") without saving its sets." as String)
+        }
+        .confirmationDialog("Stop this workout?", isPresented: $confirmStop, titleVisibility: .visible) {
+            // Nothing done means nothing to save (and no calories counted).
+            if setsDoneAtStop > 0 { Button("Finish and save") { finishFromStrip() } }
+            Button("Stop without logging", role: .destructive) { stopWithoutLogging() }
+            Button("Keep going", role: .cancel) {}
+        } message: {
+            Text(setsDoneAtStop > 0 ? "\(setsDoneAtStop) set\(setsDoneAtStop == 1 ? " is" : "s are") done." : "No sets are done yet.")
+        }
+        .fullScreenCover(isPresented: Binding(get: { mode != nil }, set: { if !$0 { mode = nil } })) {
+            if let mode {
+                WorkoutModeView(model: mode) { self.mode = nil; markedDone = store.isCompletedToday(workout) }
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             Group {
                 if let state = runningState {
@@ -160,6 +184,29 @@ struct WorkoutDetailView: View {
     private var currentStep: Int? { runningState?.index }
 
     /// Before starting: start the guided session, or just log it as done.
+    @State private var confirmReplace = false
+
+    private func startFresh() {
+        UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
+        session.start(workout)
+        mode = WorkoutModeModel(workout: workout)
+    }
+
+    /// Saves the sets done so far (as workout mode's Finish does) and shows the summary.
+    private func finishFromStrip() {
+        let model = WorkoutModeModel(workout: workout)
+        model.finish()
+        mode = model
+    }
+
+    /// Stops the session and drops its draft and pending timer notices; nothing is logged.
+    private func stopWithoutLogging() {
+        withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.cancel() }
+        UserDefaults.standard.removeObject(forKey: WorkoutModeModel.draftKey)
+        WorkoutModeModel.cancelRestNotice()
+        WorkoutModeModel.cancelTimerNotice()
+    }
+
     @ViewBuilder private var startActions: some View {
         if isDone {
             PrimaryButton(title: "Logged for today", systemImage: "checkmark") {}
@@ -168,7 +215,8 @@ struct WorkoutDetailView: View {
         } else {
             VStack(spacing: Spacing.xs) {
                 PrimaryButton(title: "Start workout", systemImage: "play.fill") {
-                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.start(workout) }
+                    // Another workout still running: ask before its sets are dropped.
+                    if session.state != nil && !session.isRunning(workout) { confirmReplace = true } else { startFresh() }
                 }
                 .accessibilityHint("Steps through the exercises one at a time")
                 .accessibilityIdentifier("workout.start")
@@ -198,14 +246,16 @@ struct WorkoutDetailView: View {
                     .foregroundStyle(Color.labelPrimary)
                     .accessibilityLabel("Elapsed time")
                 Button {
-                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.cancel() }
+                    setsDoneAtStop = WorkoutModeModel.draftSetsDone(for: workout) ?? 0
+                    confirmStop = true
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title3)
                         .foregroundStyle(Color.labelTertiary)
-                        .frame(minWidth: 44, minHeight: 32)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Stop without logging")
+                .accessibilityLabel("Stop workout")
                 .accessibilityIdentifier("workout.session.stop")
             }
             if let step = state.current {
@@ -223,20 +273,11 @@ struct WorkoutDetailView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("workout.session.current")
             }
-            HStack(spacing: Spacing.sm) {
-                if state.canAdvance {
-                    SecondaryButton(title: "Next", systemImage: "forward.fill") {
-                        withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.next() }
-                    }
-                    .accessibilityHint("Moves on to the next exercise")
-                    .accessibilityIdentifier("workout.session.next")
-                }
-                PrimaryButton(title: "Finish", systemImage: "checkmark") {
-                    withAnimation(reduceMotion ? .reducedFade : .snappyValue) { session.finish() }
-                }
-                .accessibilityHint("Logs this workout as done")
-                .accessibilityIdentifier("workout.session.finish")
+            PrimaryButton(title: "Continue workout", systemImage: "play.fill") {
+                mode = WorkoutModeModel(workout: workout)
             }
+            .accessibilityHint("Opens workout mode where you left off")
+            .accessibilityIdentifier("workout.session.continue")
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Workout in progress")
@@ -287,11 +328,17 @@ struct WorkoutHistoryView: View {
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(session.title)
-                        Text("\(session.date.formatted(date: .abbreviated, time: .shortened)) · \(session.minutes) min · ~\(session.calories) kcal")
+                        Text("\(session.date.formatted(date: .abbreviated, time: .shortened)) · \(session.minutes) min · ~\(session.calories) kcal" as String)
                             .font(.caption).foregroundStyle(Color.labelSecondary)
                     }
                 }
-                .swipeActions { Button("Delete", role: .destructive) { store.removeCompleted(session) } }
+                .swipeActions {
+                    Button("Delete", role: .destructive) {
+                        store.removeCompleted(session)
+                        // Its sets in Progress go with it.
+                        if let logID = session.logID { TrainingLogStore.shared.remove(id: logID) }
+                    }
+                }
             }
         }
         .scrollContentBackground(.hidden)
@@ -357,7 +404,7 @@ struct ExerciseLibraryView: View {
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(exercise.name).font(.headline).foregroundStyle(Color.labelPrimary)
-                                Text("\(exercise.kind.title) · \(exercise.muscles)")
+                                Text("\(exercise.kind.title) · \(exercise.muscles)" as String)
                                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                             }
                             Spacer(minLength: Spacing.sm)

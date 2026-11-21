@@ -579,6 +579,51 @@ enum MascotArt {
     // MARK: Arms
 
     private static func drawArm(_ a: MascotPose.Arm, left: Bool, in ctx: GraphicsContext) {
+        let flexed = min(max(a.flex, 0), 1)
+        if flexed > 0.02 { drawFlexedArm(a, left: left, in: ctx, opacity: flexed) }
+        guard flexed < 0.98 else { return }
+        var plain = ctx
+        plain.opacity = 1 - flexed
+        drawPlainArm(a, left: left, in: plain)
+    }
+
+    /// A clay blob: shadow, then the body colour lit from the top-left.
+    private static func blob(_ center: CGPoint, _ r: CGSize, angle: Double, in ctx: GraphicsContext) {
+        let shape = Path(ellipseIn: CGRect(x: -r.width, y: -r.height, width: 2 * r.width, height: 2 * r.height))
+        var shadow = ctx
+        shadow.translateBy(x: center.x + 3, y: center.y + 6)
+        shadow.rotate(by: .radians(angle))
+        shadow.fill(shape, with: .color(P.bodyDeep.opacity(0.3)))
+        var c = ctx
+        c.translateBy(x: center.x, y: center.y)
+        c.rotate(by: .radians(angle))
+        let lw = CGPoint(x: -12, y: -12)
+        let light = CGPoint(x: lw.x * cos(-angle) - lw.y * sin(-angle), y: lw.x * sin(-angle) + lw.y * cos(-angle))
+        c.fill(shape, with: .radialGradient(Gradient(colors: [P.bodyLight, P.body, P.bodyShade]),
+                                            center: light, startRadius: 0, endRadius: max(r.width, r.height) * 1.2))
+    }
+
+    /// Showing off: the upper arm out to the side, the forearm up, a fist on top,
+    /// and a biceps bump that grows when `flex` goes above 1.
+    private static func drawFlexedArm(_ a: MascotPose.Arm, left: Bool, in ctx: GraphicsContext, opacity: Double) {
+        var c = ctx
+        c.opacity *= opacity
+        let shoulder = left ? shoulderL : shoulderR
+        let out: CGFloat = left ? -1 : 1
+        // The shoulders sit inside the bowl's outline; the flexed arm starts at its edge.
+        let base = CGPoint(x: shoulder.x + out * (26 - a.reach), y: shoulder.y + a.lift)
+        let elbow = CGPoint(x: base.x + out * 104, y: base.y - 6)
+        let pump = CGFloat(max(0, a.flex - 1))
+        // forearm and fist first, so the upper arm and biceps sit in front at the elbow
+        blob(CGPoint(x: elbow.x - out * 4, y: elbow.y - 46), CGSize(width: 25, height: 46), angle: Double(-out * 0.1), in: c)
+        blob(CGPoint(x: elbow.x - out * 10, y: elbow.y - 96), CGSize(width: 30, height: 28), angle: 0, in: c)
+        blob(CGPoint(x: base.x + out * 52, y: base.y), CGSize(width: 56, height: 27), angle: Double(-out * 0.06), in: c)
+        // The biceps: a round bump on top of the upper arm, bigger when it pumps.
+        let r = 22 + 10 * pump
+        blob(CGPoint(x: base.x + out * 58, y: base.y - 22 - 5 * pump), CGSize(width: r * 1.1, height: r), angle: 0, in: c)
+    }
+
+    private static func drawPlainArm(_ a: MascotPose.Arm, left: Bool, in ctx: GraphicsContext) {
         let shoulder = left ? shoulderL : shoulderR
         let base = left ? CGPoint(x: shoulder.x + a.reach, y: shoulder.y + a.lift)
                         : CGPoint(x: shoulder.x - a.reach, y: shoulder.y + a.lift)

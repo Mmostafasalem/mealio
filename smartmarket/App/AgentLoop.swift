@@ -11,6 +11,7 @@ final class AgentLoop {
     /// The inputs `aiTask`'s request was built from.
     private var aiTaskInputs: PlanInputs?
     private var cartObserver: NSObjectProtocol?
+    private var planInputsObserver: NSObjectProtocol?
     private var profileObserver: NSObjectProtocol?
     private weak var appState: AppState?
     private var dataGeneration = 0
@@ -61,6 +62,20 @@ final class AgentLoop {
 
     /// Whether a plan returned by `APIService.generateMealPlan` came from the AI
     /// (rather than the on-device fallback used when the AI call failed).
+    /// Rebuilds the on-device plan now from the current cart, stock, split and target
+    /// (used after adding a plan's missing foods, so the change shows at once).
+    static func rebuildPlanNow(appState: AppState? = nil) {
+        let appState = appState ?? .shared
+        let request = MealPlanRequest.current(profile: appState.userProfile, bmr: appState.bmrData)
+        var plan = FallbackData.mealPlan(targetKcal: request.bmrData.calories(forGoal: request.goal))
+        plan.generationSource = "local"
+        appState.saveMealPlan(plan)
+        recordPlanInputs(PlanInputs.current(appState))
+    }
+
+    /// Off: meal plans are built on the phone. Online AI is used for chat and recipes only.
+    nonisolated static let onlineMealPlans = false
+
     nonisolated static func isAIPlan(_ plan: WeeklyMealPlan) -> Bool {
         plan.generationSource == "online"
     }
@@ -139,6 +154,11 @@ final class AgentLoop {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.scheduleLocalRegen() }
         }
+        planInputsObserver = NotificationCenter.default.addObserver(
+            forName: .planInputsDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.scheduleLocalRegen() }
+        }
         // Profile edits (body stats, goal, pace, diet, favourites) change the
         // calorie target and the foods allowed, so the plan follows them.
         profileObserver = NotificationCenter.default.addObserver(
@@ -165,6 +185,10 @@ final class AgentLoop {
         regenTask?.cancel(); regenTask = nil
         profileTask?.cancel(); profileTask = nil
         aiTask?.cancel()
+        if let planInputsObserver {
+            NotificationCenter.default.removeObserver(planInputsObserver)
+            self.planInputsObserver = nil
+        }
         if let cartObserver {
             NotificationCenter.default.removeObserver(cartObserver)
             self.cartObserver = nil
@@ -295,7 +319,8 @@ final class AgentLoop {
             groceryBaseline: groceryBaseline,
             dueForDailyRefresh: Self.isDueForDailyRefresh(defaults: defaults),
             refreshRequested: defaults.bool(forKey: Self.refreshRequestedKey),
-            hasAIConsent: APIService.shared.hasAIConsent,
+            // Meal plans are always built on the phone; online AI is only for chat and recipes.
+            hasAIConsent: Self.onlineMealPlans && APIService.shared.hasAIConsent,
             lastFailure: defaults.object(forKey: Self.lastFailureKey) as? Date,
             now: Date(),
             failuresToday: Self.failuresToday(defaults: defaults))
@@ -345,7 +370,7 @@ final class AgentLoop {
     }
 
     /// A saved plan whose days miss the calorie target (see `WeeklyMealPlan.isOnTarget`).
-    nonisolated static func savedPlanNeedsReplacing(_ plan: WeeklyMealPlan?, target: Int) -> Bool {
+    static func savedPlanNeedsReplacing(_ plan: WeeklyMealPlan?, target: Int) -> Bool {
         guard let plan, target > 0 else { return false }
         return !plan.isOnTarget(target)
     }

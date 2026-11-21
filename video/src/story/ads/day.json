@@ -1,0 +1,323 @@
+{
+ "id": "day",
+ "dur": 22.655,
+ "bpm": 124,
+ "music": {
+  "style": "disco",
+  "bars": [
+   "Dm9",
+   "Gm9",
+   "C9",
+   "Fmaj7",
+   "Dm9",
+   "Gm9",
+   "C9",
+   "Fmaj7",
+   "Dm9",
+   "Gm9",
+   "C9",
+   "Fmaj7"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 11
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "A day with Nourlo",
+   "mark": [
+    "nourlo"
+   ]
+  },
+  {
+   "kind": "voice",
+   "at": 1.935,
+   "cut": "slide",
+   "label": "Breakfast, logged by voice",
+   "mark": [
+    "voice"
+   ]
+  },
+  {
+   "kind": "groceries",
+   "at": 4.839,
+   "cut": "slide",
+   "label": "Groceries on budget",
+   "mark": [
+    "budget"
+   ]
+  },
+  {
+   "kind": "workout",
+   "at": 7.742,
+   "cut": "slide",
+   "label": "Lunch break PR",
+   "mark": [
+    "pr"
+   ]
+  },
+  {
+   "kind": "recipe",
+   "at": 10.645,
+   "cut": "slide",
+   "label": "Dinner from your fridge",
+   "mark": [
+    "fridge"
+   ]
+  },
+  {
+   "kind": "day",
+   "at": 13.548,
+   "cut": "slide",
+   "label": "Every calorie counted",
+   "mark": [
+    "counted"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 16.452,
+   "cut": "zoom",
+   "label": "Your whole day, one bowl",
+   "mark": [
+    "one",
+    "bowl"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 20.055,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": -380,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 0.2,
+   "x": -380,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 1.4,
+   "x": 540,
+   "y": 1250,
+   "size": 640,
+   "move": "walk"
+  },
+  {
+   "t": 1.685,
+   "x": 540,
+   "y": 1250,
+   "size": 640
+  },
+  {
+   "t": 2.285,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 4.589,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 5.189,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 7.492,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 8.092,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 10.395,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 10.995,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 220
+  },
+  {
+   "t": 13.298,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 13.898,
+   "x": 540,
+   "y": 1470,
+   "size": 520,
+   "move": "jump",
+   "arc": 300
+  },
+  {
+   "t": 16.252,
+   "x": 540,
+   "y": 1470,
+   "size": 520
+  },
+  {
+   "t": 16.952,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood sleepy"
+  ],
+  [
+   1.0,
+   "mood happy"
+  ],
+  [
+   1.0,
+   "wave"
+  ],
+  [
+   2.435,
+   "look -0.6 -0.9"
+  ],
+  [
+   3.235,
+   "hop"
+  ],
+  [
+   6.239,
+   "mood love"
+  ],
+  [
+   9.492,
+   "mood flex"
+  ],
+  [
+   10.142,
+   "resize 0.8"
+  ],
+  [
+   10.845,
+   "mood happy"
+  ],
+  [
+   12.445,
+   "hop"
+  ],
+  [
+   13.948,
+   "look 0 -1"
+  ],
+  [
+   15.048,
+   "look none"
+  ],
+  [
+   15.048,
+   "resize 0.6"
+  ],
+  [
+   16.952,
+   "mood celebrate"
+  ],
+  [
+   18.387,
+   "mood flex"
+  ],
+  [
+   19.755,
+   "mood love"
+  ],
+  [
+   19.755,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   3.235,
+   "success"
+  ],
+  [
+   5.189,
+   "coin"
+  ],
+  [
+   5.409,
+   "coin"
+  ],
+  [
+   5.629,
+   "coin"
+  ],
+  [
+   5.849,
+   "coin"
+  ],
+  [
+   6.069,
+   "coin"
+  ],
+  [
+   8.292,
+   "tap"
+  ],
+  [
+   8.692,
+   "tap"
+  ],
+  [
+   9.092,
+   "tap"
+  ],
+  [
+   9.492,
+   "sparkle"
+  ],
+  [
+   12.195,
+   "tap"
+  ],
+  [
+   12.445,
+   "success"
+  ]
+ ],
+ "theme": "white",
+ "overlays": []
+}

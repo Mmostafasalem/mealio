@@ -90,9 +90,17 @@ struct BarcodeScannerSheet: View {
                 .foregroundStyle(Color.labelSecondary)
                 .multilineTextAlignment(.center)
             if showSettings, let url = URL(string: UIApplication.openSettingsURLString) {
-                Button("Open Settings") { openURL(url) }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color.brandPrimary)
+                // Not bordered-prominent: its tint turns almost white in dark mode.
+                Button { openURL(url) } label: {
+                    Text("Open Settings")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.onAccent)
+                        .padding(.horizontal, Spacing.xl)
+                        .frame(minHeight: 44)
+                        .background(Color.dullPink, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                    .buttonStyle(ScalePressStyle())
                     .accessibilityIdentifier("scanner.openSettings")
             }
         }
