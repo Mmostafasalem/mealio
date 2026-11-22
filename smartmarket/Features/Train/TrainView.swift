@@ -42,6 +42,8 @@ struct TrainView: View {
     @State private var editingWorkout: Workout?
     /// Workout mode reopened for a workout still running (after the app was closed).
     @State private var resumed: WorkoutModeModel?
+    /// A programme day opened from the Programmes section.
+    @State private var programDay: Workout?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -57,6 +59,7 @@ struct TrainView: View {
                         .accessibilityIdentifier("train.resume")
                     }
                     weekCard
+                    ProgramsSection { programDay = $0 }
                     builderCard
                     savedSection
                     exerciseBrowser
@@ -92,6 +95,7 @@ struct TrainView: View {
             .navigationDestination(item: $vm.generated) { workout in
                 WorkoutDetailView(workout: workout, localReason: vm.localReason)
             }
+            .navigationDestination(item: $programDay) { WorkoutDetailView(workout: $0, localReason: nil) }
         }
         // "Start a cardio workout" from Siri or Shortcuts preselects that kind.
         .onAppear { applyRequestedKind() }
@@ -253,13 +257,15 @@ struct TrainView: View {
 
 // MARK: - Pieces
 
-/// The exercise library as a card you drill into in place: type → exercises → one
-/// exercise. Depends only on the catalogue, so its pages are built the first time
-/// it is drawn and kept.
+/// The exercise library as a card you drill into in place: muscle group (or type) →
+/// exercises → one exercise. Depends only on the catalogue, so its pages are built
+/// the first time it is drawn and kept.
 private struct ExerciseBrowserCard: View {
     @Binding var showLibrary: Bool
     @Binding var guide: ExerciseGuide?
     @State private var cache = PageCache()
+    /// Grouped by muscle (the default) or by type of training; remembered.
+    @AppStorage("trainExercisesByMuscle_v1") private var byMuscle = true
 
     /// Holds the built pages; a plain reference so filling it doesn't redraw anything.
     private final class PageCache {
@@ -267,7 +273,17 @@ private struct ExerciseBrowserCard: View {
     }
 
     var body: some View {
-        StackPanel(pages: pages(), root: "root")
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Picker("Group exercises", selection: $byMuscle) {
+                Text("By muscle").tag(true)
+                Text("By type").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("train.exercises.grouping")
+            // A new root starts the panel afresh, on its top page.
+            StackPanel(pages: pages(), root: byMuscle ? "muscles" : "root")
+                .id(byMuscle)
+        }
     }
 
     private func pages() -> [String: StackPanelPage] {
@@ -283,15 +299,42 @@ private struct ExerciseBrowserCard: View {
     private static func makePages(search: @escaping () -> Void,
                                   open: @escaping (Exercise) -> Void) -> [String: StackPanelPage] {
         let byKind = Dictionary(grouping: Exercise.catalog, by: \.kind)
+        let byGroup = Dictionary(grouping: Exercise.catalog, by: \.muscleGroup)
+        let searchRow = StackPanelRow(id: "search", label: "Search all exercises", symbol: "magnifyingglass", action: search)
         var pages: [String: StackPanelPage] = [:]
+
+        // By muscle: each exercise under its main muscle group.
+        pages["muscles"] = StackPanelPage(title: "Exercises", sections: [
+            StackPanelSection(rows: MuscleGroup.allCases.compactMap { group in
+                guard let count = byGroup[group]?.count, count > 0 else { return nil }
+                return StackPanelRow(id: "muscle." + group.rawValue, label: group.title, symbol: group.symbol,
+                                     detail: "\(count)", to: "muscle." + group.rawValue)
+            }),
+            StackPanelSection(rows: [searchRow]),
+        ])
+        for group in MuscleGroup.allCases {
+            let exercises = byGroup[group] ?? []
+            guard !exercises.isEmpty else { continue }
+            // Split by type when the group mixes them (chest work in the gym and at home).
+            let kinds = ExerciseKind.allCases.filter { kind in exercises.contains { $0.kind == kind } }
+            let sections: [(String?, [Exercise])] = kinds.count > 1
+                ? kinds.map { kind in (kind.title, exercises.filter { $0.kind == kind }) }
+                : [(nil, exercises)]
+            pages["muscle." + group.rawValue] = StackPanelPage(title: group.title, sections: sections.map { title, items in
+                StackPanelSection(title: title, rows: items.map { exercise in
+                    StackPanelRow(id: group.rawValue + "." + exercise.id, label: exercise.name,
+                                  detail: exercise.level.title, to: "exercise." + exercise.id)
+                })
+            })
+        }
+
+        // By type.
         pages["root"] = StackPanelPage(title: "Exercises", sections: [
             StackPanelSection(rows: ExerciseKind.allCases.map { kind in
                 StackPanelRow(id: kind.rawValue, label: kind.title, symbol: kind.symbol,
                               detail: "\(byKind[kind]?.count ?? 0)", to: "kind." + kind.rawValue)
             }),
-            StackPanelSection(rows: [
-                StackPanelRow(id: "search", label: "Search all exercises", symbol: "magnifyingglass", action: search),
-            ]),
+            StackPanelSection(rows: [searchRow]),
         ])
         for kind in ExerciseKind.allCases {
             let exercises = byKind[kind] ?? []
@@ -312,6 +355,8 @@ private struct ExerciseBrowserCard: View {
                 pages["exercise." + exercise.id] = StackPanelPage(title: exercise.name, sections: [
                     StackPanelSection(rows: [
                         StackPanelRow(id: exercise.id + ".works", label: "Works", detail: exercise.muscles),
+                        StackPanelRow(id: exercise.id + ".group", label: "Group",
+                                      detail: "\(exercise.muscleGroup.title) · \(exercise.kind.title)"),
                         StackPanelRow(id: exercise.id + ".kit", label: "Equipment", detail: exercise.equipment),
                         StackPanelRow(id: exercise.id + ".typical", label: "Typical", detail: exercise.prescription),
                     ]),
