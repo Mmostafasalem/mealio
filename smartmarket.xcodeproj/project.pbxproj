@@ -315,7 +315,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = "$(MEALIO_APP_ENTITLEMENTS)";
 				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
@@ -360,7 +360,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = "$(MEALIO_APP_ENTITLEMENTS)";
 				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
@@ -575,7 +575,7 @@
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID).widgets"; PRODUCT_NAME = "$(TARGET_NAME)";
                 SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES;
                 SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0;
+                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 2; MARKETING_VERSION = 1.0;
                 LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
             }; name = Debug; };
 		C10000000000000000000009 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
@@ -584,7 +584,7 @@
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID).widgets"; PRODUCT_NAME = "$(TARGET_NAME)";
                 SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES;
                 SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0;
+                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 2; MARKETING_VERSION = 1.0;
                 LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
             }; name = Release; };
 /* End XCBuildConfiguration section */
