@@ -360,7 +360,8 @@ struct ExerciseLibraryView: View {
         Exercise.catalog.filter { exercise in
             (kind == nil || exercise.kind == kind)
                 && (query.isEmpty || exercise.name.localizedStandardContains(query)
-                    || exercise.muscles.localizedStandardContains(query))
+                    || exercise.muscles.localizedStandardContains(query)
+                    || exercise.muscleGroup.title.localizedStandardContains(query))
         }
     }
 
