@@ -2,9 +2,39 @@ import SwiftUI
 
 // MARK: - RecipeSheet
 
+/// The recipe on its own, in a sheet (the week view's meals).
 struct RecipeSheet: View {
+    let mealName: String
+    var recipe: Recipe? = nil
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            RecipeView(mealName: mealName, recipe: recipe)
+                .navigationTitle(mealName)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                            .fontWeight(.semibold)
+                    }
+                }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(Radius.sheet)
+    }
+}
+
+// MARK: - RecipeView
+
+/// How to make a meal: the AI recipe when online AI is offered, else the Wikibooks
+/// recipes that use its foods. Needs a NavigationStack around it (cookbook links).
+struct RecipeView: View {
 
     let mealName: String
+    /// The meal a cookbook recipe's "I cooked this" logs to first.
+    let slot: MealSlot?
     @State private var recipe: Recipe?
     @State private var isLoading: Bool
     @State private var failed = false
@@ -14,13 +44,12 @@ struct RecipeSheet: View {
     @State private var failure = Failure.connection
     @State private var speaker = ReadAlongSpeaker()
     @State private var ratings = RecipeRatingStore.shared
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// `recipe` shows a recipe without loading it (previews).
-    init(mealName: String, recipe: Recipe? = nil) {
-        self.mealName = mealName
+    init(mealName: String, recipe: Recipe? = nil, slot: MealSlot? = nil) {
+        self.mealName = mealName; self.slot = slot
         _recipe = State(initialValue: recipe)
         _isLoading = State(initialValue: recipe == nil)
     }
@@ -33,32 +62,20 @@ struct RecipeSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    loadingView
-                } else if let recipe {
-                    recipeContent(recipe)
-                } else if let cookbook {
-                    cookbookList(cookbook)
-                } else if failed {
-                    errorView
-                }
-            }
-            .animation(reduceMotion ? .none : .easeOut(duration: 0.2), value: isLoading)
-            .navigationTitle(mealName)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
-                }
+        Group {
+            if isLoading {
+                loadingView
+            } else if let recipe {
+                recipeContent(recipe)
+            } else if let cookbook {
+                cookbookList(cookbook)
+            } else if failed {
+                errorView
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .presentationCornerRadius(Radius.sheet)
-        .task { if recipe == nil { await loadRecipe() } }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(reduceMotion ? .none : .easeOut(duration: 0.2), value: isLoading)
+        .task { if recipe == nil && cookbook == nil { await loadRecipe() } }
         // Speech never outlives the sheet.
         .onDisappear { speaker.stop() }
     }
@@ -291,7 +308,7 @@ struct RecipeSheet: View {
                         .foregroundStyle(Color.labelSecondary)
                 }
                 ForEach(recipes) { r in
-                    NavigationLink { CookbookRecipeView(recipe: r) } label: {
+                    NavigationLink { CookbookRecipeView(recipe: r, slot: slot) } label: {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(r.title).font(.subheadline.weight(.semibold))
                             Text([r.course.title, r.minutes.map { "\($0) min" }, "\(Int(r.perServing.kcal)) kcal a serving"].compactMap { $0 }.joined(separator: " · "))
@@ -308,6 +325,8 @@ struct RecipeSheet: View {
             Section { CookbookCredit(recipe: nil) }.listRowBackground(Color.clear)
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.surfaceGrouped)
         .accessibilityIdentifier("recipe.cookbook")
     }
 

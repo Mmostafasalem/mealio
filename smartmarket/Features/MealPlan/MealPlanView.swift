@@ -242,12 +242,7 @@ private struct MealEntryRow: View {
     let expandGroup: ExpandCardGroup
     let titleMemory: ScrambleMemory
 
-    private enum RowSheet: String, Identifiable {
-        case recipe, stock
-        var id: String { rawValue }
-    }
-
-    @State private var sheet: RowSheet?
+    @State private var showReview = false
     @State private var stock = StockStore.shared
     @State private var addedNotice: String?
     @State private var addedTrigger = false
@@ -263,17 +258,12 @@ private struct MealEntryRow: View {
     var body: some View {
         ExpandCard(id: cardID, group: expandGroup,
                    accessibilityLabel: "\(entry.foodName), \(subtitle), \(entry.calories) kcal",
-                   hint: "Shows ingredients, portions and macros") { p in
+                   hint: "Shows ingredients, portions and macros", identifier: "mealPlan.meal") { p in
             header(p)
         } detail: {
             detail
         }
-        .sheet(item: $sheet) { which in
-            switch which {
-            case .stock: PlannedMealStockSheet(entry: entry, slot: slot)
-            case .recipe: RecipeSheet(mealName: entry.foodName)
-            }
-        }
+        .sheet(isPresented: $showReview) { MealReviewSheet(entry: entry, slot: slot) }
     }
 
     // MARK: Header
@@ -383,21 +373,15 @@ private struct MealEntryRow: View {
     }
 
     private var actions: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
-            : AnyLayout(HStackLayout(spacing: Spacing.sm))
-        return VStack(alignment: .leading, spacing: Spacing.sm) {
-            layout {
-                actionButton("Recipe", systemImage: "book", prominent: !entry.macrosAvailable) { sheet = .recipe }
-                    .accessibilityHint("Opens the recipe")
-                if entry.macrosAvailable {
-                    actionButton("Review and log", systemImage: "checklist", prominent: true) { sheet = .stock }
-                        .accessibilityHint("Review ingredient portions and log from stock")
-                }
-            }
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            // One button: the recipe and the review-and-log flow share one sheet.
+            actionButton("Review recipe and log", systemImage: "fork.knife", prominent: true) { showReview = true }
+                .accessibilityHint(entry.macrosAvailable ? "Shows how to make it, and reviews the portions to log from stock"
+                                                         : "Shows how to make it")
+                .accessibilityIdentifier("mealPlan.reviewRecipeLog")
             if let missing, !missing.isEmpty, entry.stockOperationID != nil {
                 actionButton("Add missing ingredients to checklist", systemImage: "cart.badge.plus", prominent: false) {
-                    if PlannedMealStockSheet.addMissingToGroceries(entry: entry, missing: missing) {
+                    if MealReviewSheet.addMissingToGroceries(entry: entry, missing: missing) {
                         addedNotice = "Missing quantities added to your checklist."
                         addedTrigger.toggle()
                     }

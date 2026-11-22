@@ -59,8 +59,13 @@ struct ScrambleText: View {
                 if let key, let memory, memory.changed(key, to: text) { play() }
             }
             .onChange(of: text) { _, new in
-                if let key, let memory { _ = memory.changed(key, to: new) }
-                play()
+                // With a memory, only a text the slot hasn't shown before decodes; a
+                // re-render, an expand or collapse, or a reload of the same plan never does.
+                if let key, let memory {
+                    if memory.changed(key, to: new) { play() }
+                } else {
+                    play()
+                }
             }
             .onDisappear { model.stop() }
     }
