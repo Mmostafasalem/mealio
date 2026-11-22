@@ -8,21 +8,36 @@ import Foundation
 // what a balanced week is still missing (a protein, a carb, two vegetables, a fruit,
 // a dairy food), and fits what's left of the weekly budget after the cart.
 //
-// When everything fits, everything is suggested, and money still left buys more
-// for the week, round the food groups (protein, vegetables, fruit, a carb, dairy):
-// staples first, then other catalogue foods, each one only once, until less than
-// `minimumToSuggest` is left. When the budget is tight, the
-// balanced basics come first and then favourites, at most two from one food group,
-// until the money runs out.
+// When everything fits, everything is suggested, and the money still left is used
+// (`fill`) until less than `fillUntil` (€5) remains: first one more pack of each of
+// the person's own foods, then round the food groups (protein, vegetables, fruit, a
+// carb, dairy) with staples first and then other catalogue foods with a part in the
+// plan, and last a second pack of what is already on the list. Sweets, sauces,
+// drinks and seasonings never fill the list (they have no role). When the budget is
+// tight, the balanced basics come first and then favourites, at most two from one
+// food group, and what's left is filled the same way (without the extra packs).
 
 struct GroceryPlanLine: Identifiable, Hashable {
     enum Reason: String {
-        case favourite = "One of your foods", staple = "For a balanced week", more = "More for the week"
+        case favourite = "One of your foods", another = "More of one of your foods",
+             staple = "For a balanced week", more = "More for the week"
     }
     var id: String { item.id }
     let item: CatalogItem
-    let price: Double
+    /// One pack's price.
+    let unitPrice: Double
+    /// Packs to buy (a second pack of a food the person eats a lot).
+    var quantity: Int
     let reason: Reason
+    /// The line's total.
+    var price: Double { unitPrice * Double(quantity) }
+
+    init(item: CatalogItem, price: Double, reason: Reason, quantity: Int = 1) {
+        self.item = item
+        unitPrice = price
+        self.quantity = quantity
+        self.reason = reason
+    }
 }
 
 struct GroceryPlan: Equatable {
@@ -50,7 +65,11 @@ enum WeeklyGroceryPlanner {
         .dairy: ["greek-yogurt", "kefir", "cottage-cheese", "oat-milk"],
     ]
 
-    static let minimumToSuggest = 3.0
+    /// Money left below this isn't planned: the list stops here, and a cart that leaves
+    /// less than this gets no suggestions at all.
+    static let fillUntil = 5.0
+    /// At most this many packs of one food in a week (cart and list together).
+    static let maxPacks = 2
 
     /// The same roles the meal plan gives foods (`FallbackData.planRole`), so what is
     /// bought here is what the plan uses: potatoes are the plate's carb, frozen
@@ -73,11 +92,15 @@ enum WeeklyGroceryPlanner {
                      stock: [String] = [],
                      price: (CatalogItem) -> Double) -> GroceryPlan {
         let available = max(0, budget - cart.reduce(0) { $0 + $1.lineTotal })
-        guard available >= minimumToSuggest else { return GroceryPlan(lines: [], available: available) }
-        let inCart = Set(cart.map(\.catalogId))
-        func usable(_ item: CatalogItem) -> Bool {
-            !inCart.contains(item.id) && !excluded.contains(item.id) && allowed(item, preferences) && price(item) > 0
+        guard available >= fillUntil else { return GroceryPlan(lines: [], available: available) }
+        let cartPacks = cart.reduce(into: [String: Int]()) { $0[$1.catalogId, default: 0] += max(1, $1.quantity) }
+        let inCart = Set(cartPacks.keys)
+        /// Fits the diet, has a price and wasn't removed by the person.
+        func fits(_ item: CatalogItem) -> Bool {
+            !excluded.contains(item.id) && allowed(item, preferences) && price(item) > 0
         }
+        /// A food not in the cart yet.
+        func usable(_ item: CatalogItem) -> Bool { !inCart.contains(item.id) && fits(item) }
 
         // The person's foods, food first (spices and drinks rarely make a meal).
         let order: [CatalogCategory] = [.meat, .seafood, .eggs, .legumes, .dairy, .vegetables, .fruits, .grains, .bread,
@@ -115,9 +138,15 @@ enum WeeklyGroceryPlanner {
         let everything = favs.map { GroceryPlanLine(item: $0, price: price($0), reason: .favourite) }
             + chosenStaples.map { GroceryPlanLine(item: $0, price: price($0), reason: .staple) }
         let spentOnBasics = everything.reduce(0, { $0 + $1.price })
+        // The person's own foods, for more packs: their picks (in the cart or not) that
+        // have a part in the plan, plate foods first.
+        let own = CatalogItem.all.filter { favourites.contains($0.id) && role(of: $0) != nil && fits($0) }
+            .sorted { (order.firstIndex(of: $0.category) ?? 99) < (order.firstIndex(of: $1.category) ?? 99) }
         if spentOnBasics <= available + 0.001 {
-            return GroceryPlan(lines: everything + more(after: everything, left: available - spentOnBasics, usable: usable, price: price),
-                               available: available)
+            var lines = everything
+            fill(&lines, left: available - spentOnBasics, own: own, cartPacks: cartPacks,
+                 usable: usable, repeatable: fits, price: price)
+            return GroceryPlan(lines: lines, available: available)
         }
 
         // Tight budget: the balanced basics first (the person's own food for a role
@@ -148,9 +177,10 @@ enum WeeklyGroceryPlanner {
             if let staple { take(GroceryPlanLine(item: staple, price: price(staple), reason: .staple)) }
         }
         for item in favs { take(GroceryPlanLine(item: item, price: price(item), reason: .favourite)) }
-        // Whatever the picked foods left unspent still buys food for the week.
-        lines += more(after: lines, left: available - spent,
-                      usable: { usable($0) && perGroup[$0.category, default: 0] < 2 }, price: price)
+        // Whatever the picked foods left unspent still buys food for the week (new foods
+        // keep the two-of-a-kind limit; no extra packs of favourites on a tight budget).
+        fill(&lines, left: available - spent, own: [], cartPacks: cartPacks,
+             usable: { usable($0) && perGroup[$0.category, default: 0] < 2 }, repeatable: fits, price: price)
         return GroceryPlan(lines: lines, available: available, tight: true)
     }
 
@@ -159,35 +189,65 @@ enum WeeklyGroceryPlanner {
     /// A stop for the loop only; the money runs out long before.
     static let maxMore = 60
 
-    /// Spends what is left, round the food groups, until less than `minimumToSuggest`
-    /// remains: the staples first, then any other catalogue food with a part in the
-    /// plan, so the list comes close to the budget instead of stopping when the
-    /// staples run out.
-    static func more(after lines: [GroceryPlanLine], left: Double, usable: (CatalogItem) -> Bool,
-                     price: (CatalogItem) -> Double) -> [GroceryPlanLine] {
-        var taken = Set(lines.map(\.id)), left = left, out: [GroceryPlanLine] = []
+    /// Spends what is left until less than `fillUntil` remains, in this order:
+    /// 1. one more pack of each of the person's own foods (`own`), so they get more of
+    ///    what they eat;
+    /// 2. new foods round the food groups: the staples first, then any other catalogue
+    ///    food with a part in the plan (never sweets, sauces, drinks or seasonings);
+    /// 3. a second pack of a food already in the cart or on the list (staples first),
+    ///    when the new foods have run out or cost too much.
+    /// No food goes above `maxPacks` packs for the week, and the total never passes `left`.
+    static func fill(_ lines: inout [GroceryPlanLine], left: Double, own: [CatalogItem], cartPacks: [String: Int],
+                     usable: (CatalogItem) -> Bool, repeatable: (CatalogItem) -> Bool,
+                     price: (CatalogItem) -> Double) {
+        var left = left
+        var added = 0
+        func packs(_ id: String) -> Int { cartPacks[id, default: 0] + (lines.first { $0.id == id }?.quantity ?? 0) }
+        @discardableResult
+        func addPack(_ item: CatalogItem, reason: GroceryPlanLine.Reason) -> Bool {
+            let p = price(item)
+            guard added < maxMore, left >= fillUntil, p > 0, p <= left + 0.001, packs(item.id) < maxPacks else { return false }
+            if let i = lines.firstIndex(where: { $0.id == item.id }) { lines[i].quantity += 1 }
+            else { lines.append(GroceryPlanLine(item: item, price: p, reason: reason)) }
+            left -= p
+            added += 1
+            return true
+        }
+
+        // 1. More of the person's own foods.
+        for item in own where repeatable(item) { addPack(item, reason: .another) }
+
+        // 2. New foods, round the food groups.
         var pool: [Role: [CatalogItem]] = [:]
         for r in Role.allCases {
             let first = (staples[r] ?? []).compactMap { id in CatalogItem.all.first { $0.id == id } }
             let firstIDs = Set(first.map(\.id))
             let rest = CatalogItem.all.filter { !firstIDs.contains($0.id) && role(of: $0) == r }
-            pool[r] = (first + rest).filter { usable($0) && !taken.contains($0.id) }
+            // Only foods the plan gives this part (onion is on the staples list but is a seasoning there).
+            pool[r] = (first + rest).filter { role(of: $0) == r && usable($0) && packs($0.id) == 0 }
         }
         var stuck = Set<Role>()
-        while out.count < maxMore, left >= minimumToSuggest, stuck.count < Role.allCases.count {
-            var added = false
-            for r in topUpOrder where out.count < maxMore && left >= minimumToSuggest && !stuck.contains(r) {
-                guard let next = pool[r]?.first(where: { !taken.contains($0.id) && price($0) <= left + 0.001 }) else {
+        while left >= fillUntil, added < maxMore, stuck.count < Role.allCases.count {
+            var any = false
+            for r in topUpOrder where left >= fillUntil && !stuck.contains(r) {
+                guard let next = pool[r]?.first(where: { packs($0.id) == 0 && price($0) <= left + 0.001 }),
+                      addPack(next, reason: .more) else {
                     stuck.insert(r); continue
                 }
-                out.append(GroceryPlanLine(item: next, price: price(next), reason: .more))
-                taken.insert(next.id)
-                left -= price(next)
-                added = true
+                any = true
             }
-            if !added { break }
+            if !any { break }
         }
-        return out
+
+        // 3. Second packs of what the week already has, staples and plate foods first.
+        guard left >= fillUntil else { return }
+        let stapleIDs = Set(staples.values.flatMap { $0 })
+        let already = (lines.map(\.item) + CatalogItem.all.filter { cartPacks[$0.id] != nil && !lines.map(\.id).contains($0.id) })
+            .filter { role(of: $0) != nil && repeatable($0) }
+            .sorted { (stapleIDs.contains($0.id) ? 0 : 1, price($0)) < (stapleIDs.contains($1.id) ? 0 : 1, price($1)) }
+        for item in already where left >= fillUntil {
+            addPack(item, reason: lines.contains { $0.id == item.id } ? .more : .another)
+        }
     }
 
     /// The same diet rule the meal plan uses (`DietaryPreference.conflicts`), so nothing

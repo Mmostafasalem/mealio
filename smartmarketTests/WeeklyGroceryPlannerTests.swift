@@ -60,11 +60,81 @@ final class WeeklyGroceryPlannerTests: XCTestCase {
         let cart = ids.map { CartItem(id: UUID(), catalogId: $0, name: $0, store: "Catalogue", price: 3, category: "x", quantity: 1) }
         let plan = WeeklyGroceryPlanner.plan(budget: 50, cart: cart, favourites: Set(ids), preferences: [], price: price)
         XCTAssertFalse(plan.lines.isEmpty, "money left means more to suggest")
-        XCTAssertTrue(plan.lines.allSatisfy { $0.reason == .more })
         XCTAssertLessThanOrEqual(plan.total, plan.available)
-        XCTAssertTrue(plan.lines.allSatisfy { !ids.contains($0.item.id) }, "nothing already in the cart")
-        XCTAssertEqual(Set(plan.lines.map(\.id)).count, plan.lines.count, "each food once")
+        // The person's own foods (all in the cart) get one more pack each, first.
+        XCTAssertEqual(Array(plan.lines.prefix(ids.count)).map(\.item.id).sorted(), ids.sorted())
+        XCTAssertTrue(plan.lines.prefix(ids.count).allSatisfy { $0.reason == .another && $0.quantity == 1 })
+        XCTAssertTrue(plan.lines.dropFirst(ids.count).allSatisfy { $0.reason == .more && !ids.contains($0.item.id) })
+        XCTAssertEqual(Set(plan.lines.map(\.id)).count, plan.lines.count, "each food on one line")
         XCTAssertTrue(roles(plan).contains(.protein) && roles(plan).contains(.vegetable) && roles(plan).contains(.fruit))
+        XCTAssertLessThan(plan.available - plan.total, WeeklyGroceryPlanner.fillUntil)
+    }
+
+    // MARK: Filling the budget
+
+    private func realPrice(_ item: CatalogItem) -> Double { item.estimatedPrice(for: .catalog) }
+
+    /// A cart of real catalogue foods worth `total`.
+    private func cart(worth total: Double, of ids: [String]) -> [CartItem] {
+        let each = total / Double(ids.count)
+        return ids.map { CartItem(id: UUID(), catalogId: $0, name: $0, store: "Catalogue", price: each, category: "x", quantity: 1) }
+    }
+
+    func testABalancedCartWithElevenEurosLeftStillGetsGroceries() {
+        // The owner's case: budget €50, a balanced cart of €38.97, €11.03 left.
+        let ids = ["chicken-breast", "brown-rice", "broccoli", "spinach", "banana", "greek-yogurt", "free-range-eggs", "apple"]
+        let basket = cart(worth: 38.97, of: ids)
+        for favourites: Set<String> in [[], Set(ids), ["salmon-fillet", "kefir"]] {
+            for price in [realPrice, { _ in 3.0 }] as [(CatalogItem) -> Double] {
+                let plan = WeeklyGroceryPlanner.plan(budget: 50, cart: basket, favourites: favourites, preferences: [], price: price)
+                XCTAssertEqual(plan.available, 11.03, accuracy: 0.001)
+                XCTAssertGreaterThanOrEqual(plan.total, 6.03 - 0.001, "less than €5 is left unplanned (\(favourites))")
+                XCTAssertLessThanOrEqual(plan.total, 11.03 + 0.001, "never more than what's left")
+            }
+        }
+    }
+
+    func testAnEmptyCartUsesTheBudget() {
+        for budget in [60.0, 35.0, 120.0] {
+            let plan = WeeklyGroceryPlanner.plan(budget: budget, cart: [], favourites: [], preferences: [], price: realPrice)
+            XCTAssertGreaterThanOrEqual(plan.total, budget - 5, "budget \(budget)")
+            XCTAssertLessThanOrEqual(plan.total, budget + 0.001, "budget \(budget)")
+        }
+        let picked: Set<String> = ["salmon-fillet", "brown-rice", "spinach", "carrot", "apple", "kefir"]
+        let mine = WeeklyGroceryPlanner.plan(budget: 60, cart: [], favourites: picked, preferences: [], price: realPrice)
+        XCTAssertGreaterThanOrEqual(mine.total, 55)
+        XCTAssertLessThanOrEqual(mine.total, 60.001)
+    }
+
+    func testOwnFoodsGetMorePacksFirstButNeverMoreThanTwo() {
+        let picked: Set<String> = ["salmon-fillet", "brown-rice", "spinach", "carrot", "apple", "kefir"]
+        let plan = WeeklyGroceryPlanner.plan(budget: 60, cart: [], favourites: picked, preferences: [], price: price)
+        for id in picked { XCTAssertEqual(plan.lines.first { $0.id == id }?.quantity, 2, id) }
+        XCTAssertTrue(plan.lines.allSatisfy { $0.quantity <= WeeklyGroceryPlanner.maxPacks })
+        // A pack already in the cart counts towards the two.
+        let inCart = [CartItem(id: UUID(), catalogId: "salmon-fillet", name: "Salmon", store: "Catalogue", price: 3, category: "seafood", quantity: 2)]
+        let again = WeeklyGroceryPlanner.plan(budget: 60, cart: inCart, favourites: ["salmon-fillet"], preferences: [], price: price)
+        XCTAssertNil(again.lines.first { $0.id == "salmon-fillet" })
+    }
+
+    func testFillersAreRealFoodThatFitsTheDiet() {
+        for prefs: Set<DietaryPreference> in [[], [.vegan], [.vegetarian, .glutenFree], [.halal], [.lactoseFree, .nutAllergy], [.keto]] {
+            let plan = WeeklyGroceryPlanner.plan(budget: 80, cart: [], favourites: [], preferences: prefs, price: realPrice)
+            XCTAssertLessThanOrEqual(plan.total, 80.001)
+            for line in plan.lines {
+                XCTAssertNotNil(WeeklyGroceryPlanner.role(of: line.item), "\(line.item.name) isn't a meal food")
+                XCTAssertTrue(WeeklyGroceryPlanner.allowed(line.item, prefs), "\(line.item.name) breaks \(prefs)")
+                XCTAssertFalse([.snacks, .condiments, .beverages, .spices, .baking, .oils].contains(line.item.category), line.item.name)
+            }
+        }
+    }
+
+    func testACartLeavingUnderFiveEurosGetsNoSuggestionsAndSaysSo() {
+        let full = [CartItem(id: UUID(), catalogId: "oats", name: "Oats", store: "Catalogue", price: 46, category: "grains", quantity: 1)]
+        let plan = WeeklyGroceryPlanner.plan(budget: 50, cart: full, favourites: [], preferences: [], price: price)
+        XCTAssertTrue(plan.lines.isEmpty)
+        XCTAssertEqual(plan.available, 4, accuracy: 0.001)
+        XCTAssertTrue(WeeklyGroceryCard.emptyMessage(plan, removedAny: false).contains("€4.00"))
     }
 
     func testTheListComesCloseToTheBudgetEvenWhenEveryStapleIsInTheCart() {

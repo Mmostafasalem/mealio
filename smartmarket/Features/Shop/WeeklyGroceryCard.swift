@@ -20,6 +20,16 @@ struct WeeklyGroceryCard: View {
                                          preferences: .load(), excluded: removed, stock: ownStock) { cart.effectivePrice(for: $0, store: .catalog) }
     }
 
+    /// Said plainly when there is nothing to suggest.
+    static func emptyMessage(_ plan: GroceryPlan, removedAny: Bool) -> String {
+        if plan.available < WeeklyGroceryPlanner.fillUntil {
+            return String(format: "Your cart leaves €%.2f of this week's budget, which is too little to plan more groceries.", plan.available)
+        }
+        return removedAny
+            ? "You removed every suggestion that fits your diet and what's left. Show them again or raise the budget."
+            : "Nothing in the shop fits your diet and what's left of the budget."
+    }
+
     var body: some View {
         let plan = plan
         VStack(alignment: .leading, spacing: Spacing.md) {
@@ -32,19 +42,20 @@ struct WeeklyGroceryCard: View {
                     .contentTransition(.numericText())
             }
             if plan.lines.isEmpty {
-                Text(plan.available < WeeklyGroceryPlanner.minimumToSuggest ? "Your cart fills this week's budget."
-                                        : "Your cart already has a balanced week, and nothing else fits what's left. Raise the budget or bring back cleared suggestions.")
+                Text(Self.emptyMessage(plan, removedAny: !removed.isEmpty))
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    .accessibilityIdentifier("shop.weeklyPlan.empty")
             } else {
                 Text(plan.tight
                      ? "Your budget is tight, so the basics for a balanced week come first, then your foods (two of a kind at most)."
-                     : "The foods you picked, plus what a balanced week still needs, within what's left of your budget. Your meal plan is made from what you buy.")
+                     : "The foods you picked, what a balanced week still needs, and more for the week until less than €5 of your budget is left. Your meal plan is made from what you buy.")
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                 VStack(spacing: 0) {
                     ForEach(plan.lines) { line in
                         HStack(spacing: Spacing.md) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(line.item.name).font(.subheadline.weight(.medium))
+                                Text(line.quantity > 1 ? "\(line.item.name) × \(line.quantity)" : line.item.name)
+                                    .font(.subheadline.weight(.medium))
                                 Text(line.reason.rawValue).font(.caption).foregroundStyle(Color.labelSecondary)
                             }
                             Spacer()
@@ -62,8 +73,10 @@ struct WeeklyGroceryCard: View {
                         if line.id != plan.lines.last?.id { Divider() }
                     }
                 }
-                PrimaryButton(title: "Add all \(plan.lines.count) to cart", systemImage: "cart.badge.plus") {
-                    for line in plan.lines { cart.add(line.item, store: .catalog) }
+                PrimaryButton(title: "Add all \(plan.lines.reduce(0) { $0 + $1.quantity }) to cart", systemImage: "cart.badge.plus") {
+                    for line in plan.lines {
+                        for _ in 0..<line.quantity { cart.add(line.item, store: .catalog) }
+                    }
                     added &+= 1
                 }
                 .accessibilityIdentifier("shop.weeklyPlan.addAll")
