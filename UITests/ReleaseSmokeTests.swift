@@ -176,10 +176,14 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["2 / 8"].exists)
         capture("onboarding-features-all")
         for feature in ["tracking", "meals", "groceries"] {
-            tap("onboarding.feature." + feature, in: app)
-            let off = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == false"),
-                                                object: app.buttons["onboarding.feature." + feature])
-            XCTAssertEqual(XCTWaiter.wait(for: [off], timeout: 5), .completed, feature)
+            let row = app.buttons["onboarding.feature." + feature]
+            // A busy simulator can drop a tap; tap again only while the row is still on.
+            for _ in 0..<2 where row.isSelected {
+                tap("onboarding.feature." + feature, in: app)
+                let off = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == false"), object: row)
+                _ = XCTWaiter.wait(for: [off], timeout: 5)
+            }
+            XCTAssertFalse(row.isSelected, feature)
         }
         XCTAssertTrue(app.buttons["onboarding.feature.workouts"].isSelected)
         XCTAssertTrue(app.staticTexts["2 / 6"].waitForExistence(timeout: 3))
@@ -190,7 +194,12 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         // The goal is the last screen for workouts: its button finishes.
         XCTAssertEqual(app.buttons["onboarding.goal.continue"].label, "Get started")
-        tap("onboarding.goal.continue", in: app)
+        // Like `advance`: a tap right after a push can be lost, so retry while the screen is unchanged.
+        for _ in 0..<3 {
+            tap("onboarding.goal.continue", in: app)
+            if control("tab.home", in: app).waitForExistence(timeout: 10) { break }
+            if !app.buttons["onboarding.goal.continue"].exists { break }
+        }
 
         let tabBar = app.tabBars.firstMatch
         XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
@@ -203,6 +212,13 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("home-workouts-only")
         tap("tab.train", in: app)
         capture("train-workouts-only")
+        // Profile › Features shows the same choice; Workouts is the last one on, so it can't be turned off.
+        openProfile(in: app)
+        let workouts = app.descendants(matching: .any)["profile.feature.workouts"].firstMatch
+        for _ in 0..<8 where !(workouts.exists && workouts.isHittable) { app.swipeUp() }
+        XCTAssertTrue(workouts.isHittable)
+        XCTAssertFalse(workouts.isEnabled)
+        capture("profile-features-workouts-only")
     }
 
     private func onboard(_ app: XCUIApplication, largeText: Bool = false) {
