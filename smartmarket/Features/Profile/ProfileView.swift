@@ -27,7 +27,7 @@ struct ProfileView: View {
                 statsSection
                 editSection
                 FeaturesSection()
-                weekSection
+                if FeatureLayout.asksWeek(AppState.shared.enabledFeatures) { weekSection }
                 appearanceSection
                 Section {
                     Toggle("Bowl guide", isOn: $bowlGuideVisible)

@@ -45,9 +45,9 @@ enum AppFeature: String, CaseIterable, Identifiable, Hashable {
 
     var detail: String {
         switch self {
-        case .tracking: return "Log what you eat, see calories and macros"
-        case .meals: return "A week of meals, and recipes from what you have"
-        case .groceries: return "Shopping list, cart, weekly budget, home stock"
+        case .tracking: return "Log meals, calories and macros"
+        case .meals: return "Weekly meals and recipes"
+        case .groceries: return "List, cart, budget and stock"
         case .workouts: return "Build workouts and follow along"
         }
     }
