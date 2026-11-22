@@ -456,6 +456,9 @@ private struct QuickActionsMenu: View {
 extension MainTabView {
     /// Asks once per new week whether to empty the cart and My Stock (see `WeeklyReset`).
     fileprivate func checkNewWeek() {
+        // UI tests can run across a week boundary; the once-a-week question would cover the tab bar.
+        if ProcessInfo.processInfo.arguments.contains("-NourloUITesting"),
+           !ProcessInfo.processInfo.arguments.contains("-NourloAskNewWeek") { return }
         let hasSomething = !ShoppingCartService.shared.cartItems.isEmpty || !StockStore.shared.items.isEmpty
         if WeeklyReset.isDue(hasSomething: hasSomething) { askNewWeek = true }
     }

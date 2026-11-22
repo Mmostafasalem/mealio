@@ -56,9 +56,12 @@ final class CookbookUITests: XCTestCase {
         XCTAssertTrue(plus.waitForExistence(timeout: 10))
         let logFood = app.buttons["quickActions.logFood"].firstMatch
         for _ in 0..<3 where !logFood.exists { plus.tap(); _ = logFood.waitForExistence(timeout: 3) }
-        logFood.tap()
-
+        // A tap while the quick-actions sheet is still sliding up is lost; tap again until Add Food opens.
         let browse = app.buttons["logFood.browseRecipes"]
+        for _ in 0..<3 where !browse.exists {
+            if logFood.exists && logFood.isHittable { logFood.tap() }
+            if browse.waitForExistence(timeout: 8) { break }
+        }
         XCTAssertTrue(browse.waitForExistence(timeout: 20))
         shot("logfood-recipes-entry")
 
