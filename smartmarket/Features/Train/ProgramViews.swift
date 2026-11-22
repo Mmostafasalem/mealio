@@ -40,7 +40,7 @@ struct ProgramsSection: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
+                HStack(alignment: .top, spacing: Spacing.sm) {
                     ForEach(WorkoutProgram.all) { program in
                         NavigationLink { ProgramDetailView(program: program) } label: {
                             ProgramCard(program: program, isCurrent: programs.isCurrent(program))
@@ -146,7 +146,7 @@ private struct ProgramCard: View {
             Text(program.facts)
                 .font(.footnote)
                 .foregroundStyle(Color.labelSecondary)
-                .lineLimit(2)
+                .lineLimit(2, reservesSpace: true)
         }
         .padding(Spacing.md)
         .frame(width: min(width, 280), alignment: .topLeading)

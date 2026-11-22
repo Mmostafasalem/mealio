@@ -52,7 +52,7 @@ final class WorkoutModeUITests: XCTestCase {
         // Progress lists the workout and the exercise.
         app.navigationBars.buttons.firstMatch.tap()
         let progress = app.buttons["train.progress"]
-        for _ in 0..<8 where !progress.isHittable { app.swipeUp() }
+        for _ in 0..<16 where !progress.isHittable { app.swipeUp() }
         progress.tap()
         XCTAssertTrue(app.staticTexts["Weight lifted per week"].waitForExistence(timeout: 10))
         shot("progress")
