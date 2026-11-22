@@ -11,6 +11,11 @@ struct VoiceCommandSheet: View {
     @State private var model: VoiceCommandModel
     @State private var showCamera = false
     @State private var photoItem: PhotosPickerItem?
+    /// The food whose amount, or whose calories, are being typed (kept after the dialog closes).
+    @State private var typingAmount: VoiceFoodMatch?
+    @State private var typingKcal: VoiceFoodMatch?
+    @State private var showAmountEntry = false
+    @State private var showKcalEntry = false
 
     init(photoMode: Bool = false, close: @escaping () -> Void, navigate: @escaping (VoiceNavigation) -> Void) {
         self.close = close
@@ -323,6 +328,29 @@ struct VoiceCommandSheet: View {
             }
             missingNote(missing)
         }
+        .numberEntry(isPresented: $showAmountEntry,
+                     title: typingAmount.map { "Amount of \($0.food.name)" } ?? "Amount",
+                     current: typingAmount.map { LogFoodSheet.amountText($0.amount, basis: $0.food.basis) } ?? "",
+                     message: typingAmount.map { Self.amountHint($0.food) } ?? "",
+                     identifier: "voice.food.amount") { text in
+            if let match = typingAmount { model.typeAmount(text, for: match) }
+        }
+        .numberEntry(isPresented: $showKcalEntry,
+                     title: "Your calories", current: typingKcal.map { "\($0.kcal)" } ?? "",
+                     message: typingKcal.map { "The estimate is \($0.estimatedKcal) kcal for \(LogFoodSheet.amountText($0.amount, basis: $0.food.basis)). Type your own figure if you know it better; protein, carbs and fat follow it." } ?? "",
+                     keyboard: .numberPad, identifier: "voice.food.kcal",
+                     resetTitle: typingKcal?.kcalOverride != nil ? "Use the estimate" : nil,
+                     onReset: { if let match = typingKcal { model.typeKcal(nil, for: match) } }) { text in
+            if let match = typingKcal { model.typeKcal(text, for: match) }
+        }
+    }
+
+    /// "Type an amount in g, from 1 to 5000."
+    static func amountHint(_ food: NutritionFood) -> String {
+        let unit = food.basis == .serving ? "servings" : food.basis.rawValue
+        let low = food.minimumAmount.formatted(.number.precision(.fractionLength(0...2)))
+        let high = food.maximumAmount.formatted(.number.grouping(.never))
+        return "Type an amount in \(unit), from \(low) to \(high)."
     }
 
     private func foodRow(_ match: VoiceFoodMatch) -> some View {
@@ -364,10 +392,25 @@ struct VoiceCommandSheet: View {
             }
             HStack(spacing: Spacing.sm) {
                 stepButton("minus", name: "Less", disabled: match.amount <= match.food.minimumAmount) { model.nudge(match, up: false) }
-                Text(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
-                    .font(.subheadline.weight(.medium).monospacedDigit())
-                    .frame(minWidth: 76)
-                    .contentTransition(.numericText())
+                // Tap the amount to type it.
+                Button { model.holdCountdown(); typingAmount = match; showAmountEntry = true } label: {
+                    Text(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
+                        .font(.subheadline.weight(.medium).monospacedDigit())
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .frame(minWidth: 76, minHeight: 32)
+                        .background(Color.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .contentTransition(.numericText())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Amount")
+                .accessibilityValue(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
+                .accessibilityHint("Type the amount")
+                .accessibilityIdentifier("voice.food.amount")
                 stepButton("plus", name: "More", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
                 if match.estimated {
                     // Short and on one line: the full word broke in two beside a long amount.
@@ -381,12 +424,33 @@ struct VoiceCommandSheet: View {
                         .accessibilityLabel("Estimated amount")
                 }
                 Spacer(minLength: 0)
-                Text("\(match.kcal) kcal" as String)
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(Color.labelSecondary)
+                // Tap the calories to type your own figure.
+                Button { model.holdCountdown(); typingKcal = match; showKcalEntry = true } label: {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        HStack(spacing: 3) {
+                            if match.kcalOverride != nil {
+                                Image(systemName: "pencil").font(.caption2.weight(.bold))
+                            }
+                            Text("\(match.kcal) kcal" as String)
+                                .contentTransition(.numericText())
+                        }
+                        .font(.subheadline.monospacedDigit().weight(match.kcalOverride == nil ? .regular : .semibold))
+                        .foregroundStyle(match.kcalOverride == nil ? Color.labelSecondary : Color.labelPrimary)
+                        .underline(match.kcalOverride == nil, pattern: .dot, color: Color.labelTertiary)
+                        if match.kcalOverride != nil {
+                            Text("your value").font(.caption2.weight(.semibold)).foregroundStyle(Color.brandPrimary)
+                        }
+                    }
                     .lineLimit(1)
                     .fixedSize()
-                    .contentTransition(.numericText())
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Calories")
+                .accessibilityValue(match.kcalOverride == nil ? "\(match.kcal) kcal, estimated" : "\(match.kcal) kcal, your value")
+                .accessibilityHint("Type your own calories")
+                .accessibilityIdentifier("voice.food.kcal")
             }
         }
         .padding(Spacing.md)

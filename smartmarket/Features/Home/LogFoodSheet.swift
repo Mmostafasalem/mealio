@@ -171,11 +171,11 @@ struct LogFoodSheet: View {
                 .scrollDismissesKeyboard(.immediately)
                 .navigationDestination(item: $detailFood) { food in
                     ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock",
-                                      slotSelection: onSelect == nil ? $slot : nil) { grams in
+                                      slotSelection: onSelect == nil ? $slot : nil) { grams, kcal in
                         // A scanned or searched product is saved only once it's actually used
                         // (`HomeViewModel.logFood` saves it when logging).
                         if let onSelect { catalog.remember(food); onSelect(food, grams) }
-                        else { vm.logFood(food, slot: slot, amount: grams); LogFoodTip().invalidate(reason: .actionPerformed) }
+                        else { vm.logFood(food, slot: slot, amount: grams, kcal: kcal); LogFoodTip().invalidate(reason: .actionPerformed) }
                         dismiss()
                     }
                 }
@@ -574,14 +574,22 @@ struct ServingDetailView: View {
     let actionTitle: String?
     /// When set, the meal can be changed here (spring dropdown) and is written back.
     let slotSelection: Binding<MealSlot>?
-    let onAdd: (Double) -> Void
+    /// The amount, and the person's own calories when they typed them (logging only).
+    let onAdd: (Double, Int?) -> Void
 
     @State private var grams: Double
     @State private var slot: MealSlot
     @State private var didAdd = false
+    /// The person's own calories for this portion, replacing the estimate.
+    @State private var kcalOverride: Int?
+    @State private var showAmountEntry = false
+    @State private var showKcalEntry = false
+
+    /// Own calories belong to a logged portion; food going to My Stock keeps its record's values.
+    private var canTypeKcal: Bool { actionTitle == nil }
 
     init(food: NutritionFood, slot: MealSlot, actionTitle: String? = nil,
-         slotSelection: Binding<MealSlot>? = nil, onAdd: @escaping (Double) -> Void) {
+         slotSelection: Binding<MealSlot>? = nil, onAdd: @escaping (Double, Int?) -> Void) {
         self.food = food
         self.onAdd = onAdd
         self.actionTitle = actionTitle
@@ -589,8 +597,6 @@ struct ServingDetailView: View {
         _grams = State(initialValue: food.defaultAmount)
         _slot = State(initialValue: slotSelection?.wrappedValue ?? slot)
     }
-
-    private var factor: Double { grams / food.referenceAmount }
 
     // Portion stepper: whole steps of 0.25 serving or 1 g / ml, same as before.
     private var amountStep: Double { food.basis == .serving ? 0.25 : 1 }
@@ -600,9 +606,20 @@ struct ServingDetailView: View {
     private var amountSteps: Binding<Int> {
         Binding(
             get: { Int((grams / amountStep).rounded()) },
-            set: { grams = Double($0) * amountStep }
+            set: { setAmount(Double($0) * amountStep) }
         )
     }
+    /// The ruler, the stepper, the presets and typing all land here; the person's own
+    /// calories (if any) follow the amount.
+    private var gramsBinding: Binding<Double> {
+        Binding(get: { grams }, set: { setAmount($0) })
+    }
+    private func setAmount(_ amount: Double) {
+        kcalOverride = PortionInput.rescaled(kcalOverride, from: grams, to: amount)
+        grams = amount
+    }
+    private var portion: NutritionFood.Portion { PortionInput.portion(of: food, amount: grams, kcal: kcalOverride) }
+    private var estimatedKcal: Int { Int(food.portion(grams).kcal.rounded()) }
     private var amountLabel: String {
         food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres")
     }
@@ -611,30 +628,59 @@ struct ServingDetailView: View {
         // Servings say "1×" so the number fits beside the stepper ("1 serving" didn't).
         return food.basis == .serving ? "\(number)×" : "\(number) \(food.basis.rawValue)"
     }
-    private var kcal: Int { Int((food.kcal * factor).rounded()) }
+    private var kcal: Int { Int(portion.kcal.rounded()) }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Calorie hero for this serving
+                // Calorie hero for this serving; tap the number to type your own.
                 VStack(spacing: 4) {
-                    Text("\(kcal)" as String)
-                        .font(.system(.largeTitle, design: .rounded).weight(.bold)).scaleEffect(1.35, anchor: .center)
-                        .foregroundStyle(Color.labelPrimary).monospacedDigit()
-                        .contentTransition(.numericText())
+                    Button { if canTypeKcal { showKcalEntry = true } } label: {
+                        Text("\(kcal)" as String)
+                            .font(.system(.largeTitle, design: .rounded).weight(.bold)).scaleEffect(1.35, anchor: .center)
+                            .foregroundStyle(kcalOverride == nil ? Color.labelPrimary : Color.brandPrimary).monospacedDigit()
+                            .contentTransition(.numericText())
+                            .frame(minWidth: 88, minHeight: 56)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!canTypeKcal)
+                    .accessibilityLabel("Calories")
+                    .accessibilityValue(kcalOverride == nil ? "\(kcal) kcal, estimated" : "\(kcal) kcal, your value")
+                    .accessibilityHint(canTypeKcal ? "Type your own calories" : "")
+                    .accessibilityIdentifier("logFood.kcal")
                     Text("kcal · \(grams.formatted(.number.precision(.fractionLength(0...2)))) \(food.basis.rawValue)" as String).font(.subheadline).foregroundStyle(Color.labelSecondary)
+                    if kcalOverride != nil {
+                        HStack(spacing: Spacing.sm) {
+                            Label("Your value · estimate \(estimatedKcal) kcal" as String, systemImage: "pencil")
+                                .font(.footnote.weight(.semibold)).foregroundStyle(Color.brandPrimary)
+                            Button("Use estimate") { kcalOverride = nil }
+                                .font(.footnote.weight(.semibold))
+                                .accessibilityIdentifier("logFood.kcal.reset")
+                        }
+                        .accessibilityElement(children: .contain)
+                    } else if canTypeKcal {
+                        Button { showKcalEntry = true } label: {
+                            Label("Know the calories? Type your own", systemImage: "pencil")
+                                .font(.footnote.weight(.semibold)).foregroundStyle(Color.labelSecondary)
+                                .frame(minHeight: 32)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("logFood.kcal.type")
+                    }
                     Text(food.brand ?? "Match the food's preparation to your portion")
                         .font(.subheadline).foregroundStyle(Color.labelSecondary)
 
                 }
                 .padding(.top, 12)
                 .animation(.spring(response: 0.3, dampingFraction: 0.85), value: grams)
+                .animation(.spring(response: 0.3, dampingFraction: 0.85), value: kcalOverride)
 
-                // Macro chips
+                // Macro chips (scaled to your own calories when you typed them)
                 HStack(spacing: 10) {
-                    macroChip("Protein", food.protein * factor, .proteinAccent)
-                    macroChip("Carbs", food.carbs * factor, .carbsAccent)
-                    macroChip("Fat", food.fat * factor, .fatAccent)
+                    macroChip("Protein", portion.protein, .proteinAccent)
+                    macroChip("Carbs", portion.carbs, .carbsAccent)
+                    macroChip("Fat", portion.fat, .fatAccent)
                 }
 
                 if slotSelection != nil { mealPicker }
@@ -655,11 +701,12 @@ struct ServingDetailView: View {
                             label: amountLabel,
                             decrementLabel: "Less",
                             incrementLabel: "More",
-                            font: .system(.headline, design: .rounded).weight(.bold)
+                            font: .system(.headline, design: .rounded).weight(.bold),
+                            onTapNumber: { showAmountEntry = true }
                         )
                         .accessibilityIdentifier("logFood.amount")
                     }
-                    RulerPicker(value: $grams, range: food.minimumAmount...food.maximumAmount, step: amountStep,
+                    RulerPicker(value: gramsBinding, range: food.minimumAmount...food.maximumAmount, step: amountStep,
                                 majorEvery: food.basis == .serving ? 4 : 10,
                                 midEvery: food.basis == .serving ? 2 : 5,
                                 spacing: food.basis == .serving ? 16 : 8,
@@ -667,7 +714,7 @@ struct ServingDetailView: View {
                         .frame(height: 96)
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
-                            Button(food.basis == .serving ? "\(preset)×" : "\(preset) \(food.basis.rawValue)") { grams = Double(preset) }
+                            Button(food.basis == .serving ? "\(preset)×" : "\(preset) \(food.basis.rawValue)") { setAmount(Double(preset)) }
                                 .accessibilityLabel(food.basis == .serving ? "\(preset) serving\(preset == 1 ? "" : "s")" : "\(preset) \(food.basis.rawValue)")
                                 .font(.caption).fontWeight(.semibold)
                                 .lineLimit(1)
@@ -679,9 +726,7 @@ struct ServingDetailView: View {
                         Spacer(minLength: 0)
                         TypeNumberButton(title: "Amount", unit: food.basis.rawValue,
                                          current: formatAmount(grams), identifier: "logFood.amount.type") { text in
-                            if let n = TypedNumber.parse(text) {
-                                grams = TypedNumber.fitted(n, range: food.minimumAmount...food.maximumAmount, step: amountStep)
-                            }
+                            if let amount = PortionInput.amount(text, for: food) { setAmount(amount) }
                         }
                     }
                 }
@@ -713,6 +758,17 @@ struct ServingDetailView: View {
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .onChange(of: slot) { _, s in slotSelection?.wrappedValue = s }
+        .numberEntry(isPresented: $showAmountEntry, title: "Amount", current: formatAmount(grams),
+                     message: VoiceCommandSheet.amountHint(food), identifier: "logFood.amount.entry") { text in
+            if let amount = PortionInput.amount(text, for: food) { setAmount(amount) }
+        }
+        .numberEntry(isPresented: $showKcalEntry, title: "Your calories", current: "\(kcal)",
+                     message: "The estimate is \(estimatedKcal) kcal for \(formatAmount(grams)). Type your own figure if you know it better; protein, carbs and fat follow it.",
+                     keyboard: .numberPad, identifier: "logFood.kcal.entry",
+                     resetTitle: kcalOverride != nil ? "Use the estimate" : nil,
+                     onReset: { kcalOverride = nil }) { text in
+            if let typed = PortionInput.kcal(text) { kcalOverride = typed }
+        }
         .navigationTitle(food.name)
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {
@@ -726,7 +782,7 @@ struct ServingDetailView: View {
                 return true
             } onFinished: {
                 // Close after the success moment.
-                onAdd(grams)
+                onAdd(grams, canTypeKcal ? kcalOverride : nil)
             }
             .disabled(didAdd)
             .accessibilityIdentifier("logFood.addServing")

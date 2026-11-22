@@ -1,0 +1,95 @@
+import XCTest
+
+/// A planned meal has one button, "Review recipe and log", that opens the recipe and
+/// the review in one sheet; and a food on the voice review card takes a typed amount
+/// and the person's own calories.
+@MainActor
+final class MealsReviewUITests: XCTestCase {
+    private func shot(_ name: String) {
+        let a = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); a.name = name; a.lifetime = .keepAlways; add(a)
+    }
+
+    /// Taps a segment of the sheet's switch until it is selected (a tap during the sheet's
+    /// own animation can be lost).
+    private func select(_ name: String, in app: XCUIApplication) {
+        let segment = app.segmentedControls["mealReview.tabs"].buttons[name]
+        XCTAssertTrue(segment.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !segment.isSelected {
+            segment.tap()
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isSelected == true"), object: segment)], timeout: 3)
+        }
+        XCTAssertTrue(segment.isSelected, "\(name) is shown")
+    }
+
+    func testOneButtonOpensTheRecipeAndTheReview() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloUITesting", "YES"]
+        app.launch()
+        app.tab("Meals").tap()
+
+        let meal = app.buttons.matching(identifier: "mealPlan.meal").firstMatch
+        XCTAssertTrue(meal.waitForExistence(timeout: 15))
+        meal.tap()
+        let review = app.buttons["mealPlan.reviewRecipeLog"]
+        XCTAssertTrue(review.waitForExistence(timeout: 15))
+        XCTAssertEqual(review.label, "Review recipe and log")
+        XCTAssertFalse(app.buttons["Recipe"].exists, "no separate Recipe button")
+        XCTAssertFalse(app.buttons["Review and log"].exists, "no separate Review and log button")
+        shot("meal-expanded")
+        for _ in 0..<4 where !review.isHittable { app.swipeUp() }
+        review.tap()
+
+        // The review and log part (the log button is at the end of the form).
+        XCTAssertTrue(app.segmentedControls["mealReview.tabs"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Planned portions"].waitForExistence(timeout: 10))
+        shot("meal-review")
+        let log = app.buttons["plannedMeal.logStock"]
+        for _ in 0..<5 where !log.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(log.exists, "Log meal from stock is in the same sheet")
+        app.collectionViews.firstMatch.swipeDown()
+        // The recipe part, in the same sheet (Wikibooks recipes while online AI is off).
+        select("Recipe", in: app)
+        let recipe = app.descendants(matching: .any)["recipe.cookbook"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 30))
+        shot("meal-recipe")
+        select("Review and log", in: app)
+        XCTAssertTrue(app.staticTexts["Planned portions"].waitForExistence(timeout: 5))
+    }
+
+    func testTheVoiceCardTakesATypedAmountAndOwnCalories() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloUITesting", "YES", "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
+        app.launch()
+        let mic = app.buttons["home.voice"]
+        XCTAssertTrue(mic.waitForExistence(timeout: 15))
+        mic.tap()
+        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 15))
+
+        let amount = app.buttons["voice.food.amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        amount.tap()
+        let field = app.alerts.firstMatch.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap(); field.typeText("150")
+        app.buttons["voice.food.amount.set"].firstMatch.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS '150'"), object: amount)], timeout: 15), .completed)
+
+        let kcal = app.buttons["voice.food.kcal"]
+        kcal.tap()
+        let kcalField = app.alerts.firstMatch.textFields.firstMatch
+        XCTAssertTrue(kcalField.waitForExistence(timeout: 5))
+        kcalField.tap(); kcalField.typeText("250")
+        app.buttons["voice.food.kcal.set"].firstMatch.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS 'your value'"), object: kcal)], timeout: 15), .completed)
+        shot("voice-typed")
+
+        app.buttons["voice.confirm"].tap()
+        let result = app.staticTexts["voice.result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        XCTAssertTrue(result.label.contains("250 kcal"), result.label)
+    }
+}

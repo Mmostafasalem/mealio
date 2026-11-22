@@ -52,6 +52,9 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
     let loggedAt: Date
     let portionAmount: Double?
     let nutritionFood: NutritionFood? // immutable source snapshot; absent in legacy/estimated entries
+    /// The person typed their own calories for this portion (the macros were scaled to
+    /// match), so `calories` is theirs, not `nutritionFood`'s estimate.
+    var ownCalories: Bool? = nil
 
     var amount: Double { portionAmount ?? Double(servingG) }
     var amountUnit: String { nutritionFood?.basis.rawValue ?? "g" }
@@ -72,11 +75,13 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
         self.portionAmount = portionAmount
         self.nutritionFood = nutritionFood
     }
-    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double) {
-        let p = food.portion(amount)
+    /// `kcal`: the person's own calories for this portion, replacing the estimate.
+    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double, kcal: Int? = nil) {
+        let p = PortionInput.portion(of: food, amount: amount, kcal: kcal)
         self.init(foodId: food.id, name: food.name, slot: slot, servingG: Int(amount.rounded()),
                   calories: Int(p.kcal.rounded()), proteinG: p.protein, carbsG: p.carbs, fatG: p.fat,
                   nutritionFood: food, portionAmount: amount)
+        if kcal != nil { ownCalories = true }
     }
 }
 

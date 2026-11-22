@@ -399,6 +399,8 @@ final class VoiceCommandModel {
             let resolved = VoiceAmounts.amount(for: item.phrase, food: food)
             item.amount = resolved.amount
             item.estimated = resolved.estimated
+            // Their calories were for the other food.
+            item.kcalOverride = nil
         }
     }
 
@@ -407,9 +409,28 @@ final class VoiceCommandModel {
         updateMatch(match) { item in
             let step: Double = item.food.basis == .serving ? 0.5 : (item.amount >= 100 ? 25 : 10)
             let next = item.amount + (up ? step : -step)
-            item.amount = min(max(next, item.food.minimumAmount), item.food.maximumAmount)
-            item.estimated = false
+            Self.setAmount(min(max(next, item.food.minimumAmount), item.food.maximumAmount), on: &item)
         }
+    }
+
+    /// A typed amount, in the food's own unit; text with no number changes nothing.
+    func typeAmount(_ text: String, for match: VoiceFoodMatch) {
+        guard let amount = PortionInput.amount(text, for: match.food) else { return }
+        updateMatch(match) { Self.setAmount(amount, on: &$0) }
+    }
+
+    /// The person's own calories for the portion; nil goes back to the estimate.
+    func typeKcal(_ text: String?, for match: VoiceFoodMatch) {
+        let kcal = text.flatMap(PortionInput.kcal)
+        guard text == nil || kcal != nil else { return }
+        updateMatch(match) { $0.kcalOverride = kcal }
+    }
+
+    /// A new amount is the person's, not an estimate; their own calories follow it.
+    private static func setAmount(_ amount: Double, on item: inout VoiceFoodMatch) {
+        item.kcalOverride = PortionInput.rescaled(item.kcalOverride, from: item.amount, to: amount)
+        item.amount = amount
+        item.estimated = false
     }
 
     func remove(_ match: VoiceFoodMatch) {

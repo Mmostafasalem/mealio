@@ -19,11 +19,15 @@ struct VoiceFoodMatch: Identifiable, Equatable {
     /// The food or its amount is a guess (a bare name, grams said for a food
     /// counted in servings): shown for a tap, never saved by the countdown.
     var guessed = false
+    /// The person's own calories for this portion, typed on the review card.
+    var kcalOverride: Int? = nil
 
-    var kcal: Int { Int(food.portion(amount).kcal.rounded()) }
+    /// The calories that will be logged: the person's own figure, else the estimate.
+    var kcal: Int { kcalOverride ?? estimatedKcal }
+    var estimatedKcal: Int { Int(food.portion(amount).kcal.rounded()) }
 
     static func == (a: VoiceFoodMatch, b: VoiceFoodMatch) -> Bool {
-        a.id == b.id && a.food.id == b.food.id && a.amount == b.amount
+        a.id == b.id && a.food.id == b.food.id && a.amount == b.amount && a.kcalOverride == b.kcalOverride
     }
 }
 
@@ -171,7 +175,8 @@ enum VoiceCommandRunner {
         case .food(let matches, _, let slot):
             var added: [FoodLogEntry] = []
             for match in matches {
-                guard let entry = try? LogFoodIntent.makeEntry(food: match.food, amount: match.amount, slot: slot, now: now) else { continue }
+                guard let entry = try? LogFoodIntent.makeEntry(food: match.food, amount: match.amount, slot: slot, now: now,
+                                                               kcal: match.kcalOverride) else { continue }
                 if match.food.source == .openFoodFacts { NutritionCatalogService.shared.remember(match.food) }
                 FoodLogStore.shared.add(entry)
                 added.append(entry)

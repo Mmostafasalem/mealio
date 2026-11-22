@@ -144,14 +144,14 @@ struct LogFoodIntent: AppIntent {
     /// The entry the food logger would add: same validation as
     /// `HomeViewModel.logFood` and the same `FoodLogEntry(nutritionFood:slot:amount:)`.
     @MainActor
-    static func makeEntry(food: NutritionFood, amount: Double?, slot: MealSlot?, now: Date = Date()) throws -> FoodLogEntry {
+    static func makeEntry(food: NutritionFood, amount: Double?, slot: MealSlot?, now: Date = Date(), kcal: Int? = nil) throws -> FoodLogEntry {
         guard food.isValid else { throw NourloIntentError.foodNotFound }
         let value = amount ?? food.defaultAmount
         guard value.isFinite, value >= food.minimumAmount, value <= food.maximumAmount else {
             throw NourloIntentError.invalidAmount(LogFoodSheet.amountText(food.minimumAmount, basis: food.basis) + " and "
                                                  + LogFoodSheet.amountText(food.maximumAmount, basis: food.basis))
         }
-        return FoodLogEntry(nutritionFood: food, slot: slot ?? MealSlot.suggested(at: now), amount: value)
+        return FoodLogEntry(nutritionFood: food, slot: slot ?? MealSlot.suggested(at: now), amount: value, kcal: kcal)
     }
 
     /// "Logged 100 g of Banana, raw to breakfast, 89 kcal."

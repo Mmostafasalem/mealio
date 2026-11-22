@@ -234,10 +234,10 @@ final class HomeViewModel {
 
     /// False when the food or amount isn't valid and nothing was logged.
     @discardableResult
-    func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double) -> Bool {
+    func logFood(_ food: NutritionFood, slot: MealSlot, amount: Double, kcal: Int? = nil) -> Bool {
         guard food.isValid, amount.isFinite, amount >= food.minimumAmount, amount <= food.maximumAmount else { return false }
         NutritionCatalogService.shared.remember(food)
-        log.add(FoodLogEntry(nutritionFood: food, slot: slot, amount: amount))
+        log.add(FoodLogEntry(nutritionFood: food, slot: slot, amount: amount, kcal: kcal))
         mascotCelebration = UUID()
         return true
     }

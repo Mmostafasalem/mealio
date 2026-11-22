@@ -24,6 +24,8 @@ struct SpringStepper: View {
     var decrementLabel: String = "Decrease"
     var incrementLabel: String = "Increase"
     var font: Font = .system(.title3, design: .rounded).weight(.bold)
+    /// When set, tapping the number opens a way to type it (the caller shows the dialog).
+    var onTapNumber: (() -> Void)? = nil
 
     @State private var model = SpringStepperModel()
     @ScaledMetric(relativeTo: .title3) private var button: CGFloat = 44
@@ -35,7 +37,8 @@ struct SpringStepper: View {
          label: String = "Amount",
          decrementLabel: String = "Decrease",
          incrementLabel: String = "Increase",
-         font: Font = .system(.title3, design: .rounded).weight(.bold)) {
+         font: Font = .system(.title3, design: .rounded).weight(.bold),
+         onTapNumber: (() -> Void)? = nil) {
         _value = value
         self.range = range
         self.step = max(1, step)
@@ -44,6 +47,7 @@ struct SpringStepper: View {
         self.decrementLabel = decrementLabel
         self.incrementLabel = incrementLabel
         self.font = font
+        self.onTapNumber = onTapNumber
     }
 
     var body: some View {
@@ -109,15 +113,37 @@ struct SpringStepper: View {
         .frame(height: numberHeight)
         .clipped()
         .offset(x: model.nudge)
+        // A typeable number reads as a field: a light underline, and a tap opens the dialog.
+        .overlay(alignment: .bottom) {
+            if onTapNumber != nil {
+                Capsule().fill(Color.labelTertiary.opacity(0.6)).frame(height: 1.5).padding(.horizontal, 4)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onTapNumber?() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityValue(format(value))
+        .modifier(TypeNumberAction(action: onTapNumber))
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: change(1)
             case .decrement: change(-1)
             @unknown default: break
             }
+        }
+    }
+}
+
+/// "Type a number" for VoiceOver, only on a stepper whose number can be typed.
+private struct TypeNumberAction: ViewModifier {
+    let action: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if let action {
+            content.accessibilityAction(named: "Type a number", action)
+        } else {
+            content
         }
     }
 }
