@@ -582,8 +582,8 @@ struct ServingDetailView: View {
     @State private var didAdd = false
     /// The person's own calories for this portion, replacing the estimate.
     @State private var kcalOverride: Int?
-    @State private var showAmountEntry = false
-    @State private var showKcalEntry = false
+    @State private var showEntry = false
+    @State private var typingField = PortionField.amount
 
     /// Own calories belong to a logged portion; food going to My Stock keeps its record's values.
     private var canTypeKcal: Bool { actionTitle == nil }
@@ -635,7 +635,7 @@ struct ServingDetailView: View {
             VStack(spacing: 20) {
                 // Calorie hero for this serving; tap the number to type your own.
                 VStack(spacing: 4) {
-                    Button { if canTypeKcal { showKcalEntry = true } } label: {
+                    Button { if canTypeKcal { typingField = .kcal; showEntry = true } } label: {
                         Text("\(kcal)" as String)
                             .font(.system(.largeTitle, design: .rounded).weight(.bold)).scaleEffect(1.35, anchor: .center)
                             .foregroundStyle(kcalOverride == nil ? Color.labelPrimary : Color.brandPrimary).monospacedDigit()
@@ -660,7 +660,7 @@ struct ServingDetailView: View {
                         }
                         .accessibilityElement(children: .contain)
                     } else if canTypeKcal {
-                        Button { showKcalEntry = true } label: {
+                        Button { typingField = .kcal; showEntry = true } label: {
                             Label("Know the calories? Type your own", systemImage: "pencil")
                                 .font(.footnote.weight(.semibold)).foregroundStyle(Color.labelSecondary)
                                 .frame(minHeight: 32)
@@ -702,7 +702,7 @@ struct ServingDetailView: View {
                             decrementLabel: "Less",
                             incrementLabel: "More",
                             font: .system(.headline, design: .rounded).weight(.bold),
-                            onTapNumber: { showAmountEntry = true }
+                            onTapNumber: { typingField = .amount; showEntry = true }
                         )
                         .accessibilityIdentifier("logFood.amount")
                     }
@@ -758,16 +758,21 @@ struct ServingDetailView: View {
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .onChange(of: slot) { _, s in slotSelection?.wrappedValue = s }
-        .numberEntry(isPresented: $showAmountEntry, title: "Amount", current: formatAmount(grams),
-                     message: VoiceCommandSheet.amountHint(food), identifier: "logFood.amount.entry") { text in
-            if let amount = PortionInput.amount(text, for: food) { setAmount(amount) }
-        }
-        .numberEntry(isPresented: $showKcalEntry, title: "Your calories", current: "\(kcal)",
-                     message: "The estimate is \(estimatedKcal) kcal for \(formatAmount(grams)). Type your own figure if you know it better; protein, carbs and fat follow it.",
-                     keyboard: .numberPad, identifier: "logFood.kcal.entry",
-                     resetTitle: kcalOverride != nil ? "Use the estimate" : nil,
+        // One dialog for both numbers (two alerts on one view show only one).
+        .numberEntry(isPresented: $showEntry,
+                     title: typingField == .kcal ? "Your calories" : "Amount",
+                     current: typingField == .kcal ? "\(kcal)" : formatAmount(grams),
+                     message: typingField == .kcal
+                        ? VoiceCommandSheet.kcalHint(estimate: estimatedKcal, amount: formatAmount(grams))
+                        : VoiceCommandSheet.amountHint(food),
+                     keyboard: typingField == .kcal ? .numberPad : .decimalPad,
+                     identifier: typingField == .kcal ? "logFood.kcal.entry" : "logFood.amount.entry",
+                     resetTitle: typingField == .kcal && kcalOverride != nil ? "Use the estimate" : nil,
                      onReset: { kcalOverride = nil }) { text in
-            if let typed = PortionInput.kcal(text) { kcalOverride = typed }
+            switch typingField {
+            case .amount: if let amount = PortionInput.amount(text, for: food) { setAmount(amount) }
+            case .kcal: if let typed = PortionInput.kcal(text) { kcalOverride = typed }
+            }
         }
         .navigationTitle(food.name)
         .navigationBarTitleDisplayMode(.inline)

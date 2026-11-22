@@ -12,10 +12,9 @@ struct VoiceCommandSheet: View {
     @State private var showCamera = false
     @State private var photoItem: PhotosPickerItem?
     /// The food whose amount, or whose calories, are being typed (kept after the dialog closes).
-    @State private var typingAmount: VoiceFoodMatch?
-    @State private var typingKcal: VoiceFoodMatch?
-    @State private var showAmountEntry = false
-    @State private var showKcalEntry = false
+    @State private var typingID: UUID?
+    @State private var typingField = PortionField.amount
+    @State private var showEntry = false
 
     init(photoMode: Bool = false, close: @escaping () -> Void, navigate: @escaping (VoiceNavigation) -> Void) {
         self.close = close
@@ -328,21 +327,53 @@ struct VoiceCommandSheet: View {
             }
             missingNote(missing)
         }
-        .numberEntry(isPresented: $showAmountEntry,
-                     title: typingAmount.map { "Amount of \($0.food.name)" } ?? "Amount",
-                     current: typingAmount.map { LogFoodSheet.amountText($0.amount, basis: $0.food.basis) } ?? "",
-                     message: typingAmount.map { Self.amountHint($0.food) } ?? "",
-                     identifier: "voice.food.amount") { text in
-            if let match = typingAmount { model.typeAmount(text, for: match) }
+        // One dialog for both fields (two alerts on one card show only one).
+        .numberEntry(isPresented: $showEntry, title: entryTitle, current: entryCurrent, message: entryMessage,
+                     keyboard: typingField == .kcal ? .numberPad : .decimalPad,
+                     identifier: typingField == .kcal ? "voice.food.kcal" : "voice.food.amount",
+                     resetTitle: typingField == .kcal && typingMatch?.kcalOverride != nil ? "Use the estimate" : nil,
+                     onReset: { if let match = typingMatch { model.typeKcal(nil, for: match) } }) { text in
+            guard let match = typingMatch else { return }
+            switch typingField {
+            case .amount: model.typeAmount(text, for: match)
+            case .kcal: model.typeKcal(text, for: match)
+            }
         }
-        .numberEntry(isPresented: $showKcalEntry,
-                     title: "Your calories", current: typingKcal.map { "\($0.kcal)" } ?? "",
-                     message: typingKcal.map { "The estimate is \($0.estimatedKcal) kcal for \(LogFoodSheet.amountText($0.amount, basis: $0.food.basis)). Type your own figure if you know it better; protein, carbs and fat follow it." } ?? "",
-                     keyboard: .numberPad, identifier: "voice.food.kcal",
-                     resetTitle: typingKcal?.kcalOverride != nil ? "Use the estimate" : nil,
-                     onReset: { if let match = typingKcal { model.typeKcal(nil, for: match) } }) { text in
-            if let match = typingKcal { model.typeKcal(text, for: match) }
+    }
+
+    /// The food being typed for, as it is on the card now.
+    private var typingMatch: VoiceFoodMatch? {
+        guard let id = typingID, case .food(let matches, _, _) = model.plan else { return nil }
+        return matches.first { $0.id == id }
+    }
+
+    private func type(_ field: PortionField, for match: VoiceFoodMatch) {
+        model.holdCountdown()
+        typingID = match.id
+        typingField = field
+        showEntry = true
+    }
+
+    private var entryTitle: String {
+        guard let match = typingMatch else { return "" }
+        return typingField == .kcal ? "Your calories" : "Amount of \(match.food.name)"
+    }
+
+    private var entryCurrent: String {
+        guard let match = typingMatch else { return "" }
+        return typingField == .kcal ? "\(match.kcal)" : LogFoodSheet.amountText(match.amount, basis: match.food.basis)
+    }
+
+    private var entryMessage: String {
+        guard let match = typingMatch else { return "" }
+        switch typingField {
+        case .amount: return Self.amountHint(match.food)
+        case .kcal: return Self.kcalHint(estimate: match.estimatedKcal, amount: LogFoodSheet.amountText(match.amount, basis: match.food.basis))
         }
+    }
+
+    static func kcalHint(estimate: Int, amount: String) -> String {
+        "The estimate is \(estimate) kcal for \(amount). Type your own figure if you know it better; protein, carbs and fat follow it."
     }
 
     /// "Type an amount in g, from 1 to 5000."
@@ -393,7 +424,7 @@ struct VoiceCommandSheet: View {
             HStack(spacing: Spacing.sm) {
                 stepButton("minus", name: "Less", disabled: match.amount <= match.food.minimumAmount) { model.nudge(match, up: false) }
                 // Tap the amount to type it.
-                Button { model.holdCountdown(); typingAmount = match; showAmountEntry = true } label: {
+                Button { type(.amount, for: match) } label: {
                     Text(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
                         .font(.subheadline.weight(.medium).monospacedDigit())
                         .foregroundStyle(Color.labelPrimary)
@@ -425,7 +456,7 @@ struct VoiceCommandSheet: View {
                 }
                 Spacer(minLength: 0)
                 // Tap the calories to type your own figure.
-                Button { model.holdCountdown(); typingKcal = match; showKcalEntry = true } label: {
+                Button { type(.kcal, for: match) } label: {
                     VStack(alignment: .trailing, spacing: 0) {
                         HStack(spacing: 3) {
                             if match.kcalOverride != nil {

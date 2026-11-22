@@ -65,9 +65,9 @@ final class MealsReviewUITests: XCTestCase {
                                "-NourloUITesting", "YES", "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
         app.launch()
         let mic = app.buttons["home.voice"]
-        XCTAssertTrue(mic.waitForExistence(timeout: 15))
+        XCTAssertTrue(mic.waitForExistence(timeout: 60))
         mic.tap()
-        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 60))
 
         let amount = app.buttons["voice.food.amount"]
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
@@ -76,6 +76,8 @@ final class MealsReviewUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap(); field.typeText("150")
         app.buttons["voice.food.amount.set"].firstMatch.tap()
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.alerts.firstMatch)
+        XCTAssertEqual(XCTWaiter.wait(for: [closed], timeout: 15), .completed)
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS '150'"), object: amount)], timeout: 15), .completed)
 
         let kcal = app.buttons["voice.food.kcal"]

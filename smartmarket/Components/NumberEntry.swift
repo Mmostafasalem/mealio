@@ -6,6 +6,9 @@ import SwiftUI
 // (a food's amount, its calories). The field starts empty with the current value as
 // its hint, so typing replaces it. An optional second button undoes an override.
 
+/// Which number of a food under review is being typed.
+enum PortionField { case amount, kcal }
+
 private struct NumberEntry: ViewModifier {
     @Binding var isPresented: Bool
     let title: String
