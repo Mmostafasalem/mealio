@@ -421,6 +421,18 @@ enum ExerciseMotion: String, CaseIterable {
         "windmill-toe-touch": .windmill, "standing-knee-lift": .kneeLift, "overhead-arm-raise": .armRaise,
         "squat-and-reach": .squatReach, "leg-circles": .hipCircle, "shadow-boxing": .boxing,
         "side-shuffle": .sideShuffle, "jump-squat": .jumpSquat,
+        // Mat Pilates: the nearest posed movement (none of these has a drawing yet).
+        "pilates-hundred": .crunch, "pilates-roll-up": .crunch, "pilates-single-leg-circles": .deadBug,
+        "pilates-rolling-like-a-ball": .crunch, "pilates-single-leg-stretch": .deadBug,
+        "pilates-double-leg-stretch": .deadBug, "pilates-criss-cross": .crunch,
+        "pilates-spine-stretch-forward": .fold, "pilates-saw": .windmill, "pilates-swan": .superman,
+        "pilates-swimming": .superman, "pilates-side-kick-series": .hipCircle, "pilates-teaser": .crunch,
+        "pilates-shoulder-bridge": .bridge, "pilates-leg-pull-front": .plank, "pilates-leg-pull-back": .bridge,
+        "pilates-open-leg-rocker": .crunch, "pilates-spine-twist": .twist, "pilates-scissors": .deadBug,
+        "pilates-mermaid": .windmill,
+        // HYROX stations and running.
+        "sled-push": .run, "sled-pull": .boxing, "burpee-broad-jump": .burpee, "wall-ball": .squatReach,
+        "sandbag-lunge": .barbellLunge, "long-run": .run,
     ]
 
     static func forExercise(id: String) -> ExerciseMotion? { byExerciseID[id] }
