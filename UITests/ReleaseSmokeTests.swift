@@ -527,9 +527,12 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         launchForTesting(app)
         chooseQuickAction("logFood", in: app)
-        tap("logFood.createDishToolbar", in: app)
-        // A tap while the sheet is still sliding in can miss; retry until the menu-only field shows.
+        // A tap while the sheet is still sliding in can miss; retry until the dish editor shows.
         let menuMode = app.segmentedControls["customFood.mode"].buttons["Restaurant menu"]
+        for _ in 0..<3 where !menuMode.exists {
+            tap("logFood.createDishToolbar", in: app)
+            if menuMode.waitForExistence(timeout: 8) { break }
+        }
         XCTAssertTrue(menuMode.waitForExistence(timeout: 10))
         for _ in 0..<4 {
             menuMode.tap()
@@ -552,7 +555,8 @@ final class ReleaseSmokeTests: XCTestCase {
         }
         tap("customFood.save", in: app)
         XCTAssertTrue(app.staticTexts["Menu nutrition · entered by you"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["650"].exists)
+        // The kcal figure is a button now (tap it to type your own value); match it whatever it is.
+        XCTAssertTrue((app.buttons["logFood.kcal"].value as? String ?? "").hasPrefix("650 kcal"), "kcal")
         capture("restaurant-menu-serving")
         tap("logFood.addServing", in: app)
         XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
@@ -624,7 +628,8 @@ final class ReleaseSmokeTests: XCTestCase {
         yield.tap(); yield.typeText("200")
         tap("customFood.save", in: app)
         XCTAssertTrue(app.staticTexts["Your recipe · calculated estimate"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["45"].exists)
+        // The kcal figure is a button now (tap it to type your own value); match it whatever it is.
+        XCTAssertTrue((app.buttons["logFood.kcal"].value as? String ?? "").hasPrefix("45 kcal"), "kcal")
         capture("recipe-source-and-yield")
         tap("logFood.addServing", in: app)
         XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
