@@ -78,7 +78,7 @@ struct WeekStepView: View {
             }
             .onChange(of: weekStartDay) { _, _ in WeeklyReset.startDayChanged() }
         } footer: {
-            OnboardingNextButton(vm: vm, next: .alerts, identifier: "onboarding.week.continue")
+            OnboardingNextButton(vm: vm, from: .week, identifier: "onboarding.week.continue")
         }
     }
 }
@@ -119,7 +119,8 @@ struct AlertsStepView: View {
                                    isOn: bell, identifier: "onboarding.alerts.reminders")
                     // Every alert as a chip: outlined when on, times in Profile › Reminders.
                     FlowLayout(spacing: 8) {
-                        ForEach(reminders.reminders) { reminder in
+                        // Only reminders for the features chosen: workouts, or meals to log.
+                        ForEach(reminders.reminders.filter { FeatureLayout.offersReminder($0.kind, vm.features) }) { reminder in
                             AlertChip(symbol: reminder.symbol, title: reminder.title, detail: nil,
                                       isOn: reminder.isOn, identifier: "onboarding.alerts." + reminder.id) {
                                 var next = reminder; next.isOn.toggle(); reminders.update(next)

@@ -19,7 +19,9 @@ struct HomeView: View {
     @ViewBuilder
     private var dueReminders: some View {
         let loggedSlots = vm.loggedSlots
+        // Only reminders for features the person uses: workouts, or meals to log.
         let due = reminders.due(now: vm.now, loggedSlots: loggedSlots)
+            .filter { FeatureLayout.offersReminder($0.kind, AppState.shared.enabledFeatures) }
         if !due.isEmpty {
             NotificationStack(
                 notices: due.map { StackNotice(id: $0.id, symbol: $0.symbol, title: $0.title, body: $0.message, detail: $0.timeText) },
@@ -40,6 +42,11 @@ struct HomeView: View {
             .accessibilityIdentifier("home.dueReminders")
         }
     }
+
+    /// What the person uses Nourlo for (onboarding, Profile › Features).
+    private func has(_ feature: AppFeature) -> Bool { AppState.shared.isEnabled(feature) }
+    private var showsStock: Bool { FeatureLayout.showsStock(AppState.shared.enabledFeatures) }
+    private var showsVoice: Bool { FeatureLayout.showsVoice(AppState.shared.enabledFeatures) }
 
     private func openQuest(_ destination: QuestDestination) {
         switch destination {
@@ -63,6 +70,37 @@ struct HomeView: View {
         .contentShape(Capsule())
     }
 
+    /// Two matching pills with the microphone between them, each only for the
+    /// features the person chose (My Stock with meals or groceries, History with tracking).
+    @ViewBuilder private var shortcutRow: some View {
+        if showsStock || showsVoice || has(.tracking) {
+            HStack(spacing: Spacing.md) {
+                if showsStock {
+                    NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
+                        .accessibilityIdentifier("home.stock")
+                }
+                if showsVoice {
+                    // One tap to speak a command (the same sheet as "+" › Speak a command).
+                    Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Color.onAccent)
+                            .frame(width: 44, height: 44)
+                            .background(Color.dullPink, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .accessibilityLabel("Speak a command")
+                    .accessibilityHint("Say what you ate or want, like two eggs for breakfast. The sheet shows examples.")
+                    .accessibilityIdentifier("home.voice")
+                }
+                if has(.tracking) {
+                    NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
+                }
+            }
+            .buttonStyle(ScalePressStyle())
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
@@ -79,33 +117,26 @@ struct HomeView: View {
                         HomeHeaderView(vm: vm, onProfile: { showProfile = true }, onReminders: { showReminders = true })
                         VStack(spacing: Spacing.lg) {
                             dueReminders
-                            // Two matching pills with the microphone between them.
-                            HStack(spacing: Spacing.md) {
-                                NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
-                                    .accessibilityIdentifier("home.stock")
-                                // One tap to speak a command (the same sheet as "+" › Speak a command).
-                                Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
-                                    Image(systemName: "mic.fill")
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(Color.onAccent)
-                                        .frame(width: 44, height: 44)
-                                        .background(Color.dullPink, in: Circle())
-                                        .contentShape(Circle())
-                                }
-                                .accessibilityLabel("Speak a command")
-                                .accessibilityHint("Say what you ate or want, like two eggs for breakfast. The sheet shows examples.")
-                                .accessibilityIdentifier("home.voice")
-                                NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
+                            shortcutRow
+                            if has(.tracking) {
+                                CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
+                            } else {
+                                // Without tracking, Home leads with what the person did choose.
+                                if has(.meals) { MealPlanPreviewCard(vm: vm) }
+                                if has(.workouts) { WorkoutSummaryCard() }
+                                if has(.groceries) { GrocerySummaryCard() }
                             }
-                            .buttonStyle(ScalePressStyle())
-                            CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
-                            DailyQuestCard(state: loop.state, onOpen: openQuest)
+                            if !loop.state.quests.isEmpty {
+                                DailyQuestCard(state: loop.state, onOpen: openQuest)
+                            }
                             // Only while Apple Health is on; refreshes itself when shown.
                             ActivityCard()
-                            // Above the cards below it: its goo menu pours out over them.
-                            TodaysLogCard(vm: vm).zIndex(1)
-                            HomeDealsSection(vm: vm)
-                            MealPlanPreviewCard(vm: vm)
+                            if has(.tracking) {
+                                // Above the cards below it: its goo menu pours out over them.
+                                TodaysLogCard(vm: vm).zIndex(1)
+                            }
+                            if has(.groceries) { HomeDealsSection(vm: vm) }
+                            if has(.tracking), has(.meals) { MealPlanPreviewCard(vm: vm) }
                         }
                         .padding(.horizontal, Spacing.lg)
                         .padding(.bottom, Spacing.xxl)
@@ -151,6 +182,8 @@ struct HomeView: View {
         .onChange(of: WorkoutStore.shared.completed.first?.id) { _, _ in loop.refresh() }
         .onChange(of: WorkoutStore.shared.completed.count) { _, _ in loop.refresh() }
         .onChange(of: AppState.shared.userProfile.dailyCalorieGoal) { _, _ in loop.refresh() }
+        // Turning a feature on or off changes which quests make sense.
+        .onChange(of: AppState.shared.enabledFeatures) { _, _ in loop.refresh() }
         .task(id: loop.pendingMilestone) {
             guard loop.pendingMilestone != nil else { return }
             try? await Task.sleep(for: .seconds(3.5))

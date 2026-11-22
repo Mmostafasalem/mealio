@@ -7,6 +7,8 @@ import TipKit
 enum MainSheet: Identifiable, Equatable {
     case logFood, cart, groceries, chat, quickActions, voice, mealPhoto
     case exercise(String)
+    /// Something asked for a feature the person turned off: offer to turn it on.
+    case featureOff(AppFeature)
 
     var id: String {
         switch self {
@@ -18,6 +20,7 @@ enum MainSheet: Identifiable, Equatable {
         case .voice: return "voice"
         case .mealPhoto: return "mealPhoto"
         case .exercise(let id): return "exercise:" + id
+        case .featureOff(let feature): return "featureOff:" + feature.rawValue
         }
     }
 }
@@ -41,7 +44,35 @@ struct MainTabView: View {
 
     /// The "+" in the middle of the tab bar is a button, not a screen: choosing it
     /// opens the quick actions and leaves the current tab selected.
-    private static let quickActionsTag = 4
+    private static let quickActionsTag = AppTab.quickActions.rawValue
+
+    /// What the person uses Nourlo for; decides tabs, quick actions and where links may go.
+    private var features: Set<AppFeature> { AppState.shared.enabledFeatures }
+    /// Runs after the person turns a feature back on from the "turned off" prompt.
+    @State private var afterFeatureEnabled: (() -> Void)?
+
+    @ViewBuilder private func tabContent(_ tab: AppTab) -> some View {
+        switch tab {
+        case .home: HomeView().background(TabBarInsetReader())
+        case .meals: NavigationStack { MealPlanView() }
+        case .quickActions: Color.clear
+        case .shop: StoreBrowserView()
+        case .train: TrainView()
+        }
+    }
+
+    /// Runs `action` when `feature` is on; otherwise asks whether to turn it on
+    /// (a link, Siri or a reminder can still ask for a feature the person turned off).
+    private func requiring(_ feature: AppFeature?, _ action: @escaping () -> Void) {
+        guard let feature, !AppState.shared.isEnabled(feature) else { action(); return }
+        afterFeatureEnabled = action
+        present(.featureOff(feature))
+    }
+
+    /// Shows a tab, or the prompt to turn its feature on.
+    private func show(_ tab: AppTab) {
+        requiring(tab.feature) { present(nil); selection = tab.rawValue }
+    }
 
     private var tabSelection: Binding<Int> {
         Binding(get: { selection }, set: { tag in
@@ -50,36 +81,29 @@ struct MainTabView: View {
     }
 
     /// The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
-    /// From iOS 18 quick actions is a separate tab; on iOS 26 the system draws it as its
-    /// own round glass button at the end of the bar, apart from the four screens.
+    /// Only the tabs for the features the person chose; Home and quick actions are
+    /// always there. From iOS 18 quick actions is a separate tab; on iOS 26 the system
+    /// draws it as its own round glass button at the end of the bar.
     @ViewBuilder private var tabs: some View {
+        let screens = FeatureLayout.tabs(for: features).filter { $0 != .quickActions }
         if #available(iOS 18, *) {
             TabView(selection: tabSelection) {
-                Tab(value: 0) { HomeView().background(TabBarInsetReader()) } label: { TabIcon(symbol: "house.fill", name: "Home") }
-                Tab(value: 1) { NavigationStack { MealPlanView() } } label: { TabIcon(symbol: "fork.knife", name: "Meals") }
-                Tab(value: 2) { StoreBrowserView() } label: { TabIcon(symbol: "storefront.fill", name: "Shop") }
-                Tab(value: 3) { TrainView() } label: { TabIcon(symbol: "figure.run", name: "Train") }
+                ForEach(screens) { tab in
+                    Tab(value: tab.rawValue) { tabContent(tab) } label: { TabIcon(symbol: tab.symbol, name: tab.name) }
+                }
                 Tab(value: Self.quickActionsTag, role: .search) { Color.clear } label: {
-                    TabIcon(symbol: "bolt.fill", name: "Quick actions")
+                    TabIcon(symbol: AppTab.quickActions.symbol, name: AppTab.quickActions.name)
                 }
             }
         } else {
             TabView(selection: tabSelection) {
-                HomeView()
-                    .background(TabBarInsetReader())
-                    .tabItem { TabIcon(symbol: "house.fill", name: "Home") }
-                    .tag(0)
-                NavigationStack { MealPlanView() }
-                    .tabItem { TabIcon(symbol: "fork.knife", name: "Meals") }
-                    .tag(1)
-                StoreBrowserView()
-                    .tabItem { TabIcon(symbol: "storefront.fill", name: "Shop") }
-                    .tag(2)
-                TrainView()
-                    .tabItem { TabIcon(symbol: "figure.run", name: "Train") }
-                    .tag(3)
+                ForEach(screens) { tab in
+                    tabContent(tab)
+                        .tabItem { TabIcon(symbol: tab.symbol, name: tab.name) }
+                        .tag(tab.rawValue)
+                }
                 Color.clear
-                    .tabItem { TabIcon(symbol: "bolt.fill", name: "Quick actions") }
+                    .tabItem { TabIcon(symbol: AppTab.quickActions.symbol, name: AppTab.quickActions.name) }
                     .tag(Self.quickActionsTag)
             }
         }
@@ -90,6 +114,12 @@ struct MainTabView: View {
         .tint(Color.brandPrimary)
         .sensoryFeedback(.selection, trigger: selection)
         .onPreferenceChange(TabBarInsetKey.self) { tabBarHeight = $0 }
+        // A feature turned off in Profile takes its tab with it; stay on a tab that exists.
+        .onChange(of: features) { _, now in
+            if !FeatureLayout.tabs(for: now).contains(where: { $0.rawValue == selection }) {
+                selection = AppTab.home.rawValue
+            }
+        }
         // The bowl's guide panel, above every tab (the bowl itself is in Home's header).
         .overlay(alignment: .top) {
             if !keyboardVisible {
@@ -105,11 +135,11 @@ struct MainTabView: View {
         .ignoresSafeArea(.keyboard)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardVisible = true }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardVisible = false }
-        .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in selection = 3 }
+        .onReceive(NotificationCenter.default.publisher(for: .openTrain)) { _ in requiring(.workouts) { selection = 3 } }
         .onReceive(NotificationCenter.default.publisher(for: .openVoice)) { _ in present(.voice) }
-        .onReceive(NotificationCenter.default.publisher(for: .openMealPhoto)) { _ in present(.mealPhoto) }
+        .onReceive(NotificationCenter.default.publisher(for: .openMealPhoto)) { _ in requiring(.tracking) { present(.mealPhoto) } }
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
-        .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in selection = 2 }
+        .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in requiring(.groceries) { selection = 2 } }
         // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
         .onAppear { AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek() }
         .onChange(of: AppRouter.shared.request?.id) { _, _ in routeRequest() }
@@ -150,7 +180,7 @@ struct MainTabView: View {
             case .mealPhoto:
                 VoiceCommandSheet(photoMode: true, close: { self.sheet = nil }, navigate: openFromVoice)
             case .quickActions:
-                QuickActionsMenu(close: { self.sheet = nil }) { choice in
+                QuickActionsMenu(features: features, close: { self.sheet = nil }) { choice in
                     switch choice {
                     case .chat: present(.chat)
                     case .voice: present(.voice)
@@ -158,6 +188,10 @@ struct MainTabView: View {
                     case .action(let action): chooseQuickAction(action)
                     }
                 }
+            case .featureOff(let feature):
+                FeatureOffPrompt(feature: feature,
+                                 turnOn: { enableFromPrompt(feature) },
+                                 close: { afterFeatureEnabled = nil; self.sheet = nil })
             case .exercise(let id):
                 if let exercise = Exercise.catalog.first(where: { $0.id == id }) {
                     ExerciseGuideSheet(guide: ExerciseGuide(exercise: exercise))
@@ -220,17 +254,20 @@ struct MainTabView: View {
     /// once; stale ones are dropped by the router.
     private func routeRequest() {
         guard let destination = AppRouter.shared.takeRequest() else { return }
+        // A feature the person turned off opens a prompt to turn it on instead.
         switch destination {
         case .exercise(let id):
-            present(.exercise(id))
+            requiring(.workouts) { present(.exercise(id)) }
         case .link(let link):
-            switch link {
-            case .home: present(nil); selection = 0
-            case .meals: present(nil); selection = 1
-            case .train: present(nil); selection = 3
-            // An open food logger stays (with what was typed) and opens the scanner itself.
-            case .logFood, .scan: if sheet != .logFood { present(.logFood) }
-            case .groceries: present(.groceries)
+            requiring(FeatureLayout.feature(for: link)) {
+                switch link {
+                case .home: present(nil); selection = 0
+                case .meals: present(nil); selection = 1
+                case .train: present(nil); selection = 3
+                // An open food logger stays (with what was typed) and opens the scanner itself.
+                case .logFood, .scan: if sheet != .logFood { present(.logFood) }
+                case .groceries: present(.groceries)
+                }
             }
         }
     }
@@ -240,14 +277,18 @@ struct MainTabView: View {
             // Chosen from the "+" sheet: close it, then show Profile on Home.
             present(nil)
             openProfile()
-        } else if let tab = action.tab {
-            selection = tab
         } else {
-            switch action {
-            case .logFood: present(.logFood)
-            case .cart: present(.cart)
-            case .groceries: present(.groceries)
-            default: break
+            requiring(FeatureLayout.feature(for: action)) {
+                if let tab = action.tab {
+                    selection = tab
+                } else {
+                    switch action {
+                    case .logFood: present(.logFood)
+                    case .cart: present(.cart)
+                    case .groceries: present(.groceries)
+                    default: break
+                    }
+                }
             }
         }
     }
@@ -258,12 +299,12 @@ struct MainTabView: View {
         case .screen(let screen):
             switch screen {
             case .home: present(nil); selection = 0
-            case .meals: present(nil); selection = 1
-            case .shop: present(nil); selection = 2
-            case .train: present(nil); selection = 3
-            case .cart: present(.cart)
-            case .checklist: present(.groceries)
-            case .logFood: present(.logFood)
+            case .meals: show(.meals)
+            case .shop: show(.shop)
+            case .train: show(.train)
+            case .cart: requiring(.groceries) { present(.cart) }
+            case .checklist: requiring(.groceries) { present(.groceries) }
+            case .logFood: requiring(.tracking) { present(.logFood) }
             case .chat: present(.chat)
             case .scan: AppRouter.shared.open(.scan)
             case .profile: present(nil); openProfile()
@@ -285,13 +326,24 @@ struct MainTabView: View {
     private func followGuide(_ pathway: BowlPathway) {
         guard sheet == nil else { return }
         switch pathway {
-        case .logFood: present(.logFood)
-        case .groceries: present(.groceries)
-        case .meals: selection = 1
-        case .shop: selection = 2
+        case .logFood: requiring(.tracking) { present(.logFood) }
+        case .groceries: requiring(.groceries) { present(.groceries) }
+        case .meals: requiring(.meals) { selection = 1 }
+        case .shop: requiring(.groceries) { selection = 2 }
+        case .train: requiring(.workouts) { selection = 3 }
         case .profile: openProfile()
         case .chat: present(.chat)
         }
+    }
+
+    /// The person turned a feature on from the prompt: go where they were heading.
+    private func enableFromPrompt(_ feature: AppFeature) {
+        AppState.shared.setFeature(feature, enabled: true)
+        let action = afterFeatureEnabled
+        afterFeatureEnabled = nil
+        present(nil)
+        // After the prompt has gone, so a sheet destination isn't dropped.
+        DispatchQueue.main.async { action?() }
     }
 }
 
@@ -352,11 +404,18 @@ private struct TabBarInsetKey: PreferenceKey {
 /// What the "+" tab offers, as a native sheet.
 private struct QuickActionsMenu: View {
     enum Choice { case action(MealioQuickAction), chat, voice, mealPhoto }
+    /// Only actions for these features are offered (`FeatureLayout.quickActionIDs`).
+    let features: Set<AppFeature>
     /// Closes the sheet through `MainTabView`'s own state (its single sheet path).
     let close: () -> Void
     let choose: (Choice) -> Void
 
-    private let rows: [(id: String, title: String, symbol: String, choice: Choice)] = [
+    private var rows: [(id: String, title: String, symbol: String, choice: Choice)] {
+        let offered = FeatureLayout.quickActionIDs(for: features)
+        return Self.allRows.filter { offered.contains($0.id) }
+    }
+
+    private static let allRows: [(id: String, title: String, symbol: String, choice: Choice)] = [
         ("voice", "Speak a command", "mic.fill", .voice),
         ("mealPhoto", "Snap a meal", "camera.fill", .mealPhoto),
         (MealioQuickAction.logFood.rawValue, "Log food", "fork.knife", .action(.logFood)),

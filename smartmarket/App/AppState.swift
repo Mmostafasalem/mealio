@@ -22,6 +22,7 @@ final class AppState {
         isOnboarded = UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
         hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
         lang = UserDefaults.standard.string(forKey: Constants.Storage.lang) ?? "en"
+        enabledFeatures = AppFeature.load()
     }
 
     // MARK: - User
@@ -30,6 +31,28 @@ final class AppState {
     var isOnboarded: Bool = UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
     var hasSeenWelcome: Bool = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
     var lang: String = UserDefaults.standard.string(forKey: Constants.Storage.lang) ?? "en"
+
+    // MARK: - Features
+    /// What the person uses Nourlo for (onboarding's first choice, Profile › Features).
+    /// Every feature when nothing was chosen, so earlier users see no change.
+    private(set) var enabledFeatures: Set<AppFeature> = AppFeature.load()
+
+    func isEnabled(_ feature: AppFeature) -> Bool { enabledFeatures.contains(feature) }
+
+    /// Saves a new choice. An empty choice is ignored: one feature is always on.
+    func setEnabledFeatures(_ features: Set<AppFeature>) {
+        guard !features.isEmpty, features != enabledFeatures else { return }
+        enabledFeatures = features
+        AppFeature.save(features)
+        NotificationCenter.default.post(name: .enabledFeaturesDidChange, object: nil)
+    }
+
+    /// Turns one feature on or off; turning off the last one does nothing.
+    func setFeature(_ feature: AppFeature, enabled: Bool) {
+        var features = enabledFeatures
+        if enabled { features.insert(feature) } else { features.remove(feature) }
+        setEnabledFeatures(features)
+    }
 
     // MARK: - Market
     var activeDeals: [Deal] = []

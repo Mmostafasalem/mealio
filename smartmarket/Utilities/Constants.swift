@@ -27,6 +27,8 @@ extension Notification.Name {
     static let foodLogDidChange     = Notification.Name("foodLogDidChange")
     /// Completed workouts changed. Listeners re-read `WorkoutStore.completed`.
     static let workoutsDidChange    = Notification.Name("workoutsDidChange")
+    /// The person turned a feature on or off (`AppState.enabledFeatures`).
+    static let enabledFeaturesDidChange = Notification.Name("enabledFeaturesDidChange")
 }
 
 // MARK: - Grocery list persistence (used by AppDelegate, ViewModels, and Views)
@@ -122,6 +124,9 @@ enum Constants {
         static let heightUnit               = "heightUnit_v1"
         /// Version of the calorie-target maths the saved profile was computed with.
         static let targetsVersion           = "targetsVersion"
+        /// Comma-separated `AppFeature` raw values chosen in onboarding or Profile.
+        /// Missing means every feature (people onboarded before the choice existed).
+        static let enabledFeatures          = "enabledFeatures_v1"
     }
 
     // MARK: - BMR safety floors

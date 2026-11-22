@@ -1,8 +1,52 @@
 import SwiftUI
 
 enum BowlPathway: String, Identifiable {
-    case logFood, groceries, meals, shop, profile, chat
+    case logFood, groceries, meals, shop, train, profile, chat
     var id: String { rawValue }
+
+    /// The feature a pathway leads into, if any.
+    var feature: AppFeature? {
+        switch self {
+        case .logFood: return .tracking
+        case .groceries, .shop: return .groceries
+        case .meals: return .meals
+        case .train: return .workouts
+        case .profile, .chat: return nil
+        }
+    }
+}
+
+/// One step of the bowl guide's quick tour.
+struct BowlTourStep {
+    let title: String
+    let detail: String
+    let tab: Int
+    let action: BowlPathway
+    let cta: String
+
+    static let all: [BowlTourStep] = [
+        BowlTourStep(title: "Start with one meal", detail: "Log something you ate. Choose its portion and meal, then your daily totals update here.", tab: 0, action: .logFood, cta: "Log my first food"),
+        BowlTourStep(title: "Build your grocery list", detail: "Pick groceries in Shop, then tick them off in your checklist. Catalogue prices are estimates, not retailer offers.", tab: 2, action: .shop, cta: "Browse groceries"),
+        BowlTourStep(title: "Make room for a plan", detail: "Meals brings your suggestions together. Review ingredients and portions before logging. Your plan is built on this iPhone from your cart and My Stock.", tab: 1, action: .meals, cta: "Explore my meals")
+    ]
+
+    /// Shown only when the tour has room: someone who chose few features still gets a tour.
+    static let workouts = BowlTourStep(title: "Build a workout", detail: "Pick a type and a length in Train, then follow along. Save the ones you like and tick them off when done.", tab: 3, action: .train, cta: "Open Train")
+
+    /// The tour for these features: the steps they use, then workouts if there's room.
+    static func steps(for features: Set<AppFeature>) -> [BowlTourStep] {
+        var steps = all.filter { $0.action.feature.map(features.contains) ?? true }
+        if steps.count < all.count, features.contains(.workouts) { steps.append(workouts) }
+        return steps
+    }
+
+    /// The guide's shortcut rows for these features, workouts again only if there's room.
+    static func pathways(for features: Set<AppFeature>) -> [BowlPathway] {
+        let main: [BowlPathway] = [.logFood, .groceries, .meals]
+        var paths = main.filter { $0.feature.map(features.contains) ?? true }
+        if paths.count < main.count, features.contains(.workouts) { paths.append(.train) }
+        return paths
+    }
 }
 
 /// The bowl's guide panel: local next steps and a short tour, independent of
@@ -23,25 +67,26 @@ struct FloatingBowlGuide: View {
     /// The tour's titles live on sliding pages, one per step.
     @AccessibilityFocusState private var tourTitleFocus: Int?
 
-    private let tour: [(title: String, detail: String, tab: Int, action: BowlPathway, cta: String)] = [
-        ("Start with one meal", "Log something you ate. Choose its portion and meal, then your daily totals update here.", 0, .logFood, "Log my first food"),
-        ("Build your grocery list", "Pick groceries in Shop, then tick them off in your checklist. Catalogue prices are estimates, not retailer offers.", 2, .shop, "Browse groceries"),
-        ("Make room for a plan", "Meals brings your suggestions together. Review ingredients and portions before logging. Your plan is built on this iPhone from your cart and My Stock.", 1, .meals, "Explore my meals")
-    ]
+    /// The tour for the features the person chose (onboarding, Profile › Features).
+    private var tour: [BowlTourStep] { BowlTourStep.steps(for: AppState.shared.enabledFeatures) }
 
     private var title: String {
-        if let step = tourStep { return tour[step].title }
-        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Move a little today"][selectedTab]
+        if let step = tourStep, tour.indices.contains(step) { return tour[step].title }
+        return ["A little help for today", "Find your next meal", "From shelf to checklist", "Move a little today"][min(max(selectedTab, 0), 3)]
     }
 
     private var detail: String {
-        if let step = tourStep { return tour[step].detail }
+        if let step = tourStep, tour.indices.contains(step) { return tour[step].detail }
+        let features = AppState.shared.enabledFeatures
+        let home = features.isSuperset(of: [.tracking, .groceries])
+            ? "Start small. Log a meal, start your checklist, or let me show you around."
+            : "Start small with one of these, or let me show you around."
         return [
-            "Start small. Log a meal, start your checklist, or let me show you around.",
+            home,
             "Review your suggestions and portions. Your checklist is a good place to start planning.",
             "Add what you need, then open your checklist when you shop. Prices here are estimates.",
             "Pick a type and a length, then build a workout. Save the ones you like and tick them off when done."
-        ][selectedTab]
+        ][min(max(selectedTab, 0), 3)]
     }
 
     var body: some View {
@@ -184,9 +229,20 @@ struct FloatingBowlGuide: View {
                 Text(detail).font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if AIAccountService.shared.offersOnlineAI { chatRow }
-                pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
-                pathway("Checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
-                pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)
+                ForEach(BowlTourStep.pathways(for: AppState.shared.enabledFeatures)) { path in
+                    switch path {
+                    case .logFood:
+                        pathway("Log food", subtitle: "A small start for today", symbol: "plus", action: .logFood)
+                    case .groceries:
+                        pathway("Checklist", subtitle: "Keep your shopping together", symbol: "checklist", action: .groceries)
+                    case .meals:
+                        pathway("Explore meals", subtitle: "Suggestions, ingredients and portions", symbol: "fork.knife", action: .meals)
+                    case .train:
+                        pathway("Build a workout", subtitle: "Pick a type and a length", symbol: "figure.run", action: .train)
+                    default:
+                        EmptyView()
+                    }
+                }
                 Divider().overlay(Color.hairline.opacity(0.3))
                 Button("Quick tour", action: startTour).fontWeight(.semibold)
                     .accessibilityIdentifier("guide.tour")

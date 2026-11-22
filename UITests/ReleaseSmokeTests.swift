@@ -156,7 +156,53 @@ final class ReleaseSmokeTests: XCTestCase {
         if !app.launchArguments.contains("-NourloUITesting") {
             app.launchArguments += ["-NourloUITesting", "YES"]
         }
+        // Every feature at launch, whatever an earlier test chose in onboarding
+        // (the choice it saved stays on the simulator).
+        if !app.launchArguments.contains("-enabledFeatures_v1") {
+            app.launchArguments += ["-enabledFeatures_v1", "tracking,meals,groceries,workouts"]
+        }
         app.launch()
+    }
+
+    /// Onboarding with only Workouts chosen: no diet or favourite-food screens,
+    /// and the tab bar holds Home, "+" and Train only.
+    func testOnboardingWithOnlyWorkoutsShowsHomeAndTrain() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
+        launchForTesting(app)
+        advance("onboarding.start", to: "onboarding.name.continue", in: app)
+        advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
+        XCTAssertTrue(app.staticTexts["What do you want Nourlo for?"].exists)
+        XCTAssertTrue(app.staticTexts["2 / 8"].exists)
+        capture("onboarding-features-all")
+        for feature in ["tracking", "meals", "groceries"] {
+            tap("onboarding.feature." + feature, in: app)
+            let off = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == false"),
+                                                object: app.buttons["onboarding.feature." + feature])
+            XCTAssertEqual(XCTWaiter.wait(for: [off], timeout: 5), .completed, feature)
+        }
+        XCTAssertTrue(app.buttons["onboarding.feature.workouts"].isSelected)
+        XCTAssertTrue(app.staticTexts["2 / 6"].waitForExistence(timeout: 3))
+        capture("onboarding-features-workouts")
+        advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
+        advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
+        advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
+        advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
+        // The goal is the last screen for workouts: its button finishes.
+        XCTAssertEqual(app.buttons["onboarding.goal.continue"].label, "Get started")
+        tap("onboarding.goal.continue", in: app)
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(control("tab.train", in: app).exists)
+        XCTAssertTrue(control("navigation.quickActions", in: app).exists)
+        XCTAssertFalse(tabBar.buttons["Meals"].exists)
+        XCTAssertFalse(tabBar.buttons["Shop"].exists)
+        XCTAssertEqual(tabBar.buttons.count, 3)
+        XCTAssertTrue(app.descendants(matching: .any)["home.workoutSummary"].firstMatch.waitForExistence(timeout: 5))
+        capture("home-workouts-only")
+        tap("tab.train", in: app)
+        capture("train-workouts-only")
     }
 
     private func onboard(_ app: XCUIApplication, largeText: Bool = false) {
@@ -169,7 +215,12 @@ final class ReleaseSmokeTests: XCTestCase {
         // Name, age and gender share the first page; age is a number with minus and plus.
         XCTAssertTrue(app.textFields["onboarding.age"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["One year older"].exists)
-        advance("onboarding.name.continue", to: "onboarding.height.continue", in: app)
+        // What Nourlo is for: every feature starts on, so the full app (and every other test) stays the same.
+        advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
+        for feature in ["tracking", "meals", "groceries", "workouts"] {
+            XCTAssertTrue(app.buttons["onboarding.feature." + feature].isSelected, feature)
+        }
+        advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
         advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)

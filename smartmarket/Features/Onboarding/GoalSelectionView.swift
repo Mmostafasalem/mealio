@@ -24,7 +24,7 @@ struct GoalSelectionView: View {
             }
             .onAppear { vm.normalizeGoalForAge() }
         } footer: {
-            OnboardingNextButton(vm: vm, next: vm.weightGoal == .lose ? .pace : .diet,
+            OnboardingNextButton(vm: vm, from: .goal,
                                  identifier: "onboarding.goal.continue")
         }
     }
@@ -60,7 +60,7 @@ struct PaceSelectionView: View {
             }
             .animation(.snappyValue, value: vm.isBelowSafeFloor)
         } footer: {
-            OnboardingNextButton(vm: vm, next: .diet, identifier: "onboarding.pace.continue")
+            OnboardingNextButton(vm: vm, from: .pace, identifier: "onboarding.pace.continue")
         }
     }
 }

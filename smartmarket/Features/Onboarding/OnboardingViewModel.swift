@@ -8,6 +8,44 @@ final class OnboardingViewModel {
     // MARK: - Navigation
     var path: [OnboardingStep] = []
 
+    // MARK: - Features (what Nourlo is for); all on until the person changes them
+    var features: Set<AppFeature> = AppFeature.all
+
+    func toggleFeature(_ feature: AppFeature) {
+        if features.contains(feature) { features.remove(feature) } else { features.insert(feature) }
+    }
+
+    var canContinueFromFeatures: Bool { !features.isEmpty }
+
+    /// The screens these features need, in order (`pace` only when losing weight).
+    var steps: [OnboardingStep] {
+        FeatureLayout.onboardingSteps(for: features, losingWeight: weightGoal == .lose)
+    }
+
+    /// The screen after `step`, or nil when `step` is the last one.
+    func step(after step: OnboardingStep) -> OnboardingStep? {
+        let steps = steps
+        guard let index = steps.firstIndex(of: step) else {
+            // A screen these features don't use: the next one that is used.
+            return steps.first { $0.rawValue > step.rawValue }
+        }
+        return steps.indices.contains(index + 1) ? steps[index + 1] : nil
+    }
+
+    /// Screens counted in "3 / 8". `pace` shares the goal's number.
+    var totalSteps: Int { steps.filter { $0 != .pace }.count }
+
+    /// 1-based number shown for `step`.
+    func number(of step: OnboardingStep) -> Int {
+        let counted = steps.filter { $0 != .pace }
+        let key: OnboardingStep = step == .pace ? .goal : step
+        return (counted.firstIndex(of: key) ?? max(counted.count - 1, 0)) + 1
+    }
+
+    func progress(of step: OnboardingStep) -> CGFloat {
+        CGFloat(number(of: step)) / CGFloat(max(totalSteps, 1))
+    }
+
     // MARK: - Step 1: Body stats
     var firstName: String        = ""
     var lastName: String         = ""
@@ -99,6 +137,12 @@ final class OnboardingViewModel {
         if ids.isSubset(of: favoriteFoodIDs) { favoriteFoodIDs.subtract(ids) } else { favoriteFoodIDs.formUnion(ids) }
     }
 
+    /// Goes to the screen after `step`, or finishes onboarding when it was the last.
+    @MainActor
+    func continueFrom(_ step: OnboardingStep) {
+        if let next = self.step(after: step) { advance(to: next) } else { finish() }
+    }
+
     func toggleFavorite(_ item: CatalogItem) {
         if favoriteFoodIDs.contains(item.id) { favoriteFoodIDs.remove(item.id) }
         else { favoriteFoodIDs.insert(item.id) }
@@ -131,6 +175,9 @@ final class OnboardingViewModel {
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
 
         AppState.shared.userProfile = profile
+        // Saved before onboarding completes, so the first Home already fits the choice.
+        AppState.shared.setEnabledFeatures(features)
+        AppFeature.save(features)
         AppState.shared.completeOnboarding()
         // The app's start-up task (SmartMarketAgentApp) starts the agent loop once the screen
         // swap has finished, so the change to the app stays smooth.

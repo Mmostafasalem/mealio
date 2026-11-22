@@ -26,6 +26,7 @@ struct ProfileView: View {
                 headerSection
                 statsSection
                 editSection
+                FeaturesSection()
                 weekSection
                 appearanceSection
                 Section {

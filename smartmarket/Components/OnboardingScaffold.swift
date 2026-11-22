@@ -90,34 +90,35 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.surfaceSecondary)
                     Capsule().fill(Color.labelPrimary)
-                        .frame(width: geo.size.width * step.progress)
+                        .frame(width: geo.size.width * vm.progress(of: step))
                 }
             }
             .frame(height: 4)
 
-            Text("\(step.number) / \(OnboardingStep.total)" as String)
+            Text("\(vm.number(of: step)) / \(vm.totalSteps)" as String)
                 .font(.footnote.weight(.medium))
                 .monospacedDigit()
                 .foregroundStyle(Color.labelSecondary)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Setup progress")
-        .accessibilityValue("Step \(step.number) of \(OnboardingStep.total)" as String)
+        .accessibilityValue("Step \(vm.number(of: step)) of \(vm.totalSteps)" as String)
     }
 }
 
 // MARK: - Next button
 
-/// The pinned primary action. Pushes `next` onto the onboarding path.
+/// The pinned primary action. Pushes the screen after `from` onto the onboarding
+/// path, or finishes onboarding ("Get started") when `from` is the last screen
+/// the chosen features need.
 struct OnboardingNextButton: View {
     @Bindable var vm: OnboardingViewModel
-    let next: OnboardingStep
-    var title: String = "Next"
+    let from: OnboardingStep
     let identifier: String
 
     var body: some View {
-        Button { vm.advance(to: next) } label: {
-            Text(title).primaryButtonLabel()
+        Button { vm.continueFrom(from) } label: {
+            Text(vm.step(after: from) == nil ? "Get started" : "Next").primaryButtonLabel()
         }
         .buttonStyle(ScalePressStyle())
         .accessibilityIdentifier(identifier)
@@ -126,12 +127,14 @@ struct OnboardingNextButton: View {
 
 // MARK: - Option row
 
-/// A single-choice card: icon tile, title and optional detail. The outline alone shows the choice.
+/// A choice card: icon tile, title and optional detail. For a single choice the
+/// outline alone shows it; `multiSelect` (several can be on) adds a check box.
 struct OnboardingOptionRow: View {
     let symbol: String
     let title: String
     var subtitle: String? = nil
     var trailing: String? = nil
+    var multiSelect = false
     let isSelected: Bool
     let onTap: () -> Void
 
@@ -171,6 +174,8 @@ struct OnboardingOptionRow: View {
                         .lineLimit(1)
                         .layoutPriority(1)
                 }
+
+                if multiSelect { checkBox }
             }
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.md)
@@ -186,6 +191,24 @@ struct OnboardingOptionRow: View {
         .animation(reduceMotion ? .reducedFade : .snappyValue, value: isSelected)
         .sensoryFeedback(.selection, trigger: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// A rounded check box: filled with a white tick when on, an empty outline when off.
+    private var checkBox: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(isSelected ? Color.progress : Color.labelTertiary, lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.progress)
+                .opacity(isSelected ? 1 : 0)
+            Image(systemName: "checkmark")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color.onAccent)
+                .scaleEffect(isSelected ? 1 : 0.4)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .frame(width: 24, height: 24)
+        .accessibilityHidden(true)
     }
 }
 

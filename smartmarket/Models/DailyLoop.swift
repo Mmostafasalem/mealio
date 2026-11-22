@@ -74,6 +74,8 @@ struct LoopInputs {
     var ledger: [LoopEvent]
     var now: Date
     var calendar: Calendar
+    /// What the person uses Nourlo for; quests for other features are left out.
+    var features: Set<AppFeature> = AppFeature.all
 
     var today: DayKey { DayKey(now, calendar: calendar) }
 
@@ -234,8 +236,11 @@ extension DailyLoop {
 
     /// Quests that make sense for this user on this day.
     static func available(day: DayKey, _ i: LoopInputs) -> [QuestID] {
-        let workoutDay = [0, 2, 4, 5].contains(((day.number(in: i.calendar) % 7) + 7) % 7)
+        // Without food tracking, workouts are the daily quests, so they're offered every day.
+        let workoutDay = !i.features.contains(.tracking)
+            || [0, 2, 4, 5].contains(((day.number(in: i.calendar) % 7) + 7) % 7)
         return QuestID.allCases.filter { id in
+            guard FeatureLayout.allows(id, i.features) else { return false }
             switch id {
             case .protein: return i.proteinGoal > 0 && i.calorieGoal > 0
             case .onTarget: return i.calorieGoal > 0
@@ -255,7 +260,9 @@ extension DailyLoop {
 
     /// The quests already picked for this day, if the ledger has them.
     static func chosenQuests(day: DayKey, _ i: LoopInputs) -> [QuestID]? {
-        for case let .questsChosen(d, ids) in i.ledger where d == day { return ids }
+        // A pick that includes a feature turned off since is passed over, so a new one is made.
+        for case let .questsChosen(d, ids) in i.ledger
+        where d == day && ids.allSatisfy({ FeatureLayout.allows($0, i.features) }) { return ids }
         return nil
     }
 

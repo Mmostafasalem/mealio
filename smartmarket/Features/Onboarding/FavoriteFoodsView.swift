@@ -165,7 +165,7 @@ struct FavoriteFoodsView: View {
 
     private var finishButton: some View {
         Button {
-            vm.advance(to: .week)
+            vm.continueFrom(.favorites)
         } label: {
             Text(vm.canFinish
                  ? "Next — \(vm.favoritesCount) items"

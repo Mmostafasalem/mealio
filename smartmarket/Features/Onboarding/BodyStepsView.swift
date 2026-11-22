@@ -47,7 +47,7 @@ struct NameStepView: View {
             // Tapping anywhere outside a field closes the keyboard too.
             .background(Color.clear.contentShape(Rectangle()).onTapGesture { focusedField = nil })
         } footer: {
-            OnboardingNextButton(vm: vm, next: .height, identifier: "onboarding.name.continue")
+            OnboardingNextButton(vm: vm, from: .name, identifier: "onboarding.name.continue")
                 .disabled(typedAge == nil)
                 .opacity(typedAge == nil ? 0.5 : 1)
         }
@@ -227,7 +227,7 @@ struct HeightStepView: View {
                 HeightScene(growth: growth, height: $vm.height, unit: unit, range: range, pose: mascot.pose)
             }
         } footer: {
-            OnboardingNextButton(vm: vm, next: .weight, identifier: "onboarding.height.continue")
+            OnboardingNextButton(vm: vm, from: .height, identifier: "onboarding.height.continue")
         }
         .onAppear {
             mascot.reduceMotion = reduceMotion
@@ -356,7 +356,7 @@ struct WeightStepView: View {
                 Spacer()
             }
         } footer: {
-            OnboardingNextButton(vm: vm, next: .activity, identifier: "onboarding.weight.continue")
+            OnboardingNextButton(vm: vm, from: .weight, identifier: "onboarding.weight.continue")
         }
     }
 }
@@ -377,7 +377,7 @@ struct ActivityStepView: View {
                 }
             }
         } footer: {
-            OnboardingNextButton(vm: vm, next: .goal, identifier: "onboarding.activity.continue")
+            OnboardingNextButton(vm: vm, from: .activity, identifier: "onboarding.activity.continue")
         }
     }
 }
