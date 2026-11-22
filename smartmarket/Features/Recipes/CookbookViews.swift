@@ -68,7 +68,7 @@ struct CookWithWhatIHaveView: View {
                 if !ready.isEmpty {
                     Section {
                         ForEach(ready.prefix(60)) { s in row(s.recipe, have: s.have, missing: s.missing) }
-                    } header: { Text("Ready to cook") } footer: { Text("Salt, oil, spices, flour, sugar and stock are counted as kitchen basics.") }
+                    } header: { Text("Ready to cook") } footer: { Text(CookbookSuggester.basicsNote) }
                 }
                 if !nearly.isEmpty {
                     Section("One or two things short") {
@@ -152,7 +152,7 @@ struct CookbookRecipeView: View {
     @State private var stock = StockStore.shared
     @State private var showCooked = false
     @State private var addedToCart = false
-    @State private var noShopMatch = false
+    @State private var noShopMatch: [String] = []
 
     private var kitchen: KitchenMatcher { KitchenMatcher(names: stock.items.map(\.food.name)) }
 
@@ -176,38 +176,52 @@ struct CookbookRecipeView: View {
             }
 
             Section {
-                ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { _, line in
+                ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { i, line in
+                    let state = IngredientState(line, kitchen: kitchen)
                     HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                        Image(systemName: symbol(for: line))
-                            .foregroundStyle(color(for: line))
+                        Image(systemName: state.symbol)
+                            .foregroundStyle(state.color)
                             .frame(width: 20)
                         Text(line.text).font(.subheadline)
+                            .foregroundStyle(state.isAssumed ? Color.labelSecondary : Color.labelPrimary)
+                        Spacer(minLength: Spacing.xs)
+                        if let tag = state.tag {
+                            Text(tag)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(state == .missing ? Color.brandAmber : Color.labelSecondary)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background((state == .missing ? Color.brandAmber : Color.labelSecondary).opacity(0.14), in: Capsule())
+                                .fixedSize()
+                        }
                     }
                     .accessibilityElement(children: .combine)
-                    .accessibilityValue(line.isPantry ? "kitchen basic" : kitchen.has(line) ? "in stock" : "missing")
+                    .accessibilityValue(state.spoken)
+                    .accessibilityIdentifier("cookbook.ingredient.\(i).\(state.rawValue)")
                 }
                 if !missing.isEmpty {
                     Button {
                         var added = 0
+                        var notInShop: [String] = []
                         for line in missing {
                             if let item = CookbookSuggester.catalogItem(for: line) { ShoppingCartService.shared.add(item, store: .catalog); added += 1 }
+                            else { notInShop.append(line.text) }
                         }
                         addedToCart = added > 0
-                        noShopMatch = added == 0
+                        noShopMatch = notInShop
                     } label: {
                         Label(addedToCart ? "Added to your cart" : "Add what's missing to the cart", systemImage: addedToCart ? "checkmark" : "cart.badge.plus")
                     }
                     .disabled(addedToCart)
                     .accessibilityIdentifier("cookbook.addMissing")
-                    if noShopMatch {
-                        Text("These aren't in the shop's catalogue. Add them to My Stock when you have them.")
+                    if !noShopMatch.isEmpty {
+                        Text("Not in the shop's catalogue: \(noShopMatch.joined(separator: "; ")). Add to My Stock when you have it." as String)
                             .font(.footnote).foregroundStyle(Color.labelSecondary)
                     }
                 }
             } header: {
                 Text("Ingredients")
             } footer: {
-                Text(missing.isEmpty ? "You have everything for this." : "\(missing.count) missing from My Stock.")
+                Text(CookbookSuggester.stockSummary(recipe, missing: missing))
             }
 
             Section("Method") {
@@ -256,16 +270,6 @@ struct CookbookRecipeView: View {
         return parts.joined(separator: " · ")
     }
 
-    private func symbol(for line: CookbookRecipe.Line) -> String {
-        if line.isPantry { return "circle.dashed" }
-        return kitchen.has(line) ? "checkmark.circle.fill" : "cart"
-    }
-
-    private func color(for line: CookbookRecipe.Line) -> Color {
-        if line.isPantry { return Color.labelSecondary }
-        return kitchen.has(line) ? Color.ringProtein : Color.brandAmber
-    }
-
     private func tile(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.system(.headline, design: .rounded).weight(.bold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.7)
@@ -274,6 +278,58 @@ struct CookbookRecipeView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, Spacing.sm)
         .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+    }
+}
+
+/// How one ingredient line stands against My Stock, and how its row is marked.
+enum IngredientState: String, Equatable {
+    case have, missing, basic, optional
+
+    init(_ line: CookbookRecipe.Line, kitchen: KitchenMatcher) {
+        switch line.kind {
+        case .basic: self = .basic
+        case .optional: self = kitchen.has(line) ? .have : .optional
+        case .ingredient: self = kitchen.has(line) ? .have : .missing
+        }
+    }
+
+    /// Not checked against the stock: assumed (basic) or not needed (optional).
+    var isAssumed: Bool { self == .basic || self == .optional }
+
+    var symbol: String {
+        switch self {
+        case .have: return "checkmark.circle.fill"
+        case .missing: return "cart.circle"
+        case .basic: return "house.circle"
+        case .optional: return "plus.circle"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .have: return Color.ringProtein
+        case .missing: return Color.brandAmber
+        case .basic, .optional: return Color.labelSecondary
+        }
+    }
+
+    /// The small label at the end of the row (none when it's in stock).
+    var tag: String? {
+        switch self {
+        case .have: return nil
+        case .missing: return "Missing"
+        case .basic: return "Basic"
+        case .optional: return "Optional"
+        }
+    }
+
+    var spoken: String {
+        switch self {
+        case .have: return "in stock"
+        case .missing: return "missing"
+        case .basic: return "kitchen basic, assumed in your kitchen"
+        case .optional: return "optional"
+        }
     }
 }
 

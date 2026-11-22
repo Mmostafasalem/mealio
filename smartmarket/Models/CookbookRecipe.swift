@@ -17,10 +17,28 @@ nonisolated struct CookbookRecipe: Codable, Identifiable, Hashable, Sendable {
         let grams: Double?
         /// Words a stock item's name must contain to count as this ingredient ("chicken", "sweet pepper|bell pepper").
         let match: String?
+        /// A kitchen basic (salt, pepper, everyday oil, water, sugar, flour, baking powder or
+        /// soda, vinegar, stock, dried spices and herbs), set by the build script.
         let pantry: Bool?
+        /// The recipe works without it ("for garnish", "optional").
+        var optional: Bool? = nil
 
-        /// Kitchen basics (salt, oil, spices, flour, sugar, stock) and tiny amounts never count as missing.
-        var isPantry: Bool { pantry ?? true || match == nil }
+        init(text: String, food: String?, grams: Double?, match: String?, pantry: Bool?, optional: Bool? = nil) {
+            self.text = text; self.food = food; self.grams = grams; self.match = match
+            self.pantry = pantry; self.optional = optional
+        }
+
+        enum Kind: Sendable { case basic, optional, ingredient }
+
+        /// Only the true basics are assumed to be in the kitchen. Anything else, however
+        /// small the amount (lemon juice, rose water, a spoon of cream), is an ingredient
+        /// that is either in stock or missing. A line with no flag is an ingredient.
+        var kind: Kind {
+            if pantry == true { return .basic }
+            if optional == true { return .optional }
+            return .ingredient
+        }
+        var isBasic: Bool { kind == .basic }
         var terms: [String] { (match ?? "").split(separator: "|").map(String.init) }
     }
 
@@ -64,8 +82,9 @@ nonisolated struct CookbookRecipe: Codable, Identifiable, Hashable, Sendable {
 
     var pageURL: URL? { URL(string: url) }
 
-    /// The ingredients that decide whether it can be cooked: everything but the basics.
-    var keyIngredients: [Line] { ingredients.filter { !$0.isPantry } }
+    /// The ingredients that decide whether it can be cooked: everything but the kitchen
+    /// basics and the optional extras.
+    var keyIngredients: [Line] { ingredients.filter { $0.kind == .ingredient } }
 
     /// One serving as a food for the log.
     var servingFood: NutritionFood {
@@ -199,7 +218,8 @@ nonisolated struct KitchenMatcher: Sendable {
         }
     }
 
-    /// What a recipe needs that isn't in the kitchen (basics never count).
+    /// What a recipe needs that isn't in the kitchen (basics and optional extras never
+    /// count; an ingredient no stock name can match, like rose water, is always missing).
     func missing(in recipe: CookbookRecipe) -> [CookbookRecipe.Line] {
         recipe.keyIngredients.filter { !has($0) }
     }
@@ -234,6 +254,18 @@ nonisolated enum CookbookSuggester {
             if $0.have != $1.have { return $0.have > $1.have }
             return $0.recipe.title < $1.recipe.title
         }
+    }
+
+    static let basicsNote = "Kitchen basics are assumed: salt, pepper, oil, water, sugar, flour, baking powder and soda, vinegar, stock, and dried spices and herbs. Everything else must be in My Stock."
+
+    /// The line under a recipe's ingredients. "You have everything" only when every
+    /// ingredient that isn't a basic or optional is in stock.
+    static func stockSummary(_ recipe: CookbookRecipe, missing: [CookbookRecipe.Line]) -> String {
+        if missing.isEmpty {
+            return recipe.ingredients.contains(where: \.isBasic)
+                ? "You have everything for this, plus the kitchen basics." : "You have everything for this."
+        }
+        return "\(missing.count) missing from My Stock."
     }
 
     /// A shop catalogue item for a missing ingredient, to put in the cart.

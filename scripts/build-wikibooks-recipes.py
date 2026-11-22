@@ -368,11 +368,65 @@ def tags(keys, lines=()):
 FRYING_FATS = {"oil", "vegetable oil", "canola oil", "sunflower oil", "peanut oil", "palm oil", "olive oil", "lard", "shortening", "coconut oil", "ghee"}
 
 
-# What every kitchen is assumed to have: never asked for, never "missing".
-PANTRY = SEASONING | FRYING_FATS | {"water", "sugar", "granulated sugar", "white sugar", "flour", "all-purpose flour",
-                                    "stock", "broth", "chicken broth", "chicken stock", "beef broth", "vegetable broth",
-                                    "dehydrated broth", "bouillon cube", "cornstarch", "yeast", "margarine",
-                                    "sea salt", "kosher salt"}
+# What every kitchen is assumed to have: never asked for, never "missing", shown in the
+# app as a kitchen basic. Only true basics: salt, pepper, everyday oils, water, sugar,
+# flour, raising agents, vinegar, stock (cubes), and common dried spices and herbs.
+# Everything else (lemon juice, sauces, vanilla, cream, rose water ...) is a real
+# ingredient even when the amount is small.
+BASIC_KEYS = {"salt", "sea salt", "kosher salt", "pepper", "black pepper", "white pepper", "peppercorn", "water",
+              "cayenne pepper", "cayenne", "red pepper flakes", "paprika", "cumin", "cinnamon", "nutmeg",
+              "allspice", "cloves", "cardamom", "turmeric", "garlic powder", "onion powder", "chili powder",
+              "ground ginger", "garam masala", "curry powder", "fennel seed", "mustard seed", "bay leaf",
+              "oil", "vegetable oil", "canola oil", "sunflower oil", "olive oil", "peanut oil",
+              "sugar", "granulated sugar", "white sugar", "flour", "all-purpose flour", "baking soda", "baking powder",
+              "vinegar", "stock", "broth", "chicken broth", "chicken stock", "beef broth", "vegetable broth",
+              "dehydrated broth", "bouillon cube"}
+# Herbs are a basic when dried, not when the line asks for fresh leaves.
+HERB_KEYS = {"oregano", "thyme", "rosemary", "basil", "parsley", "cilantro", "dill", "mint", "sage", "coriander", "chives"}
+FRESH = re.compile(r"\b(fresh|freshly[- ]chopped|sprigs?|bunch|handful|leaves|chopped|torn|minced|bouquet)\b", re.I)
+# Text-only lines (no USDA food) that are still a dried spice or a seasoning blend.
+BASIC_TEXT = re.compile(r"\b(salt|seasoning|spice blend|spices?|mixed spice|five spice|marjoram|tarragon|savory|caraway|"
+                        r"anise|celery seed|fenugreek seeds?|nigella|asafoetida|hing|cream of tartar|panch puran|"
+                        r"herbes de provence|epazote|smoked paprika|poultry shake|cooking spray|fat for deep frying|"
+                        r"mixed herbs|herbs to taste|anything else to taste|ice|aniseed|za'atar|mace|bouquet[- ]garni)\b", re.I)
+NOT_BASIC_TEXT = re.compile(r"\b(zest|food colou?ring|liquid smoke|pandan|leaves|ice cream|ghormeh)\b", re.I)
+# Text-only lines that still name something a stock item can be: the words to look for.
+TEXT_MATCH = [(re.compile(r"\blemons? (zest|peel|juice)|\b(zest|peel|juice)\b.*\blemons?\b", re.I), "lemon"),
+              (re.compile(r"\blimes? (zest|peel|juice)|\b(zest|peel|juice)\b.*\blimes?\b", re.I), "lime"),
+              (re.compile(r"\borange (zest|peel)|zest of (1 |a |one )?orange|citrus peel", re.I), "orange"),
+              (re.compile(r"\brose ?water|\brose or orange flower water", re.I), "rose water|orange flower water|orange blossom water"),
+              (re.compile(r"\borange (flower|blossom) water", re.I), "orange flower water|orange blossom water"),
+              (re.compile(r"\blemongrass", re.I), "lemongrass"),
+              (re.compile(r"\bice cream", re.I), "ice cream"),
+              (re.compile(r"\bhoisin", re.I), "hoisin")]
+# Lines the recipe works without: not counted as missing, shown as optional.
+OPTIONAL_ONLY = re.compile(r"\b(optional|for garnish|garnish|for serving|to serve|if desired)\b", re.I)
+
+
+def is_basic(key, raw):
+    if key in BASIC_KEYS:
+        return True
+    if key in HERB_KEYS:
+        return bool(re.search(r"\bdried\b", raw, re.I)) or not FRESH.search(raw)
+    if key is None or key == "_trace":
+        return bool(BASIC_TEXT.search(raw)) and not NOT_BASIC_TEXT.search(raw)
+    return False
+
+
+def flags(key, raw):
+    """The flags the app reads (`CookbookRecipe.Line`): pantry = a kitchen basic,
+    optional = the recipe works without it. Every other line is a real ingredient."""
+    basic = is_basic(key, raw)
+    out = {"pantry": basic}
+    if not basic and (key is None or key == "_trace"):
+        match = next((m for pattern, m in TEXT_MATCH if pattern.search(raw)), None)
+        if match:
+            out["match"] = match
+    if not basic and OPTIONAL_ONLY.search(raw):
+        out["optional"] = True
+    return out
+
+
 # The word a stock item's name must contain to count as this ingredient.
 MATCH = {
     "chicken#breast": "chicken", "chicken breast": "chicken", "chicken thigh": "chicken", "chicken wing": "chicken",
@@ -449,8 +503,8 @@ def build(report=False):
             g = grams(l, key) if key else None
             if g is None:
                 if optional or (key in SEASONING) or (key and l["qty"] is None and key in SEASONING | {"oil", "olive oil", "vegetable oil", "butter", "sugar"}):
-                    out_lines.append({"text": l["raw"], **({"food": by_name[ING.TABLE[key][0]]["id"], "match": match_for(key),
-                                                             "pantry": key in PANTRY} if key else {})})
+                    out_lines.append({"text": l["raw"], **({"food": by_name[ING.TABLE[key][0]]["id"], "match": match_for(key)}
+                                                           if key else {}), **flags(key, l["raw"])})
                     if key:
                         used.add(key)
                     continue
@@ -458,7 +512,7 @@ def build(report=False):
                 stoppers[(l["linkText"][0].lower() if l["linkText"] else l["name"])[:40]] += 1
                 break
             if key == "_trace":
-                out_lines.append({"text": l["raw"]})
+                out_lines.append({"text": l["raw"], **flags(key, l["raw"])})
                 continue
             food = by_name[ING.TABLE[key][0]]
             used.add(key)
@@ -468,7 +522,7 @@ def build(report=False):
                 total[n] += (food.get(n) or 0) * g / 100
             weight += g
             out_lines.append({"text": l["raw"], "food": food["id"], "grams": round(g, 1), "match": match_for(key),
-                              "pantry": key in PANTRY})
+                              **flags(key, l["raw"])})
         if not ok:
             reasons["ingredient not understood"] += 1
             continue
