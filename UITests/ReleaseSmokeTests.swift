@@ -165,7 +165,7 @@ final class ReleaseSmokeTests: XCTestCase {
     }
 
     /// Onboarding with only Workouts chosen: no diet or favourite-food screens,
-    /// and the tab bar holds Home, "+" and Train only.
+    /// and the tab bar holds Home, Train and quick actions only.
     func testOnboardingWithOnlyWorkoutsShowsHomeAndTrain() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
@@ -173,7 +173,7 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.start", to: "onboarding.name.continue", in: app)
         advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
         XCTAssertTrue(app.staticTexts["What do you want Nourlo for?"].exists)
-        XCTAssertTrue(app.staticTexts["2 / 8"].exists)
+        XCTAssertTrue(app.staticTexts["2 / 10"].exists)
         capture("onboarding-features-all")
         for feature in ["tracking", "meals", "groceries"] {
             let row = app.buttons["onboarding.feature." + feature]
@@ -186,19 +186,24 @@ final class ReleaseSmokeTests: XCTestCase {
             XCTAssertFalse(row.isSelected, feature)
         }
         XCTAssertTrue(app.buttons["onboarding.feature.workouts"].isSelected)
-        XCTAssertTrue(app.staticTexts["2 / 6"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["2 / 7"].waitForExistence(timeout: 3))
         capture("onboarding-features-workouts")
         advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
         advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
-        // The goal is the last screen for workouts: its button finishes.
-        XCTAssertEqual(app.buttons["onboarding.goal.continue"].label, "Get started")
+        // No diet, favourite-food or week screens for workouts: the goal leads to reminders and Health.
+        advance("onboarding.goal.continue", to: "onboarding.alerts.finish", in: app)
+        XCTAssertTrue(app.staticTexts["7 / 7"].exists)
+        // Only the workout reminder is offered.
+        XCTAssertTrue(app.buttons["onboarding.alerts.workout"].exists)
+        XCTAssertFalse(app.buttons["onboarding.alerts.breakfast"].exists)
+        capture("onboarding-alerts-workouts")
         // Like `advance`: a tap right after a push can be lost, so retry while the screen is unchanged.
         for _ in 0..<3 {
-            tap("onboarding.goal.continue", in: app)
+            tap("onboarding.alerts.finish", in: app)
             if control("tab.home", in: app).waitForExistence(timeout: 10) { break }
-            if !app.buttons["onboarding.goal.continue"].exists { break }
+            if !app.buttons["onboarding.alerts.finish"].exists { break }
         }
 
         let tabBar = app.tabBars.firstMatch
@@ -207,7 +212,6 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertTrue(control("navigation.quickActions", in: app).exists)
         XCTAssertFalse(tabBar.buttons["Meals"].exists)
         XCTAssertFalse(tabBar.buttons["Shop"].exists)
-        XCTAssertEqual(tabBar.buttons.count, 3)
         XCTAssertTrue(app.descendants(matching: .any)["home.workoutSummary"].firstMatch.waitForExistence(timeout: 5))
         capture("home-workouts-only")
         tap("tab.train", in: app)

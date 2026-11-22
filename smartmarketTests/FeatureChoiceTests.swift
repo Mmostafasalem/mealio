@@ -102,12 +102,12 @@ final class FeatureChoiceTests: XCTestCase {
     // MARK: Tabs
 
     func testEveryFeatureKeepsTodaysTabBar() {
-        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all), [.home, .meals, .quickActions, .shop, .train])
-        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all).map(\.name), ["Home", "Meals", "Quick actions", "Shop", "Train"])
+        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all), [.home, .meals, .shop, .train, .quickActions])
+        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all).map(\.name), ["Home", "Meals", "Shop", "Train", "Quick actions"])
     }
 
     func testWorkoutsOnlyShowsHomeAndTrain() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.workouts]), [.home, .quickActions, .train])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.workouts]), [.home, .train, .quickActions])
     }
 
     func testTrackingOnlyShowsHomeAlone() {
@@ -115,9 +115,9 @@ final class FeatureChoiceTests: XCTestCase {
     }
 
     func testTabsForOtherChoices() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .groceries]), [.home, .meals, .quickActions, .shop])
-        XCTAssertEqual(FeatureLayout.tabs(for: [.groceries, .tracking]), [.home, .quickActions, .shop])
-        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .workouts]), [.home, .meals, .quickActions, .train])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .groceries]), [.home, .meals, .shop, .quickActions])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.groceries, .tracking]), [.home, .shop, .quickActions])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .workouts]), [.home, .meals, .train, .quickActions])
     }
 
     func testTabTagsStayFixed() {
@@ -132,13 +132,13 @@ final class FeatureChoiceTests: XCTestCase {
 
     func testEveryFeatureKeepsAllQuickActions() {
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: AppFeature.all),
-                       ["voice", "logFood", "cart", "groceries", "chat", "profile"])
+                       ["voice", "mealPhoto", "logFood", "cart", "groceries", "chat", "profile"])
     }
 
     func testQuickActionsFollowTheChoice() {
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.workouts]), ["voice", "chat", "profile"])
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.meals]), ["chat", "profile"])
-        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.tracking]), ["voice", "logFood", "chat", "profile"])
+        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.tracking]), ["voice", "mealPhoto", "logFood", "chat", "profile"])
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.groceries]), ["voice", "cart", "groceries", "chat", "profile"])
     }
 
@@ -161,21 +161,22 @@ final class FeatureChoiceTests: XCTestCase {
 
     // MARK: Onboarding steps
 
-    func testEveryFeatureAsksEightQuestions() {
+    func testEveryFeatureAsksTenQuestions() {
         let vm = OnboardingViewModel()
-        XCTAssertEqual(vm.steps, [.name, .features, .height, .weight, .activity, .goal, .diet, .favorites])
-        XCTAssertEqual(vm.totalSteps, 8)
+        XCTAssertEqual(vm.steps, [.name, .features, .height, .weight, .activity, .goal, .diet, .favorites, .week, .alerts])
+        XCTAssertEqual(vm.totalSteps, 10)
         XCTAssertEqual(vm.number(of: .name), 1)
         XCTAssertEqual(vm.number(of: .features), 2)
         XCTAssertEqual(vm.number(of: .favorites), 8)
-        XCTAssertNil(vm.step(after: .favorites))
+        XCTAssertEqual(vm.step(after: .favorites), .week)
+        XCTAssertNil(vm.step(after: .alerts), "reminders and Health always end onboarding")
     }
 
     func testPaceSharesTheGoalsNumber() {
         let vm = OnboardingViewModel()
         vm.weightGoal = .lose
-        XCTAssertEqual(vm.steps, [.name, .features, .height, .weight, .activity, .goal, .pace, .diet, .favorites])
-        XCTAssertEqual(vm.totalSteps, 8)
+        XCTAssertEqual(vm.steps, [.name, .features, .height, .weight, .activity, .goal, .pace, .diet, .favorites, .week, .alerts])
+        XCTAssertEqual(vm.totalSteps, 10)
         XCTAssertEqual(vm.number(of: .pace), vm.number(of: .goal))
         XCTAssertEqual(vm.step(after: .goal), .pace)
         XCTAssertEqual(vm.step(after: .pace), .diet)
@@ -184,26 +185,33 @@ final class FeatureChoiceTests: XCTestCase {
     func testWorkoutsOnlySkipsFoodQuestions() {
         // Body stats and the goal still matter: calorie estimates and Train's focus.
         XCTAssertEqual(FeatureLayout.onboardingSteps(for: [.workouts], losingWeight: true),
-                       [.name, .features, .height, .weight, .activity, .goal])
+                       [.name, .features, .height, .weight, .activity, .goal, .alerts])
         let vm = OnboardingViewModel()
         vm.features = [.workouts]
-        XCTAssertNil(vm.step(after: .goal), "the goal is the last screen; its button finishes")
-        XCTAssertEqual(vm.totalSteps, 6)
+        XCTAssertEqual(vm.step(after: .goal), .alerts)
+        XCTAssertEqual(vm.totalSteps, 7)
     }
 
     func testGroceriesOnlySkipsBodyQuestions() {
         XCTAssertEqual(FeatureLayout.onboardingSteps(for: [.groceries], losingWeight: false),
-                       [.name, .features, .diet, .favorites])
+                       [.name, .features, .diet, .favorites, .week, .alerts])
     }
 
     func testTrackingOnlySkipsFavourites() {
         XCTAssertEqual(FeatureLayout.onboardingSteps(for: [.tracking], losingWeight: true),
-                       [.name, .features, .height, .weight, .activity, .goal, .pace, .diet])
+                       [.name, .features, .height, .weight, .activity, .goal, .pace, .diet, .week, .alerts])
     }
 
     func testMealsKeepsFavourites() {
         XCTAssertEqual(FeatureLayout.onboardingSteps(for: [.meals], losingWeight: false),
-                       [.name, .features, .height, .weight, .activity, .goal, .diet, .favorites])
+                       [.name, .features, .height, .weight, .activity, .goal, .diet, .favorites, .week, .alerts])
+    }
+
+    func testRemindersFollowTheChoice() {
+        XCTAssertTrue(FeatureLayout.offersReminder(.workout, [.workouts]))
+        XCTAssertFalse(FeatureLayout.offersReminder(.breakfast, [.workouts]))
+        XCTAssertTrue(FeatureLayout.offersReminder(.breakfast, [.tracking]))
+        XCTAssertFalse(FeatureLayout.offersReminder(.workout, [.tracking, .meals]))
     }
 
     func testNoFeatureCannotContinue() {

@@ -195,7 +195,7 @@ enum FeatureLayout {
     /// The feature a quest belongs to. Cooking from stock needs the food log and the stock.
     static func allows(_ quest: QuestID, _ features: Set<AppFeature>) -> Bool {
         switch quest {
-        case .logAny, .breakfast, .threeMeals, .protein, .onTarget, .newFood:
+        case .logAny, .breakfast, .threeMeals, .protein, .onTarget, .newFood, .vegetables, .fruit:
             return features.contains(.tracking)
         case .workout, .anyWorkout:
             return features.contains(.workouts)
