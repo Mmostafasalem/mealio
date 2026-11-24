@@ -292,13 +292,16 @@ final class ReleaseSmokeTests: XCTestCase {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Nourlo Guest AI Verification",
                           "This test may delete only its dedicated disposable simulator's app data.")
         let app = XCUIApplication()
+        // No "-aiSharingConsent_v1" argument here: a launch argument would override the
+        // switch the test turns on (the dedicated simulator is erased before each run).
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES",
-                               "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+                               "-bowlGuideVisible_v2", "YES"]
         launchForTesting(app)
         openProfile(in: app)
         capture("live-guest-profile-navigation")
         let guest = app.buttons["profile.guestSignIn"]
-        for _ in 0..<8 {
+        // Profile is long (Features, week, appearance …); keep scrolling until the guest button shows.
+        for _ in 0..<16 {
             if guest.exists && guest.isHittable { break }
             app.swipeUp()
         }
@@ -312,7 +315,14 @@ final class ReleaseSmokeTests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(consent.isHittable)
-        if consent.value as? String == "0" { consent.tap() }
+        // The switch's value reads "0"/"1" on older systems and may differ on newer ones; tap until it is on.
+        func isOn() -> Bool { ["1", "on", "true"].contains((consent.value as? String ?? "").lowercased()) }
+        for _ in 0..<3 where !isOn() {
+            // The custom switch reacts on its knob at the right edge of the row.
+            consent.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        XCTAssertTrue(isOn(), "AI sharing switched on (value: \(consent.value ?? "nil"))")
         tap("tab.home", in: app)
         tap("mascot.guide", in: app)
         tap("guide.chat", in: app)
@@ -322,8 +332,12 @@ final class ReleaseSmokeTests: XCTestCase {
         field.tap()
         field.typeText("Synthetic connection test: briefly confirm you can help plan a meal.")
         tap("chat.send", in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["chat.assistantReply"].firstMatch.waitForExistence(timeout: 120),
-                      "The live authenticated AI must return a response.")
+        // The reply bubble appears empty while it streams; wait for real words in it.
+        let reply = app.descendants(matching: .any)["chat.assistantReply"].firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 120), "The live authenticated AI must return a response.")
+        let hasWords = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label MATCHES %@", ".*[A-Za-z]{3,}.*[A-Za-z]{3,}.*"), object: reply)
+        XCTAssertEqual(XCTWaiter.wait(for: [hasWords], timeout: 120), .completed, "The reply has text: \(reply.label)")
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
         XCTAssertFalse(app.otherElements["chat.notice"].exists)
         capture("live-guest-online-chat")
         app.buttons["Done"].tap()

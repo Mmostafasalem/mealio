@@ -51,6 +51,11 @@ Optionally save logged food and tracked workouts to Apple Health, and read your
 weight, steps and active energy. Health data never leaves your device. Home
 Screen and Lock Screen widgets show your calories and today's meals.
 
+Chat with Nourlo
+Ask Nourlo about meals, groceries and your targets, or for a new recipe. Online AI
+is optional: continue as a free guest in Profile (no sign-up) and get 30 AI credits
+a day; a chat message or an AI recipe costs 1. It only sees what you allow it to.
+
 Your data stays yours
 No account needed, no ads, no tracking. Optional private iCloud sync covers
 shopping data; body measurements and food logs are not synced. Delete All Data
@@ -60,13 +65,21 @@ Nourlo is not a medical device and does not provide medical advice. Nutrition
 and calorie values are estimates. Check ingredients and allergens yourself and
 consult a qualified professional about your individual dietary needs.
 
+## App Privacy additions now that online AI is on
+- User Content (chat messages): App Functionality, linked to the user, not tracking.
+- Health & Fitness (goals, targets, body stats shared with AI only after consent): App Functionality, linked, not tracking.
+- Identifiers (User ID: the guest account): App Functionality, linked, not tracking.
+- Usage Data (Product Interaction: AI credit use): App Functionality, linked, not tracking.
+
 ## Keywords (100 characters max, no spaces after commas)
 meal planner,calorie counter,grocery list,macro,workout,diet,food log,recipes,fitness,tracker
 
 ## Review notes
-No login is needed: every feature in this version works without an account.
-Online AI chat is not offered in this version (the server runs without AI), so
-the AI section in Profile is hidden.
+No login is needed: every feature except the optional AI chat works without an account.
+Online AI (chat and AI recipes): Profile > AI allowance > Continue as a guest (free,
+no sign-up, 30 credits a day), then turn on Profile > Privacy & Help > Online AI for
+chat and recipes, then tap Nourlo on Home > Chat. Requests go through our backend to
+Groq; Delete online account (Profile) or Delete All Data removes the account.
 Meal plans, weekly groceries, workouts and the recipe library are built on the
 device. Voice logging uses on-device speech recognition; the microphone and
 speech permission are only asked when the microphone button is tapped.
