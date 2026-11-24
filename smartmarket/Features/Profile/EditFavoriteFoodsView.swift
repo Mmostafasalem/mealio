@@ -7,6 +7,9 @@ struct EditFavoriteFoodsView: View {
     @State private var selectedCategory: CatalogCategory? = nil
     @State private var displayItems: [CatalogItem] = CatalogItem.all
     @State private var filterTask: Task<Void, Never>?
+    /// The foods shown while "N selected" is on: the selection when it was tapped, so a
+    /// food unticked by mistake stays in the list and can be ticked again.
+    @State private var selectedOnly: Set<String>? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,10 +24,18 @@ struct EditFavoriteFoodsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if vm.favoriteFoodIDs.count > 0 {
-                    Text("\(vm.favoriteFoodIDs.count) selected" as String)
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(Color.brandPrimary)
+                if vm.favoriteFoodIDs.count > 0 || selectedOnly != nil {
+                    Button {
+                        selectedOnly = selectedOnly == nil ? vm.favoriteFoodIDs : nil
+                    } label: {
+                        Text(selectedOnly == nil ? "\(vm.favoriteFoodIDs.count) selected" as String : "Show all")
+                            .font(.caption).fontWeight(.semibold)
+                            .foregroundStyle(selectedOnly == nil ? Color.brandPrimary : Color.onAccent)
+                            .padding(.horizontal, selectedOnly == nil ? 0 : 10).padding(.vertical, 4)
+                            .background(selectedOnly == nil ? Color.clear : Color.dullPink, in: Capsule())
+                    }
+                    .accessibilityIdentifier("favorites.selectedOnly")
+                    .accessibilityHint(selectedOnly == nil ? "Shows only the foods you picked" : "Shows every food again")
                 }
             }
         }
@@ -36,11 +47,12 @@ struct EditFavoriteFoodsView: View {
     private var categoryStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                CategoryChip(label: "All", isSelected: selectedCategory == nil) {
-                    selectedCategory = nil
+                CategoryChip(label: "All", isSelected: selectedCategory == nil && selectedOnly == nil) {
+                    selectedCategory = nil; selectedOnly = nil
                 }
                 ForEach(CatalogCategory.allCases) { cat in
-                    CategoryChip(label: cat.displayName, isSelected: selectedCategory == cat) {
+                    CategoryChip(label: cat.displayName, isSelected: selectedCategory == cat && selectedOnly == nil) {
+                        selectedOnly = nil
                         selectedCategory = (selectedCategory == cat) ? nil : cat
                     }
                 }
@@ -59,7 +71,20 @@ struct EditFavoriteFoodsView: View {
 
     private var itemList: some View {
         List {
-            if displayItems.isEmpty {
+            if let chosen = selectedOnly {
+                // Only the foods picked, in catalogue order, grouped by category.
+                ForEach(CatalogCategory.allCases) { cat in
+                    let items = CatalogItem.all.filter { $0.category == cat && chosen.contains($0.id) }
+                        .filter { query.isEmpty || $0.name.lowercased().contains(query.lowercased()) }
+                    if !items.isEmpty {
+                        Section {
+                            ForEach(items, content: favoriteRow)
+                        } header: {
+                            SectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
+                        }
+                    }
+                }
+            } else if displayItems.isEmpty {
                 Text("No items match your search.")
                     .foregroundStyle(Color.labelSecondary)
                     .listRowBackground(Color.clear)

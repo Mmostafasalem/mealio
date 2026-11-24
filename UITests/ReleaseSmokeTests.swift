@@ -414,6 +414,27 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(info.frame.height, 44 - geometryTolerance)
     }
 
+    /// "N selected" on Favourite foods lists only the chosen foods; tapping again shows all.
+    func testFavouriteFoodsSelectedCountShowsOnlyThoseFoods() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-favoriteFoodIDs", "(chicken-breast, salmon)"]
+        launchForTesting(app)
+        chooseQuickAction("profile", in: app)
+        let row = app.buttons["Favourite foods"].firstMatch
+        for _ in 0..<8 where !row.isHittable { app.swipeUp() }
+        row.tap()
+        let toggle = app.buttons["favorites.selectedOnly"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Chicken Thighs"].waitForExistence(timeout: 5), "the full list first")
+        toggle.tap()
+        XCTAssertTrue(app.staticTexts["Chicken Breast"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Chicken Thighs"].exists, "only the picked foods")
+        capture("favourites-selected-only")
+        app.buttons["favorites.selectedOnly"].tap()
+        XCTAssertTrue(app.staticTexts["Chicken Thighs"].waitForExistence(timeout: 5), "all again")
+    }
+
     func testSystemTabBarShowsIconsOnly() throws {
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "iPad shows the tabs in a floating bar at the top, not a tab bar")
         let app = XCUIApplication()
