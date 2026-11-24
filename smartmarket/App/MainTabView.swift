@@ -82,29 +82,27 @@ struct MainTabView: View {
 
     /// The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
     /// Only the tabs for the features the person chose; Home and quick actions are
-    /// always there. From iOS 18 quick actions is a separate tab; on iOS 26 the system
-    /// draws it as its own round glass button at the end of the bar.
+    /// always there, quick actions in the middle of the same bar (an ordinary tab, not
+    /// the separate search-style button iOS 26 would draw for a search role).
     @ViewBuilder private var tabs: some View {
-        let screens = FeatureLayout.tabs(for: features).filter { $0 != .quickActions }
+        let all = FeatureLayout.tabs(for: features)
         if #available(iOS 18, *) {
             TabView(selection: tabSelection) {
-                ForEach(screens) { tab in
-                    Tab(value: tab.rawValue) { tabContent(tab) } label: { TabIcon(symbol: tab.symbol, name: tab.name) }
-                }
-                Tab(value: Self.quickActionsTag, role: .search) { Color.clear } label: {
-                    TabIcon(symbol: AppTab.quickActions.symbol, name: AppTab.quickActions.name)
+                ForEach(all) { tab in
+                    Tab(value: tab.rawValue) {
+                        if tab == .quickActions { Color.clear } else { tabContent(tab) }
+                    } label: { TabIcon(symbol: tab.symbol, name: tab.name) }
                 }
             }
         } else {
             TabView(selection: tabSelection) {
-                ForEach(screens) { tab in
-                    tabContent(tab)
-                        .tabItem { TabIcon(symbol: tab.symbol, name: tab.name) }
-                        .tag(tab.rawValue)
+                ForEach(all) { tab in
+                    Group {
+                        if tab == .quickActions { Color.clear } else { tabContent(tab) }
+                    }
+                    .tabItem { TabIcon(symbol: tab.symbol, name: tab.name) }
+                    .tag(tab.rawValue)
                 }
-                Color.clear
-                    .tabItem { TabIcon(symbol: AppTab.quickActions.symbol, name: AppTab.quickActions.name) }
-                    .tag(Self.quickActionsTag)
             }
         }
     }

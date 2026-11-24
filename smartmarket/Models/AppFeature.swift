@@ -138,7 +138,8 @@ enum FeatureLayout {
     static func tabs(for features: Set<AppFeature>) -> [AppTab] {
         var tabs: [AppTab] = [.home]
         tabs += [AppTab.meals, .shop, .train].filter { $0.feature.map(features.contains) ?? true }
-        tabs.append(.quickActions)
+        // Quick actions sits in the middle of the bar, in the same dock as the screens.
+        tabs.insert(.quickActions, at: (tabs.count + 1) / 2)
         return tabs
     }
 

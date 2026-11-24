@@ -102,12 +102,12 @@ final class FeatureChoiceTests: XCTestCase {
     // MARK: Tabs
 
     func testEveryFeatureKeepsTodaysTabBar() {
-        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all), [.home, .meals, .shop, .train, .quickActions])
-        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all).map(\.name), ["Home", "Meals", "Shop", "Train", "Quick actions"])
+        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all), [.home, .meals, .quickActions, .shop, .train])
+        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all).map(\.name), ["Home", "Meals", "Quick actions", "Shop", "Train"])
     }
 
     func testWorkoutsOnlyShowsHomeAndTrain() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.workouts]), [.home, .train, .quickActions])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.workouts]), [.home, .quickActions, .train])
     }
 
     func testTrackingOnlyShowsHomeAlone() {
@@ -115,9 +115,9 @@ final class FeatureChoiceTests: XCTestCase {
     }
 
     func testTabsForOtherChoices() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .groceries]), [.home, .meals, .shop, .quickActions])
-        XCTAssertEqual(FeatureLayout.tabs(for: [.groceries, .tracking]), [.home, .shop, .quickActions])
-        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .workouts]), [.home, .meals, .train, .quickActions])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .groceries]), [.home, .meals, .quickActions, .shop])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.groceries, .tracking]), [.home, .quickActions, .shop])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .workouts]), [.home, .meals, .quickActions, .train])
     }
 
     func testTabTagsStayFixed() {
