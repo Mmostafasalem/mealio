@@ -138,6 +138,12 @@ final class ProfileViewModel {
         }
     }
 
+    /// Picks or clears a whole group at once ("Select all" in a category or subgroup).
+    func setFavorites(_ items: [CatalogItem], selected: Bool) {
+        let ids = Set(items.map(\.id))
+        if selected { favoriteFoodIDs.formUnion(ids) } else { favoriteFoodIDs.subtract(ids) }
+    }
+
     func toggleFavorite(_ item: CatalogItem) {
         if favoriteFoodIDs.contains(item.id) {
             favoriteFoodIDs.remove(item.id)

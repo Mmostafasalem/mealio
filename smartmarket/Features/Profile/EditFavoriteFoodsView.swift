@@ -72,46 +72,83 @@ struct EditFavoriteFoodsView: View {
     private var itemList: some View {
         List {
             if let chosen = selectedOnly {
-                // Only the foods picked, in catalogue order, grouped by category.
+                // Only the foods picked, grouped like the full list.
                 ForEach(CatalogCategory.allCases) { cat in
                     let items = CatalogItem.all.filter { $0.category == cat && chosen.contains($0.id) }
                         .filter { query.isEmpty || $0.name.lowercased().contains(query.lowercased()) }
-                    if !items.isEmpty {
-                        Section {
-                            ForEach(items, content: favoriteRow)
-                        } header: {
-                            SectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
-                        }
-                    }
+                    if !items.isEmpty { categorySection(cat, items: items) }
                 }
             } else if displayItems.isEmpty {
                 Text("No items match your search.")
                     .foregroundStyle(Color.labelSecondary)
                     .listRowBackground(Color.clear)
-            } else if selectedCategory == nil && query.isEmpty {
-                ForEach(CatalogCategory.allCases) { cat in
+            } else if query.isEmpty {
+                // Grouped by category, then by what the food is (Chicken, Pork, Beef …).
+                ForEach(selectedCategory.map { [$0] } ?? CatalogCategory.allCases) { cat in
                     let items = CatalogItem.all.filter { $0.category == cat }
-                    if !items.isEmpty {
-                        Section {
-                            ForEach(items, content: favoriteRow)
-                        } header: {
-                            SectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
-                        }
-                    }
+                    if !items.isEmpty { categorySection(cat, items: items) }
                 }
             } else {
                 Section {
-                    ForEach(displayItems) { item in
-                        ItemRow(item: item,
-                                isSelected: vm.favoriteFoodIDs.contains(item.id)) {
-                            vm.toggleFavorite(item)
-                        }
-                    }
+                    ForEach(displayItems, content: favoriteRow)
                 }
             }
         }
         .listStyle(.insetGrouped)
         .scrollDismissesKeyboard(.immediately)
+    }
+
+    /// One category: a header with "Select all" for the whole category, then its
+    /// subgroups, each with its own heading and "Select all".
+    private func categorySection(_ cat: CatalogCategory, items: [CatalogItem]) -> some View {
+        let groups = CatalogSubgroups.groups(of: items, in: cat)
+        return Section {
+            ForEach(groups, id: \.title) { group in
+                if groups.count > 1 { subgroupHeader(group.title, items: group.items) }
+                ForEach(group.items, content: favoriteRow)
+            }
+        } header: {
+            HStack(spacing: 8) {
+                SectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs)
+                selectAllButton(items, label: "all \(cat.displayName)")
+                    .accessibilityIdentifier("favorites.selectAll.\(cat.rawValue)")
+            }
+        }
+    }
+
+    private func subgroupHeader(_ title: String, items: [CatalogItem]) -> some View {
+        let picked = items.filter { vm.favoriteFoodIDs.contains($0.id) }.count
+        return HStack(spacing: 8) {
+            Text(title).font(.subheadline.weight(.bold)).foregroundStyle(Color.labelPrimary)
+            Text("\(picked) of \(items.count)" as String).font(.caption).foregroundStyle(Color.labelSecondary)
+                .monospacedDigit()
+            Spacer()
+            selectAllButton(items, label: title)
+                .accessibilityIdentifier("favorites.selectAll.\(title)")
+        }
+        .padding(.top, 6)
+        .listRowBackground(Color.surface.opacity(0.6))
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// "Select all" when anything in the group is unpicked, otherwise "Clear".
+    private func selectAllButton(_ items: [CatalogItem], label: String) -> some View {
+        let allPicked = items.allSatisfy { vm.favoriteFoodIDs.contains($0.id) }
+        return Button {
+            withAnimation(.snappy) { vm.setFavorites(items, selected: !allPicked) }
+        } label: {
+            Text(allPicked ? "Clear" : "Select all")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(allPicked ? Color.labelSecondary : Color.brandPrimary)
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(Color(.tertiarySystemFill), in: Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .textCase(nil)
+        .accessibilityLabel(allPicked ? "Clear \(label)" : "Select \(label)")
     }
 
     private func scheduleFilter() {

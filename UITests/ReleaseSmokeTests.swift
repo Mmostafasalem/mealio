@@ -418,7 +418,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testFavouriteFoodsSelectedCountShowsOnlyThoseFoods() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-favoriteFoodIDs", "(chicken-breast, salmon)"]
+                               "-favoriteFoodIDs", "(chicken-breast)"]
         launchForTesting(app)
         chooseQuickAction("profile", in: app)
         let row = app.buttons["Favourite foods"].firstMatch
@@ -433,6 +433,18 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("favourites-selected-only")
         app.buttons["favorites.selectedOnly"].tap()
         XCTAssertTrue(app.staticTexts["Chicken Thighs"].waitForExistence(timeout: 5), "all again")
+        // A subgroup's "Select all" picks every chicken; then it offers "Clear".
+        let chicken = app.buttons["favorites.selectAll.Chicken"]
+        XCTAssertTrue(chicken.waitForExistence(timeout: 5))
+        capture("favourites-grouped")
+        chicken.tap()
+        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Clear Chicken'"), object: chicken)
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed, "all six chicken foods picked")
+        let count = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == '6 selected'"), object: toggle)
+        XCTAssertEqual(XCTWaiter.wait(for: [count], timeout: 5), .completed, "six selected")
+        chicken.tap()
+        let selectAgain = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Select Chicken'"), object: chicken)
+        XCTAssertEqual(XCTWaiter.wait(for: [selectAgain], timeout: 5), .completed)
     }
 
     func testSystemTabBarShowsIconsOnly() throws {
