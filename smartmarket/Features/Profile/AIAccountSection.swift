@@ -50,17 +50,20 @@ struct AIAccountSection: View {
                     Text("Guest access is tied to this device's secure key. It has a daily allowance and shares overall service limits. Apple sign-in can keep an allowance across devices.")
                         .font(.footnote).foregroundStyle(Color.labelSecondary)
                 }
-                Text("Sign in with Apple to keep the same daily AI allowance across your devices.")
-                    .font(.subheadline)
-                SignInWithAppleButton(.signIn) { request in
-                    account.configure(request)
-                } onCompletion: { result in
-                    Task { await account.complete(result) }
+                // Only when the server offers Apple sign-in; a greyed-out button that never works helps no one.
+                if account.appleAvailable {
+                    Text("Sign in with Apple to keep the same daily AI allowance across your devices.")
+                        .font(.subheadline)
+                    SignInWithAppleButton(.signIn) { request in
+                        account.configure(request)
+                    } onCompletion: { result in
+                        Task { await account.complete(result) }
+                    }
+                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                    .frame(height: 50)
+                    .disabled(!account.canStartSignIn)
+                    .accessibilityIdentifier("profile.appleSignIn")
                 }
-                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                .frame(height: 50)
-                .disabled(!account.canStartSignIn)
-                .accessibilityIdentifier("profile.appleSignIn")
             }
             if account.isWorking { ProgressView("Checking AI account…") }
             if let message = account.message {

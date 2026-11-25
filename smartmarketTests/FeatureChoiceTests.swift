@@ -89,6 +89,7 @@ final class FeatureChoiceTests: XCTestCase {
             AppState.shared.reloadStoredData()
         }
         let vm = OnboardingViewModel()
+        vm.offersAI = false
         XCTAssertEqual(vm.features, AppFeature.all, "every feature starts on")
         vm.toggleFeature(.tracking)
         vm.toggleFeature(.meals)
@@ -163,6 +164,7 @@ final class FeatureChoiceTests: XCTestCase {
 
     func testEveryFeatureAsksTenQuestions() {
         let vm = OnboardingViewModel()
+        vm.offersAI = false
         XCTAssertEqual(vm.steps, [.name, .features, .height, .weight, .activity, .goal, .diet, .favorites, .week, .alerts])
         XCTAssertEqual(vm.totalSteps, 10)
         XCTAssertEqual(vm.number(of: .name), 1)
@@ -174,6 +176,7 @@ final class FeatureChoiceTests: XCTestCase {
 
     func testPaceSharesTheGoalsNumber() {
         let vm = OnboardingViewModel()
+        vm.offersAI = false
         vm.weightGoal = .lose
         XCTAssertEqual(vm.steps, [.name, .features, .height, .weight, .activity, .goal, .pace, .diet, .favorites, .week, .alerts])
         XCTAssertEqual(vm.totalSteps, 10)
@@ -187,6 +190,7 @@ final class FeatureChoiceTests: XCTestCase {
         XCTAssertEqual(FeatureLayout.onboardingSteps(for: [.workouts], losingWeight: true),
                        [.name, .features, .height, .weight, .activity, .goal, .alerts])
         let vm = OnboardingViewModel()
+        vm.offersAI = false
         vm.features = [.workouts]
         XCTAssertEqual(vm.step(after: .goal), .alerts)
         XCTAssertEqual(vm.totalSteps, 7)
@@ -216,6 +220,7 @@ final class FeatureChoiceTests: XCTestCase {
 
     func testNoFeatureCannotContinue() {
         let vm = OnboardingViewModel()
+        vm.offersAI = false
         AppFeature.allCases.forEach(vm.toggleFeature)
         XCTAssertTrue(vm.features.isEmpty)
         XCTAssertFalse(vm.canContinueFromFeatures)
@@ -255,5 +260,15 @@ final class FeatureChoiceTests: XCTestCase {
         XCTAssertEqual(BowlTourStep.steps(for: [.workouts]).map(\.action), [.train])
         XCTAssertEqual(BowlTourStep.pathways(for: [.workouts]), [.train])
         XCTAssertEqual(BowlTourStep.pathways(for: [.meals, .tracking]), [.logFood, .meals])
+    }
+}
+
+@MainActor
+final class AccountStepTests: XCTestCase {
+    func testAccountStepOnlyWhenOnlineAIIsOffered() {
+        let without = FeatureLayout.onboardingSteps(for: AppFeature.all, losingWeight: false)
+        XCTAssertFalse(without.contains(.account))
+        let with = FeatureLayout.onboardingSteps(for: AppFeature.all, losingWeight: false, offersAI: true)
+        XCTAssertEqual(Array(with.suffix(2)), [.account, .alerts], "just before reminders and Health")
     }
 }

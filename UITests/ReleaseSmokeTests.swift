@@ -148,6 +148,12 @@ final class ReleaseSmokeTests: XCTestCase {
             if app.buttons[destination].waitForExistence(timeout: 5) { return }
             if !app.buttons[source].exists { break }
         }
+        // "Chat with Nourlo?" shows only while the server offers online AI: go on without an account.
+        let skip = app.buttons["onboarding.account.skip"]
+        if !app.buttons[destination].exists, skip.exists {
+            skip.tap()
+            _ = app.buttons[destination].waitForExistence(timeout: 5)
+        }
         XCTAssertTrue(app.buttons[destination].exists, "Navigation did not reach \(destination)")
     }
 
@@ -173,7 +179,8 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.start", to: "onboarding.name.continue", in: app)
         advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
         XCTAssertTrue(app.staticTexts["What do you want Nourlo for?"].exists)
-        XCTAssertTrue(app.staticTexts["2 / 10"].exists)
+        // 10 screens, 11 when the server offers online AI (the account step).
+        XCTAssertTrue(app.staticTexts["2 / 10"].exists || app.staticTexts["2 / 11"].exists)
         capture("onboarding-features-all")
         for feature in ["tracking", "meals", "groceries"] {
             let row = app.buttons["onboarding.feature." + feature]
@@ -186,7 +193,7 @@ final class ReleaseSmokeTests: XCTestCase {
             XCTAssertFalse(row.isSelected, feature)
         }
         XCTAssertTrue(app.buttons["onboarding.feature.workouts"].isSelected)
-        XCTAssertTrue(app.staticTexts["2 / 7"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["2 / 7"].waitForExistence(timeout: 3) || app.staticTexts["2 / 8"].exists)
         capture("onboarding-features-workouts")
         advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
         advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
@@ -194,7 +201,7 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         // No diet, favourite-food or week screens for workouts: the goal leads to reminders and Health.
         advance("onboarding.goal.continue", to: "onboarding.alerts.finish", in: app)
-        XCTAssertTrue(app.staticTexts["7 / 7"].exists)
+        XCTAssertTrue(app.staticTexts["7 / 7"].exists || app.staticTexts["8 / 8"].exists, "7 screens, 8 with the AI account step")
         // Only the workout reminder is offered.
         XCTAssertTrue(app.buttons["onboarding.alerts.workout"].exists)
         XCTAssertFalse(app.buttons["onboarding.alerts.breakfast"].exists)
@@ -459,6 +466,31 @@ final class ReleaseSmokeTests: XCTestCase {
         chicken.tap()
         let selectAgain = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Select Chicken'"), object: chicken)
         XCTAssertEqual(XCTWaiter.wait(for: [selectAgain], timeout: 5), .completed)
+    }
+
+    /// With online AI offered, onboarding asks "Chat with Nourlo?" before reminders; "Not now" goes on.
+    func testOnboardingOffersAnAIAccountStep() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO",
+                               "-onlineAIOffered_v1", "YES"]
+        launchForTesting(app)
+        advance("onboarding.start", to: "onboarding.name.continue", in: app)
+        advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
+        // Workouts only, the shortest path to the account step.
+        for id in ["tracking", "meals", "groceries"] {
+            let row = app.buttons["onboarding.feature.\(id)"]
+            if row.waitForExistence(timeout: 5) { row.tap() }
+        }
+        advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
+        advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
+        advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
+        advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
+        tap("onboarding.goal.continue", in: app)
+        XCTAssertTrue(app.staticTexts["Chat with Nourlo?"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["onboarding.account.skip"].exists)
+        capture("onboarding-account-step")
+        tap("onboarding.account.skip", in: app)
+        XCTAssertTrue(app.buttons["onboarding.alerts.finish"].waitForExistence(timeout: 5))
     }
 
     func testSystemTabBarShowsIconsOnly() throws {

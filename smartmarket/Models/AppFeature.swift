@@ -243,7 +243,7 @@ enum FeatureLayout {
 
     /// Onboarding screens in order for these features. `pace` is included only
     /// while the goal is to lose weight. Reminders and Health always end it.
-    static func onboardingSteps(for features: Set<AppFeature>, losingWeight: Bool) -> [OnboardingStep] {
+    static func onboardingSteps(for features: Set<AppFeature>, losingWeight: Bool, offersAI: Bool = false) -> [OnboardingStep] {
         var steps: [OnboardingStep] = [.name, .features]
         if asksBodyStats(features) { steps += [.height, .weight, .activity] }
         if asksGoal(features) { steps.append(.goal) }
@@ -251,6 +251,8 @@ enum FeatureLayout {
         if asksDiet(features) { steps.append(.diet) }
         if asksFavorites(features) { steps.append(.favorites) }
         if asksWeek(features) { steps.append(.week) }
+        // Only when the backend offers online AI (guest or Apple accounts).
+        if offersAI { steps.append(.account) }
         steps.append(.alerts)
         return steps
     }

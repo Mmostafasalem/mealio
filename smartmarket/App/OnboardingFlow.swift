@@ -24,6 +24,7 @@ struct OnboardingFlow: View {
                     case .diet:          DietaryPreferencesView(vm: vm)
                     case .favorites:     FavoriteFoodsView(vm: vm)
                     case .week:          WeekStepView(vm: vm)
+                    case .account:       AccountStepView(vm: vm)
                     case .alerts:        AlertsStepView(vm: vm)
                     }
                 }
@@ -39,5 +40,5 @@ enum OnboardingStep: Int, Hashable, CaseIterable {
     case name, features, height, weight, activity
     case goal, pace
     case diet, favorites
-    case week, alerts
+    case week, account, alerts
 }

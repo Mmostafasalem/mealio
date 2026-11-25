@@ -17,9 +17,14 @@ final class OnboardingViewModel {
 
     var canContinueFromFeatures: Bool { !features.isEmpty }
 
+    /// Whether the online AI account step is shown; nil asks the account service
+    /// (tests set it so the screen count doesn't depend on the server).
+    var offersAI: Bool? = nil
+
     /// The screens these features need, in order (`pace` only when losing weight).
     var steps: [OnboardingStep] {
-        FeatureLayout.onboardingSteps(for: features, losingWeight: weightGoal == .lose)
+        FeatureLayout.onboardingSteps(for: features, losingWeight: weightGoal == .lose,
+                                      offersAI: offersAI ?? AIAccountService.shared.offersOnlineAI)
     }
 
     /// The screen after `step`, or nil when `step` is the last one.

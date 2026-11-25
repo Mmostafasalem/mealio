@@ -277,7 +277,7 @@ private struct AlertChip: View {
 
 // MARK: - Shared pieces
 
-private struct SetupCard<Content: View>: View {
+struct SetupCard<Content: View>: View {
     var title: String? = nil
     var note: String? = nil
     @ViewBuilder var content: () -> Content
