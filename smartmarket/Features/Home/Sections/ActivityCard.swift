@@ -20,9 +20,7 @@ struct ActivityCard: View {
 
     private var card: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                HomeCardTitle(title: "Activity today", symbol: "figure.walk")
-                Spacer()
+            HomeSectionHeader(title: "Activity today", subtitle: "From Apple Health", symbol: "figure.walk", section: .activity) {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Color.labelTertiary)
@@ -31,13 +29,8 @@ struct ActivityCard: View {
                 HStack(spacing: Spacing.lg) { stats }
                 VStack(alignment: .leading, spacing: Spacing.md) { stats }
             }
-            Text("From Apple Health")
-                .font(.caption)
-                .foregroundStyle(Color.labelSecondary)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Spacing.lg)
-        .premiumCard()
+        .homeSectionCard(.activity)
     }
 
     @ViewBuilder private var stats: some View {
@@ -49,7 +42,7 @@ struct ActivityCard: View {
         HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
             Image(systemName: symbol)
                 .font(.subheadline)
-                .foregroundStyle(Color.progress)
+                .foregroundStyle(Color.labelPrimary)
             Text(value)
                 .font(.title2.weight(.bold).monospacedDigit())
                 .foregroundStyle(Color.labelPrimary)

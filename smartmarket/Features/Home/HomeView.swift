@@ -4,7 +4,6 @@ struct HomeView: View {
 
     /// Profile opens from the avatar in the header (and from quick actions).
     @State private var showProfile = false
-    @State private var showReminders = false
     @State private var reminders = ReminderStore.shared
     @State private var loop = DailyLoopStore.shared
     @State private var showStock = false
@@ -46,6 +45,7 @@ struct HomeView: View {
     /// What the person uses Nourlo for (onboarding, Profile › Features).
     private func has(_ feature: AppFeature) -> Bool { AppState.shared.isEnabled(feature) }
     private var showsStock: Bool { FeatureLayout.showsStock(AppState.shared.enabledFeatures) }
+    /// The microphone sits beside Log food on the calorie card.
     private var showsVoice: Bool { FeatureLayout.showsVoice(AppState.shared.enabledFeatures) }
 
     private func openQuest(_ destination: QuestDestination) {
@@ -54,50 +54,6 @@ struct HomeView: View {
         case .train: NotificationCenter.default.post(name: .openTrain, object: nil)
         case .shop: NotificationCenter.default.post(name: .openShop, object: nil)
         case .stock: showStock = true
-        }
-    }
-
-    private func shortcut(_ title: String, symbol: String) -> some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: symbol)
-            Text(title).lineLimit(1).minimumScaleFactor(0.8)
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(Color.labelPrimary)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background(Color.surface, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
-        .contentShape(Capsule())
-    }
-
-    /// Two matching pills with the microphone between them, each only for the
-    /// features the person chose (My Stock with meals or groceries, History with tracking).
-    @ViewBuilder private var shortcutRow: some View {
-        if showsStock || showsVoice || has(.tracking) {
-            HStack(spacing: Spacing.md) {
-                if showsStock {
-                    NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
-                        .accessibilityIdentifier("home.stock")
-                }
-                if showsVoice {
-                    // One tap to speak a command (the same sheet as "+" › Speak a command).
-                    Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
-                        Image(systemName: "mic.fill")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Color.onAccent)
-                            .frame(width: 44, height: 44)
-                            .background(Color.dullPink, in: Circle())
-                            .contentShape(Circle())
-                    }
-                    .accessibilityLabel("Speak a command")
-                    .accessibilityHint("Say what you ate or want, like two eggs for breakfast. The sheet shows examples.")
-                    .accessibilityIdentifier("home.voice")
-                }
-                if has(.tracking) {
-                    NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
-                }
-            }
-            .buttonStyle(ScalePressStyle())
         }
     }
 
@@ -114,29 +70,34 @@ struct HomeView: View {
                     }
                 } content: {
                     VStack(spacing: Spacing.md) {
-                        HomeHeaderView(vm: vm, onProfile: { showProfile = true }, onReminders: { showReminders = true })
+                        HomeHeaderView(vm: vm, onProfile: { showProfile = true })
+                        // One hero (calories today, or the first thing the person chose), then
+                        // sections that each have their own colour, icon and call to action.
                         VStack(spacing: Spacing.lg) {
                             dueReminders
-                            shortcutRow
                             if has(.tracking) {
-                                CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
-                            } else {
-                                // Without tracking, Home leads with what the person did choose.
-                                if has(.meals) { MealPlanPreviewCard(vm: vm) }
-                                if has(.workouts) { WorkoutSummaryCard() }
-                                if has(.groceries) { GrocerySummaryCard() }
+                                CalorieSummaryCard(vm: vm, showsVoice: showsVoice, onLog: { vm.openLog() })
                             }
                             if !loop.state.quests.isEmpty {
                                 DailyQuestCard(state: loop.state, onOpen: openQuest)
                             }
-                            // Only while Apple Health is on; refreshes itself when shown.
-                            ActivityCard()
                             if has(.tracking) {
                                 // Above the cards below it: its goo menu pours out over them.
                                 TodaysLogCard(vm: vm).zIndex(1)
                             }
-                            if has(.groceries) { HomeDealsSection(vm: vm) }
-                            if has(.tracking), has(.meals) { MealPlanPreviewCard(vm: vm) }
+                            if has(.meals) { MealPlanPreviewCard(vm: vm) }
+                            if has(.groceries) { GrocerySummaryCard(showsStock: showsStock) }
+                            if has(.workouts) { WorkoutSummaryCard() }
+                            // Only while Apple Health is on; refreshes itself when shown.
+                            ActivityCard()
+                            // My Stock without Shop (meals only): its own way in.
+                            if showsStock && !has(.groceries) {
+                                NavigationLink { StockView() } label: {
+                                    HomeSectionButtonLabel(title: "My Stock", symbol: "cabinet.fill", section: .meals, prominent: false)
+                                }
+                                .buttonStyle(ScalePressStyle())
+                                .accessibilityIdentifier("home.stock")
+                            }
                         }
                         .padding(.horizontal, Spacing.lg)
                         .padding(.bottom, Spacing.xxl)
@@ -150,12 +111,15 @@ struct HomeView: View {
                     .allowsHitTesting(false)
             }
             .navigationBarHidden(true)
-            .navigationDestination(isPresented: $showReminders) { RemindersView() }
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView().navigationBarHidden(false)
             }
             .navigationDestination(isPresented: $showStock) { StockView() }
             .onReceive(NotificationCenter.default.publisher(for: .openProfile)) { _ in showProfile = true }
+            // The guided tour starts on Home's first screen (replayed from Profile › Help).
+            .onChange(of: GuidedTour.shared.isRunning) { _, running in
+                if running { showProfile = false; showStock = false }
+            }
         }
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }

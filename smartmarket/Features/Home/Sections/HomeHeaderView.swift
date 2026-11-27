@@ -5,9 +5,6 @@ struct HomeHeaderView: View {
     let vm: HomeViewModel
     /// Opens Profile and settings.
     var onProfile: () -> Void = {}
-    /// Opens Reminders.
-    var onReminders: () -> Void = {}
-    @State private var reminders = ReminderStore.shared
     @AppStorage("bowlGuideVisible_v2") private var bowlVisible = true
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -30,19 +27,7 @@ struct HomeHeaderView: View {
                 // Offline status lives in Home's MorphIsland notice now.
                 // Nourlo's place: fixed here, but alive. Tapping it opens the guide.
                 if bowlVisible { HeaderBowl() }
-                Button(action: onReminders) {
-                    Image(systemName: reminders.isEnabled ? "bell.fill" : "bell")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Color.labelPrimary)
-                        .frame(width: 44, height: 44)
-                        .background(Color.surface, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.hairline, lineWidth: 1))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(ScalePressStyle())
-                .accessibilityLabel("Reminders")
-                .accessibilityValue(reminders.isEnabled ? "On" : "Off")
-                .accessibilityIdentifier("home.reminders")
+                // Reminders live in Profile › Notifications, not on Home (TestFlight B5).
                 // The avatar is the way into Profile and settings.
                 Button(action: onProfile) {
                     Group {

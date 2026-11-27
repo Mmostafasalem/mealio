@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - Quick actions button
 //
-// The bowl in a round brand-coloured button beside the tab bar (not a tab), like
-// the separate search button in Apple's own iOS 26 apps. Liquid Glass tinted with
-// the brand colour on iOS 26; a filled circle with a soft shadow on iOS 17 and 18,
-// and whenever Reduce Transparency is on.
+// The bowl in a round button beside the tab bar (not a tab), like the separate
+// search button in Apple's own iOS 26 apps. It is filled with the colour theme's
+// accent (TestFlight B2/B3: "in a unique colour", "distinctive from every other
+// button"), with a soft accent shadow.
 
 /// Where the bowl button sits.
 ///
@@ -44,7 +44,6 @@ struct QuickActionsButton: View {
     var diameter: CGFloat = 56
     let action: () -> Void
 
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
 
     private var pose: MascotPose {
@@ -68,16 +67,22 @@ struct QuickActionsButton: View {
         .accessibilityIdentifier("navigation.quickActions")
     }
 
-    @ViewBuilder private var background: some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
+    /// The theme's accent (not the ink colour every other control uses), so the
+    /// button is the one unique, most visible control on screen. A pale disc behind
+    /// the bowl keeps the mascot readable on every accent (the bowl is pink itself),
+    /// and an accent-coloured shadow lifts it off the tab bar. Solid on every iOS
+    /// version: tinted glass washed the colour out.
+    private var background: some View {
+        ZStack {
             Circle()
-                .fill(.clear)
-                .glassEffect(.regular.tint(Color.brandPrimary.opacity(0.82)).interactive(), in: Circle())
-        } else {
+                .fill(Color.dullPink)
+                .shadow(color: Color.dullPink.opacity(colorScheme == .dark ? 0.55 : 0.5), radius: 12, x: 0, y: 6)
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.4 : 0.14), radius: 3, x: 0, y: 2)
             Circle()
-                .fill(Color.brandPrimary)
-                .overlay(Circle().strokeBorder(Color.surface.opacity(colorScheme == .dark ? 0.0 : 0.12), lineWidth: 1))
-                .shadow(color: .black.opacity(colorScheme == .dark ? 0.45 : 0.22), radius: 10, x: 0, y: 5)
+                .fill(Color.surface.opacity(colorScheme == .dark ? 0.14 : 0.4))
+                .padding(diameter * 0.15)
+            Circle()
+                .strokeBorder(Color.surface.opacity(colorScheme == .dark ? 0.35 : 0.9), lineWidth: 2)
         }
     }
 }

@@ -146,10 +146,17 @@ struct MainTabView: View {
             ZStack(alignment: .bottomTrailing) {
                 Color.clear.allowsHitTesting(false)
                 QuickActionsButton(diameter: QuickActionsDock.diameter) { openQuickActions() }
+                    .tourTarget(.quickActions)
                     .padding(.trailing, QuickActionsDock.trailing)
                     .padding(.bottom, QuickActionsDock.bottom(barInset: tabBarHeight))
             }
             .ignoresSafeArea(.container, edges: .bottom)
+        }
+        // The guided tour (once after onboarding, again from Profile › Help) dims everything, the bar and bowl too.
+        .overlay { GuidedTourOverlay() }
+        .onChange(of: GuidedTour.shared.isRunning) { _, running in
+            // The tour starts on Home, with nothing covering it.
+            if running { present(nil); selection = AppTab.home.rawValue }
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: quickActionsOpened)
         .background(Color.surfaceGrouped)
@@ -163,7 +170,10 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openHome)) { _ in selection = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .openShop)) { _ in requiring(.groceries) { selection = 2 } }
         // Widgets, the Control Center button, Siri, Shortcuts and Spotlight open screens through the router.
-        .onAppear { AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek() }
+        .onAppear {
+            AppRouter.shared.takeInbox(); routeRequest(); checkNewWeek()
+            GuidedTour.shared.startIfNeeded(features: features)
+        }
         .onChange(of: AppRouter.shared.request?.id) { _, _ in routeRequest() }
         .onChange(of: scenePhase) { _, phase in
             // A link left by another process (the widget extension) has no in-process notification.

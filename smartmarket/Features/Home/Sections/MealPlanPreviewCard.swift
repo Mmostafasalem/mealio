@@ -7,17 +7,7 @@ struct MealPlanPreviewCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                HomeCardTitle(title: "Today's meals", symbol: "fork.knife.circle.fill")
-                Spacer()
-                NavigationLink { MealPlanView() } label: {
-                    Text("Full plan")
-                        .font(.footnote).fontWeight(.semibold)
-                        .foregroundStyle(Color.brandPrimary)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                }
-            }
+            HomeSectionHeader(title: "Today's meals", subtitle: subtitle, symbol: "fork.knife", section: .meals)
 
             // `vm.isLoading` follows the deals, so a plan that exists is always shown.
             if let plan = vm.mealPlan {
@@ -51,9 +41,21 @@ struct MealPlanPreviewCard: View {
                 }
                 .padding(.vertical, Spacing.sm)
             }
+
+            HomeSectionButton(title: "Open plan", symbol: "calendar", section: .meals) {
+                AppRouter.shared.open(.meals)
+            }
+            .accessibilityIdentifier("home.meals.open")
         }
-        .padding(Spacing.lg)
-        .premiumCard()
+        .homeSectionCard(.meals)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home.mealsSection")
+    }
+
+    private var subtitle: String? {
+        guard let plan = vm.mealPlan else { return nil }
+        let kcal = plan.allMeals.reduce(0) { $0 + $1.entries.reduce(0) { $0 + $1.calories } }
+        return "\(plan.allMeals.count) meals · \(kcal) kcal planned"
     }
 
     static func mealAccent(_ idx: Int) -> Color {
@@ -74,7 +76,7 @@ struct MealPreviewRow: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(accent)
                 .frame(width: HomeGrid.icon, height: HomeGrid.icon)
-                .background(accent.opacity(0.12), in: Circle())
+                .background(HomeSection.meals.color.opacity(0.35), in: Circle())
 
             Text(title).font(.subheadline).fontWeight(.semibold).lineLimit(1)
             Spacer()

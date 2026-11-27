@@ -4,6 +4,8 @@ import TipKit
 /// The dashboard hero: calorie ring + today's total + macro breakdown.
 struct CalorieSummaryCard: View {
     let vm: HomeViewModel
+    /// The microphone sits beside Log food (speaking is another way to log).
+    var showsVoice = false
     var onLog: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -13,15 +15,34 @@ struct CalorieSummaryCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .firstTextBaseline) {
-                HomeCardTitle(title: "Calories", symbol: "flame.fill")
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HomeCardTitle(title: "Calories today", symbol: "flame.fill")
+                    Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")" as String)
+                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Color.labelSecondary)
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.leading, HomeGrid.textInset)
+                }
                 Spacer(minLength: Spacing.sm)
-                Text("\(abs(vm.goal - vm.consumed)) kcal \(vm.consumed > vm.goal ? "over" : "left")" as String)
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.labelSecondary)
-                    .contentTransition(.numericText())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                NavigationLink { CalorieInsightsView() } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chart.bar.fill")
+                        Text("Insights")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.labelPrimary)
+                    .padding(.horizontal, Spacing.md)
+                    .frame(minHeight: 44)
+                    .background(Color.brandLight, in: Capsule())
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(ScalePressStyle())
+                .accessibilityLabel("Calorie insights")
+                .accessibilityHint("Your calories against your target over 7 and 30 days")
+                .accessibilityIdentifier("home.insights")
             }
 
             Button { showCalorieDetail.toggle() } label: {
@@ -57,16 +78,57 @@ struct CalorieSummaryCard: View {
             }
             .animation(reduceMotion ? nil : .snappyValue, value: vm.consumed)
 
+            // The last seven days against the target; tap for the full history.
+            NavigationLink { CalorieInsightsView() } label: {
+                let week = CalorieInsights(entries: FoodLogStore.shared.allEntries, target: vm.goal, days: 7, now: vm.now)
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack {
+                        Text("Last 7 days").font(.footnote.weight(.semibold)).foregroundStyle(Color.labelPrimary)
+                        Spacer()
+                        Text(week.averageKcal.map { "avg \($0) kcal" } ?? "Nothing logged yet")
+                            .font(.footnote.monospacedDigit()).foregroundStyle(Color.labelSecondary)
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.labelTertiary)
+                    }
+                    WeekCaloriesMiniChart(insights: week)
+                }
+                .padding(Spacing.md)
+                .background(Color.surfaceSecondary.opacity(0.7), in: RoundedRectangle(cornerRadius: Radius.chip + 4, style: .continuous))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(ScalePressStyle())
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens calorie insights")
+            .accessibilityIdentifier("home.weekChart")
+
             // Inline, so it never covers the figures; gone once food is logged.
             TipView(logFoodTip, arrowEdge: .bottom)
 
-            PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
-                .accessibilityIdentifier("home.logFood")
+            HStack(spacing: Spacing.md) {
+                PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
+                    .accessibilityIdentifier("home.logFood")
+                if showsVoice {
+                    // One tap to speak a command (the same sheet as quick actions › Speak a command).
+                    Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(Color.labelPrimary)
+                            .frame(width: 52, height: 52)
+                            .background(Color.brandLight, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(ScalePressStyle())
+                    .accessibilityLabel("Speak a command")
+                    .accessibilityHint("Say what you ate or want, like two eggs for breakfast. The sheet shows examples.")
+                    .accessibilityIdentifier("home.voice")
+                }
+            }
         }
         .padding(Spacing.lg)
         // The three macro "i" buttons share one travelling tooltip bubble.
         .morphTooltipHost()
         .premiumCard(surface: .hero)
+        .tourTarget(.calories)
     }
 
     static func fraction(_ current: Double, _ goal: Double) -> Double {
