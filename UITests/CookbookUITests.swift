@@ -52,7 +52,7 @@ final class CookbookUITests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
                                "-NourloUITesting", "YES"]
         app.launch()
-        let plus = app.tab("Quick actions")
+        let plus = app.buttons["navigation.quickActions"]
         XCTAssertTrue(plus.waitForExistence(timeout: 10))
         let logFood = app.buttons["quickActions.logFood"].firstMatch
         for _ in 0..<3 where !logFood.exists { plus.tap(); _ = logFood.waitForExistence(timeout: 3) }

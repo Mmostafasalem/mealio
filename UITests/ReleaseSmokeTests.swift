@@ -9,9 +9,10 @@ final class ReleaseSmokeTests: XCTestCase {
     }
 
     /// The system tab bar's buttons carry their names, not identifiers: "tab.home"
-    /// → "Home", …, "navigation.quickActions" → the "+" ("Quick actions").
+    /// → "Home", …. Quick actions ("navigation.quickActions") is the bowl button
+    /// beside the bar, an ordinary button with that identifier.
     private static let tabNames = ["tab.home": "Home", "tab.meals": "Meals", "tab.shop": "Shop",
-                                   "tab.train": "Train", "navigation.quickActions": "Quick actions"]
+                                   "tab.train": "Train"]
 
     private func control(_ id: String, in app: XCUIApplication) -> XCUIElement {
         if let name = Self.tabNames[id] { return app.tab(name) }
@@ -500,12 +501,16 @@ final class ReleaseSmokeTests: XCTestCase {
         launchForTesting(app)
         let bar = app.tabBars.firstMatch
         XCTAssertTrue(bar.waitForExistence(timeout: 15), "the native tab bar")
-        XCTAssertEqual(bar.buttons.count, 5)
-        for name in ["Home", "Meals", "Quick actions", "Shop", "Train"] {
+        for name in ["Home", "Meals", "Shop", "Train"] {
             XCTAssertTrue(bar.buttons[name].exists, "\(name) is named for VoiceOver")
         }
         XCTAssertEqual(bar.staticTexts.count, 0, "icons only: no visible tab titles")
-        // The "+" opens the quick actions without leaving the current tab.
+        // Quick actions is the round bowl button at the bar's right, not one of its tabs.
+        let bowl = control("navigation.quickActions", in: app)
+        XCTAssertTrue(bowl.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(bowl.frame.minX, bar.buttons["Train"].frame.maxX - 0.5, "beside the tabs, not over them")
+        XCTAssertEqual(bowl.frame.width, bowl.frame.height, accuracy: 0.5, "a round button")
+        // The bowl opens the quick actions without leaving the current tab.
         tap("navigation.quickActions", in: app)
         XCTAssertTrue(app.buttons["quickActions.logFood"].waitForExistence(timeout: 5))
         XCTAssertTrue(bar.buttons["Home"].isSelected)

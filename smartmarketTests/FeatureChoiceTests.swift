@@ -103,22 +103,22 @@ final class FeatureChoiceTests: XCTestCase {
     // MARK: Tabs
 
     func testEveryFeatureKeepsTodaysTabBar() {
-        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all), [.home, .meals, .quickActions, .shop, .train])
-        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all).map(\.name), ["Home", "Meals", "Quick actions", "Shop", "Train"])
+        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all), [.home, .meals, .shop, .train])
+        XCTAssertEqual(FeatureLayout.tabs(for: AppFeature.all).map(\.name), ["Home", "Meals", "Shop", "Train"])
     }
 
     func testWorkoutsOnlyShowsHomeAndTrain() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.workouts]), [.home, .quickActions, .train])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.workouts]), [.home, .train])
     }
 
     func testTrackingOnlyShowsHomeAlone() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.tracking]), [.home, .quickActions])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.tracking]), [.home])
     }
 
     func testTabsForOtherChoices() {
-        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .groceries]), [.home, .meals, .quickActions, .shop])
-        XCTAssertEqual(FeatureLayout.tabs(for: [.groceries, .tracking]), [.home, .quickActions, .shop])
-        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .workouts]), [.home, .meals, .quickActions, .train])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .groceries]), [.home, .meals, .shop])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.groceries, .tracking]), [.home, .shop])
+        XCTAssertEqual(FeatureLayout.tabs(for: [.meals, .workouts]), [.home, .meals, .train])
     }
 
     func testTabTagsStayFixed() {
@@ -126,21 +126,21 @@ final class FeatureChoiceTests: XCTestCase {
         XCTAssertEqual(AppTab.meals.rawValue, 1)
         XCTAssertEqual(AppTab.shop.rawValue, 2)
         XCTAssertEqual(AppTab.train.rawValue, 3)
-        XCTAssertEqual(AppTab.quickActions.rawValue, 4)
+        XCTAssertEqual(AppTab.allCases.count, 4, "quick actions is the bowl button beside the bar, not a tab")
     }
 
     // MARK: Quick actions
 
     func testEveryFeatureKeepsAllQuickActions() {
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: AppFeature.all),
-                       ["voice", "mealPhoto", "logFood", "cart", "groceries", "chat", "profile"])
+                       ["chat", "voice", "logFood", "mealPhoto", "cart", "groceries", "meals", "stock", "train", "profile"])
     }
 
     func testQuickActionsFollowTheChoice() {
-        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.workouts]), ["voice", "chat", "profile"])
-        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.meals]), ["chat", "profile"])
-        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.tracking]), ["voice", "mealPhoto", "logFood", "chat", "profile"])
-        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.groceries]), ["voice", "cart", "groceries", "chat", "profile"])
+        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.workouts]), ["chat", "voice", "train", "profile"])
+        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.meals]), ["chat", "meals", "stock", "profile"])
+        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.tracking]), ["chat", "voice", "logFood", "mealPhoto", "profile"])
+        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.groceries]), ["chat", "voice", "cart", "groceries", "stock", "profile"])
     }
 
     func testLinksAndActionsNameTheirFeature() {

@@ -8,6 +8,8 @@ struct MealPlanView: View {
     @State private var expandGroup = ExpandCardGroup()
     /// Last title shown per meal slot, so only titles a new plan changed decode.
     @State private var titleMemory = ScrambleMemory()
+    /// Which way the last day change went, so the day slides in from that side.
+    @State private var movingForward = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
@@ -16,19 +18,28 @@ struct MealPlanView: View {
         OwnerAITestConfiguration.current == nil ? aiSharingConsent : ownerAISharingConsent
     }
 
+    /// Today and the next six days.
+    private var days: [Date] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    private func plan(forDay offset: Int) -> MealPlan? {
+        if offset == 0, let today = vm.todaysPlan { return today }
+        guard days.indices.contains(offset) else { return nil }
+        return vm.weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: days[offset]) }
+    }
+
     var body: some View {
         ScrollView {
-            VStack(spacing: Spacing.xl) {
+            VStack(spacing: Spacing.lg) {
                 if let message = vm.errorMessage, vm.todaysPlan != nil {
                     Text(message).font(.footnote).foregroundStyle(Color.brandDanger)
                         .padding(.horizontal, Spacing.lg)
                 }
-                SpringSegmentedControl(
-                    selection: $vm.selectedTab,
-                    options: MealPlanTab.allCases,
-                    label: \.displayName
-                )
-                .padding(.horizontal, Spacing.lg)
+                DayStrip(days: days, selected: Binding(get: { vm.selectedDay }, set: select),
+                         marker: marker(forDay:))
+                    .padding(.horizontal, Spacing.lg)
 
                 if vm.isGenerating && vm.todaysPlan != nil {
                     HStack(spacing: Spacing.sm) {
@@ -40,13 +51,20 @@ struct MealPlanView: View {
                 }
                 MissingFoodsBanner()
                     .padding(.horizontal, Spacing.lg)
-                switch vm.selectedTab {
-                case .today: todayContent
-                case .week:  weekContent
+
+                // Old and new day share one slot, so changing day cross-fades in place
+                // instead of stacking both and jumping.
+                ZStack(alignment: .top) {
+                    dayContent(vm.selectedDay)
+                        .id(vm.selectedDay)
+                        .transition(dayTransition)
                 }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .simultaneousGesture(daySwipe)
             }
-            .padding(.vertical, Spacing.lg)
-            .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedTab)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.xl)
             .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.isGenerating)
         }
         .background { GrainyGradient().ignoresSafeArea() }
@@ -54,18 +72,11 @@ struct MealPlanView: View {
         .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
         .task {
             if vm.todaysPlan == nil { await vm.loadTodaysPlan() }
+            await vm.loadWeekPlans()
         }
-        .task(id: vm.selectedTab) {
-            if vm.selectedTab == .week { await vm.loadWeekPlans() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .mealPlanDidUpdate)) { _ in
-            Task {
-                await vm.loadTodaysPlan()
-                if vm.selectedTab == .week { await vm.loadWeekPlans() }
-            }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .mealPlanDidUpdate)) { _ in refreshDay() }
         // A new day (midnight, a time-zone change, or the app opened the next morning):
-        // "Today" moves on and the week starts from the new day.
+        // "Today" moves on and the strip starts from the new day.
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refreshDay() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in refreshDay() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { refreshDay() } }
@@ -74,59 +85,63 @@ struct MealPlanView: View {
     private func refreshDay() {
         Task {
             await vm.loadTodaysPlan()
-            if vm.selectedTab == .week { await vm.loadWeekPlans() }
+            await vm.loadWeekPlans()
         }
     }
 
-    // MARK: - Today
+    // MARK: - Changing day
+
+    private func select(_ day: Int) {
+        guard day != vm.selectedDay, (0..<7).contains(day) else { return }
+        movingForward = day > vm.selectedDay
+        // Each day's meals start folded; the open one belonged to the old day.
+        expandGroup.show(nil, animated: false)
+        withAnimation(reduceMotion ? .reducedFade : .smooth(duration: 0.32)) { vm.selectedDay = day }
+    }
+
+    /// A short slide toward the new day with a cross-fade; Reduce Motion: a fade.
+    private var dayTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let shift: CGFloat = 36
+        return .asymmetric(
+            insertion: .offset(x: movingForward ? shift : -shift).combined(with: .opacity),
+            removal: .offset(x: movingForward ? -shift : shift).combined(with: .opacity))
+    }
+
+    /// A clearly sideways swipe on the meals moves to the next or previous day.
+    private var daySwipe: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                let dx = value.translation.width, dy = value.translation.height
+                guard abs(dx) > 70, abs(dx) > abs(dy) * 2 else { return }
+                select(vm.selectedDay + (dx < 0 ? 1 : -1))
+            }
+    }
+
+    private func marker(forDay offset: Int) -> DayStrip.Marker {
+        var marker = DayStrip.Marker()
+        guard let plan = plan(forDay: offset) else { return marker }
+        marker.missing = plan.allMeals.contains { $0.entries.contains { !($0.missing ?? []).isEmpty } }
+        marker.logged = offset == 0 && !FoodLogStore.shared.entries.isEmpty
+        return marker
+    }
+
+    // MARK: - One day
 
     @ViewBuilder
-    private var todayContent: some View {
+    private func dayContent(_ offset: Int) -> some View {
         if vm.isGenerating && vm.todaysPlan == nil {
             SkeletonMealPlanContent()
         } else if let errorMessage = vm.errorMessage, vm.todaysPlan == nil {
             ErrorStateView(message: errorMessage) { Task { await vm.loadTodaysPlan() } }
                 .padding(.top, Spacing.xxl)
-        } else if let plan = vm.todaysPlan {
-            VStack(spacing: Spacing.lg) {
-                // New identity per plan content, so a regenerated plan cross-fades in.
-                VStack(spacing: Spacing.lg) {
-                    ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
-                        MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries,
-                                        expandGroup: expandGroup, titleMemory: titleMemory)
-                    }
-                }
-                .id(planGenerationToken(plan))
-                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
-
-                WhyThisPlanCard(notes: plan.agentNotes)
-
-                if !vm.recommendations.isEmpty {
-                    RecommendationsSection(items: vm.recommendations,
-                                           onAdd: { vm.addToGroceryList([$0]) },
-                                           onAddAll: { vm.addToGroceryList($0) })
-                }
-
-                RegenerateButton(isGenerating: vm.isGenerating) {
-                    Task { await vm.regenerate() }
-                }
-                if let notice = vm.notice {
-                    Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
-                        .multilineTextAlignment(.center)
-                        .accessibilityIdentifier("meals.regenerateNotice")
-                }
-
-                Text("Calorie & macro values are estimates and may vary by product and preparation.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.labelSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 2)
-            }
-            .padding(.horizontal, Spacing.lg)
-            .animation(.smoothCard, value: planGenerationToken(plan))
-            // A new plan starts with every meal folded.
-            .onChange(of: planGenerationToken(plan)) { _, _ in expandGroup.show(nil, animated: false) }
+        } else if let plan = plan(forDay: offset) {
+            dayPlan(plan, offset: offset)
+        } else if vm.todaysPlan != nil {
+            EmptyStateView(icon: "calendar", title: "Nothing planned for this day",
+                           message: "Regenerate to plan the whole week from your cart and stock.",
+                           actionTitle: "Regenerate plan") { Task { await vm.regenerate() } }
+                .padding(.top, Spacing.xl)
         } else {
             EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
                            message: "Generate a plan tailored to your goals and favourite foods.",
@@ -135,42 +150,180 @@ struct MealPlanView: View {
         }
     }
 
+    private func dayPlan(_ plan: MealPlan, offset: Int) -> some View {
+        VStack(spacing: Spacing.md) {
+            DaySummary(plan: plan, isToday: offset == 0)
+            // New identity per plan content, so a regenerated plan cross-fades in.
+            VStack(spacing: Spacing.md) {
+                ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
+                    MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries,
+                                    dayKey: "d\(offset)", isToday: offset == 0,
+                                    expandGroup: expandGroup, titleMemory: titleMemory)
+                }
+            }
+            .id(planGenerationToken(plan))
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
+
+            if offset == 0 {
+                WhyThisPlanCard(notes: plan.agentNotes)
+                if !vm.recommendations.isEmpty {
+                    RecommendationsSection(items: vm.recommendations,
+                                           onAdd: { vm.addToGroceryList([$0]) },
+                                           onAddAll: { vm.addToGroceryList($0) })
+                }
+            }
+
+            // One plan covers the whole week, so this rebuilds every day.
+            RegenerateButton(isGenerating: vm.isGenerating) {
+                Task { await vm.regenerate() }
+            }
+            .padding(.top, Spacing.xs)
+            if let notice = vm.notice {
+                Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("meals.regenerateNotice")
+            }
+
+            Text("Calorie & macro values are estimates and may vary by product and preparation.")
+                .font(.caption2)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .animation(.smoothCard, value: planGenerationToken(plan))
+        // A new plan starts with every meal folded.
+        .onChange(of: planGenerationToken(plan)) { _, _ in expandGroup.show(nil, animated: false) }
+    }
+
     /// Changes only when the plan's meals change (not on a reload of the same plan).
     private func planGenerationToken(_ plan: MealPlan) -> String {
         plan.allMeals
             .flatMap { meal in meal.entries.map { "\(meal.title):\($0.foodName):\($0.portionG)" } }
             .joined(separator: "|")
     }
+}
 
-    // MARK: - Week
+// MARK: - Day strip
 
-    @ViewBuilder
-    private var weekContent: some View {
-        if vm.weekPlans.isEmpty {
-            if vm.isGenerating {
-                SkeletonWeekContent().padding(.horizontal, Spacing.lg)
+/// Today and the next six days as compact date chips; the chosen day is filled,
+/// today is outlined. A pink dot: a meal uses food you don't have yet; a green dot:
+/// something is logged today.
+private struct DayStrip: View {
+    struct Marker { var missing = false; var logged = false }
+
+    let days: [Date]
+    @Binding var selected: Int
+    let marker: (Int) -> Marker
+
+    @Namespace private var highlight
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    chips.padding(.vertical, 2)
+                }
             } else {
-                EmptyStateView(icon: "calendar", title: "No week plan yet",
-                               message: "Generate seven days of meals built around your goals and favourite foods.",
-                               actionTitle: "Generate week") { Task { await vm.regenerate() } }
-                    .padding(.top, Spacing.xxl)
+                chips
             }
-        } else {
-            VStack(spacing: Spacing.lg) {
-                ForEach(vm.weekPlans) { plan in
-                    WeekDayCard(plan: plan)
-                }
-                // One request writes all seven days.
-                RegenerateButton(isGenerating: vm.isGenerating, idleTitle: "Regenerate week") {
-                    Task { await vm.regenerate() }
-                }
-                if let notice = vm.notice {
-                    Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
-                        .multilineTextAlignment(.center)
-                }
-            }
-            .padding(.horizontal, Spacing.lg)
         }
+        .sensoryFeedback(.selection, trigger: selected)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Days")
+    }
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(days.enumerated()), id: \.offset) { index, day in
+                chip(index, day)
+            }
+        }
+    }
+
+    private func chip(_ index: Int, _ day: Date) -> some View {
+        let isSelected = index == selected
+        let isToday = index == 0
+        let mark = marker(index)
+        return Button { selected = index } label: {
+            VStack(spacing: 3) {
+                Text(day, format: .dateTime.weekday(.narrow))
+                    .font(.caption2.weight(.semibold))
+                    .opacity(isSelected ? 0.8 : 1)
+                    .foregroundStyle(isSelected ? Color.surface : Color.labelSecondary)
+                Text(day, format: .dateTime.day())
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(isSelected ? Color.surface : Color.labelPrimary)
+                HStack(spacing: 3) {
+                    Circle().fill(Color.ringProtein).frame(width: 5, height: 5).opacity(mark.logged ? 1 : 0)
+                    Circle().fill(Color.progress).frame(width: 5, height: 5).opacity(mark.missing ? 1 : 0)
+                }
+                .frame(height: 5)
+            }
+            .frame(maxWidth: typeSize.isAccessibilitySize ? nil : .infinity)
+            .frame(minWidth: typeSize.isAccessibilitySize ? 72 : 44, minHeight: 62)
+            .padding(.vertical, 4)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.brandPrimary)
+                        .matchedGeometryEffect(id: "selectedDay", in: highlight)
+                } else {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.surface.opacity(0.85))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(isToday ? Color.brandPrimary : Color.hairline, lineWidth: isToday ? 1.5 : 1)
+                        }
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(ScalePressStyle())
+        .animation(reduceMotion ? nil : .snappyValue, value: selected)
+        .accessibilityLabel(Text(isToday ? "Today, " : "") + Text(day, format: .dateTime.weekday(.wide).day().month(.wide)))
+        .accessibilityValue([mark.logged ? "Food logged" : nil, mark.missing ? "Uses food you don't have yet" : nil]
+            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint("Shows this day's meals")
+        .accessibilityIdentifier("meals.day.\(index)")
+    }
+}
+
+// MARK: - Day summary
+
+/// The chosen day in one line: its name and date, and its planned calories and macros.
+private struct DaySummary: View {
+    let plan: MealPlan
+    let isToday: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isToday ? "Today" : plan.date.formatted(.dateTime.weekday(.wide)))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.labelPrimary)
+                Text(plan.date, format: .dateTime.day().month(.wide))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            Spacer(minLength: Spacing.sm)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(plan.totalCalories) kcal" as String)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Color.labelPrimary)
+                    .contentTransition(.numericText(value: Double(plan.totalCalories)))
+                Text("P \(Int(plan.totalProteinG)) · C \(Int(plan.totalCarbsG)) · F \(Int(plan.totalFatG)) g" as String)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .padding(.horizontal, Spacing.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("meals.daySummary")
     }
 }
 
@@ -180,6 +333,9 @@ private struct MealSectionCard: View {
     let title: String
     let sfSymbol: String
     let entries: [MealEntry]
+    /// The day's place in the strip ("d0" today), so each day keeps its own titles.
+    let dayKey: String
+    let isToday: Bool
     let expandGroup: ExpandCardGroup
     let titleMemory: ScrambleMemory
     @State private var expanded = true
@@ -205,7 +361,8 @@ private struct MealSectionCard: View {
                 }
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     MealEntryRow(entry: entry, slot: title == "Breakfast" ? .breakfast : title == "Lunch" ? .lunch : title == "Dinner" ? .dinner : .snack,
-                                 slotKey: "\(title)#\(index)", expandGroup: expandGroup, titleMemory: titleMemory)
+                                 slotKey: "\(dayKey)|\(title)#\(index)", isToday: isToday,
+                                 expandGroup: expandGroup, titleMemory: titleMemory)
                 }
             }
             .padding(.top, 8)
@@ -239,6 +396,8 @@ private struct MealEntryRow: View {
     let slot: MealSlot
     /// Stable per slot position ("Lunch#0"), so a new plan's title can decode in.
     let slotKey: String
+    /// A later day's meal opens on its recipe; logging is for what you eat today.
+    let isToday: Bool
     let expandGroup: ExpandCardGroup
     let titleMemory: ScrambleMemory
 
@@ -263,7 +422,7 @@ private struct MealEntryRow: View {
         } detail: {
             detail
         }
-        .sheet(isPresented: $showReview) { MealReviewSheet(entry: entry, slot: slot) }
+        .sheet(isPresented: $showReview) { MealReviewSheet(entry: entry, slot: slot, startOn: isToday ? nil : .recipe) }
     }
 
     // MARK: Header
@@ -375,7 +534,7 @@ private struct MealEntryRow: View {
     private var actions: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             // One button: the recipe and the review-and-log flow share one sheet.
-            actionButton("Review recipe and log", systemImage: "fork.knife", prominent: true) { showReview = true }
+            actionButton(isToday ? "Review recipe and log" : "View recipe", systemImage: "fork.knife", prominent: true) { showReview = true }
                 .accessibilityHint(entry.macrosAvailable ? "Shows how to make it, and reviews the portions to log from stock"
                                                          : "Shows how to make it")
                 .accessibilityIdentifier("mealPlan.reviewRecipeLog")
@@ -613,149 +772,6 @@ private struct SkeletonMealSection: View {
         .background(Color.surface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 2)
-    }
-}
-
-private struct SkeletonWeekContent: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            ForEach(0..<7, id: \.self) { _ in SkeletonWeekDayCard() }
-        }
-        .shimmer()
-        .accessibilityHidden(true)
-    }
-}
-
-private struct SkeletonWeekDayCard: View {
-    var body: some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 24, height: 10)
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 20, height: 18)
-            }
-            .frame(width: 36)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 90, height: 14)
-                    Spacer()
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 32, height: 12)
-                }
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.systemFill)).frame(height: 6)
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .background(Color.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
-    }
-}
-
-/// One day of the week: its date, total and every planned meal. Tap a meal for its recipe.
-private struct WeekDayCard: View {
-    let plan: MealPlan
-    @State private var recipe: RecipeTarget?
-    /// Days start folded to their header; today starts open.
-    @State private var expanded: Bool?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var isExpanded: Bool { expanded ?? isToday }
-
-    private struct RecipeTarget: Identifiable {
-        let name: String
-        var id: String { name }
-    }
-
-    private var isToday: Bool { Calendar.current.isDateInToday(plan.date) }
-    private var meals: [(title: String, sfSymbol: String, entries: [MealEntry])] {
-        plan.allMeals.filter { !$0.entries.isEmpty }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                Text(plan.date, format: .dateTime.weekday(.wide))
-                    .font(.headline).foregroundStyle(Color.labelPrimary)
-                Text(plan.date, format: .dateTime.day().month(.abbreviated))
-                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
-                if isToday {
-                    Text("Today")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.onAccent)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.progress, in: Capsule())
-                }
-                Spacer(minLength: Spacing.sm)
-                Text("\(plan.totalCalories) kcal" as String)
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.labelSecondary)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.labelSecondary)
-                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    .accessibilityHidden(true)
-            }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(reduceMotion ? nil : .snappy) { expanded = !isExpanded }
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits([.isHeader, .isButton])
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-            .accessibilityHint(isExpanded ? "Hides this day's meals" : "Shows this day's meals")
-
-            if !isExpanded {
-                Text(meals.isEmpty ? "Nothing planned" : meals.map(\.title).joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundStyle(Color.labelSecondary)
-                    .lineLimit(1)
-            } else {
-            if meals.isEmpty {
-                Text("Nothing planned")
-                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
-            }
-            ForEach(Array(meals.enumerated()), id: \.offset) { index, meal in
-                if index > 0 { Divider().overlay(Color.hairline) }
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Label(meal.title, systemImage: meal.sfSymbol)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.labelSecondary)
-                    ForEach(meal.entries) { entry in
-                        Button { recipe = RecipeTarget(name: entry.foodName) } label: {
-                            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                                Text(entry.foodName)
-                                    .font(.subheadline).foregroundStyle(Color.labelPrimary)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Spacer(minLength: Spacing.sm)
-                                Text("\(entry.calories) kcal" as String)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(Color.labelSecondary)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.labelTertiary)
-                                    .accessibilityHidden(true)
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens the recipe")
-                    }
-                }
-            }
-            }
-        }
-        .padding(Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .premiumCard(radius: Radius.tile)
-        .sheet(item: $recipe) { RecipeSheet(mealName: $0.name) }
-        .accessibilityIdentifier("mealPlan.weekDay")
     }
 }
 

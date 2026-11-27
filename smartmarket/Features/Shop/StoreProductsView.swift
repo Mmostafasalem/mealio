@@ -26,7 +26,6 @@ struct StoreProductsView: View {
             categoryStrip
             priceFilter
             productList
-            cartBar
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("Catalogue")
@@ -190,61 +189,8 @@ struct StoreProductsView: View {
         }
         .listStyle(.plain)
         .scrollDismissesKeyboard(.immediately)
-    }
-
-    // MARK: - Sticky cart bar
-
-    private var cartBar: some View {
-        // Own container so the implicit animation scopes to the bar's insert/remove only.
-        VStack(spacing: 0) {
-            if cart.itemCount > 0 {
-                cartBarContent
-            }
-        }
-        .animation(reduceMotion ? .none : .snappyValue, value: cart.itemCount > 0)
-    }
-
-    private var cartBarContent: some View {
-        Group {
-            NavigationLink(destination: CartView()) {
-                HStack(spacing: 14) {
-                    // Item count badge
-                    Text("\(cart.itemCount)" as String)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.surfaceGrouped)
-                        .frame(width: 28, height: 28)
-                        .background(Color.surfaceGrouped.opacity(0.2), in: Circle())
-
-                    Text("View cart")
-                        .font(.headline)
-                        .foregroundStyle(Color.surfaceGrouped)
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(String(format: "€%.2f", cart.total))
-                            .font(.headline).fontWeight(.bold)
-                            .foregroundStyle(Color.surfaceGrouped)
-                            .monospacedDigit()
-                        if cart.budgetFraction > 0.01 {
-                            Text(cart.budgetRemaining < 0 ? String(format: "€%.2f over budget", -cart.budgetRemaining) : "\(Int(cart.budgetFraction * 100))% of budget")
-                                .font(.caption2)
-                                .foregroundStyle(Color.surfaceGrouped.opacity(0.8))
-                        }
-                    }
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(Color.surfaceGrouped.opacity(0.8))
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
-                // Inverse surface: stays visible on the dark page too.
-                .background(Color.labelPrimary)
-            }
-            .buttonStyle(.plain)
-        }
-        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        // Floats over the list; the inset lets the last rows scroll clear of it.
+        .safeAreaInset(edge: .bottom, spacing: 0) { CartToast() }
     }
 
     // MARK: - Filtering

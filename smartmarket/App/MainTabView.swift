@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto
+    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto, stock
     case exercise(String)
     /// Something asked for a feature the person turned off: offer to turn it on.
     case featureOff(AppFeature)
@@ -19,6 +19,7 @@ enum MainSheet: Identifiable, Equatable {
         case .quickActions: return "quickActions"
         case .voice: return "voice"
         case .mealPhoto: return "mealPhoto"
+        case .stock: return "stock"
         case .exercise(let id): return "exercise:" + id
         case .featureOff(let feature): return "featureOff:" + feature.rawValue
         }
@@ -42,9 +43,8 @@ struct MainTabView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
-    /// The "+" in the middle of the tab bar is a button, not a screen: choosing it
-    /// opens the quick actions and leaves the current tab selected.
-    private static let quickActionsTag = AppTab.quickActions.rawValue
+    /// Pressed each time the bowl button opens the quick actions (haptic).
+    @State private var quickActionsOpened = 0
 
     /// What the person uses Nourlo for; decides tabs, quick actions and where links may go.
     private var features: Set<AppFeature> { AppState.shared.enabledFeatures }
@@ -55,7 +55,6 @@ struct MainTabView: View {
         switch tab {
         case .home: HomeView().background(TabBarInsetReader())
         case .meals: NavigationStack { MealPlanView() }
-        case .quickActions: Color.clear
         case .shop: StoreBrowserView()
         case .train: TrainView()
         }
@@ -74,37 +73,49 @@ struct MainTabView: View {
         requiring(tab.feature) { present(nil); selection = tab.rawValue }
     }
 
-    private var tabSelection: Binding<Int> {
-        Binding(get: { selection }, set: { tag in
-            if tag == Self.quickActionsTag { present(.quickActions) } else { selection = tag }
-        })
-    }
-
     /// The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
-    /// Only the tabs for the features the person chose; Home and quick actions are
-    /// always there, quick actions in the middle of the same bar (an ordinary tab, not
-    /// the separate search-style button iOS 26 would draw for a search role).
+    /// Only the tabs for the features the person chose; Home is always there. Quick
+    /// actions is the round bowl button beside the bar (`quickActionsButton`).
     @ViewBuilder private var tabs: some View {
         let all = FeatureLayout.tabs(for: features)
         if #available(iOS 18, *) {
             TabView(selection: tabSelection) {
                 ForEach(all) { tab in
                     Tab(value: tab.rawValue) {
-                        if tab == .quickActions { Color.clear } else { tabContent(tab) }
+                        tabContent(tab)
                     } label: { TabIcon(symbol: tab.symbol, name: tab.name) }
+                }
+                // iOS 26 on iPhone: the separate round slot Apple's apps use for search
+                // holds the bowl button, so the glass bar makes room for it instead of
+                // running under it. The bowl button is drawn over this slot.
+                if QuickActionsDock.usesSystemSlot {
+                    Tab(value: QuickActionsDock.slotTag, role: .search) {
+                        Color.clear
+                    } label: { TabIcon(symbol: "circle.fill", name: "Quick actions") }
                 }
             }
         } else {
-            TabView(selection: tabSelection) {
+            TabView(selection: $selection) {
                 ForEach(all) { tab in
-                    Group {
-                        if tab == .quickActions { Color.clear } else { tabContent(tab) }
-                    }
-                    .tabItem { TabIcon(symbol: tab.symbol, name: tab.name) }
-                    .tag(tab.rawValue)
+                    tabContent(tab)
+                        .tabItem { TabIcon(symbol: tab.symbol, name: tab.name) }
+                        .tag(tab.rawValue)
                 }
             }
         }
+    }
+
+    /// Choosing the bowl's slot (VoiceOver, Full Keyboard Access) opens the quick
+    /// actions and leaves the current tab selected.
+    private var tabSelection: Binding<Int> {
+        Binding(get: { selection }, set: { tag in
+            if tag == QuickActionsDock.slotTag { openQuickActions() } else { selection = tag }
+        })
+    }
+
+    private func openQuickActions() {
+        quickActionsOpened &+= 1
+        present(.quickActions)
     }
 
     var body: some View {
@@ -128,6 +139,21 @@ struct MainTabView: View {
                 .zIndex(10)
             }
         }
+        // The bowl button beside the tab bar, measured from the screen's bottom edge.
+        .overlay {
+            ZStack(alignment: .bottomTrailing) {
+                Color.clear.allowsHitTesting(false)
+                if !keyboardVisible {
+                    QuickActionsButton(diameter: QuickActionsDock.diameter) { openQuickActions() }
+                        .padding(.trailing, QuickActionsDock.trailing)
+                        .padding(.bottom, QuickActionsDock.bottom(barInset: tabBarHeight))
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
+                }
+            }
+            .ignoresSafeArea(.container, edges: .bottom)
+        }
+        .animation(reduceMotion ? .reducedFade : .snappyValue, value: keyboardVisible)
+        .sensoryFeedback(.impact(weight: .medium), trigger: quickActionsOpened)
         .background(Color.surfaceGrouped)
         // Tab screens keep their layout under the keyboard.
         .ignoresSafeArea(.keyboard)
@@ -178,14 +204,27 @@ struct MainTabView: View {
             case .mealPhoto:
                 VoiceCommandSheet(photoMode: true, close: { self.sheet = nil }, navigate: openFromVoice)
             case .quickActions:
-                QuickActionsMenu(features: features, close: { self.sheet = nil }) { choice in
+                QuickActionsPanel(features: features, close: { self.sheet = nil }) { choice in
                     switch choice {
                     case .chat: present(.chat)
                     case .voice: present(.voice)
                     case .mealPhoto: present(.mealPhoto)
+                    case .stock: present(.stock)
                     case .action(let action): chooseQuickAction(action)
                     }
                 }
+            case .stock:
+                NavigationStack {
+                    StockView()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { self.sheet = nil }
+                                    .accessibilityIdentifier("quickStock.done")
+                            }
+                        }
+                }
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.large])
             case .featureOff(let feature):
                 FeatureOffPrompt(feature: feature,
                                  turnOn: { enableFromPrompt(feature) },
@@ -278,6 +317,8 @@ struct MainTabView: View {
         } else {
             requiring(FeatureLayout.feature(for: action)) {
                 if let tab = action.tab {
+                    // A screen, not a sheet: close the quick actions and go there.
+                    present(nil)
                     selection = tab
                 } else {
                     switch action {
@@ -397,56 +438,6 @@ private struct TabBarInsetReader: View {
 private struct TabBarInsetKey: PreferenceKey {
     static var defaultValue: CGFloat { 49 }
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-/// What the "+" tab offers, as a native sheet.
-private struct QuickActionsMenu: View {
-    enum Choice { case action(MealioQuickAction), chat, voice, mealPhoto }
-    /// Only actions for these features are offered (`FeatureLayout.quickActionIDs`).
-    let features: Set<AppFeature>
-    /// Closes the sheet through `MainTabView`'s own state (its single sheet path).
-    let close: () -> Void
-    let choose: (Choice) -> Void
-
-    private var rows: [(id: String, title: String, symbol: String, choice: Choice)] {
-        let offered = FeatureLayout.quickActionIDs(for: features)
-        return Self.allRows.filter { offered.contains($0.id) }
-    }
-
-    private static let allRows: [(id: String, title: String, symbol: String, choice: Choice)] = [
-        ("voice", "Speak a command", "mic.fill", .voice),
-        ("mealPhoto", "Snap a meal", "camera.fill", .mealPhoto),
-        (MealioQuickAction.logFood.rawValue, "Log food", "fork.knife", .action(.logFood)),
-        (MealioQuickAction.cart.rawValue, "Cart", "cart", .action(.cart)),
-        (MealioQuickAction.groceries.rawValue, "Checklist", "checklist", .action(.groceries)),
-        ("chat", "Ask Nourlo", "bubble.left.and.text.bubble.right", .chat),
-        (MealioQuickAction.profile.rawValue, "Profile", "person.crop.circle", .action(.profile)),
-    ]
-
-    var body: some View {
-        NavigationStack {
-            List(rows.filter { row in
-                if case .chat = row.choice { return AIAccountService.shared.offersOnlineAI }
-                if case .mealPhoto = row.choice { return MealPhotoAccess.isUsable }
-                return true
-            }, id: \.id) { row in
-                Button { choose(row.choice) } label: {
-                    Label(row.title, systemImage: row.symbol)
-                        .foregroundStyle(Color.labelPrimary)
-                }
-                .accessibilityIdentifier("quickActions." + row.id)
-            }
-            .navigationTitle("Quick actions")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { close() }.accessibilityIdentifier("quickActions.done")
-                }
-            }
-        }
-        .presentationDetents([.height(470), .large])
-        .presentationDragIndicator(.visible)
-    }
 }
 
 // MARK: - New week
