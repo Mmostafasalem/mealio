@@ -347,6 +347,7 @@ struct CookedRecipeSheet: View {
     }
     @State private var useStock = true
     @State private var done: String?
+    @State private var stock = StockStore.shared
 
     var body: some View {
         NavigationStack {
@@ -364,8 +365,17 @@ struct CookedRecipeSheet: View {
                 Section {
                     Toggle("Take the ingredients out of My Stock", isOn: $useStock)
                         .toggleStyle(.spring)
+                        .accessibilityIdentifier("cookbook.useStock")
+                    if useStock {
+                        ForEach(Array(recipe.keyIngredients.enumerated()), id: \.offset) { _, line in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(line.text).font(.footnote)
+                                StockSummaryLine(summary: CookbookCooking.summary(for: line, store: stock))
+                            }
+                        }
+                    }
                 } footer: {
-                    Text("Takes the whole recipe's amounts from the matching foods in stock. Kitchen basics are left alone.")
+                    Text("Takes the whole recipe's amounts from the matching foods in stock. Kitchen basics are left alone. Undo puts them back.")
                 }
 
                 if let done {
@@ -385,8 +395,10 @@ struct CookedRecipeSheet: View {
     }
 
     private func log() {
-        FoodLogStore.shared.add(FoodLogEntry(nutritionFood: recipe.servingFood, slot: slot, amount: eaten))
-        if useStock { CookbookCooking.takeFromStock(recipe) }
+        let entry = FoodLogEntry(nutritionFood: recipe.servingFood, slot: slot, amount: eaten)
+        FoodLogStore.shared.add(entry, takeFromStock: false)
+        // Kept under the log entry, so removing it puts the ingredients back.
+        if useStock { CookbookCooking.takeFromStock(recipe, entryID: entry.id) }
         dismiss()
     }
 }
@@ -395,23 +407,45 @@ enum CookbookCooking {
     /// Takes each key ingredient's grams from the first matching stock items (gram or
     /// millilitre foods only; a food counted in servings is left as it is).
     @discardableResult
-    static func takeFromStock(_ recipe: CookbookRecipe, store: StockStore? = nil) -> [String] {
+    static func takeFromStock(_ recipe: CookbookRecipe, entryID: String = UUID().uuidString, store: StockStore? = nil) -> [String] {
         let store = store ?? .shared
-        var used: [String] = []
-        for line in recipe.keyIngredients {
+        let uses = uses(for: recipe.keyIngredients, items: store.items)
+        store.takeOut(for: entryID, uses: uses)
+        return uses.map(\.item.food.name)
+    }
+
+    /// The stock each line's grams come out of, soonest use-by first.
+    static func uses(for lines: [CookbookRecipe.Line], items: [StockItem]) -> [StockUse] {
+        var left = items
+        var uses: [StockUse] = []
+        for line in lines {
             guard var remaining = line.grams, remaining > 0 else { continue }
-            let matching = store.items.filter { item in
+            let matching = left.filter { item in
                 item.food.basis != .serving && KitchenMatcher(names: [item.food.name]).has(line)
             }.sorted { StockItem.expiryOrder($0, $1) }
             for item in matching where remaining > 0.5 {
                 let take = min(remaining, item.amount)
-                if item.amount - take < 0.5 { try? store.remove(id: item.id) }
-                else { try? store.update(id: item.id, amount: item.amount - take, expiresAt: item.expiryDay()) }
+                uses.append(StockUse(item: item, amount: take))
+                if let index = left.firstIndex(where: { $0.id == item.id }) { left[index].amount -= take }
                 remaining -= take
-                used.append(item.food.name)
             }
+            left.removeAll { $0.amount < 0.5 }
         }
-        return used
+        return uses
+    }
+
+    /// "From your stock: … (x g left after this)" for one recipe line, or "Not in your stock".
+    @MainActor
+    static func summary(for line: CookbookRecipe.Line, store: StockStore) -> StockSummary {
+        let uses = uses(for: [line], items: store.items)
+        guard let first = uses.first else {
+            return StockSummary(name: nil, left: 0, unit: .grams, short: 0, pieceAmount: nil, pieceName: nil)
+        }
+        let same = store.items.filter { $0.food.basis != .serving && KitchenMatcher(names: [$0.food.name]).has(line) }
+        let left = max(0, same.reduce(0) { $0 + $1.amount } - uses.reduce(0) { $0 + $1.amount })
+        let short = max(0, (line.grams ?? 0) - uses.reduce(0) { $0 + $1.amount })
+        return StockSummary(name: first.item.food.name, left: left, unit: first.item.food.basis, short: short,
+                            pieceAmount: first.item.food.pieceAmount, pieceName: first.item.food.pieceName)
     }
 }
 

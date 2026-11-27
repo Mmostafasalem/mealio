@@ -143,7 +143,7 @@ final class BarcodeLookupService {
         var parts = URLComponents(string: "https://world.openfoodfacts.org")!
         parts.path = "/api/v2/product/\(code).json"
         parts.queryItems = [URLQueryItem(name: "fields",
-                                         value: "code,product_name,brands,nutriments,serving_size,quantity,product_quantity_unit,nutrition_data_per")]
+                                         value: "code,product_name,brands,nutriments,serving_size,serving_quantity,serving_quantity_unit,quantity,product_quantity,product_quantity_unit,number_of_units,nutrition_data_per")]
         return parts.url
     }
 
@@ -178,7 +178,7 @@ final class BarcodeLookupService {
               (root["status"] as? Int) == 1 || (root["status"] as? String) == "1" || root["status"] == nil,
               let product = root["product"] as? [String: Any],
               let nutriments = product["nutriments"] as? [String: Any],
-              let values = per100(nutriments) else { return nil }
+              let values = per100(nutriments, servingAmount: OFFPackage.servingAmount(product, basis: basis(product))) else { return nil }
         let returnedCode = (product["code"] as? String) ?? (root["code"] as? String) ?? code
         guard returnedCode == code else { return nil }
 
@@ -193,26 +193,15 @@ final class BarcodeLookupService {
                                  source: .openFoodFacts, sourceID: code,
                                  sourceDate: String(ISO8601DateFormatter().string(from: retrieved).prefix(10)))
         food.searchNames = [productName].filter { !$0.isEmpty }
+        OFFPackage.apply(product, to: &food)
         return food.isValid ? food : nil
     }
 
     /// kcal and macros per 100 g, with kJ converted when kcal is missing.
     /// Nil when any value is missing, negative, non-finite or impossible.
-    nonisolated static func per100(_ n: [String: Any]) -> Per100? {
-        func number(_ key: String) -> Double? {
-            if let v = n[key] as? NSNumber {
-                guard CFGetTypeID(v) != CFBooleanGetTypeID() else { return nil }
-                return v.doubleValue
-            }
-            if let v = n[key] as? String { return Double(v.replacingOccurrences(of: ",", with: ".")) }
-            return nil
-        }
-        let kcal = number("energy-kcal_100g")
-            ?? number("energy-kj_100g").map { $0 / 4.184 }
-            ?? ((n["energy_unit"] as? String)?.lowercased() == "kj" ? number("energy_100g").map { $0 / 4.184 } : nil)
-        guard let kcal, let protein = number("proteins_100g"),
-              let carbs = number("carbohydrates_100g"), let fat = number("fat_100g") else { return nil }
-        let values = Per100(kcal: kcal, protein: protein, carbs: carbs, fat: fat)
+    nonisolated static func per100(_ n: [String: Any], servingAmount: Double? = nil) -> Per100? {
+        guard let read = OFFPackage.per100(n, servingAmount: servingAmount) else { return nil }
+        let values = Per100(kcal: read.kcal, protein: read.protein, carbs: read.carbs, fat: read.fat)
         return isPlausible(values) ? values : nil
     }
 

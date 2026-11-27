@@ -21,13 +21,34 @@ struct VoiceFoodMatch: Identifiable, Equatable {
     var guessed = false
     /// The person's own calories for this portion, typed on the review card.
     var kcalOverride: Int? = nil
+    /// One piece ("veggie burger", "slice"), in the food's unit, when it was counted
+    /// ("2 veggie burgers") or the food comes in pieces; nil when it's only weighed.
+    var pieceAmount: Double? = nil
+    /// What one piece is called, singular ("veggie burger").
+    var pieceName: String? = nil
+
+    /// How many pieces the amount is ("2"), when the food is counted.
+    var count: Double? {
+        guard let piece = pieceAmount, piece > 0 else { return nil }
+        return ((amount / piece) * 100).rounded() / 100
+    }
+
+    /// "2 × veggie burger · 220 g · 493 kcal" (or "150 g · 200 kcal" when not counted).
+    var summary: String {
+        let amountText = LogFoodSheet.amountText(amount, basis: food.basis)
+        var parts: [String] = []
+        if let count, let pieceName { parts.append("\(count.formatted(.number.precision(.fractionLength(0...2)))) × \(pieceName)") }
+        parts.append(amountText)
+        parts.append("\(kcal) kcal")
+        return parts.joined(separator: " · ")
+    }
 
     /// The calories that will be logged: the person's own figure, else the estimate.
     var kcal: Int { kcalOverride ?? estimatedKcal }
     var estimatedKcal: Int { Int(food.portion(amount).kcal.rounded()) }
 
     static func == (a: VoiceFoodMatch, b: VoiceFoodMatch) -> Bool {
-        a.id == b.id && a.food.id == b.food.id && a.amount == b.amount && a.kcalOverride == b.kcalOverride
+        a.id == b.id && a.food.id == b.food.id && a.amount == b.amount && a.kcalOverride == b.kcalOverride && a.pieceAmount == b.pieceAmount
     }
 }
 
@@ -158,6 +179,7 @@ enum VoiceCommandRunner {
             let (amount, estimated) = VoiceAmounts.amount(for: phrase, food: food)
             var match = VoiceFoodMatch(phrase: phrase, food: food, amount: amount, alternatives: found, estimated: estimated)
             match.guessed = bareNames || VoiceAmounts.isUnsure(phrase, food: food)
+            (match.pieceAmount, match.pieceName) = VoiceAmounts.pieces(for: phrase, food: food, amount: amount)
             matches.append(match)
         }
         return .food(matches: matches, missing: missing, slot: slot)
@@ -170,13 +192,17 @@ enum VoiceCommandRunner {
 
     // MARK: Carrying it out
 
-    static func perform(_ plan: VoicePlan, now: Date = Date()) -> VoiceOutcome {
+    static func perform(_ plan: VoicePlan, now: Date = Date(), loggedAt: Date? = nil) -> VoiceOutcome {
         switch plan {
         case .food(let matches, _, let slot):
             var added: [FoodLogEntry] = []
             for match in matches {
-                guard let entry = try? LogFoodIntent.makeEntry(food: match.food, amount: match.amount, slot: slot, now: now,
+                guard var entry = try? LogFoodIntent.makeEntry(food: match.food, amount: match.amount, slot: slot, now: now,
                                                                kcal: match.kcalOverride) else { continue }
+                // A meal photo finished later is logged at the time it was taken.
+                if let loggedAt {
+                    entry = FoodLogEntry(nutritionFood: match.food, slot: slot, amount: match.amount, kcal: match.kcalOverride, loggedAt: loggedAt)
+                }
                 if match.food.source == .openFoodFacts { NutritionCatalogService.shared.remember(match.food) }
                 FoodLogStore.shared.add(entry)
                 added.append(entry)
@@ -185,8 +211,11 @@ enum VoiceCommandRunner {
             NourloTips.foodLogged()
             let kcal = added.reduce(0) { $0 + $1.calories }
             let what = added.count == 1 ? added[0].name : "\(added.count) foods"
-            return VoiceOutcome(message: "Logged \(what) to \(slot.title.lowercased()), \(kcal) kcal.",
-                                undo: { added.forEach(FoodLogStore.shared.remove) })
+            let fromStock = added.filter { !StockStore.shared.draws(for: $0.id).isEmpty }.count
+            let stockNote = fromStock == 0 ? "" : fromStock == added.count ? " Taken out of My Stock." : " \(fromStock) taken out of My Stock."
+            // Undo takes the food off the log and puts what it took back into My Stock.
+            return VoiceOutcome(message: "Logged \(what) to \(slot.title.lowercased()), \(kcal) kcal.\(stockNote)",
+                                undo: { added.forEach { FoodLogStore.shared.remove($0) } })
 
         case .cart(let items, _):
             guard !items.isEmpty else { return VoiceOutcome(message: "Nothing was added.") }
@@ -315,6 +344,38 @@ enum VoiceAmounts {
         case .piece: return (count * (piece ?? food.defaultAmount), true)
         case .serving: return (count * food.defaultAmount, true)
         }
+    }
+
+    /// The weight of one piece and its name, for counting on the review card:
+    /// "2 veggie burgers" → (110 g, "veggie burger"); "3 slices of bread" → (30 g, "slice");
+    /// a weighed product whose label gives its slices → (21 g, "slice"). Nil when the food is only weighed.
+    static func pieces(for phrase: VoiceFoodPhrase, food: NutritionFood, amount: Double) -> (Double?, String?) {
+        guard food.basis != .serving, amount > 0 else { return (nil, nil) }
+        let name = pieceLabel(phrase.name)
+        if let count = phrase.quantity, count > 0 {
+            switch phrase.unit {
+            case nil, .piece?:
+                if let piece = pieceWeight(of: phrase.name, food: food) ?? food.pieceAmount { return (piece, name) }
+            case .slice?: return (amount / count, "slice")
+            case .can?: return (amount / count, "can")
+            case .bottle?: return (amount / count, "bottle")
+            case .glass?: return (amount / count, "glass")
+            case .bowl?: return (amount / count, "bowl")
+            case .cup?: return (amount / count, "cup")
+            case .handful?: return (amount / count, "handful")
+            default: break
+            }
+        }
+        // Weighed (a photo, "200 g"): counted only when the package says what a piece is.
+        if let piece = food.pieceAmount, piece > 0 { return (piece, food.pieceName ?? name) }
+        return (nil, nil)
+    }
+
+    /// "Veggie burgers" → "veggie burger".
+    static func pieceLabel(_ name: String) -> String {
+        var words = name.lowercased().split(separator: " ").map(String.init)
+        if let last = words.last { words[words.count - 1] = OFFPackage.singular(last) }
+        return words.joined(separator: " ")
     }
 
     /// A weight or volume was said for a food that is counted in servings, so

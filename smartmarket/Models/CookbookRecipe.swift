@@ -161,7 +161,7 @@ nonisolated struct KitchenMatcher: Sendable {
     private let leads: [Set<String>]
 
     /// First segments that only name a group; the food is in the next one.
-    private static let groups: Set<String> = ["fish", "nut", "seed", "cheese", "cereal", "bean", "crustacean", "mollusk",
+    static let groups: Set<String> = ["fish", "nut", "seed", "cheese", "cereal", "bean", "crustacean", "mollusk",
                                               "squash", "pepper", "spice", "soup", "beverage", "snack", "bread", "oil"]
     /// A name with one of these words isn't the plain ingredient ("peanut butter" isn't butter).
     private static let blockers: [String: Set<String>] = [

@@ -144,6 +144,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             StockStore.shared.reload()
             AppState.shared.weeklyMealPlan = nil
         }
+        UITestSeeds.apply()
         #endif
         // Native navigation titles follow the same adaptive palette as content.
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
