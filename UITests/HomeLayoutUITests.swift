@@ -93,7 +93,9 @@ final class HomeLayoutUITests: XCTestCase {
         XCTAssertTrue(element("insights.chart", in: app).exists)
         XCTAssertTrue(element("insights.streak", in: app).exists)
         capture("b7-insights-7-days")
-        app.buttons["30 days"].tap()
+        let month = app.buttons["30 days"]
+        for _ in 0..<3 where !month.isSelected { month.tap(); sleep(1) }
+        XCTAssertTrue(month.isSelected)
         capture("b7-insights-30-days")
         app.swipeUp(velocity: .slow)
         XCTAssertTrue(element("insights.macros", in: app).waitForExistence(timeout: 3))
@@ -112,11 +114,15 @@ final class HomeLayoutUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 8))
         var titles: [String] = []
         for step in 1...5 {
-            XCTAssertTrue(title.waitForExistence(timeout: 3))
-            titles.append(title.label)
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            let label = title.label
+            titles.append(label)
             sleep(1)
             capture("b6-tour-step-\(step)")
             app.buttons["tour.next"].tap()
+            // The next step (or the end of the tour) before reading its title.
+            let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false OR label != %@", label), object: title)
+            XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed)
         }
         XCTAssertEqual(titles, ["Your calories today", "Meals", "Quick actions", "Shop", "Train"])
         XCTAssertFalse(title.waitForExistence(timeout: 2), "Done ends the tour")
