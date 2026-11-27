@@ -134,13 +134,13 @@ final class FeatureChoiceTests: XCTestCase {
 
     func testEveryFeatureKeepsAllQuickActions() {
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: AppFeature.all),
-                       ["chat", "voice", "logFood", "mealPhoto", "cart", "groceries", "meals", "stock", "train", "profile"])
+                       ["chat", "voice", "logFood", "mealPhoto", "addRecipe", "cart", "groceries", "meals", "stock", "train", "profile"])
     }
 
     func testQuickActionsFollowTheChoice() {
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.workouts]), ["chat", "voice", "train", "profile"])
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.meals]), ["chat", "meals", "stock", "profile"])
-        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.tracking]), ["chat", "voice", "logFood", "mealPhoto", "profile"])
+        XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.tracking]), ["chat", "voice", "logFood", "mealPhoto", "addRecipe", "profile"])
         XCTAssertEqual(FeatureLayout.quickActionIDs(for: [.groceries]), ["chat", "voice", "cart", "groceries", "stock", "profile"])
     }
 

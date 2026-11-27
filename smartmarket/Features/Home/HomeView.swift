@@ -77,6 +77,7 @@ struct HomeView: View {
                             dueReminders
                             if has(.tracking) {
                                 CalorieSummaryCard(vm: vm, showsVoice: showsVoice, onLog: { vm.openLog() })
+                                PendingMealsCard()
                             }
                             if !loop.state.quests.isEmpty {
                                 DailyQuestCard(state: loop.state, onOpen: openQuest)

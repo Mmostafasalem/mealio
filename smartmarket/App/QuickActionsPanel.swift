@@ -103,7 +103,7 @@ private struct BowlPressStyle: ButtonStyle {
 /// use right now are large tiles on top (chat and voice when offered), the rest
 /// smaller tiles below. Which tiles exist comes from `FeatureLayout.quickActionIDs`.
 struct QuickActionsPanel: View {
-    enum Choice: Equatable { case action(MealioQuickAction), chat, voice, mealPhoto, stock }
+    enum Choice: Equatable { case action(MealioQuickAction), chat, voice, mealPhoto, stock, addRecipe }
 
     struct Item: Identifiable {
         let id: String
@@ -137,6 +137,8 @@ struct QuickActionsPanel: View {
              symbol: "fork.knife", choice: .action(.logFood)),
         Item(id: "mealPhoto", title: "Snap a meal", detail: "A photo becomes a log",
              symbol: "camera.fill", choice: .mealPhoto),
+        Item(id: "addRecipe", title: "Add a recipe", detail: "Paste, link or photo",
+             symbol: "text.book.closed.fill", choice: .addRecipe),
         Item(id: MealioQuickAction.cart.rawValue, title: "Cart", detail: "What you're buying",
              symbol: "cart.fill", choice: .action(.cart)),
         Item(id: MealioQuickAction.groceries.rawValue, title: "Checklist", detail: "Tick off as you shop",
@@ -157,7 +159,6 @@ struct QuickActionsPanel: View {
         return offered.compactMap { id in Self.catalog.first { $0.id == id } }.filter { item in
             switch item.choice {
             case .chat: return AIAccountService.shared.offersOnlineAI
-            case .mealPhoto: return MealPhotoAccess.isUsable
             default: return true
             }
         }

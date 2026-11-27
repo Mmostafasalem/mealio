@@ -148,6 +148,7 @@ enum FeatureLayout {
         if features.contains(.tracking) {
             ids.append(MealioQuickAction.logFood.rawValue)
             ids.append("mealPhoto")
+            ids.append("addRecipe")
         }
         if features.contains(.groceries) {
             ids.append(MealioQuickAction.cart.rawValue)

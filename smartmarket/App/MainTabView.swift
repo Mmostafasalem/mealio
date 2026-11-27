@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto, stock
+    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto, stock, addRecipe
     case exercise(String)
     /// Something asked for a feature the person turned off: offer to turn it on.
     case featureOff(AppFeature)
@@ -20,6 +20,7 @@ enum MainSheet: Identifiable, Equatable {
         case .voice: return "voice"
         case .mealPhoto: return "mealPhoto"
         case .stock: return "stock"
+        case .addRecipe: return "addRecipe"
         case .exercise(let id): return "exercise:" + id
         case .featureOff(let feature): return "featureOff:" + feature.rawValue
         }
@@ -218,6 +219,7 @@ struct MainTabView: View {
                     case .voice: present(.voice)
                     case .mealPhoto: present(.mealPhoto)
                     case .stock: present(.stock)
+                    case .addRecipe: present(.addRecipe)
                     case .action(let action): chooseQuickAction(action)
                     }
                 }
@@ -233,6 +235,10 @@ struct MainTabView: View {
                 }
                 .presentationDragIndicator(.visible)
                 .presentationDetents([.large])
+            case .addRecipe:
+                RecipeImportSheet { self.sheet = nil }
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.large])
             case .featureOff(let feature):
                 FeatureOffPrompt(feature: feature,
                                  turnOn: { enableFromPrompt(feature) },
@@ -253,8 +259,7 @@ struct MainTabView: View {
     private func present(_ next: MainSheet?) {
         // Chat needs online AI: while it isn't offered, Siri, links and voice don't open it.
         if next == .chat && !AIAccountService.shared.offersOnlineAI { return }
-        // Meal photos need online AI that can be used right now (offered, allowed, signed in).
-        if next == .mealPhoto && !MealPhotoAccess.isUsable { return }
+        // Meal photos open even without online AI: the photo is then saved to clarify later.
         if awaitingDismissal {
             // Something is already going away; show the newest request after it.
             queuedSheet = next
