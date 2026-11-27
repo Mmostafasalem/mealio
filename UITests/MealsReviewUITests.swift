@@ -61,7 +61,8 @@ final class MealsReviewUITests: XCTestCase {
         XCTAssertTrue(recipe.waitForExistence(timeout: 30))
         shot("meal-recipe")
         select("Review and log", in: app)
-        XCTAssertTrue(app.staticTexts["Planned portions"].waitForExistence(timeout: 5))
+        // The review keeps its scroll position (at the log button, below the portions and their stock lines).
+        XCTAssertTrue(app.staticTexts["Planned portions"].waitForExistence(timeout: 10) || log.waitForExistence(timeout: 5))
     }
 
     func testTheVoiceCardTakesATypedAmountAndOwnCalories() {

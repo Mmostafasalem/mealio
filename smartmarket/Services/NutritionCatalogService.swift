@@ -187,7 +187,7 @@ final class NutritionCatalogService {
         let timestamp = now()
         if let lastSearch, timestamp.timeIntervalSince(lastSearch) < Self.searchSpacing { throw LookupError.rateLimited }
         lastSearch = timestamp
-        let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,nutriments,product_quantity_unit,serving_quantity_unit,nutrition_data_per,stores_tags,countries_tags"
+        let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,product_quantity,nutriments,product_quantity_unit,serving_size,serving_quantity,serving_quantity_unit,number_of_units,nutrition_data_per,stores_tags,countries_tags"
         var parts = URLComponents(string: "https://world.openfoodfacts.org")!
         parts.path = isBarcode ? "/api/v2/product/\(query).json" : (structured ? "/api/v2/search" : "/cgi/search.pl")
         parts.queryItems = [URLQueryItem(name: "fields", value: fields)]

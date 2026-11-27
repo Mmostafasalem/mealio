@@ -76,11 +76,11 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
         self.nutritionFood = nutritionFood
     }
     /// `kcal`: the person's own calories for this portion, replacing the estimate.
-    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double, kcal: Int? = nil) {
+    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double, kcal: Int? = nil, loggedAt: Date = Date()) {
         let p = PortionInput.portion(of: food, amount: amount, kcal: kcal)
         self.init(foodId: food.id, name: food.name, slot: slot, servingG: Int(amount.rounded()),
                   calories: Int(p.kcal.rounded()), proteinG: p.protein, carbsG: p.carbs, fatG: p.fat,
-                  nutritionFood: food, portionAmount: amount)
+                  loggedAt: loggedAt, nutritionFood: food, portionAmount: amount)
         if kcal != nil { ownCalories = true }
     }
 }
@@ -148,16 +148,25 @@ final class FoodLogStore {
 
     // MARK: Mutations (optimistic — UI updates instantly)
 
-    func add(_ entry: FoodLogEntry) {
+    /// Logs the entry and, with `takeFromStock`, takes its amount out of matching food in
+    /// My Stock (see `StockStore.takeOut`). Returns what came out of stock.
+    @discardableResult
+    func add(_ entry: FoodLogEntry, takeFromStock: Bool = true) -> [StockUse] {
         history.append(entry)
         history.sort { $0.loggedAt < $1.loggedAt }
         persist()
         if let fid = entry.foodId { noteRecent(foodId: fid) }
+        guard takeFromStock, let food = entry.nutritionFood else { return [] }
+        return stock.takeOut(for: entry.id, food: food, amount: entry.amount)
     }
 
+    /// Removing (or undoing) a logged food puts back what logging it took out of My Stock:
+    /// it wasn't eaten after all. (Food logged on My Stock's own screen is recorded by the
+    /// stock itself and stays eaten, as before.)
     func remove(_ entry: FoodLogEntry) {
         history.removeAll { $0.id == entry.id }
         stock.removeLog(id: entry.id)
+        stock.putBack(for: entry.id)
         persist()
     }
 

@@ -7,6 +7,8 @@ struct LogFoodSheet: View {
 
     @Bindable var vm: HomeViewModel
     var onSelect: ((NutritionFood, Double) -> Void)? = nil
+    /// With `onSelect`: the foods are picked for something else (a meal photo), not added to stock.
+    var pickTitle: String? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var slot: MealSlot = .suggested()
@@ -34,6 +36,11 @@ struct LogFoodSheet: View {
     @State private var scanTask: Task<Void, Never>?
     @State private var scanOpenTask: Task<Void, Never>?
     private let scanTip = ScanBarcodeTip()
+    @State private var pending = PendingMealStore.shared
+    @State private var clarifying: PendingMeal?
+    @State private var showRecipeImport = false
+    @State private var showPhoto = false
+    @State private var stock = StockStore.shared
 
     /// Where a barcode lookup stands; shown at the top of the list.
     private enum ScanState: Equatable {
@@ -76,8 +83,25 @@ struct LogFoodSheet: View {
                             .listRowBackground(Color.clear)
                     }
                     if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if onSelect == nil && !pending.meals.isEmpty {
+                            Section {
+                                ForEach(pending.meals) { meal in
+                                    Button { clarifying = meal } label: { PendingMealRow(meal: meal) }
+                                        .buttonStyle(.plain)
+                                        .accessibilityIdentifier("logFood.toClarify")
+                                }
+                            } header: {
+                                Label("To clarify", systemImage: "camera.viewfinder")
+                            } footer: {
+                                Text("Meal photos you saved for later. Tap one to say what was in it.")
+                            }
+                        }
                         if onSelect == nil {
                             Section {
+                                Button { showRecipeImport = true } label: {
+                                    Label("Add a recipe I'm following", systemImage: "text.book.closed")
+                                }
+                                .accessibilityIdentifier("logFood.addRecipe")
                                 NavigationLink {
                                     CookbookBrowserView(slot: slot)
                                 } label: {
@@ -85,7 +109,7 @@ struct LogFoodSheet: View {
                                 }
                                 .accessibilityIdentifier("logFood.browseRecipes")
                             } footer: {
-                                Text("\(cookbook.isEmpty ? "About 1,500" : "\(cookbook.count)") recipes, logged per serving. Nutrition is estimated from USDA values for the ingredients." as String)
+                                Text("Paste, link or photograph a recipe you're cooking and Nourlo works out a serving. Or log one of \(cookbook.isEmpty ? "about 1,500" : "\(cookbook.count)") Wikibooks recipes per serving. Nutrition is estimated from USDA values for the ingredients." as String)
                             }
                         }
                         if !catalog.customFoods.isEmpty {
@@ -105,10 +129,9 @@ struct LogFoodSheet: View {
                         if onSelect == nil && !vm.plannedEntries(for: slot).isEmpty {
                             Section("From today's plan") {
                                 ForEach(vm.plannedEntries(for: slot)) { entry in
-                                    Label(entry.foodName, systemImage: "calendar")
-                                        .font(.subheadline).foregroundStyle(Color.labelSecondary)
+                                    planRow(entry)
                                 }
-                                Text("Meal-plan totals are estimates. Search and log each ingredient with the amount you ate to track sourced nutrition.")
+                                Text("One tap logs the planned portions of each food and takes them out of My Stock where you have them.")
                                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                             }
                         }
@@ -170,10 +193,12 @@ struct LogFoodSheet: View {
                 .listStyle(.insetGrouped)
                 .scrollDismissesKeyboard(.immediately)
                 .navigationDestination(item: $detailFood) { food in
-                    ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : "Add to stock",
-                                      slotSelection: onSelect == nil ? $slot : nil) { grams, kcal in
+                    ServingDetailView(food: food, slot: slot, actionTitle: onSelect == nil ? nil : (pickTitle ?? "Add to stock"),
+                                      stocking: onSelect != nil && pickTitle == nil,
+                                      slotSelection: onSelect == nil ? $slot : nil) { food, grams, kcal in
                         // A scanned or searched product is saved only once it's actually used
-                        // (`HomeViewModel.logFood` saves it when logging).
+                        // (`HomeViewModel.logFood` saves it when logging). Going to stock, it
+                        // carries the package size and pieces set on the screen.
                         if let onSelect { catalog.remember(food); onSelect(food, grams) }
                         else { vm.logFood(food, slot: slot, amount: grams, kcal: kcal); LogFoodTip().invalidate(reason: .actionPerformed) }
                         dismiss()
@@ -185,7 +210,7 @@ struct LogFoodSheet: View {
                 let prefs = Set<DietaryPreference>.load()
                 cookbook = await Task.detached(priority: .utility) { CookbookLibrary.recipes.filter { $0.fits(prefs) } }.value
             }
-            .navigationTitle(onSelect == nil ? "Add Food" : "Add to Stock")
+            .navigationTitle(onSelect == nil ? "Add Food" : pickTitle == nil ? "Add to Stock" : "Choose a food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -199,6 +224,15 @@ struct LogFoodSheet: View {
                 if let food = pendingCustom { detailFood = food; pendingCustom = nil }
             }) {
                 CustomNutritionEntryView(catalog: catalog, market: market) { pendingCustom = $0 }
+            }
+            .sheet(isPresented: $showRecipeImport) {
+                RecipeImportSheet(slot: slot) { showRecipeImport = false }
+            }
+            .sheet(isPresented: $showPhoto) {
+                VoiceCommandSheet(photoMode: true, close: { showPhoto = false }, navigate: { _ in showPhoto = false })
+            }
+            .sheet(item: $clarifying) { meal in
+                ClarifyMealSheet(meal: meal) { clarifying = nil }
             }
             .sheet(isPresented: $showScanner, onDismiss: {
                 if let code = scanned { scanned = nil; lookUp(code) }
@@ -264,7 +298,7 @@ struct LogFoodSheet: View {
                 placeholder: "Search foods",
                 text: $query,
                 suggestion: suggestion,
-                accessibilityIdentifier: "logFood.search",
+                accessibilityIdentifier: pickTitle == nil ? "logFood.search" : "pickFood.search",
                 returnKey: .search,
                 acceptIdentifier: "logFood.acceptSuggestion"
             ) {
@@ -293,9 +327,10 @@ struct LogFoodSheet: View {
                 .accessibilityHint("Reads a package barcode with the camera")
                 .accessibilityIdentifier("logFood.scan")
             }
-            // Online AI names the foods in a meal photo (the logger closes; the photo sheet takes over).
-            if onSelect == nil && MealPhotoAccess.isUsable {
-                Button { NotificationCenter.default.post(name: .openMealPhoto, object: nil) } label: {
+            // A meal photo: online AI names the foods when it's offered; otherwise (or if you
+            // don't finish now) the photo waits under "To clarify".
+            if onSelect == nil {
+                Button { showPhoto = true } label: {
                     Image(systemName: "camera.fill")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(Color.brandPrimary)
@@ -303,8 +338,8 @@ struct LogFoodSheet: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("From a photo")
-                .accessibilityHint("Online AI names the foods in a photo of your meal")
+                .accessibilityLabel("Snap a meal")
+                .accessibilityHint(MealPhotoAccess.isUsable ? "Online AI names the foods in a photo of your meal" : "Saves a photo of your meal to clarify later")
                 .accessibilityIdentifier("logFood.photo")
             }
         }
@@ -385,13 +420,51 @@ struct LogFoodSheet: View {
             dismiss()
             return
         }
+        let summary = stock.summary(for: food, amount: food.defaultAmount)
         guard vm.logFood(food, slot: slot, amount: food.defaultAmount) else {
             showToast("Couldn't add \(food.name)")
             return
         }
         LogFoodTip().invalidate(reason: .actionPerformed)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        showToast("Added \(Self.amountText(food.defaultAmount, basis: food.basis)) · \(food.name)")
+        showToast("Added \(Self.amountText(food.defaultAmount, basis: food.basis)) · \(food.name)"
+                  + (summary.inStock ? " · from your stock" : ""))
+    }
+
+    /// A planned meal, logged in one tap: each food's planned portion (taken out of My Stock
+    /// where it's there), or opened in the review when it has no portions.
+    private func planRow(_ entry: MealEntry) -> some View {
+        let ingredients = entry.nutritionIngredients ?? []
+        let inStock = ingredients.filter { stock.summary(for: $0.food, amount: $0.amount).inStock }.count
+        return Button {
+            guard !ingredients.isEmpty else { return }
+            var logged = 0
+            for ingredient in ingredients where vm.logFood(ingredient.food, slot: slot, amount: ingredient.amount) { logged += 1 }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showToast(logged == 0 ? "Couldn't log \(entry.foodName)" : "Logged \(entry.foodName) · \(entry.calories) kcal"
+                      + (inStock > 0 ? " · from your stock" : ""))
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(slot.accent)
+                    .frame(width: 34, height: 34)
+                    .background(slot.accent.opacity(0.12), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.foodName).font(.subheadline.weight(.medium)).foregroundStyle(Color.labelPrimary)
+                    Text(ingredients.isEmpty ? "No portions to log" : "\(entry.calories) kcal · \(inStock) of \(ingredients.count) in your stock" as String)
+                        .font(.caption2).foregroundStyle(Color.labelSecondary)
+                }
+                Spacer()
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(ingredients.isEmpty ? Color.labelTertiary : slot.accent)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(ingredients.isEmpty)
+        .accessibilityLabel("Log \(entry.foodName), \(entry.calories) kcal" as String)
+        .accessibilityIdentifier("logFood.plan")
     }
 
     /// "0.5 serving", "2 servings", "100 g", "250 ml": no truncation, no
@@ -574,8 +647,9 @@ struct ServingDetailView: View {
     let actionTitle: String?
     /// When set, the meal can be changed here (spring dropdown) and is written back.
     let slotSelection: Binding<MealSlot>?
-    /// The amount, and the person's own calories when they typed them (logging only).
-    let onAdd: (Double, Int?) -> Void
+    /// The food (with the package size and pieces set here, going to stock), the amount,
+    /// and the person's own calories when they typed them (logging only).
+    let onAdd: (NutritionFood, Double, Int?) -> Void
 
     @State private var grams: Double
     @State private var slot: MealSlot
@@ -584,18 +658,46 @@ struct ServingDetailView: View {
     @State private var kcalOverride: Int?
     @State private var showEntry = false
     @State private var typingField = PortionField.amount
+    /// Going to stock: how many pieces the package holds, and what a piece is called.
+    @State private var piecesInPackage: Double?
+    @State private var pieceWord: String
+    @State private var stock = StockStore.shared
 
     /// Own calories belong to a logged portion; food going to My Stock keeps its record's values.
     private var canTypeKcal: Bool { actionTitle == nil }
+    /// This screen adds a package to My Stock rather than logging a portion.
+    private let isStocking: Bool
 
-    init(food: NutritionFood, slot: MealSlot, actionTitle: String? = nil,
-         slotSelection: Binding<MealSlot>? = nil, onAdd: @escaping (Double, Int?) -> Void) {
+    init(food: NutritionFood, slot: MealSlot, actionTitle: String? = nil, stocking: Bool? = nil,
+         slotSelection: Binding<MealSlot>? = nil, onAdd: @escaping (NutritionFood, Double, Int?) -> Void) {
         self.food = food
         self.onAdd = onAdd
         self.actionTitle = actionTitle
         self.slotSelection = slotSelection
-        _grams = State(initialValue: food.defaultAmount)
+        let stocking = stocking ?? (actionTitle != nil)
+        isStocking = stocking
+        // Going to stock, the whole package (from the barcode) is the starting amount.
+        let start = stocking ? (food.packageAmount ?? food.defaultAmount) : food.defaultAmount
+        _grams = State(initialValue: min(max(food.basis == .serving ? start : start.rounded(), food.minimumAmount), food.maximumAmount))
         _slot = State(initialValue: slotSelection?.wrappedValue ?? slot)
+        _piecesInPackage = State(initialValue: food.piecesPerPackage.map { $0.rounded() }.flatMap { $0 >= 1 ? $0 : nil })
+        _pieceWord = State(initialValue: food.pieceName ?? "piece")
+    }
+
+    /// What one piece weighs: the food's own (from its label or as stocked), else the stock
+    /// item this portion comes out of. Nil when the food isn't counted in pieces.
+    private var piece: (amount: Double, name: String)? {
+        if let amount = food.pieceAmount, amount > 0 { return (amount, food.pieceName ?? "piece") }
+        if let item = stock.preview(for: food, amount: grams).first?.item, item.food.basis == food.basis,
+           let amount = item.food.pieceAmount, amount > 0 {
+            return (amount, item.food.pieceName ?? "piece")
+        }
+        return nil
+    }
+
+    /// The food as it goes to stock: with the package size and pieces set here.
+    private var stockedFood: NutritionFood {
+        food.withPieces(piecesInPackage, name: pieceWord, package: grams)
     }
 
     // Portion stepper: whole steps of 0.25 serving or 1 g / ml, same as before.
@@ -621,7 +723,9 @@ struct ServingDetailView: View {
     private var portion: NutritionFood.Portion { PortionInput.portion(of: food, amount: grams, kcal: kcalOverride) }
     private var estimatedKcal: Int { Int(food.portion(grams).kcal.rounded()) }
     private var amountLabel: String {
-        food.basis == .serving ? "Number of servings" : "Amount in " + (food.basis == .grams ? "grams" : "millilitres")
+        let unit = food.basis == .grams ? "grams" : "millilitres"
+        if isStocking { return food.basis == .serving ? "Servings in the package" : "Total in the package, in " + unit }
+        return food.basis == .serving ? "Number of servings" : "Amount in " + unit
     }
     private func formatAmount(_ amount: Double) -> String {
         let number = amount.formatted(.number.precision(.fractionLength(0...2)))
@@ -684,12 +788,20 @@ struct ServingDetailView: View {
                 }
 
                 if slotSelection != nil { mealPicker }
+                // Counted food first: "2 slices" is how people think of it.
+                if !isStocking, let piece { piecesRow(piece) }
+                if !isStocking {
+                    // Which item in My Stock this comes out of (logging takes it out).
+                    StockSummaryLine(summary: stock.summary(for: food, amount: grams))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+                }
 
                 // Serving stepper
                 VStack(spacing: 12) {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Serving").font(.headline)
+                            Text(isStocking ? "Amount in package" : "Portion").font(.headline)
                             Text(amountLabel)
                                 .font(.caption).foregroundStyle(Color.labelSecondary)
                         }
@@ -712,6 +824,22 @@ struct ServingDetailView: View {
                                 spacing: food.basis == .serving ? 16 : 8,
                                 accessibilityName: "Amount", spokenValue: { formatAmount($0) })
                         .frame(height: 96)
+                    if !labelPresets.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(labelPresets, id: \.id) { preset in
+                                    Button(preset.title) { setAmount(preset.amount) }
+                                        .font(.caption).fontWeight(.semibold)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 12).padding(.vertical, 6)
+                                        .background(Color.progress.opacity(0.14), in: Capsule())
+                                        .frame(minHeight: 44)
+                                        .contentShape(Rectangle())
+                                        .accessibilityIdentifier("logFood.preset." + preset.id)
+                                }
+                            }
+                        }
+                    }
                     HStack(spacing: 8) {
                         ForEach(food.basis == .serving ? [1, 2, 3, 4] : [50, 100, 150, 200], id: \.self) { preset in
                             Button(food.basis == .serving ? "\(preset)×" : "\(preset) \(food.basis.rawValue)") { setAmount(Double(preset)) }
@@ -733,18 +861,24 @@ struct ServingDetailView: View {
                 .padding(16)
                 .premiumCard()
 
+                if isStocking, food.basis != .serving { packagePieces }
+
+                if food.packageAmount != nil || food.servingLabel != nil || food.servingAmount != nil {
+                    packageFacts
+                }
+
                 VStack(alignment: .leading, spacing: 8) {
                     Text(food.sourceName).font(.headline)
                     if food.source == .openFoodFacts, let date = food.sourceDate {
                         Text("Retrieved \(date)" as String).font(.caption).foregroundStyle(Color.labelSecondary)
                     }
-                    Text("\(food.referenceLabel): \(food.kcal.formatted(.number.precision(.fractionLength(0...1)))) kcal · Protein \(food.protein.formatted(.number.grouping(.never))) g · Carbs \(food.carbs.formatted(.number.grouping(.never))) g · Fat \(food.fat.formatted(.number.grouping(.never))) g" as String)
+                    Text("\(food.referenceLabel): \(Self.oneDecimal(food.kcal)) kcal · Protein \(Self.oneDecimal(food.protein)) g · Carbs \(Self.oneDecimal(food.carbs)) g · Fat \(Self.oneDecimal(food.fat)) g" as String)
                         .font(.footnote)
                     if let url = food.sourceURL { Link(food.source == .cookbook ? "Open the recipe on Wikibooks (CC BY-SA 4.0)" : "View original nutrition record", destination: url) }
                     if let recipe = food.recipeDetails {
                         Text("Final weighed yield: \(recipe.cookedYieldG.formatted(.number.grouping(.never))) g" as String).font(.footnote)
                         ForEach(recipe.ingredients) { ingredient in
-                            Text("\(ingredient.food.name) · \(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)" as String)
+                            Text("\(ingredient.food.name) · \(Self.oneDecimal(ingredient.amount)) \(ingredient.food.basis.rawValue)" as String)
                                 .font(.footnote)
                         }
                     }
@@ -760,11 +894,13 @@ struct ServingDetailView: View {
         .onChange(of: slot) { _, s in slotSelection?.wrappedValue = s }
         // One dialog for both numbers (two alerts on one view show only one).
         .numberEntry(isPresented: $showEntry,
-                     title: typingField == .kcal ? "Your calories" : "Amount",
-                     current: typingField == .kcal ? "\(kcal)" : formatAmount(grams),
+                     title: typingField == .kcal ? "Your calories" : typingField == .count ? (isStocking ? "Pieces in the package" : "How many") : "Amount",
+                     current: typingField == .kcal ? "\(kcal)" : typingField == .count ? countText : formatAmount(grams),
                      message: typingField == .kcal
                         ? VoiceCommandSheet.kcalHint(estimate: estimatedKcal, amount: formatAmount(grams))
-                        : VoiceCommandSheet.amountHint(food),
+                        : typingField == .count
+                            ? (isStocking ? "How many slices, pieces or cans the whole package holds. Logging by pieces then divides its grams and calories." : "The grams and calories follow the number of pieces.")
+                            : VoiceCommandSheet.amountHint(food),
                      keyboard: typingField == .kcal ? .numberPad : .decimalPad,
                      identifier: typingField == .kcal ? "logFood.kcal.entry" : "logFood.amount.entry",
                      resetTitle: typingField == .kcal && kcalOverride != nil ? "Use the estimate" : nil,
@@ -772,6 +908,11 @@ struct ServingDetailView: View {
             switch typingField {
             case .amount: if let amount = PortionInput.amount(text, for: food) { setAmount(amount) }
             case .kcal: if let typed = PortionInput.kcal(text) { kcalOverride = typed }
+            case .count:
+                if let value = TypedNumber.parse(text), value.isFinite, value > 0 {
+                    if isStocking { piecesInPackage = min(value.rounded(), 500) }
+                    else if let piece { setAmount(min(max(value * piece.amount, food.minimumAmount), food.maximumAmount)) }
+                }
             }
         }
         .navigationTitle(food.name)
@@ -787,12 +928,137 @@ struct ServingDetailView: View {
                 return true
             } onFinished: {
                 // Close after the success moment.
-                onAdd(grams, canTypeKcal ? kcalOverride : nil)
+                onAdd(isStocking ? stockedFood : food, grams, canTypeKcal ? kcalOverride : nil)
             }
             .disabled(didAdd)
             .accessibilityIdentifier("logFood.addServing")
             .padding(.horizontal, 16).padding(.bottom, 8)
         }
+    }
+
+    /// "22.7", never "22.727273".
+    static func oneDecimal(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
+    }
+
+    private struct Preset { let id: String; let title: String; let amount: Double }
+
+    /// The whole package and the label's serving, as chips (from the barcode data).
+    private var labelPresets: [Preset] {
+        var out: [Preset] = []
+        let unit = food.basis.rawValue
+        if let package = food.packageAmount, package >= food.minimumAmount, package <= food.maximumAmount {
+            out.append(Preset(id: "package", title: "Whole package · \(Self.oneDecimal(package)) \(unit)", amount: package.rounded()))
+        }
+        if let serving = food.servingAmount, serving >= food.minimumAmount, serving <= food.maximumAmount {
+            out.append(Preset(id: "serving", title: "One serving · \(Self.oneDecimal(serving)) \(unit)", amount: serving.rounded()))
+        }
+        return out
+    }
+
+    private var countText: String {
+        if isStocking { return piecesInPackage.map { Self.oneDecimal($0) } ?? "" }
+        guard let piece else { return "" }
+        return Self.oneDecimal(grams / piece.amount)
+    }
+
+    /// What the package says, from Open Food Facts: its size, the label's serving and its pieces.
+    private var packageFacts: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("On the package", systemImage: "shippingbox")
+                .font(.headline)
+            if let package = food.packageAmount {
+                Text("Package: \(Self.oneDecimal(package)) \(food.basis.rawValue)" as String).font(.footnote)
+            }
+            if let serving = food.servingAmount {
+                Text("Serving: \(food.servingLabel ?? "\(Self.oneDecimal(serving)) \(food.basis.rawValue)") · \(Self.oneDecimal(food.portion(serving).kcal)) kcal" as String)
+                    .font(.footnote)
+            } else if let label = food.servingLabel {
+                Text("Serving: \(label)" as String).font(.footnote)
+            }
+            if let pieces = food.piecesPerPackage, let name = food.pieceName {
+                Text("About \(PieceWords.count(pieces.rounded(), name)) in a package" as String).font(.footnote)
+            }
+            if food.source == .openFoodFacts {
+                Text("Filled in from the barcode (Open Food Facts). Check it against your package.")
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .premiumCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("logFood.packageFacts")
+    }
+
+    /// Going to stock: how many slices, pieces or cans the package holds.
+    private var packagePieces: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pieces in package").font(.headline)
+                    Text(piecesInPackage.map { "One \(pieceWord) is about \(Self.oneDecimal(grams / $0)) \(food.basis.rawValue)" }
+                         ?? "Optional: slices, pieces, cans …")
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
+                }
+                Spacer(minLength: 8)
+                SpringStepper(
+                    value: Binding(get: { Int(piecesInPackage ?? 0) }, set: { piecesInPackage = $0 > 0 ? Double($0) : nil }),
+                    in: 0...500,
+                    format: { $0 == 0 ? "None" : "\($0)" },
+                    label: "Pieces in package",
+                    decrementLabel: "Fewer pieces",
+                    incrementLabel: "More pieces",
+                    font: .system(.headline, design: .rounded).weight(.bold),
+                    onTapNumber: { typingField = .count; showEntry = true }
+                )
+                .accessibilityIdentifier("logFood.piecesInPackage")
+            }
+            if piecesInPackage != nil {
+                Picker("A piece is a", selection: $pieceWord) {
+                    ForEach(Self.pieceWords(including: pieceWord), id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("logFood.pieceWord")
+            }
+        }
+        .padding(16)
+        .premiumCard()
+    }
+
+    static func pieceWords(including word: String) -> [String] {
+        let words = ["piece", "slice", "can", "bottle", "bar", "cookie", "biscuit", "egg", "samosa", "sausage", "patty",
+                     "roll", "bun", "wrap", "tortilla", "pot", "pouch", "sachet", "stick", "square", "portion"]
+        return words.contains(word) ? words : [word] + words
+    }
+
+    /// Logging: the portion by pieces ("2 slices · 42 g"), when the food is counted.
+    private func piecesRow(_ piece: (amount: Double, name: String)) -> some View {
+        let count = grams / piece.amount
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(PieceWords.plural(piece.name).capitalized).font(.headline)
+                Text("\(PieceWords.count((count * 2).rounded() / 2, piece.name)) · one is \(Self.oneDecimal(piece.amount)) \(food.basis.rawValue)" as String)
+                    .font(.caption).foregroundStyle(Color.labelSecondary)
+                    .accessibilityIdentifier("logFood.piecesText")
+            }
+            Spacer(minLength: 8)
+            SpringStepper(
+                value: Binding(get: { Int((count * 2).rounded()) }, set: { halves in
+                    setAmount(min(max(Double(max(halves, 1)) / 2 * piece.amount, food.minimumAmount), food.maximumAmount))
+                }),
+                in: 1...200,
+                format: { (Double($0) / 2).formatted(.number.precision(.fractionLength(0...1))) + " ×" },
+                label: "Number of \(PieceWords.plural(piece.name))",
+                decrementLabel: "Half fewer",
+                incrementLabel: "Half more",
+                font: .system(.headline, design: .rounded).weight(.bold),
+                onTapNumber: { typingField = .count; showEntry = true }
+            )
+            .accessibilityIdentifier("logFood.pieces")
+        }
+        .padding(16)
+        .premiumCard()
     }
 
     /// Which meal this serving goes to. Replaces a plain picker with the spring dropdown;

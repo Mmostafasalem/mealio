@@ -127,8 +127,11 @@ struct PlannedMealReview: View {
                     ForEach(ingredients) { ingredient in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(ingredient.food.name)
-                            Text("\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue) · \(ingredient.food.sourceName)" as String)
+                            Text("\(ingredient.amount.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))) \(ingredient.food.basis.rawValue) · \(ingredient.food.sourceName)" as String)
                                 .font(.caption).foregroundStyle(.secondary)
+                            if !logged {
+                                StockSummaryLine(summary: stock.summary(for: ingredient.food, amount: ingredient.amount, exactOnly: true))
+                            }
                             if let url = ingredient.food.sourceURL { Link("Nutrition source", destination: url).font(.caption) }
                         }
                     }

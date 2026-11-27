@@ -24,6 +24,37 @@ nonisolated struct NutritionFood: Codable, Hashable, Identifiable, Sendable {
     var reportedRetailers: [String]? = nil
     /// For regional dishes: what the recipe is made with and how its weight was reached.
     var summary: String? = nil
+    /// One piece (a slice, a can, a samosa), in `basis` units, when the food comes in pieces.
+    var pieceAmount: Double? = nil
+    /// What a piece is called, singular ("slice", "can").
+    var pieceName: String? = nil
+    /// The whole package, in `basis` units (Open Food Facts `product_quantity`, or typed).
+    var packageAmount: Double? = nil
+    /// The label's serving, in `basis` units (Open Food Facts `serving_quantity`).
+    var servingAmount: Double? = nil
+    /// The label's serving as written ("2 tbsp (24 g)").
+    var servingLabel: String? = nil
+
+    /// Pieces in a whole package, when both are known ("250 g, 10 slices").
+    var piecesPerPackage: Double? {
+        guard let piece = pieceAmount, piece > 0, let package = packageAmount, package > 0 else { return nil }
+        return package / piece
+    }
+
+    /// This food, with `pieces` pieces in a package of `package` (typed when adding to stock).
+    func withPieces(_ pieces: Double?, name: String?, package: Double?) -> NutritionFood {
+        var food = self
+        if let package, package.isFinite, package > 0 { food.packageAmount = package }
+        if let pieces, pieces.isFinite, pieces >= 1, let whole = food.packageAmount {
+            food.pieceAmount = whole / pieces
+            let word = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            food.pieceName = word.isEmpty ? (food.pieceName ?? "piece") : word
+        }
+        return food
+    }
+
+    /// Nutrition numbers as a label prints them: at most one decimal ("22.7", never "22.727273").
+    static func rounded(_ value: Double) -> Double { (value * 10).rounded() / 10 }
 
     var referenceAmount: Double { basis == .serving ? 1 : 100 }
     var defaultAmount: Double { referenceAmount }
@@ -101,18 +132,6 @@ nonisolated struct NutritionFood: Codable, Hashable, Identifiable, Sendable {
               [8, 12, 13, 14].contains(code.count),
               code.allSatisfy({ $0.isASCII && $0.isNumber }),
               let n = product["nutriments"] as? [String: Any] else { return nil }
-        func number(_ key: String) -> Double? {
-            if let v = n[key] as? NSNumber {
-                guard CFGetTypeID(v) != CFBooleanGetTypeID() else { return nil }
-                return v.doubleValue
-            }
-            if let v = n[key] as? String { return Double(v) }
-            return nil
-        }
-        let energy = number("energy-kcal_100g") ?? number("energy-kj_100g").map { $0 / 4.184 }
-            ?? ((n["energy_unit"] as? String)?.lowercased() == "kj" ? number("energy_100g").map { $0 / 4.184 } : nil)
-        guard let kcal = energy, let protein = number("proteins_100g"),
-              let carbs = number("carbohydrates_100g"), let fat = number("fat_100g") else { return nil }
         let name = ["product_name_" + language, "product_name", "product_name_en", "generic_name"].compactMap { product[$0] as? String }
             .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? ""
         func unit(_ raw: Any?) -> Basis? {
@@ -131,7 +150,9 @@ nonisolated struct NutritionFood: Codable, Hashable, Identifiable, Sendable {
         let establishedBasis = packageBasis ?? servingBasis
         if explicitVolume, establishedBasis == .grams { return nil }
         // OFF's historical "100g" field also covers 100ml. Never infer density from that default.
-        guard let basis = establishedBasis ?? (explicitVolume ? .millilitres : nil) else { return nil }
+        guard let basis = establishedBasis ?? (explicitVolume ? .millilitres : nil),
+              let values = OFFPackage.per100(n, servingAmount: OFFPackage.servingAmount(product, basis: basis)) else { return nil }
+        let (kcal, protein, carbs, fat) = values
         let brand = (product["brands"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         var food = NutritionFood(id: "off:\(code)", name: name, brand: brand,
                                  basis: basis,
@@ -140,6 +161,7 @@ nonisolated struct NutritionFood: Codable, Hashable, Identifiable, Sendable {
         food.searchNames = ["product_name", "product_name_en", "product_name_ar", "product_name_lt", "generic_name"]
             .compactMap { product[$0] as? String }.filter { !$0.isEmpty }
         food.reportedRetailers = product["stores_tags"] as? [String]
+        OFFPackage.apply(product, to: &food)
         return food.isValid ? food : nil
     }
 }

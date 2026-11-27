@@ -7,7 +7,7 @@ import SwiftUI
 // its hint, so typing replaces it. An optional second button undoes an override.
 
 /// Which number of a food under review is being typed.
-enum PortionField { case amount, kcal }
+enum PortionField { case amount, kcal, count }
 
 private struct NumberEntry: ViewModifier {
     @Binding var isPresented: Bool

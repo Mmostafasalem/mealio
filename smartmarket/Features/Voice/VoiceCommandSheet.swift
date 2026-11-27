@@ -16,10 +16,11 @@ struct VoiceCommandSheet: View {
     @State private var typingField = PortionField.amount
     @State private var showEntry = false
 
-    init(photoMode: Bool = false, close: @escaping () -> Void, navigate: @escaping (VoiceNavigation) -> Void) {
+    /// `pending`: a saved meal photo to finish (photo mode reads it straight away).
+    init(photoMode: Bool = false, pending: PendingMeal? = nil, close: @escaping () -> Void, navigate: @escaping (VoiceNavigation) -> Void) {
         self.close = close
         self.navigate = navigate
-        _model = State(initialValue: VoiceCommandModel(photoMode: photoMode))
+        _model = State(initialValue: VoiceCommandModel(photoMode: photoMode, pending: pending))
     }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
@@ -86,6 +87,41 @@ struct VoiceCommandSheet: View {
             photoChooser
         case .readingPhoto:
             readingPhoto
+        case .savedForLater(let message):
+            savedForLater(message)
+        }
+    }
+
+    /// The photo waits under "To clarify".
+    private func savedForLater(_ message: String) -> some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer(minLength: 0)
+            if let pending = model.pending, let image = PendingMealStore.shared.image(for: pending) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 132, height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .accessibilityLabel("Your meal photo")
+            } else {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(Color.progress)
+                    .accessibilityHidden(true)
+            }
+            Label("Saved to clarify later", systemImage: "clock.badge.checkmark")
+                .font(.headline)
+                .foregroundStyle(Color.labelPrimary)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("photo.saved")
+            PrimaryButton(title: "Done", systemImage: "checkmark") { close() }
+                .frame(maxWidth: 260)
+                .accessibilityIdentifier("photo.savedDone")
+            Spacer(minLength: 0)
         }
     }
 
@@ -98,7 +134,9 @@ struct VoiceCommandSheet: View {
                 .font(.system(size: 40, weight: .medium))
                 .foregroundStyle(Color.progress)
                 .accessibilityHidden(true)
-            Text("Take or choose a photo of your meal. Online AI names the foods, and Nourlo's own food data gives the calories. Nothing is logged until you check it.")
+            Text(MealPhotoAccess.isUsable
+                 ? "Take or choose a photo of your meal. Online AI names the foods, and Nourlo's own food data gives the calories. Nothing is logged until you check it. If you don't finish now, the photo waits under To clarify."
+                 : "Take or choose a photo of your meal. It's saved under To clarify, with the time, and you pick the foods and amounts when you have a moment.")
                 .font(.subheadline)
                 .foregroundStyle(Color.labelPrimary)
                 .multilineTextAlignment(.center)
@@ -118,10 +156,12 @@ struct VoiceCommandSheet: View {
                 .accessibilityIdentifier("photo.choose")
             }
             .frame(maxWidth: 300)
-            Text("Each photo uses \(MealPhotoAccess.costText).")
-                .font(.caption)
-                .foregroundStyle(Color.labelSecondary)
-                .accessibilityIdentifier("photo.cost")
+            if MealPhotoAccess.isUsable {
+                Text("Each photo uses \(MealPhotoAccess.costText).")
+                    .font(.caption)
+                    .foregroundStyle(Color.labelSecondary)
+                    .accessibilityIdentifier("photo.cost")
+            }
             Spacer(minLength: 0)
         }
     }
@@ -330,13 +370,14 @@ struct VoiceCommandSheet: View {
         // One dialog for both fields (two alerts on one card show only one).
         .numberEntry(isPresented: $showEntry, title: entryTitle, current: entryCurrent, message: entryMessage,
                      keyboard: typingField == .kcal ? .numberPad : .decimalPad,
-                     identifier: typingField == .kcal ? "voice.food.kcal" : "voice.food.amount",
+                     identifier: typingField == .kcal ? "voice.food.kcal" : typingField == .count ? "voice.food.count" : "voice.food.amount",
                      resetTitle: typingField == .kcal && typingMatch?.kcalOverride != nil ? "Use the estimate" : nil,
                      onReset: { if let match = typingMatch { model.typeKcal(nil, for: match) } }) { text in
             guard let match = typingMatch else { return }
             switch typingField {
             case .amount: model.typeAmount(text, for: match)
             case .kcal: model.typeKcal(text, for: match)
+            case .count: model.typeCount(text, for: match)
             }
         }
     }
@@ -356,18 +397,29 @@ struct VoiceCommandSheet: View {
 
     private var entryTitle: String {
         guard let match = typingMatch else { return "" }
-        return typingField == .kcal ? "Your calories" : "Amount of \(match.food.name)"
+        switch typingField {
+        case .kcal: return "Your calories"
+        case .count: return "How many \(PieceWords.plural(match.pieceName ?? "piece"))"
+        case .amount: return "Amount of \(match.food.name)"
+        }
     }
 
     private var entryCurrent: String {
         guard let match = typingMatch else { return "" }
-        return typingField == .kcal ? "\(match.kcal)" : LogFoodSheet.amountText(match.amount, basis: match.food.basis)
+        switch typingField {
+        case .kcal: return "\(match.kcal)"
+        case .count: return (match.count ?? 1).formatted(.number.precision(.fractionLength(0...2)))
+        case .amount: return LogFoodSheet.amountText(match.amount, basis: match.food.basis)
+        }
     }
 
     private var entryMessage: String {
         guard let match = typingMatch else { return "" }
         switch typingField {
         case .amount: return Self.amountHint(match.food)
+        case .count:
+            let piece = LogFoodSheet.amountText(match.pieceAmount ?? 0, basis: match.food.basis)
+            return "One \(match.pieceName ?? "piece") is about \(piece). The grams and calories follow the number."
         case .kcal: return Self.kcalHint(estimate: match.estimatedKcal, amount: LogFoodSheet.amountText(match.amount, basis: match.food.basis))
         }
     }
@@ -421,8 +473,39 @@ struct VoiceCommandSheet: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(match.food.name)" as String)
             }
+            // "2 × veggie burger · 220 g · 493 kcal": how many, how much, and the calories.
+            Text(match.summary)
+                .font(.footnote.weight(.medium).monospacedDigit())
+                .foregroundStyle(Color.labelPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.numericText())
+                .accessibilityIdentifier("voice.food.summary")
             HStack(spacing: Spacing.sm) {
-                stepButton("minus", name: "Less", disabled: match.amount <= match.food.minimumAmount) { model.nudge(match, up: false) }
+                if let count = match.count, let pieceName = match.pieceName {
+                    stepButton("minus", name: "One fewer", disabled: count <= 0.5) { model.nudge(match, up: false) }
+                    // Tap the count to type it.
+                    Button { type(.count, for: match) } label: {
+                        Text("\(count.formatted(.number.precision(.fractionLength(0...2)))) ×" as String)
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Color.labelPrimary)
+                            .lineLimit(1)
+                            .padding(.horizontal, 8)
+                            .frame(minWidth: 52, minHeight: 32)
+                            .background(Color.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                            .contentTransition(.numericText())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Number of \(PieceWords.plural(pieceName))" as String)
+                    .accessibilityValue(PieceWords.count(count, pieceName))
+                    .accessibilityHint("Type how many")
+                    .accessibilityIdentifier("voice.food.count")
+                    stepButton("plus", name: "One more", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
+                } else {
+                    stepButton("minus", name: "Less", disabled: match.amount <= match.food.minimumAmount) { model.nudge(match, up: false) }
+                }
                 // Tap the amount to type it.
                 Button { type(.amount, for: match) } label: {
                     Text(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
@@ -442,7 +525,9 @@ struct VoiceCommandSheet: View {
                 .accessibilityValue(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
                 .accessibilityHint("Type the amount")
                 .accessibilityIdentifier("voice.food.amount")
-                stepButton("plus", name: "More", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
+                if match.count == nil {
+                    stepButton("plus", name: "More", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
+                }
                 if match.estimated {
                     // Short and on one line: the full word broke in two beside a long amount.
                     Text("est.")
@@ -483,6 +568,8 @@ struct VoiceCommandSheet: View {
                 .accessibilityHint("Type your own calories")
                 .accessibilityIdentifier("voice.food.kcal")
             }
+            // Which item in My Stock this comes out of (logging takes it out; undo puts it back).
+            StockSummaryLine(summary: StockStore.shared.summary(for: match.food, amount: match.amount))
         }
         .padding(Spacing.md)
         .background(Color.surfaceSecondary.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))

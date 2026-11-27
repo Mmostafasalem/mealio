@@ -24,6 +24,8 @@ final class VoiceCommandModel {
         case choosingPhoto
         /// Photo mode: online AI is naming the foods in the photo.
         case readingPhoto
+        /// Photo mode: the photo is kept under "To clarify" (no AI now, offline, or it failed).
+        case savedForLater(String)
     }
 
     /// Opened to log a meal from a photo instead of listening.
@@ -31,9 +33,16 @@ final class VoiceCommandModel {
     /// The review card came from a photo read by online AI (shown on the card; never saves by itself).
     private(set) var fromPhoto = false
 
-    init(photoMode: Bool = false) {
+    init(photoMode: Bool = false, pending: PendingMeal? = nil) {
         self.photoMode = photoMode
+        self.pending = pending
     }
+
+    /// The photo as kept under "To clarify": saved the moment it's chosen, removed once its
+    /// foods are logged. Closing the sheet before that leaves it waiting.
+    private(set) var pending: PendingMeal?
+    @ObservationIgnored private var loggedPhoto: (meal: PendingMeal, jpeg: Data)?
+    @ObservationIgnored var pendingStore: PendingMealStore = .shared
 
     private(set) var phase: Phase = .starting
     private(set) var transcript = ""
@@ -106,6 +115,11 @@ final class VoiceCommandModel {
         hasSpoken = false
         language = VoiceLanguage.current
         if photoMode {
+            // Finishing a saved photo: read it straight away.
+            if let pending, pendingStore.contains(pending.id), let image = pendingStore.image(for: pending), MealPhotoAccess.isUsable {
+                readPhoto(image, alreadySaved: true)
+                return
+            }
             phase = .choosingPhoto
             return
         }
@@ -281,13 +295,21 @@ final class VoiceCommandModel {
 
     /// Sends a photo to online AI, which names the foods and guesses their grams.
     /// Nothing is logged here: the foods go to the review card and wait for a tap.
-    func readPhoto(_ image: UIImage) {
+    func readPhoto(_ image: UIImage, alreadySaved: Bool = false) {
         guard photoMode else { return }
         cancelTimers()
         session += 1
         let session = session
         plan = nil
         message = ""
+        // Kept first, so nothing is lost if it isn't reviewed now.
+        if !alreadySaved || pending == nil {
+            pending = pendingStore.add(image, slot: .suggested())
+        }
+        guard MealPhotoAccess.isUsable else {
+            phase = .savedForLater("Saved under To clarify. When you have a moment, open it from Add Food and pick the foods and amounts.")
+            return
+        }
         phase = .readingPhoto
         Task {
             let encoded = await Task.detached(priority: .userInitiated) {
@@ -304,7 +326,7 @@ final class VoiceCommandModel {
                 start(photoFoods: response.phrases)
             } catch {
                 guard session == self.session else { return }
-                phase = .failed(Self.photoFailure(error))
+                phase = .savedForLater(Self.photoFailure(error) + " Your photo is saved under To clarify, so you can finish it later.")
             }
         }
     }
@@ -316,7 +338,7 @@ final class VoiceCommandModel {
         guessed = false
         helper = nil
         fromPhoto = true
-        let plan = VoiceCommandRunner.plan(for: .logFood(items: photoFoods, slot: nil))
+        let plan = VoiceCommandRunner.plan(for: .logFood(items: photoFoods, slot: pending?.slot))
         guard !photoFoods.isEmpty, case .food(let matches, _, _) = plan, !matches.isEmpty else {
             self.plan = nil
             phase = .failed(Self.nothingInPhoto)
@@ -398,14 +420,22 @@ final class VoiceCommandModel {
             let resolved = VoiceAmounts.amount(for: item.phrase, food: food)
             item.amount = resolved.amount
             item.estimated = resolved.estimated
+            (item.pieceAmount, item.pieceName) = VoiceAmounts.pieces(for: item.phrase, food: food, amount: resolved.amount)
             // Their calories were for the other food.
             item.kcalOverride = nil
         }
     }
 
-    /// One step up or down: 10 g (25 g from 100 g), or half a serving.
+    /// One step up or down: one piece when the food is counted (a half below one), else
+    /// 10 g (25 g from 100 g), or half a serving.
     func nudge(_ match: VoiceFoodMatch, up: Bool) {
         updateMatch(match) { item in
+            if let count = item.count, let piece = item.pieceAmount {
+                let step: Double = (up ? count < 1 : count <= 1) ? 0.5 : 1
+                let next = max(0.5, ((count + (up ? step : -step)) * 2).rounded() / 2)
+                Self.setAmount(min(max(next * piece, item.food.minimumAmount), item.food.maximumAmount), on: &item)
+                return
+            }
             let step: Double = item.food.basis == .serving ? 0.5 : (item.amount >= 100 ? 25 : 10)
             let next = item.amount + (up ? step : -step)
             Self.setAmount(min(max(next, item.food.minimumAmount), item.food.maximumAmount), on: &item)
@@ -416,6 +446,14 @@ final class VoiceCommandModel {
     func typeAmount(_ text: String, for match: VoiceFoodMatch) {
         guard let amount = PortionInput.amount(text, for: match.food) else { return }
         updateMatch(match) { Self.setAmount(amount, on: &$0) }
+    }
+
+    /// A typed number of pieces ("3", "1.5"): the grams follow it.
+    func typeCount(_ text: String, for match: VoiceFoodMatch) {
+        guard let piece = match.pieceAmount, let value = TypedNumber.parse(text), value.isFinite, value > 0 else { return }
+        updateMatch(match) { item in
+            Self.setAmount(min(max(value * piece, item.food.minimumAmount), item.food.maximumAmount), on: &item)
+        }
     }
 
     /// The person's own calories for the portion; nil goes back to the estimate.
@@ -466,10 +504,23 @@ final class VoiceCommandModel {
     }
 
     private func run(_ plan: VoicePlan) {
-        let outcome = VoiceCommandRunner.perform(plan)
+        // A photo's foods are logged at the time it was taken.
+        let outcome = VoiceCommandRunner.perform(plan, loggedAt: fromPhoto ? pending?.takenAt : nil)
         message = outcome.message
         undo = outcome.undo
         canUndo = outcome.undo != nil
+        // Logged: the photo no longer needs clarifying (an undo puts it back).
+        if fromPhoto, canUndo, let meal = pending, let jpeg = pendingStore.imageData(for: meal) {
+            loggedPhoto = (meal, jpeg)
+            pendingStore.remove(meal.id)
+            let undoLog = undo
+            undo = { [weak self] in
+                undoLog?()
+                guard let self, let photo = self.loggedPhoto else { return }
+                self.pendingStore.add(jpeg: photo.jpeg, slot: photo.meal.slot, at: photo.meal.takenAt, id: photo.meal.id)
+                self.loggedPhoto = nil
+            }
+        }
         if case .notUnderstood = plan {
             phase = .failed(outcome.message)
             return
