@@ -362,7 +362,8 @@ private struct MealSectionCard: View {
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     MealEntryRow(entry: entry, slot: title == "Breakfast" ? .breakfast : title == "Lunch" ? .lunch : title == "Dinner" ? .dinner : .snack,
                                  slotKey: "\(dayKey)|\(title)#\(index)", isToday: isToday,
-                                 expandGroup: expandGroup, titleMemory: titleMemory)
+                                 expandGroup: expandGroup, titleMemory: titleMemory,
+                                 showsCalories: entries.count > 1)
                 }
             }
             .padding(.top, 8)
@@ -400,6 +401,8 @@ private struct MealEntryRow: View {
     let isToday: Bool
     let expandGroup: ExpandCardGroup
     let titleMemory: ScrambleMemory
+    /// False when the meal is its section's only one: the section header shows its kcal.
+    var showsCalories = true
 
     @State private var showReview = false
     @State private var stock = StockStore.shared
@@ -437,34 +440,41 @@ private struct MealEntryRow: View {
                 ScrambleText(text: entry.foodName, key: slotKey, memory: titleMemory,
                              font: .subheadline.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(subtitle)
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let missing = entry.missing, !missing.isEmpty {
-                    Label("Not in your stock: \(missing.joined(separator: ", "))" as String, systemImage: "cart.badge.plus")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.brandAmber)
+                // The summary: while open, the ingredients list below says it once instead.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(subtitle)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let missing = entry.missing, !missing.isEmpty {
+                        Label("Not in your stock: \(missing.joined(separator: ", "))" as String, systemImage: "cart.badge.plus")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.brandAmber)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .modifier(FoldsAway(progress: ingredients.isEmpty ? 0 : q))
             }
             // The title rides up a little as the card opens.
             .offset(y: -2 * q)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
-                Text("\(entry.calories) kcal" as String)
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(Color.labelSecondary).monospacedDigit()
-                // The macro summary moves into the details while open.
-                Group {
-                    // Nothing extra when a meal has only an estimated calorie figure.
-                    if entry.macrosAvailable {
+                // The section's header already shows a lone meal's kcal.
+                if showsCalories {
+                    Text("\(entry.calories) kcal" as String)
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
+                }
+                // The macro summary moves into the details while open (shown there once).
+                // Nothing extra when a meal has only an estimated calorie figure.
+                if entry.macrosAvailable {
+                    VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
                         Text("Calculated from ingredient portions")
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
                         Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))" as String)
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
+                    .modifier(FoldsAway(progress: q))
                 }
-                .opacity(1 - q)
             }
             if !dynamicTypeSize.isAccessibilitySize {
                 Image(systemName: "chevron.right")
@@ -482,13 +492,25 @@ private struct MealEntryRow: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Divider().overlay(Color.hairline)
             if !ingredients.isEmpty {
+                // Each ingredient once, with its amount; a missing one is marked on its own row.
+                let short = shortfall
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("Ingredients").font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
                     ForEach(ingredients) { ingredient in
                         HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                            Text(ingredient.food.name)
-                                .font(.subheadline).foregroundStyle(Color.labelPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ingredient.food.name)
+                                    .font(.subheadline).foregroundStyle(Color.labelPrimary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let need = short[ingredient.food.id] {
+                                    Label(need >= ingredient.amount - 0.000001
+                                          ? "Not in your stock"
+                                          : "Need \(need.rounded().formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue) more",
+                                          systemImage: "cart.badge.plus")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color.brandAmber)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                             Spacer(minLength: Spacing.sm)
                             Text("\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)" as String)
                                 .font(.caption.weight(.medium)).foregroundStyle(Color.labelSecondary)
@@ -531,6 +553,27 @@ private struct MealEntryRow: View {
         return try? stock.missingIngredients(for: ingredients)
     }
 
+    /// How much of each ingredient (by food id) is still to buy. Without a stock check,
+    /// the plan's own "missing" names mark the ingredients they name.
+    private var shortfall: [String: Double] {
+        if let missing {
+            return Dictionary(missing.map { ($0.food.id, $0.amount) }, uniquingKeysWith: +)
+        }
+        let names = (entry.missing ?? []).map { $0.lowercased() }
+        guard !names.isEmpty else { return [:] }
+        var out: [String: Double] = [:]
+        for ingredient in ingredients {
+            let food = ingredient.food.name.lowercased()
+            if names.contains(where: { name in
+                let first = name.split(separator: " ").first.map(String.init) ?? name
+                return food.contains(name) || name.contains(food) || food.hasPrefix(first)
+            }) {
+                out[ingredient.food.id] = ingredient.amount
+            }
+        }
+        return out
+    }
+
     private var actions: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             // One button: the recipe and the review-and-log flow share one sheet.
@@ -564,6 +607,30 @@ private struct MealEntryRow: View {
                 .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         }
         .buttonStyle(ScalePressStyle())
+    }
+}
+
+/// Folds a header line away as its card opens (height and opacity follow `progress`),
+/// so what the details say isn't also said above them.
+private struct FoldsAway: ViewModifier {
+    let progress: Double
+    @State private var height: CGFloat?
+
+    func body(content: Content) -> some View {
+        let q = motionClamp(progress, 0, 1)
+        content
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { height = g.size.height }
+                        .onChange(of: g.size.height) { _, h in height = h }
+                }
+            }
+            .opacity(1 - q)
+            .frame(height: height.map { $0 * (1 - q) }, alignment: .top)
+            .clipped()
+            .accessibilityHidden(q > 0.5)
     }
 }
 

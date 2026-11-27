@@ -89,7 +89,7 @@ enum WeeklyGroceryPlanner {
 
     static func plan(budget: Double, cart: [CartItem], favourites: Set<String>,
                      preferences: Set<DietaryPreference>, excluded: Set<String> = [],
-                     stock: [String] = [],
+                     stock: [String] = [], starred: Set<String> = [],
                      price: (CatalogItem) -> Double) -> GroceryPlan {
         let available = max(0, budget - cart.reduce(0) { $0 + $1.lineTotal })
         guard available >= fillUntil else { return GroceryPlan(lines: [], available: available) }
@@ -105,8 +105,10 @@ enum WeeklyGroceryPlanner {
         // The person's foods, food first (spices and drinks rarely make a meal).
         let order: [CatalogCategory] = [.meat, .seafood, .eggs, .legumes, .dairy, .vegetables, .fruits, .grains, .bread,
                                         .frozen, .canned, .nuts, .oils, .condiments, .snacks, .beverages, .baking, .spices]
+        // Starred foods (the ones bought most) first, so a tight budget keeps them.
         let favs = CatalogItem.all.filter { favourites.contains($0.id) && usable($0) }
             .sorted { (order.firstIndex(of: $0.category) ?? 99) < (order.firstIndex(of: $1.category) ?? 99) }
+            .sorted { starred.contains($0.id) && !starred.contains($1.id) }
 
         // What the balanced week still lacks once the person's foods are counted (the cart counts too).
         var have = cart.compactMap { line in CatalogItem.all.first { $0.id == line.catalogId }.flatMap { role(of: $0) } }
@@ -167,7 +169,10 @@ enum WeeklyGroceryPlanner {
         for r in balancedWeek {
             let taken = Set(lines.map(\.id))
             // The person's own food for the role if it fits the money, else the cheapest staple.
-            if let own = favs.filter({ role(of: $0) == r && !taken.contains($0.id) }).min(by: { price($0) < price($1) }),
+            // A starred food for the role wins over a cheaper unstarred one.
+            let forRole = favs.filter { role(of: $0) == r && !taken.contains($0.id) }
+            let starredForRole = forRole.filter { starred.contains($0.id) }
+            if let own = (starredForRole.isEmpty ? forRole : starredForRole).min(by: { price($0) < price($1) }),
                take(GroceryPlanLine(item: own, price: price(own), reason: .favourite)) {
                 continue
             }

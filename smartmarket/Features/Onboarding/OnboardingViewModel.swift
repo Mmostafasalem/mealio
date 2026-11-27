@@ -69,6 +69,14 @@ final class OnboardingViewModel {
 
     // MARK: - Step 4: Favorite foods (static catalog, no network required)
     var favoriteFoodIDs: Set<String> = []
+    /// Foods starred as the ones bought most (a subset of the picked foods).
+    var starredFoodIDs: Set<String> = []
+    /// The ready-made list the screen opened with (`FoodChoices.starterList`), in order;
+    /// foods taken off it stay shown, unpicked, so they can be put back.
+    private(set) var suggestedFoods: [CatalogItem] = []
+    /// Set once the person changes the list; until then a new diet or goal rebuilds it.
+    private(set) var favoritesEdited = false
+    @ObservationIgnored private var suggestedFor: String?
     var selectedCategory: CatalogCategory? = nil   // nil = show all
     var foodSearchQuery: String = "" {
         didSet { scheduleFilter() }
@@ -126,11 +134,51 @@ final class OnboardingViewModel {
             try? await Task.sleep(nanoseconds: 100_000_000)
             guard !Task.isCancelled else { return }
             let q    = foodSearchQuery.lowercased()
-            var base = CatalogItem.all
+            var base = offeredItems
             if let cat = selectedCategory { base = base.filter { $0.category == cat } }
             if !q.isEmpty { base = base.filter { $0.name.lowercased().contains(q) } }
             filteredItems = base
         }
+    }
+
+    // MARK: - What the diet allows, and the ready-made list
+
+    /// Every food the chosen diet allows; nothing else is offered (set by `prepareFavorites`).
+    private(set) var offeredItems: [CatalogItem] = CatalogItem.all
+
+    /// The sections that still hold a food for this diet.
+    private(set) var foodSections: [FoodSection] = FoodChoices.sections(diets: [])
+
+    /// Called when "Pick your foods" opens: starts the list from the diet and goal (again
+    /// when they changed and the person hasn't edited it yet), and drops foods the diet
+    /// now rules out.
+    func prepareFavorites() {
+        let key = selectedPreferences.map(\.rawValue).sorted().joined(separator: ",") + "|" + weightGoal.rawValue
+        offeredItems = FoodChoices.offeredItems(diets: selectedPreferences)
+        foodSections = FoodChoices.sections(diets: selectedPreferences)
+        let offered = Set(offeredItems.map(\.id))
+        favoriteFoodIDs.formIntersection(offered)
+        starredFoodIDs.formIntersection(favoriteFoodIDs)
+        if suggestedFor != key {
+            suggestedFor = key
+            suggestedFoods = FoodChoices.starterList(diets: selectedPreferences, goal: weightGoal)
+            if !favoritesEdited { favoriteFoodIDs = Set(suggestedFoods.map(\.id)); starredFoodIDs = [] }
+        }
+        suggestedFoods = suggestedFoods.filter { offered.contains($0.id) }
+        scheduleFilter()
+    }
+
+    /// The foods shown under "Your list": the ready-made ones, then any added from a section.
+    var yourList: [CatalogItem] {
+        let suggested = Set(suggestedFoods.map(\.id))
+        return suggestedFoods + offeredItems.filter { favoriteFoodIDs.contains($0.id) && !suggested.contains($0.id) }
+    }
+
+    /// Stars a food (picking it too), or takes the star off.
+    func toggleStar(_ item: CatalogItem) {
+        favoritesEdited = true
+        if starredFoodIDs.contains(item.id) { starredFoodIDs.remove(item.id) }
+        else { starredFoodIDs.insert(item.id); favoriteFoodIDs.insert(item.id) }
     }
 
     var favoritesCount: Int { favoriteFoodIDs.count }
@@ -138,8 +186,14 @@ final class OnboardingViewModel {
 
     /// Picks every food in `items`, or clears them all when they are all picked already.
     func toggleAll(_ items: [CatalogItem]) {
+        favoritesEdited = true
         let ids = Set(items.map(\.id))
-        if ids.isSubset(of: favoriteFoodIDs) { favoriteFoodIDs.subtract(ids) } else { favoriteFoodIDs.formUnion(ids) }
+        if ids.isSubset(of: favoriteFoodIDs) {
+            favoriteFoodIDs.subtract(ids)
+            starredFoodIDs.subtract(ids)
+        } else {
+            favoriteFoodIDs.formUnion(ids)
+        }
     }
 
     /// Goes to the screen after `step`, or finishes onboarding when it was the last.
@@ -149,8 +203,13 @@ final class OnboardingViewModel {
     }
 
     func toggleFavorite(_ item: CatalogItem) {
-        if favoriteFoodIDs.contains(item.id) { favoriteFoodIDs.remove(item.id) }
-        else { favoriteFoodIDs.insert(item.id) }
+        favoritesEdited = true
+        if favoriteFoodIDs.contains(item.id) {
+            favoriteFoodIDs.remove(item.id)
+            starredFoodIDs.remove(item.id)
+        } else {
+            favoriteFoodIDs.insert(item.id)
+        }
     }
 
     func togglePreference(_ pref: DietaryPreference) {
@@ -178,6 +237,7 @@ final class OnboardingViewModel {
 
         selectedPreferences.save()
         UserDefaults.standard.set(Array(favoriteFoodIDs), forKey: Constants.Storage.favoriteFoodIDs)
+        StarredFoods.save(starredFoodIDs.intersection(favoriteFoodIDs))
 
         AppState.shared.userProfile = profile
         // Saved before onboarding completes, so the first Home already fits the choice.

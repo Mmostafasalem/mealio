@@ -1,15 +1,19 @@
 import SwiftUI
 
+/// "Pick your foods": opens with a ready list made from the diet and goal
+/// (`FoodChoices.starterList`). The person takes off what they don't buy, stars the
+/// foods they buy most, and adds more from the sections below. Foods and sections
+/// the diet rules out are not offered at all.
 struct FavoriteFoodsView: View {
 
     @Bindable var vm: OnboardingViewModel
-    /// One section open at a time; with none open the sections are a grid that fits the screen.
-    @State private var openSection: CatalogCategory?
+    /// One section open at a time; with none open the screen shows the list and the sections.
+    @State private var openSection: FoodSection?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         OnboardingScaffold(vm: vm, step: .favorites, title: "Pick your foods",
-                           subtitle: "Pick at least \(Constants.Onboarding.minimumFavorites) foods you buy. Your meal plans start from them.",
+                           subtitle: "We made you a list from your diet and goal. Take off what you don't buy, star what you buy most, and add more.",
                            contentPadding: 0) {
             VStack(spacing: 0) {
                 searchField
@@ -19,13 +23,19 @@ struct FavoriteFoodsView: View {
         } footer: {
             finishButton
         }
+        .onAppear { vm.prepareFavorites() }
+    }
+
+    private func open(_ section: FoodSection?) {
+        withAnimation(reduceMotion ? nil : .snappy) { openSection = section }
     }
 
     private func chip(_ item: CatalogItem) -> some View {
-        FoodChip(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
+        FoodChip(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id),
+                 isStarred: vm.starredFoodIDs.contains(item.id)) { vm.toggleFavorite(item) }
     }
 
-    /// One category's foods as wrapping chips, like the diet screen.
+    /// Foods as wrapping chips, like the diet screen.
     private func chips(_ items: [CatalogItem]) -> some View {
         FlowLayout(spacing: 10) {
             ForEach(items, content: chip)
@@ -33,33 +43,97 @@ struct FavoriteFoodsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A section: its header with Select all, then its foods by kind (chicken, pork…).
-    private func section(_ cat: CatalogCategory) -> some View {
-        let items = CatalogItem.all.filter { $0.category == cat }
-        let groups = cat.groups(of: items)
-        return VStack(alignment: .leading, spacing: Spacing.md) {
-            CategorySectionHeader(category: cat, selectedIDs: vm.favoriteFoodIDs,
-                                  allSelected: Set(items.map(\.id)).isSubset(of: vm.favoriteFoodIDs),
-                                  isOpen: true, canFold: true,
-                                  onToggleOpen: {
-                                      withAnimation(reduceMotion ? nil : .snappy) { openSection = nil }
-                                  }) {
-                vm.toggleAll(items)
+    // MARK: - Your list
+
+    private var yourList: some View {
+        let list = vm.yourList
+        let picked = list.filter { vm.favoriteFoodIDs.contains($0.id) }.count
+        return VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Your list", systemImage: "checklist")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.labelPrimary)
+                Spacer()
+                Text("\(picked) picked · \(vm.starredFoodIDs.count) starred" as String)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.labelSecondary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
             }
-            do {
-            ForEach(groups) { group in
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            FlowLayout(spacing: 8) {
+                ForEach(list) { item in
+                    ListChip(item: item, isSelected: vm.favoriteFoodIDs.contains(item.id),
+                             isStarred: vm.starredFoodIDs.contains(item.id),
+                             onToggle: { vm.toggleFavorite(item) }, onStar: { vm.toggleStar(item) })
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("favorites.yourList")
+        }
+    }
+
+    // MARK: - A section, open
+
+    /// A section: its header with Select all, then its foods by kind (chicken, pork…),
+    /// each kind with its own Select all, and "Select more foods" to go back to the sections.
+    private func section(_ section: FoodSection) -> some View {
+        let groups = CatalogSubgroups.groups(of: section.items, in: section.category)
+        return VStack(alignment: .leading, spacing: Spacing.md) {
+            CategorySectionHeader(section: section, selectedIDs: vm.favoriteFoodIDs,
+                                  allSelected: Set(section.items.map(\.id)).isSubset(of: vm.favoriteFoodIDs),
+                                  onClose: { open(nil) }) {
+                vm.toggleAll(section.items)
+            }
+            ForEach(groups, id: \.title) { group in
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    if groups.count > 1 {
-                        Text(group.name)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.labelSecondary)
-                            .accessibilityAddTraits(.isHeader)
-                    }
+                    if groups.count > 1 { subgroupHeader(group.title, items: group.items) }
                     chips(group.items)
                 }
             }
+            Button { open(nil) } label: {
+                Label("Select more foods", systemImage: "square.grid.2x2")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.labelPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                        .strokeBorder(Color.hairline, lineWidth: 1))
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(ScalePressStyle())
+            .padding(.top, Spacing.sm)
+            .accessibilityHint("Goes back to every section")
+            .accessibilityIdentifier("favorites.selectMore")
         }
+    }
+
+    private func subgroupHeader(_ title: String, items: [CatalogItem]) -> some View {
+        let picked = items.filter { vm.favoriteFoodIDs.contains($0.id) }.count
+        let allPicked = picked == items.count
+        return HStack(spacing: 8) {
+            Text(title).font(.caption.weight(.bold)).foregroundStyle(Color.labelPrimary)
+            Text("\(picked) of \(items.count)" as String)
+                .font(.caption).foregroundStyle(Color.labelSecondary).monospacedDigit()
+            Spacer()
+            Button {
+                withAnimation(.snappy) { vm.toggleAll(items) }
+            } label: {
+                Text(allPicked ? "Clear" : "Select all")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(allPicked ? Color.labelSecondary : Color.labelPrimary)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Color(.tertiarySystemFill), in: Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(allPicked ? "Clear \(title)" : "Select all \(title)")
+            .accessibilityIdentifier("favorites.selectAll.\(title)")
+        }
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Search
@@ -67,7 +141,7 @@ struct FavoriteFoodsView: View {
     private var searchField: some View {
         HStack(spacing: Spacing.sm) {
             Image(systemName: "magnifyingglass").foregroundStyle(Color.labelSecondary)
-            TextField("Search \(CatalogItem.all.count) products", text: $vm.foodSearchQuery)
+            TextField("Search \(vm.offeredItems.count) foods", text: $vm.foodSearchQuery)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .submitLabel(.search)
@@ -92,22 +166,27 @@ struct FavoriteFoodsView: View {
     // MARK: - Item list
 
     private var itemList: some View {
-        // The catalogue is the one thing here that has to scroll.
+        // The list is the one thing here that has to scroll.
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: Spacing.sm) {
-                if vm.filteredItems.isEmpty {
-                    Text("No items match your search.")
-                        .foregroundStyle(Color.labelSecondary)
-                } else if vm.foodSearchQuery.isEmpty {
-                    if let open = openSection {
-                        // The open section, grouped by kind; its header folds it back.
-                        section(open)
+            LazyVStack(alignment: .leading, spacing: Spacing.lg) {
+                if !vm.foodSearchQuery.isEmpty {
+                    if vm.filteredItems.isEmpty {
+                        Text("No foods match your search.")
+                            .foregroundStyle(Color.labelSecondary)
                     } else {
+                        chips(vm.filteredItems)
+                    }
+                } else if let open = openSection, let current = vm.foodSections.first(where: { $0.id == open.id }) {
+                    section(current)
+                } else {
+                    yourList
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
+                        Label("Add more foods", systemImage: "plus.circle")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color.labelPrimary)
+                            .accessibilityAddTraits(.isHeader)
                         sectionGrid
                     }
-                } else {
-                    // Search results as one list.
-                    chips(vm.filteredItems)
                 }
             }
             .padding(.horizontal, Spacing.xl)
@@ -118,18 +197,16 @@ struct FavoriteFoodsView: View {
         .accessibilityIdentifier("favorites.list")
     }
 
-    /// Every section as a small tile, three to a row: tap one to open it.
+    /// Every section the diet allows as a small tile, three to a row: tap one to open it.
     private var sectionGrid: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-            ForEach(CatalogCategory.allCases) { cat in
-                let picked = CatalogItem.all.filter { $0.category == cat && vm.favoriteFoodIDs.contains($0.id) }.count
-                Button {
-                    withAnimation(reduceMotion ? nil : .snappy) { openSection = cat }
-                } label: {
+            ForEach(vm.foodSections) { sec in
+                let picked = sec.items.filter { vm.favoriteFoodIDs.contains($0.id) }.count
+                Button { open(sec) } label: {
                     VStack(spacing: 4) {
-                        Image(systemName: cat.symbol)
+                        Image(systemName: sec.symbol)
                             .font(.system(size: 14, weight: .semibold))
-                        Text(cat.displayName)
+                        Text(sec.title)
                             .font(.caption.weight(.semibold))
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
@@ -153,10 +230,10 @@ struct FavoriteFoodsView: View {
                     }
                 }
                 .buttonStyle(ScalePressStyle())
-                .accessibilityLabel(cat.displayName)
-                .accessibilityValue(picked > 0 ? "\(picked) picked" : "")
+                .accessibilityLabel(sec.title)
+                .accessibilityValue(picked > 0 ? "\(picked) of \(sec.items.count) picked" : "\(sec.items.count) foods")
                 .accessibilityHint("Opens this section")
-                .accessibilityIdentifier("favorites.section.\(cat.rawValue)")
+                .accessibilityIdentifier("favorites.section.\(sec.id)")
             }
         }
     }
@@ -168,7 +245,7 @@ struct FavoriteFoodsView: View {
             vm.continueFrom(.favorites)
         } label: {
             Text(vm.canFinish
-                 ? "Next — \(vm.favoritesCount) items"
+                 ? "Next — \(vm.favoritesCount) foods"
                  : "Pick \(Constants.Onboarding.minimumFavorites - vm.favoritesCount) more to continue")
                 .contentTransition(.numericText())
                 .primaryButtonLabel(enabled: vm.canFinish)
@@ -183,79 +260,82 @@ struct FavoriteFoodsView: View {
 // MARK: - Section header
 
 private struct CategorySectionHeader: View {
-    let category: CatalogCategory
+    let section: FoodSection
     let selectedIDs: Set<String>
     let allSelected: Bool
-    let isOpen: Bool
-    let canFold: Bool
-    let onToggleOpen: () -> Void
+    let onClose: () -> Void
     let onToggleAll: () -> Void
 
-    private var count: Int {
-        CatalogItem.all.filter { $0.category == category && selectedIDs.contains($0.id) }.count
-    }
+    private var count: Int { section.items.filter { selectedIDs.contains($0.id) }.count }
 
     var body: some View {
         HStack(spacing: 6) {
-            Button(action: onToggleOpen) {
+            Button(action: onClose) {
                 HStack(spacing: 6) {
-                    if canFold {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Color.labelSecondary)
-                            .rotationEffect(.degrees(isOpen ? 90 : 0))
-                    }
-                    Image(systemName: category.symbol)
-                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.labelSecondary)
+                    Image(systemName: section.symbol)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.labelPrimary)
-                    Text(category.displayName)
+                    Text(section.title)
+                        .foregroundStyle(Color.labelPrimary)
                     Spacer()
                 }
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(!canFold)
-            .accessibilityLabel(category.displayName)
-            .accessibilityValue(isOpen ? "Expanded" : "Collapsed")
-            .accessibilityIdentifier("favorites.sectionHeader.\(category.rawValue)")
+            .accessibilityLabel("Back to every section")
+            .accessibilityValue(section.title)
+            .accessibilityIdentifier("favorites.sectionHeader.\(section.id)")
             if count > 0 {
                 Text("\(count)" as String)
                     .font(.caption2).fontWeight(.bold)
                     .foregroundStyle(Color.onAccent)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Color.dullPink, in: Capsule())
+                    .accessibilityLabel("\(count) picked")
             }
-            Button(allSelected ? "Clear all" : "Select all", action: onToggleAll)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.labelPrimary)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-                .buttonStyle(.plain)
-                .accessibilityLabel((allSelected ? "Clear all " : "Select all ") + category.displayName)
-                .accessibilityIdentifier("favorites.selectAll.\(category.rawValue)")
+            Button(action: onToggleAll) {
+                Text(allSelected ? "Clear all" : "Select all")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.onAccent)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .background(Color.progress, in: Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel((allSelected ? "Clear all " : "Select all ") + section.title)
+            .accessibilityIdentifier("favorites.selectAll.\(section.id)")
         }
-        .font(.footnote).fontWeight(.semibold)
-        .foregroundStyle(Color.labelSecondary)
+        .font(.subheadline).fontWeight(.bold)
         .textCase(nil)
     }
 }
 
-// MARK: - Food chip
+// MARK: - Chips
 
 /// A food as a pill you tap to pick, matching the diet screen's chips.
 private struct FoodChip: View {
     let item: CatalogItem
     let isSelected: Bool
+    var isStarred = false
     let onTap: () -> Void
 
     var body: some View {
         Button(action: onTap) {
             // No tick: picking a food only changes its colour, so the chip keeps its
             // width and nothing jumps to another row.
-            Text(item.name)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                if isStarred && isSelected {
+                    Image(systemName: "star.fill").font(.caption2.weight(.bold)).accessibilityHidden(true)
+                }
+                Text(item.name)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+            }
             .padding(.horizontal, 14)
             .frame(minHeight: 44)
             .background(isSelected ? Color.dullPink : Color.surfaceSecondary, in: Capsule())
@@ -267,41 +347,58 @@ private struct FoodChip: View {
         .sensoryFeedback(.selection, trigger: isSelected)
         .animation(.spring(duration: 0.2, bounce: 0.3), value: isSelected)
         .accessibilityIdentifier("favorite.item.\(item.id)")
-        .accessibilityLabel(item.name)
+        .accessibilityLabel(item.name + (isStarred && isSelected ? ", starred" : ""))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
-// MARK: - Shared card for profile editing
-
-struct ProductFavoriteCard: View {
+/// A food on "Your list": a star to mark the ones bought most, and a tap to take it off
+/// (it stays, unpicked, with a plus to put it back). The leading slot keeps its width
+/// either way, so the chips don't reflow.
+private struct ListChip: View {
     let item: CatalogItem
     let isSelected: Bool
-    let onTap: () -> Void
+    let isStarred: Bool
+    let onToggle: () -> Void
+    let onStar: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                Circle()
-                    .fill(Color.labelPrimary.opacity(0.15))
-                    .frame(width: 38, height: 38)
-                    .overlay(
-                        Image(systemName: item.category.symbol)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(Color.labelPrimary)
-                    )
-                Text(item.name)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.labelPrimary)
-                Spacer()
-                // Like Burst heart; the whole row stays the tap target.
-                LikeBurstHeart(isOn: isSelected)
+        HStack(spacing: 0) {
+            Button(action: isSelected ? onStar : onToggle) {
+                Image(systemName: isSelected ? (isStarred ? "star.fill" : "star") : "plus")
+                    .font(.footnote.weight(.bold))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 34, height: 44)
+                    .padding(.leading, 6)
+                    .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .sensoryFeedback(.selection, trigger: isStarred)
+            .accessibilityLabel(isStarred ? "Remove star from \(item.name)" : "Star \(item.name)")
+            .accessibilityHint("Starred foods come first in your weekly groceries")
+            .accessibilityHidden(!isSelected)
+            .accessibilityIdentifier("favorite.star.\(item.id)")
+            Button(action: onToggle) {
+                Text(item.name)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                    .strikethrough(!isSelected, color: Color.labelTertiary)
+                    .padding(.trailing, 14)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("favorite.item.\(item.id)")
+            .accessibilityLabel(item.name + (isStarred ? ", starred" : ""))
+            .accessibilityHint(isSelected ? "Takes it off your list" : "Puts it back on your list")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(isSelected ? Color.onAccent : Color.labelSecondary)
+        .background(isSelected ? Color.dullPink : Color.surfaceSecondary, in: Capsule())
+        .overlay(Capsule().strokeBorder(isSelected ? Color.clear : Color(.separator), lineWidth: 0.5))
         .sensoryFeedback(.selection, trigger: isSelected)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .animation(.spring(duration: 0.2, bounce: 0.3), value: isSelected)
+        .animation(.snappy, value: isStarred)
     }
 }
 

@@ -30,6 +30,21 @@ struct OnboardingFlow: View {
                 }
         }
         .tint(.brandPrimary)
+        .onAppear(perform: jumpForUITests)
+    }
+
+    /// UI tests only (`-NourloUITesting YES`): `-NourloOnboardingDiets vegan,halal` picks
+    /// diets and `-NourloOnboardingJump favorites` opens that screen straight away, so a
+    /// screen can be checked without driving every one before it.
+    private func jumpForUITests() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: "NourloUITesting"), vm.path.isEmpty,
+              let target = defaults.string(forKey: "NourloOnboardingJump"),
+              let step = OnboardingStep.allCases.first(where: { "\($0)" == target }) else { return }
+        let diets = (defaults.string(forKey: "NourloOnboardingDiets") ?? "")
+            .split(separator: ",").compactMap { DietaryPreference(rawValue: String($0)) }
+        vm.selectedPreferences = Set(diets)
+        vm.path = vm.steps.filter { $0.rawValue <= step.rawValue && $0 != .name }
     }
 }
 

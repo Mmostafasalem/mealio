@@ -32,13 +32,23 @@ final class MealsReviewUITests: XCTestCase {
         let meal = app.buttons.matching(identifier: "mealPlan.meal").firstMatch
         if !meal.waitForExistence(timeout: 15) { app.tab("Meals").tap() }   // a lost first tap
         XCTAssertTrue(meal.waitForExistence(timeout: 20))
-        meal.tap()
         let review = app.buttons["mealPlan.reviewRecipeLog"]
-        XCTAssertTrue(review.waitForExistence(timeout: 15))
+        // A tap while the plan is still settling can be lost: tap again while the card is shut.
+        for _ in 0..<3 where !review.exists {
+            meal.tap()
+            if review.waitForExistence(timeout: 10) { break }
+        }
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
         XCTAssertEqual(review.label, "Review recipe and log")
         XCTAssertFalse(app.buttons["Recipe"].exists, "no separate Recipe button")
         XCTAssertFalse(app.buttons["Review and log"].exists, "no separate Review and log button")
+        // Let the card finish opening, then keep a copy for review (tester feedback C3).
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: review)], timeout: 5)
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
         shot("meal-expanded")
+        let dir = URL(fileURLWithPath: "/tmp/r2-onb")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent("meal-expanded.png"))
         for _ in 0..<4 where !review.isHittable { app.swipeUp() }
         // The card may still be expanding when the button is tapped: tap until the sheet opens.
         let tabs = app.segmentedControls["mealReview.tabs"]
