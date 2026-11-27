@@ -151,7 +151,7 @@ extension VoiceLexicon {
             VoiceTranslation("lentil soup", "شوربه عدس", "شوربه العدس"), VoiceTranslation("pita bread", "خبز عربي", "خبز لبناني", "خبز بلدي"),
             VoiceTranslation("egg", "بيضه", "بيض", "بيضات"), VoiceTranslation("bread", "خبز", "عيش", "رغيف"), VoiceTranslation("bread white toasted", "توست"),
             VoiceTranslation("milk", "حليب", "لبن"), VoiceTranslation("butter", "زبده"), VoiceTranslation("cheese", "جبن", "جبنه", "اجبان"),
-            VoiceTranslation("yogurt", "زبادي", "روب", "لبن زبادي"), VoiceTranslation("labneh", "لبنه"),
+            VoiceTranslation("yogurt", "زبادي", "روب", "لبن زبادي"), VoiceTranslation("greek yogurt", "لبنه"),
             VoiceTranslation("chicken breast", "دجاج", "فراخ", "دجاجه"), VoiceTranslation("turkey breast", "ديك رومي", "حبش"),
             VoiceTranslation("beef", "لحم بقري", "لحم بقر", "لحم", "لحمه"), VoiceTranslation("lamb", "لحم ضان", "لحم خروف", "خروف"),
             VoiceTranslation("beef steak", "ستيك", "شريحه لحم"), VoiceTranslation("salmon", "سلمون"), VoiceTranslation("tuna", "تونه", "تونا"),

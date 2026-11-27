@@ -119,8 +119,7 @@ final class VoiceCommandModel {
     }
 
     private func listen(session: Int) async {
-        let locale = language.locale
-        let route = await SpeechCapture.route(for: language)
+        let (route, locale) = await SpeechCapture.routeAndLocale(for: language)
         guard let choice = SpeechCapture.engine(for: route, language: language) else {
             fail(route == .none(offlineModelWouldHelp: true) ? SpeechCaptureError.needsOfflineModel : SpeechCaptureError.unsupportedLanguage)
             return

@@ -663,6 +663,41 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("voice-done")
     }
 
+    /// TestFlight: "Pridėk sausus pusryčius su pienu prie pusryčių" (add cereal with milk
+    /// to breakfast) showed "Couldn't find". It is two foods for breakfast.
+    func testVoiceCommandInLithuanianFindsCerealAndMilk() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-voiceLanguage_v1", "lt", "-NourloVoiceTestPhrase", "Pridėk sausus pusryčius su pienu prie pusryčių"]
+        launchForTesting(app)
+        tap("home.voice", in: app)
+        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["voice.missing"].exists, "nothing is missing")
+        capture("voice-review-lithuanian")
+    }
+
+    /// Profile › Voice offers all nine languages, each in its own name.
+    func testVoiceSettingsOffersEveryLanguage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-voiceLanguage_v1", "ja"]
+        launchForTesting(app)
+        openProfile(in: app)
+        tap("profile.voice", in: app)
+        XCTAssertTrue(app.navigationBars["Voice"].waitForExistence(timeout: 5))
+        capture("voice-settings-japanese")
+        let picker = app.buttons["voice.language"].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        for name in ["English", "Deutsch", "Español", "Français", "Русский", "Lietuvių", "العربية", "中文", "日本語"] {
+            XCTAssertTrue(app.buttons[name].firstMatch.waitForExistence(timeout: 3), "\(name) is offered")
+        }
+        capture("voice-languages")
+        app.buttons["Español"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Voice"].waitForExistence(timeout: 5))
+        capture("voice-settings-spanish")
+    }
+
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
         // Starts from an empty kitchen: food other tests leave in stock would stay on the shelf.
