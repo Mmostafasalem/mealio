@@ -17,7 +17,8 @@ struct WeeklyGroceryCard: View {
         let linked = Set((UserDefaults.standard.dictionary(forKey: "cartStockLinks_v1") as? [String: String] ?? [:]).values)
         let ownStock = StockStore.shared.items.filter { !linked.contains($0.id.uuidString) && !$0.isExpired() }.map(\.food.name)
         return WeeklyGroceryPlanner.plan(budget: cart.weeklyBudget, cart: cart.cartItems, favourites: favourites,
-                                         preferences: .load(), excluded: removed, stock: ownStock) { cart.effectivePrice(for: $0, store: .catalog) }
+                                         preferences: .load(), excluded: removed, stock: ownStock,
+                                         starred: StarredFoods.load()) { cart.effectivePrice(for: $0, store: .catalog) }
     }
 
     /// Said plainly when there is nothing to suggest.

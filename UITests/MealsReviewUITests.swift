@@ -38,7 +38,13 @@ final class MealsReviewUITests: XCTestCase {
         XCTAssertEqual(review.label, "Review recipe and log")
         XCTAssertFalse(app.buttons["Recipe"].exists, "no separate Recipe button")
         XCTAssertFalse(app.buttons["Review and log"].exists, "no separate Review and log button")
+        // Let the card finish opening, then keep a copy for review (tester feedback C3).
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: review)], timeout: 5)
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
         shot("meal-expanded")
+        let dir = URL(fileURLWithPath: "/tmp/r2-onb")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent("meal-expanded.png"))
         for _ in 0..<4 where !review.isHittable { app.swipeUp() }
         // The card may still be expanding when the button is tapped: tap until the sheet opens.
         let tabs = app.segmentedControls["mealReview.tabs"]

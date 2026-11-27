@@ -233,7 +233,9 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("profile-features-workouts-only")
     }
 
-    private func onboard(_ app: XCUIApplication, largeText: Bool = false) {
+    /// `diets`: the diet chips to pick (their names). `favourites` runs on "Pick your foods".
+    private func onboard(_ app: XCUIApplication, largeText: Bool = false, diets: [String] = [],
+                         favourites: (() -> Void)? = nil) {
         app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
         if largeText {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
@@ -253,33 +255,92 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
-        advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
-        // Narrow the ~340 chips to a handful first: on a slow machine, reading the
-        // whole chip grid for every query can time out.
-        let search = app.textFields.element(matching: NSPredicate(format: "placeholderValue BEGINSWITH 'Search'"))
-        XCTAssertTrue(search.waitForExistence(timeout: 5), "favourites search field")
-        search.tap()
-        search.typeText("chicken\n")
-        // The short filtered list can rest a row under the category strip; start from its top.
-        let list = app.scrollViews["favorites.list"]
-        if list.exists { list.swipeDown(velocity: .slow) }
-        for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {
-            let chip = app.buttons["favorite.item." + id].firstMatch
-            XCTAssertTrue(chip.waitForExistence(timeout: 5), id)
-            if !chip.isHittable, list.exists { list.swipeDown(velocity: .slow) }
-            XCTAssertTrue(chip.isHittable, "Unreachable control: favorite.item." + id)
-            XCTAssertGreaterThanOrEqual(chip.frame.width, 44 - 0.001, id)
-            XCTAssertGreaterThanOrEqual(chip.frame.height, 44 - 0.001, id)
-            XCTAssertTrue(app.frame.insetBy(dx: 0, dy: 40).contains(CGPoint(x: chip.frame.midX, y: chip.frame.midY)),
-                          "Control outside safe tap area: favorite.item." + id)
+        for diet in diets {
+            let chip = app.buttons[diet].firstMatch
+            XCTAssertTrue(chip.waitForExistence(timeout: 5), diet)
             chip.tap()
-            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
-            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+            let on = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: chip)
+            XCTAssertEqual(XCTWaiter.wait(for: [on], timeout: 5), .completed, diet)
         }
+        advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
+        // "Pick your foods" opens with a ready list from the diet and goal, already
+        // past the minimum, so Next works straight away.
+        let finish = app.buttons["onboarding.favorites.finish"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true AND label BEGINSWITH 'Next'"), object: finish)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed, "the ready list meets the minimum")
+        XCTAssertTrue(app.descendants(matching: .any)["favorites.yourList"].firstMatch.waitForExistence(timeout: 5))
+        favourites?()
         advance("onboarding.favorites.finish", to: "onboarding.week.continue", in: app)
         advance("onboarding.week.continue", to: "onboarding.alerts.finish", in: app)
         tap("onboarding.alerts.finish", in: app)
         XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
+    }
+
+    /// Also writes the screenshot to /tmp/r2-onb (review proof for the tester feedback).
+    private func proof(_ name: String) {
+        capture(name)
+        let dir = URL(fileURLWithPath: "/tmp/r2-onb")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent(name + ".png"))
+    }
+
+    /// Tester feedback H1 and H2, vegan: the foods screen opens with a ready list made
+    /// from the diet (no Dairy, Meat, Fish or Eggs section; Plant milk instead), foods can
+    /// be taken off, starred and added, and an open section has Select all per kind and
+    /// "Select more foods".
+    func testPickYourFoodsStartsFromAVeganDiet() {
+        let app = XCUIApplication()
+        onboard(app, diets: ["Vegan"]) {
+            self.proof("vegan-1-ready-list")
+            XCTAssertTrue(app.buttons["favorite.item.oat-milk"].isSelected, "plant milk is on the list")
+            XCTAssertFalse(app.buttons["favorite.item.greek-yogurt"].exists)
+            // Star one, take one off: it stays shown, unpicked, to put back.
+            self.tap("favorite.star.oats", in: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Remove star from Oats'"),
+                                                                          object: app.buttons["favorite.star.oats"])], timeout: 5), .completed)
+            self.tap("favorite.item.banana", in: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == false"),
+                                                                          object: app.buttons["favorite.item.banana"])], timeout: 5), .completed)
+            self.proof("vegan-2-starred-and-removed")
+            for gone in ["dairy", "meat", "seafood", "eggs"] {
+                XCTAssertFalse(app.buttons["favorites.section." + gone].exists, gone + " is not offered")
+            }
+            self.tap("favorites.section.plantMilk", in: app)
+            XCTAssertTrue(app.buttons["favorites.selectMore"].waitForExistence(timeout: 5))
+            self.proof("vegan-3-sections-grid-plant-milk-open")
+            self.tap("favorites.selectMore", in: app)
+            self.tap("favorites.section.vegetables", in: app)
+            let leafy = app.buttons["favorites.selectAll.Leafy greens"]
+            XCTAssertTrue(leafy.waitForExistence(timeout: 5))
+            self.proof("vegan-4-vegetables-select-all")
+            self.tap("favorites.selectAll.Leafy greens", in: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Clear Leafy greens'"),
+                                                                          object: leafy)], timeout: 5), .completed)
+            self.tap("favorites.selectMore", in: app)
+            XCTAssertTrue(app.descendants(matching: .any)["favorites.yourList"].firstMatch.waitForExistence(timeout: 5))
+            let list = app.scrollViews["favorites.list"]
+            list.swipeUp(velocity: .slow)
+            self.proof("vegan-5-sections-grid")
+        }
+    }
+
+    /// Tester feedback H1, no diet: the ready list covers every part of the plan and
+    /// every section is offered.
+    func testPickYourFoodsStartsFromAnOmnivoreDiet() {
+        let app = XCUIApplication()
+        onboard(app) {
+            self.proof("omnivore-1-ready-list")
+            for id in ["oats", "chicken-breast", "eggs-10", "greek-yogurt", "broccoli", "banana", "brown-rice"] {
+                XCTAssertTrue(app.buttons["favorite.item." + id].isSelected, id)
+            }
+            let list = app.scrollViews["favorites.list"]
+            list.swipeUp(velocity: .slow)
+            self.proof("omnivore-2-sections-grid")
+            self.tap("favorites.section.meat", in: app)
+            XCTAssertTrue(app.buttons["favorites.selectAll.Chicken"].waitForExistence(timeout: 5))
+            self.proof("omnivore-3-meat-select-all")
+            self.tap("favorites.selectMore", in: app)
+        }
     }
 
     func testAppStoreScreenshotCandidates() {
