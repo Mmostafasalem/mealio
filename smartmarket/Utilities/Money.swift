@@ -195,7 +195,7 @@ enum Money {
         let c = current
         let conversion = c.code == "EUR"
             ? "They are set in euros (rates fixed on \(ratesDateText) for other currencies)."
-            : "They are set in euros and converted to \(c.name) at a fixed rate on \(ratesDateText): 1 EUR = \(c.perEUR.formatted(.number.precision(.fractionLength(0...2)))) \(c.code)."
+            : "They are set in euros and converted at a fixed rate on \(ratesDateText): 1 EUR = \(c.perEUR.formatted(.number.precision(.fractionLength(0...2)))) \(c.code)."
         return "These are average estimated prices, not live store prices. \(conversion) What you pay in your shop will differ; tap a price to enter your own."
     }
 }

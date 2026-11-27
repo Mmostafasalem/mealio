@@ -40,9 +40,6 @@ struct ProfileView: View {
                     category(.appearance, value: themes.theme.name) { AppearancePage() }
                     category(.voice, value: VoiceLanguage.current.name) { VoiceSettingsView() }
                     category(.notifications, value: reminders.isEnabled ? "On" : "Off") { RemindersView() }
-                }
-
-                Section {
                     if AIAccountService.shared.offersOnlineAI {
                         category(.ai, value: nil) { AIAccountPage() }
                     }
@@ -51,6 +48,9 @@ struct ProfileView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
+            .environment(\.defaultMinListRowHeight, 44)
+            .contentMargins(.top, Spacing.xs, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Profile")
@@ -67,6 +67,7 @@ struct ProfileView: View {
         } label: {
             ProfileCategoryRow(kind: kind, value: value)
         }
+        .listRowInsets(EdgeInsets(top: 4, leading: Spacing.lg, bottom: 4, trailing: Spacing.lg))
         .accessibilityIdentifier(kind.identifier)
         .accessibilityValue(value ?? "")
     }
@@ -135,7 +136,7 @@ enum ProfileCategory: String, CaseIterable {
 private struct ProfileCategoryRow: View {
     let kind: ProfileCategory
     let value: String?
-    @ScaledMetric(relativeTo: .body) private var tile: CGFloat = 30
+    @ScaledMetric(relativeTo: .body) private var tile: CGFloat = 28
 
     var body: some View {
         HStack(spacing: Spacing.md) {
@@ -156,7 +157,7 @@ private struct ProfileCategoryRow: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 0)
     }
 }
 
@@ -166,19 +167,16 @@ private struct ProfileCard: View {
 
     var body: some View {
         HStack(spacing: Spacing.md) {
-            ProfileAvatar(size: 60, name: vm.profile.name)
+            ProfileAvatar(size: 52, name: vm.profile.name)
             VStack(alignment: .leading, spacing: 4) {
                 Text(vm.profile.name.isEmpty ? "Add your name" : vm.profile.name)
                     .font(.headline)
                     .foregroundStyle(Color.labelPrimary)
                 Text(vm.profile.weightGoal.displayName + " · \(vm.profile.dailyCalorieGoal.formatted(.number.grouping(.never))) kcal a day")
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
-                Text("Edit name and photo")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.brandPrimary)
             }
         }
-        .padding(.vertical, Spacing.xs)
+        .padding(.vertical, 0)
         .accessibilityElement(children: .combine)
     }
 }

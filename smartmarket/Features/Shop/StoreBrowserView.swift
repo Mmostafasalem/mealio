@@ -18,10 +18,11 @@ struct StoreBrowserView: View {
                     budgetCard
                     // Inline under the card, so it never covers the Edit button.
                     TipView(budgetTip, arrowEdge: .top)
+                    // Right under the budget: what these prices are and which currency.
+                    aboutPrices
                     WeeklyGroceryCard()
                     storeGrid
                     if cart.itemCount > 0 { cartPreview }
-                    aboutPrices
                 }
                 .padding(.horizontal, Spacing.lg)
                 .padding(.top, Spacing.sm)

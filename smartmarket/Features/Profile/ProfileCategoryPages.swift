@@ -33,15 +33,20 @@ struct GoalsTargetsPage: View {
 
             Section("Your body and goal") {
                 MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
-                MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
+                NavigationLink {
+                    EditGoalView(vm: vm)
+                } label: {
+                    LabeledContent {
+                        Text(vm.profile.weightGoal.displayName)
+                    } label: {
+                        Label("Goal", systemImage: "arrow.up.forward")
+                    }
+                }
+                .accessibilityIdentifier("profile.goal")
                 NavigationLink {
                     EditBodyStatsView(vm: vm)
                 } label: { Label("Body stats", systemImage: "figure") }
                 .accessibilityIdentifier("profile.bodyStats")
-                NavigationLink {
-                    EditGoalView(vm: vm)
-                } label: { Label("Goal", systemImage: "target") }
-                .accessibilityIdentifier("profile.goal")
             }
         }
         .listStyle(.insetGrouped)

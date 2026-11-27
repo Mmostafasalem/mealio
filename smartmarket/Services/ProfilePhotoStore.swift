@@ -19,6 +19,27 @@ final class ProfilePhotoStore {
         let base = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         fileURL = base.appendingPathComponent("ProfilePhoto.jpg")
         if let data = try? Data(contentsOf: fileURL) { image = UIImage(data: data) }
+        // UI tests only: `-NourloUITestPhoto YES` stands in for a photo picked in Photos,
+        // whose system picker a test can't always drive.
+        let defaults = UserDefaults.standard
+        if directory == nil, defaults.bool(forKey: "NourloUITesting"), defaults.bool(forKey: "NourloUITestPhoto") {
+            save(Self.testPortrait())
+        }
+    }
+
+    /// A plain drawn portrait (SF Symbol on a gradient) for UI tests.
+    static func testPortrait() -> UIImage {
+        let size = CGSize(width: 512, height: 512)
+        return UIGraphicsImageRenderer(size: size).image { ctx in
+            let colors = [UIColor.systemTeal.cgColor, UIColor.systemIndigo.cgColor] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
+                ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 512, y: 512), options: [])
+            }
+            let config = UIImage.SymbolConfiguration(pointSize: 300, weight: .regular)
+            UIImage(systemName: "person.crop.circle.fill", withConfiguration: config)?
+                .withTintColor(.white, renderingMode: .alwaysOriginal)
+                .draw(in: CGRect(x: 86, y: 86, width: 340, height: 340))
+        }
     }
 
     var hasPhoto: Bool { image != nil }
