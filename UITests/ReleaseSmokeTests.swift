@@ -651,7 +651,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testVoiceCommandLogsFoodAfterConfirming() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
+                               "-voiceLanguage_v1", "en", "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
         launchForTesting(app)
         // The microphone between My Stock and History opens the same sheet as "+" › Speak a command.
         tap("home.voice", in: app)
@@ -798,10 +798,16 @@ final class ReleaseSmokeTests: XCTestCase {
 extension XCUIApplication {
     /// A tab by its name: in the bottom tab bar on iPhone, in the floating bar at the top on iPad
     /// (iPadOS 18 and later put the tabs there, outside any tab bar element).
+    /// Waits (up to 20 s) for the tab to appear, so a tap right after launch doesn't miss
+    /// the bar while the launch screen is still up.
     func tab(_ name: String) -> XCUIElement {
+        let element: XCUIElement
         if UIDevice.current.userInterfaceIdiom == .pad {
-            return buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+            element = buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+        } else {
+            element = tabBars.buttons[name].firstMatch
         }
-        return tabBars.buttons[name].firstMatch
+        _ = element.waitForExistence(timeout: 20)
+        return element
     }
 }

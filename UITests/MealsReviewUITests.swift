@@ -30,7 +30,8 @@ final class MealsReviewUITests: XCTestCase {
         app.tab("Meals").tap()
 
         let meal = app.buttons.matching(identifier: "mealPlan.meal").firstMatch
-        XCTAssertTrue(meal.waitForExistence(timeout: 15))
+        if !meal.waitForExistence(timeout: 15) { app.tab("Meals").tap() }   // a lost first tap
+        XCTAssertTrue(meal.waitForExistence(timeout: 20))
         meal.tap()
         let review = app.buttons["mealPlan.reviewRecipeLog"]
         XCTAssertTrue(review.waitForExistence(timeout: 15))
@@ -39,16 +40,21 @@ final class MealsReviewUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Review and log"].exists, "no separate Review and log button")
         shot("meal-expanded")
         for _ in 0..<4 where !review.isHittable { app.swipeUp() }
-        review.tap()
+        // The card may still be expanding when the button is tapped: tap until the sheet opens.
+        let tabs = app.segmentedControls["mealReview.tabs"]
+        for _ in 0..<3 where !tabs.exists {
+            if review.isHittable { review.tap() }
+            if tabs.waitForExistence(timeout: 6) { break }
+        }
 
         // The review and log part (the log button is at the end of the form).
-        XCTAssertTrue(app.segmentedControls["mealReview.tabs"].waitForExistence(timeout: 15))
+        XCTAssertTrue(tabs.waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Planned portions"].waitForExistence(timeout: 10))
         shot("meal-review")
         let log = app.buttons["plannedMeal.logStock"]
         for _ in 0..<5 where !log.exists { app.collectionViews.firstMatch.swipeUp() }
         XCTAssertTrue(log.exists, "Log meal from stock is in the same sheet")
-        app.collectionViews.firstMatch.swipeDown()
+        // No swipe down here: at the top of the list it closes the whole sheet.
         // The recipe part, in the same sheet (Wikibooks recipes while online AI is off).
         select("Recipe", in: app)
         let recipe = app.descendants(matching: .any)["recipe.cookbook"]
@@ -62,7 +68,7 @@ final class MealsReviewUITests: XCTestCase {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-NourloUITesting", "YES", "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
+                               "-NourloUITesting", "YES", "-voiceLanguage_v1", "en", "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
         app.launch()
         let mic = app.buttons["home.voice"]
         XCTAssertTrue(mic.waitForExistence(timeout: 60))
@@ -81,8 +87,12 @@ final class MealsReviewUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS '150'"), object: amount)], timeout: 15), .completed)
 
         let kcal = app.buttons["voice.food.kcal"]
-        kcal.tap()
         let kcalField = app.alerts.firstMatch.textFields.firstMatch
+        // The amount dialog may still be closing; tap until the calories dialog opens.
+        for _ in 0..<4 where !kcalField.exists {
+            kcal.tap()
+            _ = kcalField.waitForExistence(timeout: 3)
+        }
         XCTAssertTrue(kcalField.waitForExistence(timeout: 5))
         kcalField.tap(); kcalField.typeText("250")
         app.buttons["voice.food.kcal.set"].firstMatch.tap()

@@ -66,7 +66,12 @@ final class CookbookUITests: XCTestCase {
         shot("logfood-recipes-entry")
 
         let search = app.textFields["logFood.search"]
-        search.tap()
+        // The sheet may still be settling; tap until the field really has focus, then type.
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        for _ in 0..<4 {
+            search.tap()
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: search)], timeout: 2) == .completed { break }
+        }
         search.typeText("omelette")
         let recipe = app.buttons["logFood.food.cookbook:cheese-omelette"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10), "recipes show up in the food search")
