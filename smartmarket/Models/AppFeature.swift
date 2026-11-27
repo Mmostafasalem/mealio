@@ -91,9 +91,10 @@ enum AppFeature: String, CaseIterable, Identifiable, Hashable {
 // MARK: - Tabs
 
 /// The tab bar's slots. Tags stay fixed whatever is shown, so the bowl guide
-/// and links keep using the same numbers.
+/// and links keep using the same numbers. Quick actions is not a tab: it is the
+/// round bowl button beside the bar (`QuickActionsButton`).
 enum AppTab: Int, CaseIterable, Identifiable {
-    case home = 0, meals = 1, shop = 2, train = 3, quickActions = 4
+    case home = 0, meals = 1, shop = 2, train = 3
 
     var id: Int { rawValue }
 
@@ -104,7 +105,6 @@ enum AppTab: Int, CaseIterable, Identifiable {
         case .meals: return "Meals"
         case .shop: return "Shop"
         case .train: return "Train"
-        case .quickActions: return "Quick actions"
         }
     }
 
@@ -114,17 +114,16 @@ enum AppTab: Int, CaseIterable, Identifiable {
         case .meals: return "fork.knife"
         case .shop: return "storefront.fill"
         case .train: return "figure.run"
-        case .quickActions: return "bolt.fill"
         }
     }
 
-    /// The feature a tab belongs to; Home and "+" are always there.
+    /// The feature a tab belongs to; Home is always there.
     var feature: AppFeature? {
         switch self {
         case .meals: return .meals
         case .shop: return .groceries
         case .train: return .workouts
-        case .home, .quickActions: return nil
+        case .home: return nil
         }
     }
 }
@@ -134,29 +133,29 @@ enum AppTab: Int, CaseIterable, Identifiable {
 /// Pure rules for which parts of the app appear for a set of features.
 enum FeatureLayout {
 
-    /// Tabs left to right: Home, then the chosen feature tabs, then quick actions at the end.
+    /// Tabs left to right: Home, then the chosen feature tabs. Quick actions is
+    /// the separate bowl button beside the bar, not a tab.
     static func tabs(for features: Set<AppFeature>) -> [AppTab] {
-        var tabs: [AppTab] = [.home]
-        tabs += [AppTab.meals, .shop, .train].filter { $0.feature.map(features.contains) ?? true }
-        // Quick actions sits in the middle of the bar, in the same dock as the screens.
-        tabs.insert(.quickActions, at: (tabs.count + 1) / 2)
-        return tabs
+        [.home] + [AppTab.meals, .shop, .train].filter { $0.feature.map(features.contains) ?? true }
     }
 
-    /// Row ids in the quick actions sheet (matching `quickActions.<id>` identifiers).
-    /// Rows that also depend on AI or the camera are filtered again by the sheet.
+    /// Tile ids in the quick actions panel (matching `quickActions.<id>` identifiers),
+    /// most useful first: the first two the panel can offer become its large tiles.
+    /// Tiles that also depend on AI or the camera are filtered again by the panel.
     static func quickActionIDs(for features: Set<AppFeature>) -> [String] {
-        var ids: [String] = []
+        var ids: [String] = ["chat"]
         if showsVoice(features) { ids.append("voice") }
         if features.contains(.tracking) {
-            ids.append("mealPhoto")
             ids.append(MealioQuickAction.logFood.rawValue)
+            ids.append("mealPhoto")
         }
         if features.contains(.groceries) {
             ids.append(MealioQuickAction.cart.rawValue)
             ids.append(MealioQuickAction.groceries.rawValue)
         }
-        ids.append("chat")
+        if features.contains(.meals) { ids.append(MealioQuickAction.meals.rawValue) }
+        if showsStock(features) { ids.append("stock") }
+        if features.contains(.workouts) { ids.append(MealioQuickAction.train.rawValue) }
         ids.append(MealioQuickAction.profile.rawValue)
         return ids
     }

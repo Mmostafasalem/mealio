@@ -12,7 +12,8 @@ enum MealPlanTab: String, CaseIterable, Identifiable {
 @Observable
 final class MealPlanViewModel {
 
-    var selectedTab: MealPlanTab = .today
+    /// The day shown, as days from today (0 = today … 6), picked in the day strip.
+    var selectedDay = 0
     var todaysPlan: MealPlan?
     var weekPlans: [MealPlan] = []
     var isGenerating = false
@@ -52,7 +53,7 @@ final class MealPlanViewModel {
         if errorMessage == nil, before != nil, Self.fingerprint(AppState.shared.weeklyMealPlan) == before {
             notice = "Same plan: there's one food for each part of the plate. Add more foods to your cart or stock for variety."
         }
-        if selectedTab == .week { await loadWeekPlans() }
+        await loadWeekPlans()
     }
 
     /// What a plan shows (each meal's name and portions), to tell whether a new one differs.
