@@ -53,11 +53,13 @@ private struct SpringToggleRow: View {
 private struct SpringSwitchTrack: View {
     let model: SpringToggleModel
 
-    private static let knobColor = Color(UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0xF4 / 255, green: 0xDA / 255, blue: 0xD4 / 255, alpha: 1) // almond
-            : .white
-    })
+    /// White in light mode, the theme's pale tint (Almond in Nourlo Pink) in dark mode;
+    /// white instead when the pale tint would vanish on a pale accent (Graphite's light grey).
+    private static var knobColor: Color {
+        let p = ThemeStore.shared.theme.palette
+        let dark = ThemeContrast.ratio(p.soft.dark, p.accent.dark) < 1.5 ? 0xFFFFFF : p.soft.dark
+        return Color(ThemeHex(0xFFFFFF, dark))
+    }
 
     var body: some View {
         ZStack(alignment: .leading) {

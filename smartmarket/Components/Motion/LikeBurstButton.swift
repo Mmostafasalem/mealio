@@ -45,9 +45,9 @@ struct LikeBurstHeart: View {
     @ScaledMetric(relativeTo: .headline) private var row: CGFloat = 22
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let dotColors: [Color] = [
+    private static var dotColors: [Color] { [
         .dullPink, .almond, .rhino, .brandLight, .dullPink, .almond, .rhino, .brandLight,
-    ]
+    ] }
 
     var body: some View {
         HStack(spacing: 10) {

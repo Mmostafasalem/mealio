@@ -59,6 +59,9 @@ struct SmartMarketAgentApp: App {
             .foregroundStyle(Color.labelPrimary)
             .environment(appState)
             .tint(Color.brandPrimary)
+            // The colour theme (Profile › Appearance): SwiftUI views follow it through the
+            // observed Color tokens; UIKit's window tint is set here.
+            .onChange(of: ThemeStore.shared.theme, initial: true) { ThemeStore.shared.applyWindowTint() }
             // nourlo:// links (widgets) and Spotlight results open screens through the router.
             .onOpenURL { AppRouter.shared.open($0) }
             .onContinueUserActivity(CSSearchableItemActionType) { AppRouter.shared.handle($0) }
