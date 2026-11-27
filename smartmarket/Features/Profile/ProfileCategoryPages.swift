@@ -134,7 +134,7 @@ struct AppearancePage: View {
 
     var body: some View {
         List {
-            Section("Colour") {
+            Section {
                 ThemePickerView()
                     .padding(.vertical, Spacing.xs)
             }

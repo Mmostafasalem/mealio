@@ -93,6 +93,8 @@ struct StoreBrowserView: View {
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Edit weekly budget")
+                .accessibilityIdentifier("shop.editBudget")
             }
 
             // Progress bar

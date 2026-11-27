@@ -11,6 +11,8 @@ struct EditProfileView: View {
     @State private var lastName = ""
     @State private var pickedItem: PhotosPickerItem?
     @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var saveTask: Task<Void, Never>?
     @State private var photoError: String?
     @State private var isReady = false
     @FocusState private var focused: Field?
@@ -20,21 +22,38 @@ struct EditProfileView: View {
     var body: some View {
         List {
             Section {
-                VStack(spacing: Spacing.md) {
-                    ProfileAvatar(size: 112, name: fullName)
-                        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-                    photoButtons
-                    if let photoError {
-                        Text(photoError).font(.footnote).foregroundStyle(Color.brandDanger)
-                    }
+                ProfileAvatar(size: 112, name: fullName)
+                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Spacing.xs)
+                    .listRowBackground(Color.clear)
+            }
+
+            Section {
+                Button { showLibrary = true } label: {
+                    Label("Choose from Photos", systemImage: "photo.on.rectangle")
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Spacing.sm)
-                .listRowBackground(Color.clear)
+                .accessibilityIdentifier("editProfile.choosePhoto")
+                if CameraPhotoPicker.isAvailable {
+                    Button { showCamera = true } label: { Label("Take photo", systemImage: "camera") }
+                        .accessibilityIdentifier("editProfile.takePhoto")
+                }
+                if photos.hasPhoto {
+                    Button(role: .destructive) {
+                        photos.remove()
+                        pickedItem = nil
+                    } label: {
+                        Label("Remove photo", systemImage: "trash").foregroundStyle(Color.brandDanger)
+                    }
+                    .accessibilityIdentifier("editProfile.removePhoto")
+                }
+                if let photoError {
+                    Text(photoError).font(.footnote).foregroundStyle(Color.brandDanger)
+                }
+            } header: {
+                Text("Photo")
             } footer: {
                 Text("Your photo stays on this iPhone. It isn't synced to iCloud or sent anywhere.")
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .multilineTextAlignment(.center)
             }
 
             Section("Name") {
@@ -70,7 +89,17 @@ struct EditProfileView: View {
             lastName = parts.count > 1 ? String(parts[1]) : ""
             isReady = true
         }
-        .onChange(of: fullName) { _, _ in commitName() }
+        .photosPicker(isPresented: $showLibrary, selection: $pickedItem, matching: .images, photoLibrary: .shared())
+        .onChange(of: fullName) { _, _ in
+            commitName()
+            // Saved shortly after typing stops, so a closed app keeps the name.
+            saveTask?.cancel()
+            saveTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                guard !Task.isCancelled else { return }
+                commitName(save: true)
+            }
+        }
         .onDisappear { commitName(save: true) }
         .onChange(of: pickedItem) { _, item in
             guard let item else { return }
@@ -89,39 +118,6 @@ struct EditProfileView: View {
         [firstName, lastName].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    private var photoButtons: some View {
-        HStack(spacing: Spacing.sm) {
-            PhotosPicker(selection: $pickedItem, matching: .images, photoLibrary: .shared()) {
-                photoButtonLabel("Choose photo", symbol: "photo.on.rectangle")
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("editProfile.choosePhoto")
-            if CameraPhotoPicker.isAvailable {
-                Button { showCamera = true } label: { photoButtonLabel("Take photo", symbol: "camera") }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("editProfile.takePhoto")
-            }
-            if photos.hasPhoto {
-                Button(role: .destructive) {
-                    photos.remove()
-                    pickedItem = nil
-                } label: { photoButtonLabel("Remove", symbol: "trash", destructive: true) }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("editProfile.removePhoto")
-            }
-        }
-    }
-
-    private func photoButtonLabel(_ title: String, symbol: String, destructive: Bool = false) -> some View {
-        Label(title, systemImage: symbol)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(destructive ? Color.brandDanger : Color.brandPrimary)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .background(Color.surface, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
-            .contentShape(Capsule())
-    }
 
     private func load(_ item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {

@@ -80,10 +80,12 @@ struct EditTargetsView: View {
                 } label: {
                     Text("Save targets")
                         .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(Color.onAccent)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Color.dullPink, in: Capsule())
+                        .contentShape(Capsule())
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color.brandPrimary)
+                .buttonStyle(ScalePressStyle())
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
                 .accessibilityIdentifier("targets.save")
