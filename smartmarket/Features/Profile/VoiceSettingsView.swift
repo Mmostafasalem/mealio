@@ -62,11 +62,30 @@ struct VoiceSettingsView: View {
                 }
                 .font(.subheadline)
                 .accessibilityElement(children: .combine)
+                if let help = Self.missingRouteHelp(route, language: language) {
+                    Text(help)
+                        .font(.footnote)
+                        .foregroundStyle(Color.labelSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("voice.route.help")
+                }
             }
         } header: {
             Text("Language")
         } footer: {
             Text("Speech is turned into text on this iPhone. The sound is never recorded, stored or sent anywhere. Tap + and choose Speak a command to use it.")
+        }
+    }
+
+    /// What to do when nothing on this iPhone can listen in the language yet.
+    static func missingRouteHelp(_ route: SpeechCapture.Route, language: VoiceLanguage) -> String? {
+        switch route {
+        case .none(offlineModelWouldHelp: true):
+            return "Download the offline model below to speak in \(language.name)."
+        case .none(offlineModelWouldHelp: false):
+            return "This iPhone has no on-device speech model for \(language.name) yet. Add \(language.name) as a keyboard in Settings › General › Keyboard › Keyboards with Enable Dictation on, wait for it to download, then come back."
+        default:
+            return nil
         }
     }
 
@@ -94,9 +113,19 @@ struct VoiceSettingsView: View {
                         Text("Downloading… \(Int((progress * 100).rounded()))%" as String).font(.subheadline)
                     }
                     .tint(Color.progress)
+                    .accessibilityIdentifier("voice.offline.progress")
+                    Text("Keep Nourlo open until it finishes. If it is interrupted, it carries on from where it stopped.")
+                        .font(.caption)
+                        .foregroundStyle(Color.labelSecondary)
                     Button("Cancel", role: .cancel) { offline.cancelDownload() }
                         .font(.subheadline)
                 }
+            case .preparing:
+                HStack(spacing: Spacing.sm) {
+                    ProgressView()
+                    Text("Preparing the model for this iPhone…").font(.subheadline)
+                }
+                .accessibilityElement(children: .combine)
             case .ready:
                 HStack {
                     Label("Downloaded", systemImage: "checkmark.circle.fill")
@@ -111,6 +140,7 @@ struct VoiceSettingsView: View {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.subheadline).foregroundStyle(Color.brandDanger)
                 Button("Try again") { offline.startDownload() }
+                    .accessibilityIdentifier("voice.offline.retry")
             }
             Link(destination: OfflineSpeechModel.creditURL) {
                 Text(OfflineSpeechModel.credit)
@@ -121,7 +151,7 @@ struct VoiceSettingsView: View {
         } header: {
             Text("Offline speech model")
         } footer: {
-            Text("Optional. Adds Lithuanian, and works for English and German where Apple's own model isn't available. A large download (about 470 MB) from Hugging Face over your connection; after that it runs entirely on this iPhone. With it, your words appear when you stop speaking instead of as you speak.")
+            Text("Optional. Adds Lithuanian, and works for English, German, Spanish, French and Russian where Apple's own model isn't available. A large download (about 470 MB) from Hugging Face over your connection; after that it runs entirely on this iPhone. With it, your words appear when you stop speaking instead of as you speak.")
         }
     }
 

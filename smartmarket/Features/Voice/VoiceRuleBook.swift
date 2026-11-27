@@ -40,8 +40,9 @@ enum VoiceCommand: Equatable {
 // Plain rules, no network and no model: the same phrase always gives the same
 // answer, instantly and offline. The logic below is the same for every
 // language; all the words and sentence patterns live in a `VoiceLexicon`
-// (English, German, Arabic, Lithuanian), so another language is another
-// lexicon, not new logic.
+// (English, German, Spanish, French, Russian, Lithuanian, Arabic, Chinese,
+// Japanese), so another language is another lexicon, not new logic. Chinese and
+// Japanese are first cut into words by `VoiceSegmenter`.
 //
 // Order matters: the most specific meaning is tried first (a question about
 // calories, a workout, a destination named in the phrase) and food logging
@@ -82,6 +83,11 @@ enum VoiceRuleBook {
             .replacingOccurrences(of: "’", with: "'")
             .replacingOccurrences(of: "-", with: " ")
             .replacingOccurrences(of: "،", with: ",")
+            // Chinese and Japanese punctuation: the list comma separates foods like a comma.
+            .replacingOccurrences(of: "，", with: ",")
+            .replacingOccurrences(of: "、", with: ",")
+            .replacingOccurrences(of: "。", with: " ")
+            .replacingOccurrences(of: "・", with: " ")
         // "1,5" said the continental way is one and a half, not two foods.
         text = text.replacingOccurrences(of: #"(\d),(\d)"#, with: "$1.$2", options: .regularExpression)
         // Commas separate foods; keep them as their own token.
@@ -91,6 +97,8 @@ enum VoiceRuleBook {
         text = text.replacingOccurrences(of: #"[^\p{L}\p{M}\p{Nd}.,/' ]"#, with: " ", options: .regularExpression)
         // "200g", "250ml", "2kg": split the unit off the number.
         text = text.replacingOccurrences(of: #"(\d)(\p{L})"#, with: "$1 $2", options: .regularExpression)
+        // Chinese and Japanese are written without spaces: cut them into the words the lexicon knows.
+        if let segmenter = lexicon.segmenter { text = segmenter.segment(text, vocabulary: lexicon.vocabulary) }
         return text.split(separator: " ").joined(separator: " ")
     }
 
@@ -132,6 +140,11 @@ enum VoiceRuleBook {
     private static func workout(_ text: String, _ lexicon: VoiceLexicon) -> VoiceCommand? {
         let words = text.split(separator: " ").map(String.init)
         let namesWorkout = words.contains { lexicon.matches($0, lexicon.workoutNouns) } || lexicon.workoutPhrases.contains(where: text.contains)
+        // "log 30 minutes of running": an activity and a length is a workout, whatever the verb.
+        if !namesWorkout, let minutes = minutes(in: text, lexicon),
+           let kind = lexicon.workoutKinds.first(where: { kind in kind.kind != .home && words.contains { lexicon.matches($0, kind.words) } })?.kind {
+            return .startWorkout(kind: kind, minutes: minutes)
+        }
         guard namesWorkout else { return nil }
         // "log my workout" isn't a request to build one, and a food phrase can't hold these nouns.
         // A short phrase is enough ("gym session"), unless a food or shopping verb leads it ("log my workout").
@@ -213,6 +226,10 @@ enum VoiceRuleBook {
             var words = rest.split(separator: " ").map(String.init)
             var best: (index: Int, slot: MealSlot, distance: Int)?
             for (index, word) in words.enumerated() {
+                // A word that is a known food as heard ("pienu", with milk) isn't a misheard meal,
+                // and nor is one a food word claims ("sausus pusryčius").
+                if lexicon.foods.contains(where: { $0.matches(word) }) { continue }
+                if index > 0, lexicon.matches(words[index - 1], lexicon.mealNotAfter) { continue }
                 for meal in lexicon.meals {
                     for name in meal.names {
                         if let distance = VoiceSpelling.near(word, name), distance < best?.distance ?? .max { best = (index, meal.slot, distance) }
@@ -230,6 +247,12 @@ enum VoiceRuleBook {
         var hadVerb = false
         for verb in lexicon.foodVerbs where rest == verb || rest.hasPrefix(verb + " ") {
             rest = String(rest.dropFirst(verb.count)).trimmingCharacters(in: .whitespaces)
+            hadVerb = true
+            break
+        }
+        // Languages that put the verb last: "バナナ 食べた" (I ate a banana).
+        for verb in lexicon.trailingFoodVerbs where rest == verb || rest.hasSuffix(" " + verb) {
+            rest = String(rest.dropLast(verb.count)).trimmingCharacters(in: .whitespaces)
             hadVerb = true
             break
         }
@@ -256,8 +279,13 @@ enum VoiceRuleBook {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
             guard let range = Range(match.range, in: text) else { continue }
-            guard let prepositions = lexicon.mealPrepositions else { return range }
             let lead = Range(match.range(at: 1), in: text).map { String(text[$0]) } ?? ""
+            // "sausus pusryčius" (dry breakfast) is breakfast cereal, a food, not the meal.
+            if !lexicon.mealNotAfter.isEmpty {
+                let before = (String(text[..<range.lowerBound]) + " " + lead).split(separator: " ").last.map(String.init) ?? ""
+                if lexicon.matches(before, lexicon.mealNotAfter) { continue }
+            }
+            guard let prepositions = lexicon.mealPrepositions else { return range }
             if let first = lead.split(separator: " ").first, prepositions.contains(String(first)) { return range }
             if range.upperBound == text.endIndex { return range }
             if range.lowerBound == text.startIndex {
@@ -313,7 +341,13 @@ enum VoiceRuleBook {
             unit = found
             words.removeLast(2)
         }
+        // A count after the name, where the language puts it there: "卵 2" (two eggs, the counter already dropped).
+        if quantity == nil, lexicon.quantityAfterName, words.count >= 2, let value = Double(words[words.count - 1]) {
+            quantity = value
+            words.removeLast()
+        }
         while let first = words.first, lexicon.leadingNoise.contains(first) || lexicon.oneArticles.contains(first) { words.removeFirst() }
+        while words.count > 1, let last = words.last, lexicon.trailingNoise.contains(last) { words.removeLast() }
         var name = words.joined(separator: " ")
         guard !name.isEmpty, quantity ?? 1 > 0 else { return nil }
         if translated {
@@ -321,6 +355,8 @@ enum VoiceRuleBook {
             name = name.replacingOccurrences(of: #"\byoghurt"#, with: "yogurt", options: .regularExpression)
             name = lexicon.translate(name, with: lexicon.foods)
         }
+        // Words the segmenter cut apart are written together again ("全麦 面包" → "全麦面包").
+        if lexicon.segmenter != nil { name = VoiceSegmenter.rejoin(name) }
         return VoiceFoodPhrase(name: name, quantity: quantity, unit: unit)
     }
 
@@ -390,28 +426,42 @@ enum VoiceRuleBook {
 
 /// The languages voice commands understand.
 enum VoiceLanguage: String, CaseIterable, Identifiable {
-    case english = "en", german = "de", arabic = "ar", lithuanian = "lt"
+    case english = "en", german = "de", spanish = "es", french = "fr", russian = "ru"
+    case lithuanian = "lt", arabic = "ar", chinese = "zh", japanese = "ja"
 
     var id: String { rawValue }
 
+    /// Each language in its own name, as the picker shows it.
     var name: String {
         switch self {
         case .english: return "English"
         case .german: return "Deutsch"
-        case .arabic: return "العربية"
+        case .spanish: return "Español"
+        case .french: return "Français"
+        case .russian: return "Русский"
         case .lithuanian: return "Lietuvių"
+        case .arabic: return "العربية"
+        case .chinese: return "中文"
+        case .japanese: return "日本語"
         }
     }
 
-    /// The speech model's language. English follows the phone's own English variant.
+    /// The speech model's language. English, Spanish and French follow the
+    /// phone's own variant ("es-MX", "fr-CA"); Chinese is Mandarin in
+    /// simplified characters, which is what its lexicon is written in.
     var locale: Locale {
+        let current = Locale.current
+        let phoneVariant = current.language.languageCode?.identifier == rawValue && current.region != nil
         switch self {
-        case .english:
-            let current = Locale.current
-            return current.language.languageCode?.identifier == "en" ? current : Locale(identifier: "en-US")
+        case .english: return phoneVariant ? current : Locale(identifier: "en-US")
+        case .spanish: return phoneVariant ? current : Locale(identifier: "es-ES")
+        case .french: return phoneVariant ? current : Locale(identifier: "fr-FR")
         case .german: return Locale(identifier: "de-DE")
+        case .russian: return Locale(identifier: "ru-RU")
         case .arabic: return Locale(identifier: "ar-SA")
         case .lithuanian: return Locale(identifier: "lt-LT")
+        case .chinese: return Locale(identifier: "zh-CN")
+        case .japanese: return Locale(identifier: "ja-JP")
         }
     }
 
@@ -419,8 +469,13 @@ enum VoiceLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .english: return .english
         case .german: return .german
+        case .spanish: return .spanish
+        case .french: return .french
+        case .russian: return .russian
         case .arabic: return .arabic
         case .lithuanian: return .lithuanian
+        case .chinese: return .chinese
+        case .japanese: return .japanese
         }
     }
 
@@ -512,6 +567,33 @@ struct VoiceLexicon {
     /// Words that tie a meal's name to the meal ("for", "as"). When set, a meal
     /// word inside a food's name ("snack bar") is left there; nil takes any mention.
     var mealPrepositions: Set<String>?
+    /// Words that make the meal's name right after them part of a food
+    /// ("sausus pusryčius": dry breakfast, breakfast cereal). Stems end in `*`.
+    var mealNotAfter: Set<String> = []
+    /// Verbs that end a food phrase, for languages that put the verb last ("食べた").
+    var trailingFoodVerbs: [String] = []
+    /// The count may follow the name ("卵 2": two eggs, in Japanese order).
+    var quantityAfterName = false
+    /// Cuts text written without spaces (Chinese, Japanese) into words.
+    var segmenter: VoiceSegmenter?
+
+    /// Every word the lexicon knows: what the segmenter cuts text into.
+    var vocabulary: Set<String> {
+        var words = Set<String>(segmenter?.extraWords ?? [])
+        func add(_ phrase: String) { phrase.split(separator: " ").forEach { words.insert(String($0)) } }
+        (foods + exercises).forEach { $0.forms.forEach(add) }
+        units.keys.forEach(add)
+        numbers.keys.forEach(add)
+        hundredWords.forEach(add)
+        meals.forEach { $0.names.forEach(add) }
+        (foodVerbs + trailingFoodVerbs + shoppingVerbs + workoutPhrases + workoutCues + halfHourPhrases + oneHourPhrases).forEach(add)
+        screens.forEach { $0.names.forEach(add) }
+        workoutKinds.forEach { $0.words.forEach(add) }
+        workoutNouns.union(workoutVerbs).union(leadingNoise).union(trailingNoise).union(screenNoise)
+            .union(exerciseNoise).union(ofWords).union(oneArticles).forEach(add)
+        (calorieWords + calorieCues).forEach(add)
+        return words.filter { !$0.isEmpty && !$0.hasSuffix("*") }
+    }
 
     static let fractionRewrites: [(String, String)] = [
         (#"(?<![\d/.])1/2(?![\d/])"#, "0.5"), (#"(?<![\d/.])1/4(?![\d/])"#, "0.25"),

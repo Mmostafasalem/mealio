@@ -25,7 +25,7 @@ nonisolated enum SpeechCaptureError: LocalizedError {
         switch self {
         case .microphoneDenied: return "Nourlo can't use the microphone. Turn it on in Settings › Nourlo."
         case .speechDenied: return "Speech recognition is off for Nourlo. Turn it on in Settings › Nourlo."
-        case .unsupportedLanguage: return "On-device dictation isn't available for this language on this iPhone."
+        case .unsupportedLanguage: return "On-device dictation isn't available for this language on this iPhone. Profile › Voice says how to add it."
         case .needsOfflineModel: return "This language needs the offline speech model. Download it in Profile › Voice."
         case .unavailable: return "On-device dictation isn't available right now."
         case .transcriptionFailed: return "The offline speech model couldn't read that. Please try again."
@@ -96,19 +96,47 @@ nonisolated enum SpeechCapture {
     }
 
     /// Apple's models first (they show text as you speak), then the offline model.
+    /// Each Apple model is asked about the phone's own variant of the language
+    /// first ("es-MX"), then the usual one ("es-ES"); the older recogniser only
+    /// counts when it can work on the device (its model for that language is
+    /// downloaded with keyboard dictation).
     @MainActor
     static func route(for language: VoiceLanguage) async -> Route {
-        let locale = language.locale
+        await routeAndLocale(for: language).route
+    }
+
+    /// The route, and the locale the engine should listen in for it.
+    @MainActor
+    static func routeAndLocale(for language: VoiceLanguage) async -> (route: Route, locale: Locale) {
+        let candidates = localeCandidates(for: language)
         if #available(iOS 26.0, *) {
-            if await AnalyzerSpeechEngine.supportedLocale(for: locale, model: .speech) != nil { return .appleSpeech }
-            if await AnalyzerSpeechEngine.supportedLocale(for: locale, model: .dictation) != nil { return .appleDictation }
+            for locale in candidates where await AnalyzerSpeechEngine.supportedLocale(for: locale, model: .speech) != nil {
+                return (.appleSpeech, locale)
+            }
+            for locale in candidates where await AnalyzerSpeechEngine.supportedLocale(for: locale, model: .dictation) != nil {
+                return (.appleDictation, locale)
+            }
         }
-        if let recognizer = SFSpeechRecognizer(locale: locale), recognizer.supportsOnDeviceRecognition {
-            return .appleRecognizer
+        for locale in candidates {
+            if let recognizer = SFSpeechRecognizer(locale: locale), recognizer.supportsOnDeviceRecognition {
+                return (.appleRecognizer, locale)
+            }
         }
         let covered = OfflineSpeechModel.languages.contains(language)
-        if covered, OfflineSpeechModel.shared.isReady { return .offlineModel }
-        return .none(offlineModelWouldHelp: covered && OfflineSpeechModel.shared.state != .unsupported)
+        if covered, OfflineSpeechModel.shared.isReady { return (.offlineModel, language.locale) }
+        return (.none(offlineModelWouldHelp: covered && OfflineSpeechModel.shared.state != .unsupported), language.locale)
+    }
+
+    /// The language's locale, then its usual variant when that is different
+    /// (Chinese is always Mandarin in simplified characters: "zh-CN", then "zh-Hans").
+    @MainActor
+    static func localeCandidates(for language: VoiceLanguage) -> [Locale] {
+        let fallback: [VoiceLanguage: [String]] = [
+            .english: ["en-US", "en-GB"], .german: ["de-DE"], .spanish: ["es-ES", "es-MX", "es-US"], .french: ["fr-FR", "fr-CA"],
+            .russian: ["ru-RU"], .lithuanian: ["lt-LT"], .arabic: ["ar-SA", "ar-AE"], .chinese: ["zh-CN", "zh-Hans"], .japanese: ["ja-JP"],
+        ]
+        var seen = Set<String>()
+        return ([language.locale] + (fallback[language] ?? []).map(Locale.init(identifier:))).filter { seen.insert($0.identifier).inserted }
     }
 
     /// The engine for a route, and whether it needs the speech-recognition permission.
