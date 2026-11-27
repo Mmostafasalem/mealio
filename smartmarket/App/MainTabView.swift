@@ -140,19 +140,17 @@ struct MainTabView: View {
             }
         }
         // The bowl button beside the tab bar, measured from the screen's bottom edge.
+        // Like the bar, it stays put when the keyboard comes up (the keyboard covers both),
+        // so it is never missing after a sheet with a text field closes.
         .overlay {
             ZStack(alignment: .bottomTrailing) {
                 Color.clear.allowsHitTesting(false)
-                if !keyboardVisible {
-                    QuickActionsButton(diameter: QuickActionsDock.diameter) { openQuickActions() }
-                        .padding(.trailing, QuickActionsDock.trailing)
-                        .padding(.bottom, QuickActionsDock.bottom(barInset: tabBarHeight))
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.6).combined(with: .opacity))
-                }
+                QuickActionsButton(diameter: QuickActionsDock.diameter) { openQuickActions() }
+                    .padding(.trailing, QuickActionsDock.trailing)
+                    .padding(.bottom, QuickActionsDock.bottom(barInset: tabBarHeight))
             }
             .ignoresSafeArea(.container, edges: .bottom)
         }
-        .animation(reduceMotion ? .reducedFade : .snappyValue, value: keyboardVisible)
         .sensoryFeedback(.impact(weight: .medium), trigger: quickActionsOpened)
         .background(Color.surfaceGrouped)
         // Tab screens keep their layout under the keyboard.
