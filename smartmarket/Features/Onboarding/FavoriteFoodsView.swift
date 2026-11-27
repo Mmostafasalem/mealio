@@ -70,6 +70,7 @@ struct FavoriteFoodsView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("favorites.yourList")
         }
     }
