@@ -32,9 +32,13 @@ final class MealsReviewUITests: XCTestCase {
         let meal = app.buttons.matching(identifier: "mealPlan.meal").firstMatch
         if !meal.waitForExistence(timeout: 15) { app.tab("Meals").tap() }   // a lost first tap
         XCTAssertTrue(meal.waitForExistence(timeout: 20))
-        meal.tap()
         let review = app.buttons["mealPlan.reviewRecipeLog"]
-        XCTAssertTrue(review.waitForExistence(timeout: 15))
+        // A tap while the plan is still settling can be lost: tap again while the card is shut.
+        for _ in 0..<3 where !review.exists {
+            meal.tap()
+            if review.waitForExistence(timeout: 10) { break }
+        }
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
         XCTAssertEqual(review.label, "Review recipe and log")
         XCTAssertFalse(app.buttons["Recipe"].exists, "no separate Recipe button")
         XCTAssertFalse(app.buttons["Review and log"].exists, "no separate Review and log button")

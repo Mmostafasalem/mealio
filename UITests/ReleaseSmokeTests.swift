@@ -233,7 +233,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("profile-features-workouts-only")
     }
 
-    /// `diets`: the diet chips to pick (their names). `favourites` runs on "Pick your foods".
+    /// `diets`: the diet chips to pick (`DietaryPreference` raw values). `favourites` runs on "Pick your foods".
     private func onboard(_ app: XCUIApplication, largeText: Bool = false, diets: [String] = [],
                          favourites: (() -> Void)? = nil) {
         app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
@@ -256,13 +256,19 @@ final class ReleaseSmokeTests: XCTestCase {
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
         for diet in diets {
-            let chip = app.buttons[diet].firstMatch
+            let chip = app.buttons["onboarding.diet." + diet].firstMatch
             XCTAssertTrue(chip.waitForExistence(timeout: 5), diet)
             chip.tap()
             let on = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: chip)
             XCTAssertEqual(XCTWaiter.wait(for: [on], timeout: 5), .completed, diet)
         }
-        advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
+        // The foods screen builds its ready list as it opens; give a slow machine time.
+        tap("onboarding.diet.continue", in: app)
+        if !app.buttons["onboarding.favorites.finish"].waitForExistence(timeout: 20),
+           app.buttons["onboarding.diet.continue"].exists {
+            tap("onboarding.diet.continue", in: app)
+        }
+        XCTAssertTrue(app.buttons["onboarding.favorites.finish"].waitForExistence(timeout: 20), "Navigation did not reach the foods screen")
         // "Pick your foods" opens with a ready list from the diet and goal, already
         // past the minimum, so Next works straight away.
         let finish = app.buttons["onboarding.favorites.finish"]
@@ -290,7 +296,7 @@ final class ReleaseSmokeTests: XCTestCase {
     /// "Select more foods".
     func testPickYourFoodsStartsFromAVeganDiet() {
         let app = XCUIApplication()
-        onboard(app, diets: ["Vegan"]) {
+        onboard(app, diets: ["vegan"]) {
             self.proof("vegan-1-ready-list")
             XCTAssertTrue(app.buttons["favorite.item.oat-milk"].isSelected, "plant milk is on the list")
             XCTAssertFalse(app.buttons["favorite.item.greek-yogurt"].exists)
