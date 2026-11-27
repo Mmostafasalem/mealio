@@ -47,6 +47,10 @@ struct EditGoalView: View {
                         .animation(.snappyValue, value: vm.profile.dailyCalorieGoal)
                 }
                 .accessibilityElement(children: .combine)
+            } footer: {
+                if vm.targetOverrides.calories != nil {
+                    Text("You set your own daily goal, so it stays as it is. Use recommended in Change daily targets to follow your goal again.")
+                }
             }
         }
         .listStyle(.insetGrouped)

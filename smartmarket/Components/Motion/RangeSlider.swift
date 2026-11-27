@@ -354,7 +354,7 @@ final class RangeSliderEngine {
 #Preview("Range Slider") {
     @Previewable @State var low: Double = 1.2
     @Previewable @State var high: Double = 3.4
-    let euro: (Double) -> String = { String(format: "€%.2f", $0) }
+    let euro: (Double) -> String = { Money.format(eur: $0) }
     VStack(alignment: .leading, spacing: 16) {
         Text("Price").font(.headline)
         RangeSlider(lower: $low, upper: $high, in: 0.3...12, step: 0.1,

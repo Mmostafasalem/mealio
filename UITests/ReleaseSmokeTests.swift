@@ -226,6 +226,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("train-workouts-only")
         // Profile › Features shows the same choice; Workouts is the last one on, so it can't be turned off.
         openProfile(in: app)
+        tap("profile.category.features", in: app)
         let workouts = app.descendants(matching: .any)["profile.feature.workouts"].firstMatch
         for _ in 0..<8 where !(workouts.exists && workouts.isHittable) { app.swipeUp() }
         XCTAssertTrue(workouts.isHittable)
@@ -307,8 +308,8 @@ final class ReleaseSmokeTests: XCTestCase {
         launchForTesting(app)
         openProfile(in: app)
         capture("live-guest-profile-navigation")
+        tap("profile.category.ai", in: app)
         let guest = app.buttons["profile.guestSignIn"]
-        // Profile is long (Features, week, appearance …); keep scrolling until the guest button shows.
         for _ in 0..<16 {
             if guest.exists && guest.isHittable { break }
             app.swipeUp()
@@ -350,6 +351,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("live-guest-online-chat")
         app.buttons["Done"].tap()
         openProfile(in: app)
+        tap("profile.category.data", in: app)
         let delete = app.buttons["Delete All Data"]
         for _ in 0..<10 {
             if delete.exists && delete.isHittable { break }
@@ -558,6 +560,7 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-onlineAIOffered_v1", "YES"]
         launchForTesting(app)
         openProfile(in: app)
+        tap("profile.category.ai", in: app)
         let signIn = app.buttons["profile.appleSignIn"]
         for _ in 0..<8 {
             if signIn.exists && signIn.isHittable { break }
@@ -776,6 +779,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         onboard(app)
         openProfile(in: app)
+        tap("profile.category.help", in: app)
         tap("profile.privacy", in: app)
         XCTAssertTrue(app.staticTexts["Nourlo — Privacy Policy"].waitForExistence(timeout: 5))
         capture("privacy-policy")

@@ -191,12 +191,12 @@ final class GroceryListViewModel {
         var lines = ["Nourlo Grocery List", ""]
         for item in items {
             let check = item.isBought ? "[x]" : "[ ]"
-            let price = item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice)
+            let price = item.priceKnown == false ? "Price unknown" : Money.format(eur: item.estimatedPrice)
             lines.append("\(check) \(item.foodName) (\(item.quantity)) — \(price)")
         }
         lines.append("")
         let label = items.contains { $0.priceKnown == false } ? "Known estimates only" : "Estimated total"
-        lines.append(String(format: "\(label): €%.2f", totalEstimatedCost))
+        lines.append("\(label): " + Money.format(eur: totalEstimatedCost))
         return lines.joined(separator: "\n")
     }
 }

@@ -144,7 +144,7 @@ private struct GroceryRow: View {
     let onToggle: () -> Void
 
     private var priceText: String {
-        item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice)
+        item.priceKnown == false ? "Price unknown" : Money.format(eur: item.estimatedPrice)
     }
 
     var body: some View {
@@ -209,7 +209,7 @@ private struct FooterBar: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(hasUnknownPrices ? "Known estimates only" : "Estimated total")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
-                Text(String(format: "€%.2f", total))
+                Text(Money.format(eur: total))
                     .font(.title2).fontWeight(.bold)
                     .foregroundStyle(Color.brandPrimary)
                     .monospacedDigit()

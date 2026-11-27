@@ -84,7 +84,7 @@ struct StoreProductsView: View {
 
     private var isPriceFiltered: Bool { minPrice != nil || maxPrice != nil }
 
-    private func euro(_ v: Double) -> String { String(format: "€%.2f", v) }
+    private func euro(_ v: Double) -> String { Money.format(eur: v) }
 
     private var priceSummary: String {
         let b = priceBounds
@@ -107,7 +107,7 @@ struct StoreProductsView: View {
                 showPriceFilter.toggle()
             } label: {
                 HStack(spacing: Spacing.sm) {
-                    Image(systemName: "eurosign.circle")
+                    Image(systemName: "tag")
                         .foregroundStyle(Color.labelSecondary)
                     Text("Price")
                         .font(.subheadline.weight(.medium))
@@ -174,7 +174,7 @@ struct StoreProductsView: View {
                     .listRowBackground(Color.clear)
             } else if displayItems.isEmpty && isPriceFiltered {
                 ContentUnavailableView {
-                    Label("No products in this price range", systemImage: "eurosign.circle")
+                    Label("No products in this price range", systemImage: "tag")
                 } description: {
                     Text("Widen the range or clear the price filter.")
                 } actions: {
@@ -286,12 +286,12 @@ struct ProductShopRow: View {
 
                 // Price row — tap to enter the real price you paid
                 Button {
-                    priceInput = String(format: "%.2f", price)
+                    priceInput = Money.inputText(eur: price)
                     priceError = nil
                     showPriceEditor = true
                 } label: {
                     HStack(spacing: 5) {
-                        Text(String(format: "€%.2f", price)).monospacedDigit()
+                        Text(Money.format(eur: price)).monospacedDigit()
                             .foregroundStyle(Color.labelPrimary)
                         Text(isEstimated ? "est." : "your price")
                             .foregroundStyle(isEstimated ? Color.brandAmber : Color.labelSecondary)
@@ -302,7 +302,7 @@ struct ProductShopRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Edit price for \(item.name)" as String)
-                .accessibilityValue((isEstimated ? "Estimate " : "Your price ") + String(format: "€%.2f", price))
+                .accessibilityValue((isEstimated ? "Estimate " : "Your price ") + Money.format(eur: price))
             }
 
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
@@ -326,10 +326,10 @@ struct ProductShopRow: View {
             Form {
                 Section {
                     HStack {
-                        Text("€")
+                        Text(Money.symbol())
                         TextField("0.00", text: $priceInput)
                             .keyboardType(.decimalPad)
-                            .accessibilityLabel("Price in euros")
+                            .accessibilityLabel("Price in \(Money.current.name)")
                             .accessibilityIdentifier("shop.priceInput")
                             .onChange(of: priceInput) { _, _ in priceError = nil }
                     }
@@ -350,12 +350,14 @@ struct ProductShopRow: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        switch EuroInput.validate(priceInput, in: ShoppingCartService.priceRange) {
-                        case .success(let value):
-                            cart.setRealPrice(value, for: item.id, store: store.name)
+                        // Typed in the chosen currency, kept in euros like every price.
+                        let range = ShoppingCartService.priceRange
+                        switch Money.validateLocal(priceInput, eurRange: range) {
+                        case .success(let eur):
+                            cart.setRealPrice(min(max(eur, range.lowerBound), range.upperBound), for: item.id, store: store.name)
                             showPriceEditor = false
                         case .failure(let problem):
-                            priceError = EuroInput.message(for: problem, example: "2.50")
+                            priceError = Money.message(for: problem, example: Money.inputText(eur: 2.5))
                             UIAccessibility.post(notification: .announcement, argument: priceError)
                         }
                     }

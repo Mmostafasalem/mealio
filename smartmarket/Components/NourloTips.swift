@@ -82,7 +82,7 @@ nonisolated struct WeeklyBudgetTip: Tip {
     var id: String { "nourlo.weeklyBudget" }
     var title: Text { Text("Set a weekly budget") }
     var message: Text? { Text("Tap Edit to set what you spend on groceries each week. Meal plans stay within it.") }
-    var image: Image? { Image(systemName: "eurosign.circle") }
+    var image: Image? { Image(systemName: "banknote") }
     var rules: [Rule] {
         #Rule(Self.$hasCustomBudget) { $0 == false }
     }

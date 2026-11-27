@@ -86,6 +86,47 @@ final class ProfileViewModel {
         save()
     }
 
+    // MARK: - Daily targets (Profile › Goals & targets)
+
+    var targetOverrides: TargetOverrides { TargetOverrides.load() }
+
+    /// The daily goal Nourlo recommends for the body stats, goal and pace.
+    var recommendedCalories: Int { targets().dailyGoal }
+
+    /// The usual macro split of `calories`.
+    func recommendedMacros(calories: Int) -> BMRCalculator.MacroTargets {
+        BMRCalculator.recommendedMacroTargets(calories: calories, isKeto: selectedPreferences.contains(.keto))
+    }
+
+    /// The macros in use now (typed ones, else the split of today's goal).
+    var currentMacros: BMRCalculator.MacroTargets {
+        BMRCalculator.macroTargets(calories: profile.dailyCalorieGoal, isKeto: selectedPreferences.contains(.keto))
+    }
+
+    /// Saves typed targets (nil = follow the recommendation) and passes them to
+    /// Home, the planner, widgets and the agent the same way a profile save does.
+    func setTargets(_ overrides: TargetOverrides) {
+        overrides.save()
+        propagateTargets()
+    }
+
+    /// "Use recommended": forgets every typed target.
+    func useRecommendedTargets() {
+        TargetOverrides.clear()
+        propagateTargets()
+    }
+
+    private func propagateTargets() {
+        profile = Self.prepared(profile)
+        profile.save()
+        UserProfile.markTargetsCurrent()
+        AppState.shared.userProfile = profile
+        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
+                                                       isKeto: selectedPreferences.contains(.keto)))
+        NotificationCenter.default.post(name: .personalDataDidChange, object: nil)
+        lastSaved = current
+    }
+
     // MARK: - Save
 
     /// Recomputes targets (the same path as onboarding) and saves. Does nothing,
@@ -230,5 +271,7 @@ final class ProfileViewModel {
         VoiceAIKeyStore.shared.remove()
         RecipeRatingStore.shared.reload()
         DailyLoopStore.shared.reset()
+        ProfilePhotoStore.shared.remove()
+        CurrencyStore.shared.reload()
     }
 }

@@ -31,12 +31,14 @@ final class ThemeUITests: XCTestCase {
             _ = profile.waitForExistence(timeout: 5)
         }
         XCTAssertTrue(profile.exists, "Profile didn't open")
+        // Profile › Appearance: the colour swatches are at the top of their own page.
+        let appearance = app.buttons["profile.category.appearance"]
+        XCTAssertTrue(appearance.waitForExistence(timeout: 5))
+        appearance.tap()
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
         let swatch = app.buttons["profile.theme.pink"]
-        for _ in 0..<14 where !(swatch.exists && swatch.isHittable) { app.swipeUp() }
+        for _ in 0..<4 where !(swatch.exists && swatch.isHittable) { app.swipeUp() }
         XCTAssertTrue(swatch.isHittable)
-        // A short drag so the second row of swatches is in view too, the first still below the bar.
-        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
-        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -220)))
     }
 
     /// Tapping a swatch selects it and saves it; no restart needed.

@@ -78,7 +78,7 @@ struct AIAccountSection: View {
             if OwnerAITestConfiguration.current == nil {
                 Text("Your allowance resets daily at midnight UTC; the time above is shown in your time zone. Signing in or continuing as a guest does not enable AI sharing. Local tracking works without an account. Personal allowances share Nourlo’s overall provider capacity, so temporary service limits can still occur. Delete your online account with the button above or with Delete All Data; signing out alone keeps it.")
             } else {
-                Text("Review AI sharing under Privacy & Help before enabling it. The connection works while your Mac is awake and its AI service and private connection are running.")
+                Text("Review AI sharing above before enabling it. The connection works while your Mac is awake and its AI service and private connection are running.")
             }
         }
         .task { await account.prepare() }

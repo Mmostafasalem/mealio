@@ -33,33 +33,6 @@ struct EditBodyStatsView: View {
         // Fix 1: Changed from 'Form' to 'List' with 'InsetGroupedListStyle'
         // This stops the infinite cell height recalculation loop when the keyboard mounts.
         List {
-            Section("Name") {
-                HStack {
-                    Image(systemName: "person.fill")
-                        .foregroundStyle(Color.brandPrimary)
-                        .frame(width: 22)
-                    TextField("First name", text: $firstName)
-                        .textContentType(.givenName)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .focused($focusedField, equals: .firstName)
-                        .submitLabel(.next)
-                        .onSubmit { focusedField = .lastName }
-                }
-                HStack {
-                    Image(systemName: "person.fill")
-                        .foregroundStyle(Color.brandPrimary)
-                        .frame(width: 22)
-                    TextField("Last name", text: $lastName)
-                        .textContentType(.familyName)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                        .focused($focusedField, equals: .lastName)
-                        .submitLabel(.done)
-                        .onSubmit { focusedField = nil }
-                }
-            }
-
             Section("Body") {
                 StatRuler(label: "Weight", symbol: "scalemass.fill", valueText: WeightRuler.text(weight, weightUnit)) {
                     UnitToggle(selection: $weightUnit, options: WeightUnit.allCases, label: \.label,
@@ -195,12 +168,7 @@ struct EditBodyStatsView: View {
     /// when nothing actually changed.
     private func commit() {
         guard isReady else { return }
-        let full = [firstName, lastName]
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        vm.profile.name = full
+        // The name is edited in Edit profile (tap the card on Profile).
         vm.profile.weight = weight
         vm.profile.height = height
         vm.profile.age = age
