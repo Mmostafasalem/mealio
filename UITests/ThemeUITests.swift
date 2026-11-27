@@ -34,7 +34,9 @@ final class ThemeUITests: XCTestCase {
         let swatch = app.buttons["profile.theme.pink"]
         for _ in 0..<14 where !(swatch.exists && swatch.isHittable) { app.swipeUp() }
         XCTAssertTrue(swatch.isHittable)
-        app.swipeUp()   // the whole swatch row in view
+        // A short drag so the second row of swatches is in view too, the first still below the bar.
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -220)))
     }
 
     /// Tapping a swatch selects it and saves it; no restart needed.
@@ -59,17 +61,21 @@ final class ThemeUITests: XCTestCase {
         guard ProcessInfo.processInfo.environment["NOURLO_SHOTS"] != nil else {
             throw XCTSkip("Set TEST_RUNNER_NOURLO_SHOTS to a folder to take the theme screenshots")
         }
-        for theme in ["ocean", "forest", "graphite"] {
+        let themes = ProcessInfo.processInfo.environment["NOURLO_THEMES"]?.split(separator: ",").map(String.init)
+            ?? ["ocean", "forest", "graphite"]
+        for theme in themes {
             for appearance in ["light", "dark"] {
                 let app = launch(theme: theme, appearance: appearance)
                 let tag = "\(theme)-\(appearance)"
-                XCTAssertTrue(app.buttons["home.profile"].waitForExistence(timeout: 40))
+                XCTAssertTrue(app.buttons["home.profile"].waitForExistence(timeout: 60))
                 sleep(2)
                 shot("\(tag)-1-home")
-                app.tabBars.buttons["Meals"].tap(); sleep(2)
-                shot("\(tag)-2-meals")
-                app.tabBars.buttons["Shop"].tap(); sleep(2)
-                shot("\(tag)-3-shop")
+                for (tab, n) in [("Meals", 2), ("Shop", 3)] {
+                    let button = app.tabBars.buttons[tab]
+                    XCTAssertTrue(button.waitForExistence(timeout: 30))
+                    button.tap(); sleep(3)
+                    shot("\(tag)-\(n)-\(tab.lowercased())")
+                }
                 app.tabBars.buttons["Home"].tap(); sleep(1)
                 openAppearance(app); sleep(1)
                 shot("\(tag)-4-appearance")

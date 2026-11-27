@@ -76,6 +76,17 @@ final class ThemeTests: XCTestCase {
         }
     }
 
+    /// Someone who picked a theme to get away from pink sees no pink ring.
+    func testNoPinkRingOutsideNourloPink() {
+        let pink = AppTheme.pink.palette.accent.light
+        for theme in AppTheme.allCases where theme != .pink && theme != .berry {
+            let p = theme.palette
+            for ring in [p.ringProtein, p.ringCarbs, p.ringFat] {
+                XCTAssertGreaterThan(hueDistance(ring.light, pink), 25, "\(theme.name) has a pink ring")
+            }
+        }
+    }
+
     private func hueDistance(_ a: UInt32, _ b: UInt32) -> Double {
         func hue(_ v: UInt32) -> Double {
             var h: CGFloat = 0, s: CGFloat = 0, br: CGFloat = 0, al: CGFloat = 0

@@ -64,12 +64,12 @@ nonisolated enum AppTheme: String, CaseIterable, Codable, Identifiable, Sendable
         }
     }
 
-    // Macro ring defaults (mint, sky, violet), and the replacements where they'd clash.
+    // Macro ring defaults (mint, sky, violet), and tangerine where one would clash (never pink, so a non-pink theme stays free of pink).
     private static let mint = ThemeHex(0x1FA98C, 0x6FE0C8)
     private static let sky = ThemeHex(0x2F8DE4, 0x6FB7FF)
     private static let violet = ThemeHex(0x9A6BE0, 0xC9A2FF)
     private static let gold = ThemeHex(0xD99A1E, 0xF2C14E)
-    private static let rose = ThemeHex(0xDD8C96, 0xE89DA6)
+    private static let tangerine = ThemeHex(0xE07A3F, 0xF4A06B)
 
     // Dark mode keeps the same neutral surfaces in every theme.
     private static func surfaces(canvas: UInt32, fill: UInt32, hairline: UInt32) -> (ThemeHex, ThemeHex, ThemeHex) {
@@ -96,7 +96,7 @@ nonisolated enum AppTheme: String, CaseIterable, Codable, Identifiable, Sendable
             return ThemePalette(accent: ThemeHex(0x4E9F68, 0x69B985), onAccent: ThemeHex(0x0A0A0A),
                                 progress: ThemeHex(0x4E9F68, 0x69B985), soft: ThemeHex(0xD5EBDC),
                                 tint: ThemeHex(0xDCEFE2, 0x1F3527), canvas: s.0, fill: s.1, hairline: s.2,
-                                ringProtein: Self.rose, ringCarbs: Self.sky, ringFat: Self.violet)
+                                ringProtein: Self.tangerine, ringCarbs: Self.sky, ringFat: Self.violet)
         case .graphite:
             let s = Self.surfaces(canvas: 0xF4F4F6, fill: 0xE8E8EC, hairline: 0xE4E4E8)
             return ThemePalette(accent: ThemeHex(0x2C2C2E, 0xD1D1D6), onAccent: ThemeHex(0xFFFFFF, 0x111111),
@@ -114,13 +114,13 @@ nonisolated enum AppTheme: String, CaseIterable, Codable, Identifiable, Sendable
             return ThemePalette(accent: ThemeHex(0x7D5BD3, 0xB39CF2), onAccent: ThemeHex(0xFFFFFF, 0x111111),
                                 progress: ThemeHex(0x7D5BD3, 0xB39CF2), soft: ThemeHex(0xE3DAFA),
                                 tint: ThemeHex(0xE7DFFA, 0x2C2342), canvas: s.0, fill: s.1, hairline: s.2,
-                                ringProtein: Self.mint, ringCarbs: Self.sky, ringFat: Self.rose)
+                                ringProtein: Self.mint, ringCarbs: Self.sky, ringFat: Self.tangerine)
         case .teal:
             let s = Self.surfaces(canvas: 0xF2F7F7, fill: 0xE3EDEC, hairline: 0xDFE9E8)
             return ThemePalette(accent: ThemeHex(0x2AA19C, 0x4BC0BA), onAccent: ThemeHex(0x0A0A0A),
                                 progress: ThemeHex(0x2AA19C, 0x4BC0BA), soft: ThemeHex(0xD3EEEC),
                                 tint: ThemeHex(0xD8F0EE, 0x173533), canvas: s.0, fill: s.1, hairline: s.2,
-                                ringProtein: Self.rose, ringCarbs: Self.sky, ringFat: Self.violet)
+                                ringProtein: Self.tangerine, ringCarbs: Self.sky, ringFat: Self.violet)
         case .berry:
             let s = Self.surfaces(canvas: 0xF9F3F4, fill: 0xF0E5E7, hairline: 0xECE0E2)
             return ThemePalette(accent: ThemeHex(0xC0354D, 0xEE7C8C), onAccent: ThemeHex(0xFFFFFF, 0x111111),
