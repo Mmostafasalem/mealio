@@ -118,6 +118,8 @@ enum Constants {
         static let lang                     = "lang"
         /// "" follows the iPhone setting, otherwise "light" or "dark" (set by the pull cord in Profile).
         static let appearanceOverride       = "appearanceOverride_v1"
+        /// The colour theme's `AppTheme` raw value (missing = Nourlo Pink); mirrored into the App Group.
+        static let appTheme                 = AppTheme.storageKey
         /// "kg" or "lb" — display only; weight is always stored in kg.
         static let weightUnit               = "weightUnit_v1"
         /// "cm" or "ft" — display only; height is always stored in cm.

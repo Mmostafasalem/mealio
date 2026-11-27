@@ -5,16 +5,26 @@ import WidgetKit
 // MARK: - Colours (the app's Color tokens aren't in this target)
 
 extension Color {
-    /// Nourlo pink, the widgets' accent: rings and bars filling up.
-    static let nourloPink = Color(red: 232 / 255, green: 105 / 255, blue: 138 / 255) // #E8698A
+    // The widgets follow the colour theme chosen in the app (Profile › Appearance),
+    // which the app mirrors into the App Group (`AppThemeStorage`) and then reloads
+    // the timelines. Nourlo Pink when nothing was chosen.
+    private static var widgetPalette: ThemePalette { AppThemeStorage.shared.palette }
+
+    /// The theme's accent: rings and bars filling up, the Log food button.
+    static var nourloPink: Color { widgetColor(widgetPalette.progress) }
+    /// Ink on the accent (≥ 4.5:1 in every theme).
+    static var nourloOnPink: Color { widgetColor(widgetPalette.onAccent) }
     /// The track behind a ring or bar.
-    /// Dark ink for text on pink (white on this pink is too faint).
-    static let nourloOnPink = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255) // #111111
-    static let nourloTrack = Color(UIColor { traits in
-        traits.userInterfaceStyle == .dark
-            ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1)
-            : UIColor(red: 0xEF / 255, green: 0xE8 / 255, blue: 0xE6 / 255, alpha: 1)
-    })
+    static var nourloTrack: Color { widgetColor(widgetPalette.fill) }
+
+    private static func widgetColor(_ hex: ThemeHex) -> Color {
+        func ui(_ v: UInt32) -> UIColor {
+            UIColor(red: CGFloat(v >> 16 & 0xFF) / 255, green: CGFloat(v >> 8 & 0xFF) / 255,
+                    blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+        }
+        let light = ui(hex.light), dark = ui(hex.dark)
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
 }
 
 // MARK: - Timeline

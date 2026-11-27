@@ -123,6 +123,7 @@ User adds deal to grocery:
 | `lang` | String | `"en"` or `"lt"` |
 
 ## Brand Colors
+**Colour themes** (27 Nov 2026): the accent and its tints (`dullPink`, `onAccent`, `progress`, `almond`, `brandLight`, `surfaceGrouped`/`surfaceSecondary`/`hairline`, macro rings) are computed `Color` tokens that read `ThemeStore.shared` (`@Observable`, `Utilities/ThemeStore.swift`), so views redraw on change. The 8 palettes (`AppTheme`: Nourlo Pink default, Ocean Blue, Forest Green, Graphite, Sunset Orange, Royal Purple, Teal, Berry Red) live in `Shared/NourloTheme.swift`, stored in `appTheme_v1` and mirrored to the App Group for the widgets. Picked in Profile › Appearance (`ThemePickerView`). Never write an accent hex in a view; never cache a themed token in a `static let`. Ink (`brandPrimary`, `labelPrimary`), Rhino, danger red, the mascot, the app icon and the Siri tile stay as they are. `ThemeTests` checks AA contrast of every palette.
 ```swift
 Color.brandPrimary    // #E8698A  pink — buttons, active states
 Color.brandDark       // #C94E70  darker pink — nav bars

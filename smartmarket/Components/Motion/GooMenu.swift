@@ -267,7 +267,7 @@ final class GooMenuEngine {
     static let bubbleSize: Double = 44
     static let mainSize: Double = 40
     static let maxItems = 6
-    static let fill = Color.surfaceSecondary
+    static var fill: Color { .surfaceSecondary }
     private static let out = (k: 230.0, c: 19.0)
     private static let back = (k: 520.0, c: 34.0)
 

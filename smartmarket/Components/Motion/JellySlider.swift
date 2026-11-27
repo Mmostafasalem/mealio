@@ -458,9 +458,9 @@ final class JellySliderEngine {
 
 private extension Color {
     /// Text on the liquid: almond on rhino in light mode, rhino on almond in dark mode.
-    static let jellyOnLiquid = Color(UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(Color.rhino) : UIColor(Color.almond)
-    })
+    static var jellyOnLiquid: Color {
+        Color(ThemeHex(ThemeStore.shared.theme.palette.soft.light, 0x1C1C1E)) // dark: Rhino
+    }
 }
 
 // MARK: - Preview

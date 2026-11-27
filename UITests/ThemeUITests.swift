@@ -1,0 +1,80 @@
+import XCTest
+
+/// Colour themes: switching in Profile › Appearance recolours the app at once, and a
+/// review run (`TEST_RUNNER_NOURLO_SHOTS=/folder`) photographs Home, Meals, Shop and
+/// Appearance in several themes, light and dark.
+@MainActor
+final class ThemeUITests: XCTestCase {
+    private func launch(theme: String, appearance: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-NourloUITesting", "YES", "-appearanceOverride_v1", appearance,
+                               "-enabledFeatures_v1", "tracking,meals,groceries,workouts"]
+        if !theme.isEmpty { app.launchArguments += ["-appTheme_v1", theme] }
+        app.launch()
+        return app
+    }
+
+    private func shot(_ name: String) {
+        let screenshot = XCUIScreen.main.screenshot()
+        let a = XCTAttachment(screenshot: screenshot); a.name = name; a.lifetime = .keepAlways; add(a)
+        if let folder = ProcessInfo.processInfo.environment["NOURLO_SHOTS"] {
+            try? screenshot.pngRepresentation.write(to: URL(fileURLWithPath: folder).appendingPathComponent(name + ".png"))
+        }
+    }
+
+    private func openAppearance(_ app: XCUIApplication) {
+        let profile = app.navigationBars["Profile"]
+        for _ in 0..<3 where !profile.exists {
+            let avatar = app.buttons["home.profile"]
+            if avatar.waitForExistence(timeout: 20) { avatar.tap() }
+            _ = profile.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(profile.exists, "Profile didn't open")
+        let swatch = app.buttons["profile.theme.pink"]
+        for _ in 0..<14 where !(swatch.exists && swatch.isHittable) { app.swipeUp() }
+        XCTAssertTrue(swatch.isHittable)
+        app.swipeUp()   // the whole swatch row in view
+    }
+
+    /// Tapping a swatch selects it and saves it; no restart needed.
+    func testSwitchingThemeIsInstantAndKept() {
+        continueAfterFailure = false
+        // An empty value = nothing chosen yet: Nourlo Pink.
+        let app = launch(theme: "", appearance: "light")
+        openAppearance(app)
+        XCTAssertTrue(app.buttons["profile.theme.pink"].isSelected, "pink is the default")
+        let forest = app.buttons["profile.theme.forest"]
+        forest.tap()
+        XCTAssertTrue(forest.waitForExistence(timeout: 2))
+        XCTAssertTrue(forest.isSelected)
+        XCTAssertFalse(app.buttons["profile.theme.pink"].isSelected)
+        XCTAssertEqual(forest.label, "Forest Green")
+        // Back to pink so later tests start from the default.
+        app.buttons["profile.theme.pink"].tap()
+        XCTAssertTrue(app.buttons["profile.theme.pink"].isSelected)
+    }
+
+    func testReviewScreenshots() throws {
+        guard ProcessInfo.processInfo.environment["NOURLO_SHOTS"] != nil else {
+            throw XCTSkip("Set TEST_RUNNER_NOURLO_SHOTS to a folder to take the theme screenshots")
+        }
+        for theme in ["ocean", "forest", "graphite"] {
+            for appearance in ["light", "dark"] {
+                let app = launch(theme: theme, appearance: appearance)
+                let tag = "\(theme)-\(appearance)"
+                XCTAssertTrue(app.buttons["home.profile"].waitForExistence(timeout: 40))
+                sleep(2)
+                shot("\(tag)-1-home")
+                app.tabBars.buttons["Meals"].tap(); sleep(2)
+                shot("\(tag)-2-meals")
+                app.tabBars.buttons["Shop"].tap(); sleep(2)
+                shot("\(tag)-3-shop")
+                app.tabBars.buttons["Home"].tap(); sleep(1)
+                openAppearance(app); sleep(1)
+                shot("\(tag)-4-appearance")
+                app.terminate()
+            }
+        }
+    }
+}

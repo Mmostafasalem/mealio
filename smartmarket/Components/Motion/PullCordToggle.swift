@@ -399,21 +399,21 @@ private enum PullCordRenderer {
 
     /// The same room twice, once in each theme, with tokens resolved for that theme
     /// so neither room changes when the app's appearance flips underneath it.
-    static let dark = Palette(
+    static var dark: Palette { Palette(
         background: .rhino,
         shade: fixed(.surfaceSecondary, .dark),
         cap: fixed(.labelTertiary, .dark),
         bulb: fixed(.surfaceSecondary, .dark).opacity(0.9),
         rope: fixed(.labelTertiary, .dark),
-        bead: fixed(.brandPrimary, .dark))
+        bead: fixed(.brandPrimary, .dark)) }
 
-    static let light = Palette(
+    static var light: Palette { Palette(
         background: fixed(.surface, .light),
         shade: fixed(.surfaceSecondary, .light),
         cap: fixed(.labelTertiary, .light),
         bulb: Color(hex: "#FFD23F"),   // lit: the colour stays on the bulb, never a halo behind it
         rope: fixed(.labelTertiary, .light),
-        bead: fixed(.brandPrimary, .light))
+        bead: fixed(.brandPrimary, .light)) }
 
     static func draw(_ s: PullCordEngine.Snapshot, in ctx: inout GraphicsContext, size: CGSize) {
         guard s.rope.count > 1 else {

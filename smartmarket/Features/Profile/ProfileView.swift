@@ -185,6 +185,8 @@ struct ProfileView: View {
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("profile.followSystemAppearance")
                 }
+                Divider().padding(.vertical, Spacing.xs)
+                ThemePickerView()
             }
             .padding(.vertical, Spacing.xs)
         }
