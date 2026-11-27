@@ -1,3 +1,4 @@
+import UserNotifications
 import XCTest
 @testable import smartmarket
 
@@ -271,4 +272,25 @@ final class AccountStepTests: XCTestCase {
         let with = FeatureLayout.onboardingSteps(for: AppFeature.all, losingWeight: false, offersAI: true)
         XCTAssertEqual(Array(with.suffix(2)), [.account, .alerts], "just before reminders and Health")
     }
+}
+
+@MainActor
+final class ReminderFeatureTests: XCTestCase {
+    func testWorkoutReminderIsNotDueWithoutWorkouts() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "ReminderFeatureTests"))
+        defaults.removePersistentDomain(forName: "ReminderFeatureTests")
+        AppFeature.save([.tracking], to: defaults)
+        defaults.set(true, forKey: "remindersEnabled_v1")
+        let store = ReminderStore(scheduler: NoopReminderScheduler(), defaults: defaults)
+        let late = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: Date())!
+        XCTAssertFalse(store.due(now: late).contains { $0.kind == .workout }, "no workout reminder without Workouts")
+    }
+}
+
+private final class NoopReminderScheduler: ReminderScheduling {
+    func requestAuthorization() async -> Bool { true }
+    func isDenied() async -> Bool { false }
+    func pendingReminderIdentifiers() async -> [String] { [] }
+    func remove(_ identifiers: [String]) {}
+    func add(_ request: UNNotificationRequest) {}
 }

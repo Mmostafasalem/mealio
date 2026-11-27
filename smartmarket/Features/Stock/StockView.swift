@@ -52,6 +52,7 @@ struct StockView: View {
                 .accessibilityIdentifier("stock.item." + item.food.id)
                 .swipeActions(allowsFullSwipe: false) {
                     Button("Remove", role: .destructive) { pendingRemoval = item }
+                        .tint(Color.brandDanger)
                 }
                 .contextMenu {
                     Button("Remove from stock", systemImage: "trash", role: .destructive) { pendingRemoval = item }

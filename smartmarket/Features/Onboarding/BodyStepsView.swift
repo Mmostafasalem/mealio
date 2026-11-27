@@ -31,6 +31,12 @@ struct NameStepView: View {
                     field("First name", text: $vm.firstName, field: .firstName, contentType: .givenName)
                         .submitLabel(.next)
                         .onSubmit { focusedField = .lastName }
+                        // An AutoFill or a pasted name arrives whole: go on to the surname.
+                        .onChange(of: vm.firstName) { old, new in
+                            if focusedField == .firstName, new.count - old.count >= 2, vm.lastName.isEmpty {
+                                focusedField = .lastName
+                            }
+                        }
                     field("Surname", text: $vm.lastName, field: .lastName, contentType: .familyName)
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }

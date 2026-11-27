@@ -136,6 +136,10 @@ final class ReminderStore {
         self.scheduler = scheduler
         self.defaults = defaults
         reload()
+        // Turning a feature off cancels its reminders; turning it on brings them back.
+        NotificationCenter.default.addObserver(forName: .enabledFeaturesDidChange, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.reschedule() }
+        }
     }
 
     func reload() {
@@ -238,7 +242,9 @@ final class ReminderStore {
         scheduler.remove(pending)
         replanStreakNudges()
         guard isEnabled else { return }
-        for reminder in reminders where reminder.isOn {
+        // Only reminders for the features the person chose (no workout nudges without Workouts).
+        let features = AppFeature.load(from: defaults)
+        for reminder in reminders where reminder.isOn && FeatureLayout.offersReminder(reminder.kind, features) {
             for request in Self.requests(for: reminder) { scheduler.add(request) }
         }
     }
@@ -281,7 +287,7 @@ final class ReminderStore {
         let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
         let dismissed = dismissed(on: now)
         return reminders
-            .filter { $0.isOn && $0.isScheduled(on: weekday) && $0.hour * 60 + $0.minute <= minutes
+            .filter { $0.isOn && FeatureLayout.offersReminder($0.kind, AppFeature.load(from: defaults)) && $0.isScheduled(on: weekday) && $0.hour * 60 + $0.minute <= minutes
                       && !dismissed.contains($0.id)
                       && !($0.mealSlot.map(loggedSlots.contains) ?? false) }
             .sorted { $0.hour * 60 + $0.minute > $1.hour * 60 + $1.minute }
