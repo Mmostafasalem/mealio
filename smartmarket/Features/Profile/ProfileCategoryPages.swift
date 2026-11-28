@@ -341,13 +341,8 @@ struct HelpLegalPage: View {
     var body: some View {
         List {
             Section {
-                Button {
-                    NotificationCenter.default.post(name: .replayTour, object: nil)
-                    tourRequested = true
-                } label: {
-                    Label("Replay the tour", systemImage: "play.circle")
-                }
-                .accessibilityIdentifier("profile.replayTour")
+                // Closes Profile, goes Home and runs the guided tour again.
+                ReplayTourRow()
             } footer: {
                 if tourRequested { Text("The tour starts on Home.") }
             }

@@ -681,7 +681,7 @@ private struct RecommendationsSection: View {
 
             SwipeDeck(items: remaining, acceptLabel: "Add to checklist", skipLabel: "Skip",
                       label: { item in
-                          "\(item.foodName). \(item.reason). €\(String(format: "%.2f", item.estimatedPrice)). \(PriorityBadge.label(item.priority)) priority"
+                          "\(item.foodName). \(item.reason). \(Money.format(eur: item.estimatedPrice)). \(PriorityBadge.label(item.priority)) priority"
                       },
                       onDecide: { item, accepted in
                           if accepted { onAdd(item); addedTrigger.toggle() }
@@ -733,7 +733,7 @@ private struct RecommendationsSection: View {
                 .font(.subheadline).foregroundStyle(Color.labelSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Text("est. €\(item.estimatedPrice, specifier: "%.2f")")
+            Text("est. " + Money.format(eur: item.estimatedPrice))
                 .font(.caption).foregroundStyle(Color.labelSecondary)
         }
         .padding(Spacing.lg)

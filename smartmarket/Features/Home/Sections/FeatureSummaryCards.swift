@@ -20,24 +20,24 @@ struct GrocerySummaryCard: View {
             HomeSectionHeader(title: "This week's groceries", subtitle: subtitle, symbol: "cart.fill", section: .groceries)
 
             if cart.cartItems.isEmpty {
-                Text("Add what you need this week in Shop. Your budget is €" + String(format: "%.0f", cart.weeklyBudget) + ".")
+                Text("Add what you need this week in Shop. Your budget is " + Money.formatWhole(eur: cart.weeklyBudget) + ".")
                     .font(.subheadline)
                     .foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("€" + String(format: "%.2f", cart.total))
+                        Text(Money.format(eur: cart.total))
                             .font(.system(.title2, design: .rounded).weight(.bold))
                             .monospacedDigit()
-                        Text("of €" + String(format: "%.0f", cart.weeklyBudget) + " budget")
+                        Text("of " + Money.formatWhole(eur: cart.weeklyBudget) + " budget")
                             .font(.subheadline)
                             .foregroundStyle(Color.labelSecondary)
                     }
                     BudgetBar(fraction: cart.budgetFraction, over: cart.budgetRemaining < 0)
                     Text(cart.budgetRemaining >= 0
-                         ? "€" + String(format: "%.2f", cart.budgetRemaining) + " left in your budget"
-                         : "€" + String(format: "%.2f", -cart.budgetRemaining) + " over your budget")
+                         ? Money.format(eur: cart.budgetRemaining) + " left in your budget"
+                         : Money.format(eur: -cart.budgetRemaining) + " over your budget")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(cart.budgetRemaining >= 0 ? Color.labelSecondary : Color.brandDanger)
                 }
