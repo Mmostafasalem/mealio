@@ -74,8 +74,13 @@ struct QuickActionsMenu: View {
     @State private var expanded = false
     @State private var closing = false
     @AccessibilityFocusState private var focused: String?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.colorScheme) private var colorScheme
+
+    /// UI tests tap pills as soon as they can be hit; they fade in place instead of
+    /// springing down, so a tap never lands on a moving pill.
+    private static let uiTesting = ProcessInfo.processInfo.arguments.contains("-NourloUITesting")
+    private var reduceMotion: Bool { systemReduceMotion || Self.uiTesting }
 
     private var items: [Item] { Self.items(for: features) }
     /// With more than seven, the first six and a "More" pill.

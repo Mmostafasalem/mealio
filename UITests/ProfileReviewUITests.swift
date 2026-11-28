@@ -42,9 +42,9 @@ final class ProfileReviewUITests: XCTestCase {
     }
 
     /// A tab in the dock, by position (Home 0.16, Meals 0.33, Shop 0.5, Train 0.67), without querying Home.
-    private func tapTab(_ app: XCUIApplication, _ x: CGFloat) {
+    private func tapTab(_ app: XCUIApplication, _ name: String) {
         sleep(3)
-        app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.94)).tap()
+        app.tab(name).tap()
         sleep(3)
     }
 
@@ -224,7 +224,7 @@ final class ProfileReviewUITests: XCTestCase {
         let app = launch(["-AppleLocale", "en_CA", "-weeklyBudget", "60"])
         sleep(8)
         for _ in 0..<3 where !app.navigationBars["Shop"].exists {
-            tapTab(app, 0.5)
+            tapTab(app, "Shop")
             _ = app.navigationBars["Shop"].waitForExistence(timeout: 15)
         }
         XCTAssertTrue(app.navigationBars["Shop"].exists)
@@ -256,7 +256,7 @@ final class ProfileReviewUITests: XCTestCase {
         back(app)
 
         // Profile › Currency & prices: region default checked, pick pounds.
-        tapTab(app, 0.16)
+        tapTab(app, "Home")
         openProfile(app)
         open("profile.category.currency", title: "Currency & prices", in: app)
         XCTAssertTrue(app.buttons["profile.currency.region"].isSelected)
@@ -268,13 +268,13 @@ final class ProfileReviewUITests: XCTestCase {
         app.swipeDown(); app.swipeDown()
         shot("D2-07-currency-setting-gbp")
         back(app); back(app)
-        tapTab(app, 0.5)
+        tapTab(app, "Shop")
         sleep(2)
         shot("D2-08-shop-gbp")
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS '£'")).firstMatch.exists)
 
         // Back to the region's currency so later runs start from the default.
-        tapTab(app, 0.16)
+        tapTab(app, "Home")
         openProfile(app)
         open("profile.category.currency", title: "Currency & prices", in: app)
         app.buttons["profile.currency.region"].tap()

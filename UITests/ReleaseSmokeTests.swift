@@ -511,13 +511,16 @@ final class ReleaseSmokeTests: XCTestCase {
             if title.label == "Your profile" { XCTAssertTrue(app.navigationBars["Profile"].exists, "the tour opens Profile") }
             if title.label == "That's everything!" { break }
             let label = title.label
-            tap("tour.next", in: app)
+            // Nourlo's bubble springs to each part; tap Next once it has settled.
+            RunLoop.current.run(until: Date().addingTimeInterval(1.2))
+            app.buttons["tour.next"].tap()
             let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false OR label != %@", label), object: title)
             XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 8), .completed)
         }
         XCTAssertEqual(title.label, "That's everything!")
         XCTAssertEqual(selected, ["Home", "Meals", "Shop", "Train"], "the tour switches tabs itself")
-        tap("tour.next", in: app)
+        RunLoop.current.run(until: Date().addingTimeInterval(1.2))
+        app.buttons["tour.next"].tap()
         XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Done ends the tour")
         openProfile(in: app)
         XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
