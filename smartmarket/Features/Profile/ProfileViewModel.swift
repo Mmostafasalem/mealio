@@ -39,7 +39,9 @@ final class ProfileViewModel {
 
     func load() {
         guard !didLoad else { return }
-        load(profile: .load(), preferences: .load(),
+        // The app's current profile (read from the Keychain at launch and updated on
+        // every save), so Profile always shows what Home shows.
+        load(profile: AppState.shared.isOnboarded ? AppState.shared.userProfile : .load(), preferences: .load(),
              favorites: Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? []))
     }
 
