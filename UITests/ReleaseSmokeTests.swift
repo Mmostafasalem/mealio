@@ -553,7 +553,11 @@ final class ReleaseSmokeTests: XCTestCase {
                                "-favoriteFoodIDs", "(chicken-breast)"]
         launchForTesting(app)
         chooseQuickAction("profile", in: app)
-        let row = app.buttons["Favourite foods"].firstMatch
+        // Favourite foods lives under Profile › Food & diet.
+        let food = app.buttons["profile.category.food"].firstMatch
+        XCTAssertTrue(food.waitForExistence(timeout: 10))
+        food.tap()
+        let row = app.buttons["profile.favourites"].firstMatch
         for _ in 0..<8 where !row.isHittable { app.swipeUp() }
         row.tap()
         let toggle = app.buttons["favorites.selectedOnly"]
