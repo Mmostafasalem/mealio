@@ -16,7 +16,6 @@ extension Notification.Name {
     static let openHome             = Notification.Name("openHome")
     static let openShop             = Notification.Name("openShop")
     /// The bowl in Home's header was tapped: open or close its guide.
-    static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
     /// Home's microphone button: `MainTabView` shows the voice sheet.
     static let openVoice            = Notification.Name("openVoice")
     /// The food logger's "From a photo" button: `MainTabView` shows the photo sheet.

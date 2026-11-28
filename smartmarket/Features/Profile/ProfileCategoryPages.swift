@@ -121,7 +121,6 @@ struct FeaturesPage: View {
 
 struct AppearancePage: View {
     @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
-    @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
     @Environment(\.colorScheme) private var colorScheme
 
     /// Light when overridden to light, or when following an iPhone that is in light mode.
@@ -156,15 +155,6 @@ struct AppearancePage: View {
                     }
                 }
                 .padding(.vertical, Spacing.xs)
-            }
-            Section {
-                Toggle("Bowl guide", isOn: $bowlGuideVisible)
-                    .toggleStyle(.spring)
-                    .accessibilityIdentifier("profile.bowlGuide")
-            } header: {
-                Text("Your companion")
-            } footer: {
-                Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
             }
         }
         .listStyle(.insetGrouped)

@@ -5,7 +5,7 @@ import TipKit
 /// destination (from a link, Spotlight or a quick action) always replaces the
 /// current one instead of being lost or popping up later.
 enum MainSheet: Identifiable, Equatable {
-    case logFood, cart, groceries, chat, quickActions, voice, mealPhoto, stock, addRecipe
+    case logFood, cart, groceries, chat, voice, mealPhoto, stock, addRecipe
     case exercise(String)
     /// Something asked for a feature the person turned off: offer to turn it on.
     case featureOff(AppFeature)
@@ -16,7 +16,6 @@ enum MainSheet: Identifiable, Equatable {
         case .cart: return "cart"
         case .groceries: return "groceries"
         case .chat: return "chat"
-        case .quickActions: return "quickActions"
         case .voice: return "voice"
         case .mealPhoto: return "mealPhoto"
         case .stock: return "stock"
@@ -39,15 +38,12 @@ struct MainTabView: View {
     @State private var keyboardVisible = false
     /// A new week has started: ask whether to empty the cart and My Stock.
     @State private var askNewWeek = false
-    /// Height of the system tab bar above the home indicator (sizes the bowl's guide panel).
-    @State private var tabBarHeight: CGFloat = 49
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
-    /// Pressed each time the bowl button opens the quick actions (haptic).
-    @State private var quickActionsOpened = 0
-    /// The floating quick actions menu that grows out of the bowl button.
-    @State private var quickMenuOpen = false
+    /// The quick-actions pills that drop out of Nourlo at the top of each tab.
+    @State private var quickActions = QuickActionsCenter.shared
+    @State private var tour = GuidedTour.shared
 
     /// What the person uses Nourlo for; decides tabs, quick actions and where links may go.
     private var features: Set<AppFeature> { AppState.shared.enabledFeatures }
@@ -56,7 +52,7 @@ struct MainTabView: View {
 
     @ViewBuilder private func tabContent(_ tab: AppTab) -> some View {
         switch tab {
-        case .home: HomeView().background(TabBarInsetReader())
+        case .home: HomeView()
         case .meals: NavigationStack { MealPlanView() }
         case .shop: StoreBrowserView()
         case .train: TrainView()
@@ -78,23 +74,15 @@ struct MainTabView: View {
 
     /// The system tab bar (Liquid Glass on iOS 26), icons only, like Apple's own apps.
     /// Only the tabs for the features the person chose; Home is always there. Quick
-    /// actions is the round bowl button beside the bar (`quickActionsButton`).
+    /// actions is Nourlo at the top of each tab (`NourloButton`), not a tab.
     @ViewBuilder private var tabs: some View {
         let all = FeatureLayout.tabs(for: features)
         if #available(iOS 18, *) {
-            TabView(selection: tabSelection) {
+            TabView(selection: $selection) {
                 ForEach(all) { tab in
                     Tab(value: tab.rawValue) {
                         tabContent(tab)
                     } label: { TabIcon(symbol: tab.symbol, name: tab.name) }
-                }
-                // iOS 26 on iPhone: the separate round slot Apple's apps use for search
-                // holds the bowl button, so the glass bar makes room for it instead of
-                // running under it. The bowl button is drawn over this slot.
-                if QuickActionsDock.usesSystemSlot {
-                    Tab(value: QuickActionsDock.slotTag, role: .search) {
-                        Color.clear
-                    } label: { TabIcon(symbol: "circle.fill", name: "Quick actions") }
                 }
             }
         } else {
@@ -108,24 +96,10 @@ struct MainTabView: View {
         }
     }
 
-    /// Choosing the bowl's slot (VoiceOver, Full Keyboard Access) opens the quick
-    /// actions and leaves the current tab selected.
-    private var tabSelection: Binding<Int> {
-        Binding(get: { selection }, set: { tag in
-            if tag == QuickActionsDock.slotTag { openQuickActions() } else { selection = tag }
-        })
-    }
-
-    private func openQuickActions() {
-        quickActionsOpened &+= 1
-        // Not a sheet: close any sheet first, then the menu grows out of the button.
-        if sheet != nil { present(nil) }
-        quickMenuOpen = true
-    }
-
-    /// What a quick action does; shared by the floating menu and the old panel.
-    private func handleQuickChoice(_ choice: QuickActionsPanel.Choice) {
+    /// What a quick-action pill does.
+    private func handleQuickChoice(_ choice: QuickActionsMenu.Choice) {
         switch choice {
+        case .tour: GuidedTour.shared.replay()
         case .chat: present(.chat)
         case .voice: present(.voice)
         case .mealPhoto: present(.mealPhoto)
@@ -139,54 +113,26 @@ struct MainTabView: View {
         tabs
         .tint(Color.brandPrimary)
         .sensoryFeedback(.selection, trigger: selection)
-        .onPreferenceChange(TabBarInsetKey.self) { tabBarHeight = $0 }
         // A feature turned off in Profile takes its tab with it; stay on a tab that exists.
         .onChange(of: features) { _, now in
             if !FeatureLayout.tabs(for: now).contains(where: { $0.rawValue == selection }) {
                 selection = AppTab.home.rawValue
             }
         }
-        // The bowl's guide panel, above every tab (the bowl itself is in Home's header).
-        .overlay(alignment: .top) {
-            if !keyboardVisible {
-                GeometryReader { geometry in
-                    FloatingBowlGuide(selectedTab: $selection, availableHeight: geometry.size.height - tabBarHeight,
-                                      choose: followGuide)
-                }
-                .zIndex(10)
-            }
-        }
-        // The bowl button beside the tab bar, measured from the screen's bottom edge.
-        // Like the bar, it stays put when the keyboard comes up (the keyboard covers both),
-        // so it is never missing after a sheet with a text field closes.
+        // The quick-action pills that drop out of Nourlo, over everything (the bar too).
         .overlay {
-            ZStack(alignment: .bottomTrailing) {
-                Color.clear.allowsHitTesting(false)
-                QuickActionsButton(diameter: QuickActionsDock.diameter) { openQuickActions() }
-                    .tourTarget(.quickActions)
-                    .padding(.trailing, QuickActionsDock.trailing)
-                    .padding(.bottom, QuickActionsDock.bottom(barInset: tabBarHeight))
-            }
-            .ignoresSafeArea(.container, edges: .bottom)
-        }
-        // The quick actions menu, over everything (the bar and the bowl too).
-        .overlay {
-            if quickMenuOpen {
-                QuickActionsMenu(features: features,
-                                 buttonBottom: QuickActionsDock.bottom(barInset: tabBarHeight),
-                                 buttonTrailing: QuickActionsDock.trailing,
-                                 buttonDiameter: QuickActionsDock.diameter,
-                                 close: { quickMenuOpen = false },
-                                 choose: { handleQuickChoice($0) })
+            if quickActions.isOpen {
+                QuickActionsMenu(features: features, choose: { handleQuickChoice($0) })
             }
         }
-        // The guided tour (once after onboarding, again from Profile › Help) dims everything, the bar and bowl too.
+        // A sheet or a tab change closes them.
+        .onChange(of: sheet) { _, now in if now != nil, tour.current?.page != .quickActions { quickActions.requestClose() } }
+        .onChange(of: selection) { _, _ in if tour.current?.page != .quickActions { quickActions.requestClose() } }
+        // The guided tour (once after onboarding, again from Profile › Help or the
+        // quick actions) dims everything, the bar and the pills too.
         .overlay { GuidedTourOverlay() }
-        .onChange(of: GuidedTour.shared.isRunning) { _, running in
-            // The tour starts on Home, with nothing covering it.
-            if running { present(nil); selection = AppTab.home.rawValue }
-        }
-        .sensoryFeedback(.impact(weight: .medium), trigger: quickActionsOpened)
+        .onChange(of: tour.current?.page) { _, page in followTour(page) }
+        .sensoryFeedback(.impact(weight: .medium), trigger: quickActions.opens)
         .background(Color.surfaceGrouped)
         // Tab screens keep their layout under the keyboard.
         .ignoresSafeArea(.keyboard)
@@ -239,8 +185,6 @@ struct MainTabView: View {
                 VoiceCommandSheet(close: { self.sheet = nil }, navigate: openFromVoice)
             case .mealPhoto:
                 VoiceCommandSheet(photoMode: true, close: { self.sheet = nil }, navigate: openFromVoice)
-            case .quickActions:
-                QuickActionsPanel(features: features, close: { self.sheet = nil }) { handleQuickChoice($0) }
             case .stock:
                 NavigationStack {
                     StockView()
@@ -393,16 +337,22 @@ struct MainTabView: View {
         DispatchQueue.main.async { NotificationCenter.default.post(name: .openProfile, object: nil) }
     }
 
-    private func followGuide(_ pathway: BowlPathway) {
-        guard sheet == nil else { return }
-        switch pathway {
-        case .logFood: requiring(.tracking) { present(.logFood) }
-        case .groceries: requiring(.groceries) { present(.groceries) }
-        case .meals: requiring(.meals) { selection = 1 }
-        case .shop: requiring(.groceries) { selection = 2 }
-        case .train: requiring(.workouts) { selection = 3 }
-        case .profile: openProfile()
-        case .chat: present(.chat)
+    /// The tour goes to each step's page: its tab, the pills over Home, or Profile
+    /// (which Home pushes itself, `HomeView`).
+    private func followTour(_ page: TourPage?) {
+        guard let page else {
+            quickActions.requestClose()
+            return
+        }
+        present(nil)
+        selection = page.tab.rawValue
+        if page == .quickActions {
+            // Once Home is showing, so the pills hang under Home's Nourlo.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                if tour.current?.page == .quickActions { quickActions.open() }
+            }
+        } else {
+            quickActions.requestClose()
         }
     }
 
@@ -454,21 +404,6 @@ private struct TabIcon: View {
             .environment(\.symbolVariants, .fill)
             .accessibilityLabel(name)
     }
-}
-
-/// How much of the screen bottom the tab bar covers, read from a tab's content
-/// (its bottom safe area is the bar plus the home indicator).
-private struct TabBarInsetReader: View {
-    var body: some View {
-        GeometryReader { geometry in
-            Color.clear.preference(key: TabBarInsetKey.self, value: geometry.safeAreaInsets.bottom)
-        }
-    }
-}
-
-private struct TabBarInsetKey: PreferenceKey {
-    static var defaultValue: CGFloat { 49 }
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 // MARK: - New week

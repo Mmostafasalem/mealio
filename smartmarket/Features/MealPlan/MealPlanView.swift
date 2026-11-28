@@ -31,6 +31,7 @@ struct MealPlanView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(spacing: Spacing.lg) {
                 if let message = vm.errorMessage, vm.todaysPlan != nil {
@@ -40,6 +41,8 @@ struct MealPlanView: View {
                 DayStrip(days: days, selected: Binding(get: { vm.selectedDay }, set: select),
                          marker: marker(forDay:))
                     .padding(.horizontal, Spacing.lg)
+                    .id(TourTarget.dayStrip)
+                    .tourTarget(.dayStrip)
 
                 if vm.isGenerating && vm.todaysPlan != nil {
                     HStack(spacing: Spacing.sm) {
@@ -67,9 +70,20 @@ struct MealPlanView: View {
             .padding(.bottom, Spacing.xl)
             .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.isGenerating)
         }
+        .tourScrolling([.meals], proxy: proxy)
+        }
         .background { GrainyGradient().ignoresSafeArea() }
         .navigationTitle("Meal plan")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink("My Stock") { StockView() }
+                    .tourTarget(.mealsStock)
+            }
+            NourloToolbarItem()
+        }
+        // The tour shows today's first meal opened on its "Review recipe and log" button.
+        .onChange(of: GuidedTour.shared.current?.id) { _, _ in followTour() }
+        .onAppear { followTour() }
         .task {
             if vm.todaysPlan == nil { await vm.loadTodaysPlan() }
             await vm.loadWeekPlans()
@@ -80,6 +94,19 @@ struct MealPlanView: View {
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refreshDay() }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in refreshDay() }
         .onChange(of: scenePhase) { _, phase in if phase == .active { refreshDay() } }
+    }
+
+    /// On Meals, the tour starts from today; at "Review recipe and log" it opens
+    /// today's first meal so the button is there to point at.
+    private func followTour() {
+        guard let step = GuidedTour.shared.current, step.page == .meals else { return }
+        if vm.selectedDay != 0 { select(0) }
+        if step.target == .reviewRecipe,
+           let meal = plan(forDay: 0)?.allMeals.first, let entry = meal.entries.first {
+            expandGroup.show("d0|\(meal.title)#0|\(entry.id)", animated: !reduceMotion)
+        } else if step.target == .mealCard || step.target == .dayStrip {
+            expandGroup.show(nil, animated: !reduceMotion)
+        }
     }
 
     private func refreshDay() {
@@ -155,10 +182,11 @@ struct MealPlanView: View {
             DaySummary(plan: plan, isToday: offset == 0)
             // New identity per plan content, so a regenerated plan cross-fades in.
             VStack(spacing: Spacing.md) {
-                ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
+                ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { index, meal in
                     MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries,
                                     dayKey: "d\(offset)", isToday: offset == 0,
                                     expandGroup: expandGroup, titleMemory: titleMemory)
+                        .modifier(FirstMealTarget(isFirst: index == 0))
                 }
             }
             .id(planGenerationToken(plan))
@@ -177,6 +205,8 @@ struct MealPlanView: View {
             RegenerateButton(isGenerating: vm.isGenerating) {
                 Task { await vm.regenerate() }
             }
+            .id(TourTarget.regenerate)
+            .tourTarget(.regenerate)
             .padding(.top, Spacing.xs)
             if let notice = vm.notice {
                 Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
@@ -581,6 +611,8 @@ private struct MealEntryRow: View {
                 .accessibilityHint(entry.macrosAvailable ? "Shows how to make it, and reviews the portions to log from stock"
                                                          : "Shows how to make it")
                 .accessibilityIdentifier("mealPlan.reviewRecipeLog")
+                .id(TourTarget.reviewRecipe)
+                .tourTarget(.reviewRecipe)
             if let missing, !missing.isEmpty, entry.stockOperationID != nil {
                 actionButton("Add missing ingredients to checklist", systemImage: "cart.badge.plus", prominent: false) {
                     if MealReviewSheet.addMissingToGroceries(entry: entry, missing: missing) {
@@ -897,5 +929,13 @@ private struct MissingFoodsBanner: View {
             .sensoryFeedback(.success, trigger: added)
             .accessibilityElement(children: .contain)
         }
+    }
+}
+
+/// The first meal of the day is the one the tour points at.
+private struct FirstMealTarget: ViewModifier {
+    let isFirst: Bool
+    func body(content: Content) -> some View {
+        if isFirst { content.id(TourTarget.mealCard).tourTarget(.mealCard) } else { content }
     }
 }

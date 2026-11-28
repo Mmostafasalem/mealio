@@ -64,6 +64,7 @@ struct HomeView: View {
 
                 // Custom goo pull-to-refresh (replaces the system `.refreshable`);
                 // the island floats above the list for Home's transient notices.
+                ScrollViewReader { proxy in
                 GooPullRefresh(action: { await vm.refresh() }) {
                     MorphIsland(item: notice, style: \.islandStyle) { notice in
                         noticeView(notice)
@@ -71,24 +72,34 @@ struct HomeView: View {
                 } content: {
                     VStack(spacing: Spacing.md) {
                         HomeHeaderView(vm: vm, onProfile: { showProfile = true })
+                            .id(TourTarget.nourlo)
                         // One hero (calories today, or the first thing the person chose), then
                         // sections that each have their own colour, icon and call to action.
                         VStack(spacing: Spacing.lg) {
                             dueReminders
                             if has(.tracking) {
                                 CalorieSummaryCard(vm: vm, showsVoice: showsVoice, onLog: { vm.openLog() })
+                                    .id(TourTarget.calories)
                                 PendingMealsCard()
                             }
                             if !loop.state.quests.isEmpty {
                                 DailyQuestCard(state: loop.state, onOpen: openQuest)
+                                    .id(TourTarget.quests)
+                                    .tourTarget(.quests)
                             }
                             if has(.tracking) {
                                 // Above the cards below it: its goo menu pours out over them.
                                 TodaysLogCard(vm: vm).zIndex(1)
                             }
-                            if has(.meals) { MealPlanPreviewCard(vm: vm) }
-                            if has(.groceries) { GrocerySummaryCard(showsStock: showsStock) }
-                            if has(.workouts) { WorkoutSummaryCard() }
+                            if has(.meals) {
+                                MealPlanPreviewCard(vm: vm).id(TourTarget.todaysMeals).tourTarget(.todaysMeals)
+                            }
+                            if has(.groceries) {
+                                GrocerySummaryCard(showsStock: showsStock).id(TourTarget.groceries).tourTarget(.groceries)
+                            }
+                            if has(.workouts) {
+                                WorkoutSummaryCard().id(TourTarget.training).tourTarget(.training)
+                            }
                             // Only while Apple Health is on; refreshes itself when shown.
                             ActivityCard()
                             // My Stock without Shop (meals only): its own way in.
@@ -104,6 +115,8 @@ struct HomeView: View {
                         .padding(.bottom, Spacing.xxl)
                     }
                 }
+                .tourScrolling([.home, .quickActions], proxy: proxy)
+                }
             }
             // Content scrolling up no longer shows through the clock and battery.
             .overlay(alignment: .top) {
@@ -117,9 +130,11 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $showStock) { StockView() }
             .onReceive(NotificationCenter.default.publisher(for: .openProfile)) { _ in showProfile = true }
-            // The guided tour starts on Home's first screen (replayed from Profile › Help).
-            .onChange(of: GuidedTour.shared.isRunning) { _, running in
-                if running { showProfile = false; showStock = false }
+            // The guided tour shows Profile itself, and starts on Home's first screen.
+            .onChange(of: GuidedTour.shared.current?.page) { _, page in
+                guard let page else { return }
+                showStock = false
+                showProfile = page == .profile
             }
         }
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }

@@ -43,6 +43,7 @@ struct CalorieSummaryCard: View {
                 .accessibilityLabel("Calorie insights")
                 .accessibilityHint("Your calories against your target over 7 and 30 days")
                 .accessibilityIdentifier("home.insights")
+                .tourTarget(.insights)
             }
 
             Button { showCalorieDetail.toggle() } label: {
@@ -107,6 +108,7 @@ struct CalorieSummaryCard: View {
             HStack(spacing: Spacing.md) {
                 PrimaryButton(title: "Log food", systemImage: "plus", action: onLog)
                     .accessibilityIdentifier("home.logFood")
+                    .tourTarget(.logFood)
                 if showsVoice {
                     // One tap to speak a command (the same sheet as quick actions › Speak a command).
                     Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
@@ -121,6 +123,7 @@ struct CalorieSummaryCard: View {
                     .accessibilityLabel("Speak a command")
                     .accessibilityHint("Say what you ate or want, like two eggs for breakfast. The sheet shows examples.")
                     .accessibilityIdentifier("home.voice")
+                    .tourTarget(.voice)
                 }
             }
         }

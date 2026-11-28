@@ -22,7 +22,7 @@ struct CartToast: View {
             if cart.itemCount > 0 {
                 card
                     .padding(.leading, Spacing.lg)
-                    .padding(.trailing, Spacing.lg + QuickActionsDock.trailingClearance)
+                    .padding(.trailing, Spacing.lg)
                     .padding(.top, Spacing.sm)
                     .padding(.bottom, Spacing.sm)
                     .transition(reduceMotion ? .opacity

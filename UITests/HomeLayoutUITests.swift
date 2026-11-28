@@ -45,7 +45,7 @@ final class HomeLayoutUITests: XCTestCase {
         }
     }
 
-    /// B2/B3(a): the bowl button beside the dock; B3(c), B4, B5: Home's hierarchy, no bell.
+    /// B2/B3(a): Nourlo at the top is quick actions; B3(c), B4, B5: Home's hierarchy, no bell.
     func testHomeHasOneHeroColouredSectionsAndNoBell() {
         let app = launch()
         XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 5))
@@ -107,24 +107,30 @@ final class HomeLayoutUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Calorie insights"].waitForExistence(timeout: 5))
     }
 
-    /// B6: the tour lights up calories, Meals, quick actions, Shop and Train, then never comes back by itself.
-    func testGuidedTourRunsOnceThroughTheMainParts() {
+    /// B6 and the owner's 28 Nov ask: Nourlo walks through every page once, then never comes back by itself.
+    func testGuidedTourRunsOnceThroughEveryPage() {
         let app = launch(["-NourloShowTour", "YES", "-guidedTourSeen_v1", "NO"])
         let title = app.staticTexts["tour.title"]
         XCTAssertTrue(title.waitForExistence(timeout: 8))
         var titles: [String] = []
-        for step in 1...5 {
-            XCTAssertTrue(title.waitForExistence(timeout: 5))
+        for step in 1...45 {
+            guard title.waitForExistence(timeout: 5) else { break }
             let label = title.label
             titles.append(label)
-            sleep(1)
-            capture("b6-tour-step-\(step)")
+            if [1, 2, 11, 16, 21, 26, 29].contains(step) {
+                sleep(1)
+                capture("b6-tour-step-\(step)")
+            }
             app.buttons["tour.next"].tap()
             // The next step (or the end of the tour) before reading its title.
             let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false OR label != %@", label), object: title)
             XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed)
         }
-        XCTAssertEqual(titles, ["Your calories today", "Meals", "Quick actions", "Shop", "Train"])
+        XCTAssertEqual(titles.first, "Hi, I'm Nourlo!")
+        XCTAssertEqual(titles.last, "That's everything!")
+        for page in ["Calories today", "Speak a command", "Your week of meals", "Weekly budget", "Build a workout", "Your profile"] {
+            XCTAssertTrue(titles.contains(page), "the tour covers \(page)")
+        }
         XCTAssertFalse(title.waitForExistence(timeout: 2), "Done ends the tour")
         app.terminate()
         let again = launch(["-NourloShowTour", "YES"])

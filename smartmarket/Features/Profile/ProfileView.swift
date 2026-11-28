@@ -22,6 +22,7 @@ struct ProfileView: View {
                         ProfileCard(vm: vm)
                     }
                     .accessibilityIdentifier("profile.card")
+                    .tourTarget(.profileCard)
                     .accessibilityHint("Change your name and photo")
                 }
 
@@ -70,6 +71,7 @@ struct ProfileView: View {
         .listRowInsets(EdgeInsets(top: 4, leading: Spacing.lg, bottom: 4, trailing: Spacing.lg))
         .accessibilityIdentifier(kind.identifier)
         .accessibilityValue(value ?? "")
+        .modifier(ProfileTourTarget(kind: kind))
     }
 }
 
@@ -183,4 +185,17 @@ private struct ProfileCard: View {
 
 #Preview {
     ProfileView()
+}
+
+/// The Profile rows the guided tour points at.
+private struct ProfileTourTarget: ViewModifier {
+    let kind: ProfileCategory
+    func body(content: Content) -> some View {
+        switch kind {
+        case .goals: content.tourTarget(.profileTargets)
+        case .appearance: content.tourTarget(.profileAppearance)
+        case .help: content.tourTarget(.profileHelp)
+        default: content
+        }
+    }
 }

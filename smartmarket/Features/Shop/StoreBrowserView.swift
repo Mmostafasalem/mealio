@@ -13,21 +13,28 @@ struct StoreBrowserView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
                     budgetCard
+                        .id(TourTarget.budget).tourTarget(.budget)
                     // Inline under the card, so it never covers the Edit button.
                     TipView(budgetTip, arrowEdge: .top)
                     // Right under the budget: what these prices are and which currency.
                     aboutPrices
+                        .id(TourTarget.aboutPrices).tourTarget(.aboutPrices)
                     WeeklyGroceryCard()
+                        .id(TourTarget.weeklyGroceries).tourTarget(.weeklyGroceries)
                     storeGrid
+                        .id(TourTarget.catalogue).tourTarget(.catalogue)
                     if cart.itemCount > 0 { cartPreview }
                 }
                 .padding(.horizontal, Spacing.lg)
                 .padding(.top, Spacing.sm)
                 .padding(.bottom, Spacing.xxl)
                 .animation(reduceMotion ? nil : .snappyValue, value: cart.itemCount)
+            }
+            .tourScrolling([.shop], proxy: proxy)
             }
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Shop")
@@ -39,7 +46,9 @@ struct StoreBrowserView: View {
                     } label: {
                         CartBadge(count: cart.itemCount)
                     }
+                    .tourTarget(.cart)
                 }
+                NourloToolbarItem()
             }
         }
         .sheet(isPresented: $showBudgetEditor) { budgetSheet }

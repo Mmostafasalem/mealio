@@ -40,10 +40,27 @@ final class HomeInsightsTests: XCTestCase {
         XCTAssertNil(CalorieInsights(entries: [], target: 2000, days: 7, now: now, calendar: calendar).averageKcal)
     }
 
-    func testTourCoversTheMainPartsForTheChosenFeatures() {
-        XCTAssertEqual(GuidedTourStep.steps(for: AppFeature.all).map(\.target), [.calories, .meals, .quickActions, .shop, .train])
-        XCTAssertEqual(GuidedTourStep.steps(for: [.workouts]).map(\.target), [.quickActions, .train])
-        XCTAssertEqual(GuidedTourStep.steps(for: [.groceries]).map(\.target), [.quickActions, .shop])
+    func testTourCoversEveryPageForTheChosenFeatures() {
+        let all = GuidedTourStep.steps(for: AppFeature.all, offersChat: true)
+        XCTAssertEqual(Set(all.map(\.page)), [.home, .quickActions, .meals, .shop, .train, .profile])
+        XCTAssertEqual(all.first?.id, "hello")
+        XCTAssertEqual(all.last?.id, "bye")
+        XCTAssertEqual(Set(all.map(\.id)).count, all.count, "unique step ids")
+        for step in all {
+            XCTAssertFalse(step.what.isEmpty, step.id)
+            XCTAssertFalse(step.how.isEmpty, step.id)
+        }
+        // Pages follow the features; Home, the quick actions and Profile are always there.
+        let workouts = GuidedTourStep.steps(for: [.workouts])
+        XCTAssertEqual(Set(workouts.map(\.page)), [.home, .quickActions, .train, .profile])
+        XCTAssertFalse(workouts.contains { $0.target == .calories })
+        let groceries = GuidedTourStep.steps(for: [.groceries])
+        XCTAssertEqual(Set(groceries.map(\.page)), [.home, .quickActions, .shop, .profile])
+        XCTAssertFalse(GuidedTourStep.steps(for: AppFeature.all, offersChat: false).contains { $0.target == .qaChat })
+        // Each page's steps sit together, so the tour never jumps back and forth.
+        var seen: [TourPage] = []
+        for page in all.map(\.page) where seen.last != page { seen.append(page) }
+        XCTAssertEqual(seen, [.home, .quickActions, .meals, .shop, .train, .profile, .home])
     }
 
     func testTourIsShownOnceAndCanBeReplayed() {
@@ -57,9 +74,9 @@ final class HomeInsightsTests: XCTestCase {
             started.fulfill()
         }
         wait(for: [started], timeout: 2)
-        XCTAssertEqual(tour.current?.target, .calories)
+        XCTAssertEqual(tour.current?.id, "hello")
         tour.next(); tour.next(); tour.back()
-        XCTAssertEqual(tour.current?.target, .meals)
+        XCTAssertEqual(tour.current?.id, "calories")
         tour.finish()
         XCTAssertFalse(tour.isRunning)
         XCTAssertTrue(tour.hasSeen, "not shown by itself again")

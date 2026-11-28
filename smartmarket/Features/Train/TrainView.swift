@@ -48,6 +48,7 @@ struct TrainView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
                     if let running = WorkoutSession.shared.workout, WorkoutSession.shared.state != nil {
@@ -60,9 +61,12 @@ struct TrainView: View {
                     }
                     weekCard
                     ProgramsSection { programDay = $0 }
+                        .id(TourTarget.programmes).tourTarget(.programmes)
                     builderCard
+                        .id(TourTarget.buildWorkout).tourTarget(.buildWorkout)
                     savedSection
                     exerciseBrowser
+                        .id(TourTarget.exercises).tourTarget(.exercises)
                     NavigationLink { TrainingProgressView() } label: {
                         TrainLinkRow(symbol: "chart.line.uptrend.xyaxis", title: "Progress",
                                      detail: progressDetail)
@@ -82,9 +86,12 @@ struct TrainView: View {
                 .padding(.bottom, Spacing.xxl)
             }
             .scrollDismissesKeyboard(.interactively)
+            .tourScrolling([.train], proxy: proxy)
+            }
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Train")
             .navigationBarTitleDisplayMode(.large)
+            .toolbar { NourloToolbarItem() }
             .navigationDestination(isPresented: $showLibrary) { ExerciseLibraryView() }
             .sheet(item: $guide) { ExerciseGuideSheet(guide: $0) }
             .sheet(isPresented: $building) { WorkoutBuilderView() }

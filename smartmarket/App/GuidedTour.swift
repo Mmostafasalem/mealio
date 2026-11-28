@@ -1,74 +1,200 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Guided tour
+// MARK: - Guided tour with Nourlo
 //
-// TestFlight B6 ("Guided tour"): once after onboarding, a spotlight walks through
-// the main parts of the app: today's calories, Meals, the quick-actions button,
-// Shop and Train (only those the person chose in Features). Everything else is
-// dimmed; a card under or over the lit part says what it is. It can be replayed
-// from Profile › Help (`ReplayTourRow`).
+// Owner, 28 Nov 2026: "include guide tour with Nourlo introducing it all over all
+// pages and all features and how to use them". Nourlo (the real animated figure)
+// walks through every page the person chose: Home, the quick-actions pills, Meals,
+// Shop, Train and Profile. Each step lights up the real control, and Nourlo, in a
+// speech bubble that moves to it, says what it is and how to use it. The tour
+// switches tabs, opens the pills and Profile, and scrolls to each part by itself.
+// Next / Back / Skip and "n of N"; only the features the person chose; Reduce
+// Motion: no walking, each step fades in; VoiceOver reads each step.
+// It runs once after onboarding and can be replayed from Profile › Help & legal
+// (`ReplayTourRow`) and the quick actions ("Take the tour").
 
-/// A part of the screen the tour can light up.
-enum TourTarget: String, CaseIterable, Sendable {
-    case calories, meals, quickActions, shop, train
+/// Which screen a step is on. The tour opens it itself.
+enum TourPage: String, Equatable, Sendable {
+    case home, quickActions, meals, shop, train, profile
 
-    /// The tab's VoiceOver name, for the targets that are tabs.
-    var tabName: String? {
+    /// The tab the page lives on (the pills open over Home; Profile is pushed on Home).
+    var tab: AppTab {
         switch self {
-        case .meals: return AppTab.meals.name
-        case .shop: return AppTab.shop.name
-        case .train: return AppTab.train.name
-        case .calories, .quickActions: return nil
-        }
-    }
-
-    var tab: AppTab? {
-        switch self {
+        case .home, .quickActions, .profile: return .home
         case .meals: return .meals
         case .shop: return .shop
         case .train: return .train
-        case .calories, .quickActions: return nil
         }
     }
 }
 
+/// A part of the screen the tour can light up (`tourTarget`).
+enum TourTarget: String, CaseIterable, Sendable {
+    // Home
+    case nourlo, calories, insights, logFood, voice, quests, todaysMeals, groceries, training
+    // Quick actions
+    case qaChat, qaVoice, qaPhoto, qaRecipe, qaTour
+    // Meals
+    case dayStrip, mealCard, reviewRecipe, mealsStock, regenerate
+    // Shop
+    case budget, aboutPrices, weeklyGroceries, catalogue, cart
+    // Train
+    case programmes, buildWorkout, exercises
+    // Profile
+    case profileCard, profileTargets, profileAppearance, profileHelp
+}
+
 struct GuidedTourStep: Equatable, Identifiable {
+    let id: String
+    let page: TourPage
     let target: TourTarget
     let title: String
-    let detail: String
-    let symbol: String
-    var id: TourTarget { target }
+    /// What it is.
+    let what: String
+    /// How to use it.
+    let how: String
+    let mood: MascotMood
+    /// Scroll here first (the target's card, or the target itself).
+    var scrollTo: TourTarget?
+    /// Where the scrolled-to part should end up on screen.
+    var scrollAnchor: UnitPoint = .center
 
-    private static let all: [GuidedTourStep] = [
-        GuidedTourStep(target: .calories, title: "Your calories today",
-                       detail: "The ring fills as you log food. Tap Insights for your calories over the last 7 and 30 days.",
-                       symbol: "flame.fill"),
-        GuidedTourStep(target: .meals, title: "Meals",
-                       detail: "Your plan for each day, built from your cart and My Stock. Open a meal to cook it or log it.",
-                       symbol: "fork.knife"),
-        GuidedTourStep(target: .quickActions, title: "Quick actions",
-                       detail: "Tap Nourlo any time to ask a question, speak a command, snap a meal, or open your checklist and My Stock.",
-                       symbol: "square.grid.2x2.fill"),
-        GuidedTourStep(target: .shop, title: "Shop",
-                       detail: "Fill your cart for the week within your budget. Prices are estimates, not live store prices.",
-                       symbol: "basket.fill"),
-        GuidedTourStep(target: .train, title: "Train",
-                       detail: "Build a workout, follow along, and see your progress.",
-                       symbol: "figure.run"),
-    ]
+    var detail: String { what + " " + how }
 
-    /// The steps for the features the person chose. Quick actions is always there.
-    static func steps(for features: Set<AppFeature>) -> [GuidedTourStep] {
-        all.filter { step in
-            switch step.target {
-            case .calories: return features.contains(.tracking)
-            case .quickActions: return true
-            case .meals, .shop, .train:
-                return step.target.tab.map { FeatureLayout.tabs(for: features).contains($0) } ?? false
-            }
-        }
+    /// Every step, in order. `steps(for:)` keeps the ones the person's features use.
+    static func all(offersChat: Bool) -> [(step: GuidedTourStep, needs: (Set<AppFeature>) -> Bool)] {
+        let always: (Set<AppFeature>) -> Bool = { _ in true }
+        func has(_ f: AppFeature) -> (Set<AppFeature>) -> Bool { { $0.contains(f) } }
+        let tracking = has(.tracking)
+        let voice: (Set<AppFeature>) -> Bool = { $0.contains(.tracking) && FeatureLayout.showsVoice($0) }
+        return [
+            // Home
+            (GuidedTourStep(id: "hello", page: .home, target: .nourlo, title: "Hi, I'm Nourlo!",
+                            what: "Let me show you every page and how it works.",
+                            how: "Tap Next to follow me, or Skip to look around on your own.", mood: .help,
+                            scrollTo: .nourlo, scrollAnchor: .top), always),
+            (GuidedTourStep(id: "calories", page: .home, target: .calories, title: "Calories today",
+                            what: "The ring shows what you've eaten against today's goal, with protein, carbs and fat below.",
+                            how: "It fills up as you log food.", mood: .happy,
+                            scrollTo: .calories, scrollAnchor: .top), tracking),
+            (GuidedTourStep(id: "insights", page: .home, target: .insights, title: "Insights",
+                            what: "Your calories over the last 7 and 30 days, your streak and your macros.",
+                            how: "Tap Insights to open them.", mood: .cheeky,
+                            scrollTo: .calories, scrollAnchor: .top), tracking),
+            (GuidedTourStep(id: "logFood", page: .home, target: .logFood, title: "Log food",
+                            what: "Add what you ate in a few taps.",
+                            how: "Tap Log food, search for it, pick the portion and the meal.", mood: .happy,
+                            scrollTo: .calories, scrollAnchor: .top), tracking),
+            (GuidedTourStep(id: "voice", page: .home, target: .voice, title: "Just say it",
+                            what: "The microphone turns what you say into a log, a cart item or a workout.",
+                            how: "Tap it and say something like \"two eggs for breakfast\". It stops when you stop.", mood: .cheeky,
+                            scrollTo: .calories, scrollAnchor: .top), voice),
+            (GuidedTourStep(id: "quests", page: .home, target: .quests, title: "Today's quests",
+                            what: "Small goals for today that build your streak.",
+                            how: "Tap a quest to go straight to it.", mood: .celebrate, scrollTo: .quests, scrollAnchor: .top), always),
+            (GuidedTourStep(id: "todaysMeals", page: .home, target: .todaysMeals, title: "Today's meals",
+                            what: "A preview of today's plan and its calories.",
+                            how: "Tap Open plan to see every meal.", mood: .happy, scrollTo: .todaysMeals, scrollAnchor: .top), has(.meals)),
+            (GuidedTourStep(id: "groceries", page: .home, target: .groceries, title: "Groceries",
+                            what: "Your cart, checklist and My Stock at a glance.",
+                            how: "Tap a row to open it, or Shop to fill your week.", mood: .happy, scrollTo: .groceries, scrollAnchor: .top), has(.groceries)),
+            (GuidedTourStep(id: "training", page: .home, target: .training, title: "Training",
+                            what: "This week's workouts and minutes.",
+                            how: "Tap it to build a workout and start.", mood: .flex, scrollTo: .training, scrollAnchor: .top), has(.workouts)),
+            (GuidedTourStep(id: "quickActions", page: .home, target: .nourlo, title: "I'm your shortcut",
+                            what: "I sit at the top of every page.",
+                            how: "Tap me and your quick actions drop down. Tap me again to close them.", mood: .help,
+                            scrollTo: .nourlo, scrollAnchor: .top), always),
+            // Quick actions
+            (GuidedTourStep(id: "qaChat", page: .quickActions, target: .qaChat, title: "Ask Nourlo",
+                            what: "Chat with me about meals, swaps, food or training.",
+                            how: "Type a question and I'll answer.", mood: .cheeky, scrollTo: .nourlo, scrollAnchor: .top), { _ in offersChat }),
+            (GuidedTourStep(id: "qaVoice", page: .quickActions, target: .qaVoice, title: "Speak a command",
+                            what: "Log food, fill the cart or start a workout with your voice.",
+                            how: "Tap it, speak, and check what I heard before it's saved.", mood: .happy, scrollTo: .nourlo, scrollAnchor: .top), { FeatureLayout.showsVoice($0) }),
+            (GuidedTourStep(id: "qaPhoto", page: .quickActions, target: .qaPhoto, title: "Snap a meal",
+                            what: "A photo of your plate becomes a food log.",
+                            how: "Take the photo, then check the foods and grams and save.", mood: .love, scrollTo: .nourlo, scrollAnchor: .top), tracking),
+            (GuidedTourStep(id: "qaRecipe", page: .quickActions, target: .qaRecipe, title: "Add a recipe",
+                            what: "Keep your own recipes next to the ones I suggest.",
+                            how: "Paste the text, share a link or take a photo of the page.", mood: .happy, scrollTo: .nourlo, scrollAnchor: .top), tracking),
+            (GuidedTourStep(id: "qaTour", page: .quickActions, target: .qaTour, title: "Take the tour",
+                            what: "This tour lives here too.",
+                            how: "Tap it whenever you want me to show you around again.", mood: .help, scrollTo: .nourlo, scrollAnchor: .top), always),
+            // Meals
+            (GuidedTourStep(id: "dayStrip", page: .meals, target: .dayStrip, title: "Your week of meals",
+                            what: "Today and the next six days.",
+                            how: "Tap a day, or swipe the meals sideways to change day.", mood: .happy, scrollTo: .dayStrip), has(.meals)),
+            (GuidedTourStep(id: "mealCard", page: .meals, target: .mealCard, title: "A meal",
+                            what: "Each meal is built from your cart and My Stock to fit your goal.",
+                            how: "Tap a meal to see its ingredients, portions and macros.", mood: .love, scrollTo: .mealCard, scrollAnchor: .top), has(.meals)),
+            (GuidedTourStep(id: "reviewRecipe", page: .meals, target: .reviewRecipe, title: "Review recipe and log",
+                            what: "Shows how to make the meal and the portions it uses.",
+                            how: "Check the amounts, then log it; the food comes out of My Stock.", mood: .happy,
+                            scrollTo: .reviewRecipe), has(.meals)),
+            (GuidedTourStep(id: "mealsStock", page: .meals, target: .mealsStock, title: "My Stock",
+                            what: "The food you have at home. Your plan uses it first.",
+                            how: "Tap My Stock to add food or mark what you used.", mood: .cheeky, scrollTo: .dayStrip), has(.meals)),
+            (GuidedTourStep(id: "regenerate", page: .meals, target: .regenerate, title: "A fresh plan",
+                            what: "Changed your cart or your stock?",
+                            how: "Tap Regenerate plan and I'll rebuild the whole week.", mood: .thinking, scrollTo: .regenerate), has(.meals)),
+            // Shop
+            (GuidedTourStep(id: "budget", page: .shop, target: .budget, title: "Weekly budget",
+                            what: "What's in your cart against this week's budget.",
+                            how: "Tap Edit to change the amount.", mood: .happy, scrollTo: .budget), has(.groceries)),
+            (GuidedTourStep(id: "aboutPrices", page: .shop, target: .aboutPrices, title: "About prices",
+                            what: "Prices are estimates for one product catalogue, not live store prices.",
+                            how: "Tap Change to show them in your currency.", mood: .thinking, scrollTo: .aboutPrices), has(.groceries)),
+            (GuidedTourStep(id: "weeklyGroceries", page: .shop, target: .weeklyGroceries, title: "This week's groceries",
+                            what: "A balanced week of shopping that fits what's left of your budget.",
+                            how: "Remove what you don't want, then tap Add all.", mood: .love, scrollTo: .weeklyGroceries, scrollAnchor: .top), has(.groceries)),
+            (GuidedTourStep(id: "catalogue", page: .shop, target: .catalogue, title: "Catalogue and My Stock",
+                            what: "Every product by category, and the food you already have.",
+                            how: "Open the catalogue and tap + on a product to add it to your cart.", mood: .happy,
+                            scrollTo: .catalogue), has(.groceries)),
+            (GuidedTourStep(id: "cart", page: .shop, target: .cart, title: "Your cart",
+                            what: "Everything you're buying this week.",
+                            how: "Tap the cart up here, or the View cart bar that floats over the catalogue.", mood: .cheeky,
+                            scrollTo: .budget), has(.groceries)),
+            // Train
+            (GuidedTourStep(id: "programmes", page: .train, target: .programmes, title: "Programmes",
+                            what: "Plans to follow week after week.",
+                            how: "Tap See all, start one, and I'll keep track of the next day.", mood: .flex, scrollTo: .programmes, scrollAnchor: .top), has(.workouts)),
+            (GuidedTourStep(id: "buildWorkout", page: .train, target: .buildWorkout, title: "Build a workout",
+                            what: "A workout made for you from a type, a level and a length.",
+                            how: "Choose them, tap Build, then follow along set by set.", mood: .flex,
+                            scrollTo: .buildWorkout, scrollAnchor: .top), has(.workouts)),
+            (GuidedTourStep(id: "exercises", page: .train, target: .exercises, title: "Exercises by muscle",
+                            what: "Every exercise, with a moving demo of how to do it.",
+                            how: "Tap a muscle, then an exercise to see how it's done.", mood: .happy, scrollTo: .exercises, scrollAnchor: .top), has(.workouts)),
+            // Profile
+            (GuidedTourStep(id: "profileCard", page: .profile, target: .profileCard, title: "Your profile",
+                            what: "Your name and photo.",
+                            how: "Tap the card to edit them.", mood: .love), always),
+            (GuidedTourStep(id: "profileTargets", page: .profile, target: .profileTargets, title: "Goals & targets",
+                            what: "Your goal, your daily calories and macros.",
+                            how: "Tap it to change your goal or set your own targets.", mood: .thinking), always),
+            (GuidedTourStep(id: "profileAppearance", page: .profile, target: .profileAppearance, title: "Appearance",
+                            what: "Light or dark, and colour themes.",
+                            how: "Tap it and pick the look you like.", mood: .happy), always),
+            (GuidedTourStep(id: "profileHelp", page: .profile, target: .profileHelp, title: "Help & legal",
+                            what: "Support, privacy, and this tour.",
+                            how: "Tap Replay the tour in here whenever you like.", mood: .help), always),
+            // The end, back on Home
+            (GuidedTourStep(id: "bye", page: .home, target: .nourlo, title: "That's everything!",
+                            what: "You know your way around now.",
+                            how: "Tap me whenever you need something. Enjoy Nourlo!", mood: .celebrate,
+                            scrollTo: .nourlo, scrollAnchor: .top), always),
+        ]
     }
+
+    /// The steps for the features the person chose.
+    static func steps(for features: Set<AppFeature>, offersChat: Bool = false) -> [GuidedTourStep] {
+        all(offersChat: offersChat).filter { $0.needs(features) }.map(\.step)
+    }
+
+    static func == (lhs: GuidedTourStep, rhs: GuidedTourStep) -> Bool { lhs.id == rhs.id }
 }
 
 @MainActor
@@ -81,8 +207,11 @@ final class GuidedTour {
 
     private(set) var steps: [GuidedTourStep] = []
     private(set) var index: Int?
-    /// Where on screen (global coordinates) the Home targets are, reported by `tourTarget`.
-    private(set) var frames: [TourTarget: CGRect] = [:]
+    /// Where on screen (global coordinates) each target is, reported by `tourTarget`.
+    /// The owner is the view that reported it, so a view that goes away only removes its own.
+    @ObservationIgnored private var frames: [TourTarget: (owner: UUID, frame: CGRect)] = [:]
+    /// Bumped when a frame changes, so the overlay can follow it.
+    private(set) var framesRevision = 0
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var pendingStart: Task<Void, Never>?
@@ -102,7 +231,7 @@ final class GuidedTour {
         start(features: features, after: 0.9)
     }
 
-    /// From Profile › Help: back to Home, then the tour again.
+    /// From Profile › Help or the quick actions: back to Home, then the tour again.
     func replay() {
         NotificationCenter.default.post(name: .openHome, object: nil)
         start(features: AppState.shared.enabledFeatures, after: 0.7)
@@ -113,7 +242,7 @@ final class GuidedTour {
         pendingStart = Task { @MainActor [weak self] in
             if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
             guard let self, !Task.isCancelled else { return }
-            self.steps = GuidedTourStep.steps(for: features)
+            self.steps = GuidedTourStep.steps(for: features, offersChat: AIAccountService.shared.offersOnlineAI)
             self.index = self.steps.isEmpty ? nil : 0
         }
     }
@@ -134,156 +263,215 @@ final class GuidedTour {
         defaults.set(true, forKey: Self.seenKey)
     }
 
-    func report(_ target: TourTarget, frame: CGRect) {
-        guard frames[target] != frame else { return }
-        frames[target] = frame
+    func report(_ target: TourTarget, frame: CGRect, owner: UUID) {
+        if let old = frames[target], old.owner == owner, old.frame == frame { return }
+        frames[target] = (owner, frame)
+        if isRunning, current?.target == target { framesRevision &+= 1 }
     }
 
-    /// A Home target's reported frame, or a tab's / the bowl button's frame read from the screen.
+    func remove(_ target: TourTarget, owner: UUID) {
+        guard frames[target]?.owner == owner else { return }
+        frames[target] = nil
+        if isRunning, current?.target == target { framesRevision &+= 1 }
+    }
+
     func frame(for target: TourTarget) -> CGRect? {
-        if let name = target.tabName { return TabBarLocator.frame(ofTabNamed: name) }
-        return frames[target]
+        guard let frame = frames[target]?.frame, frame.width > 1, frame.height > 1 else { return nil }
+        return frame
     }
 }
 
 extension View {
     /// Marks this view as the part of the screen the guided tour lights up for `target`.
     func tourTarget(_ target: TourTarget) -> some View {
-        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-            GuidedTour.shared.report(target, frame: frame)
-        }
+        modifier(TourTargetModifier(target: target))
+    }
+
+    /// Scrolls the enclosing `ScrollViewReader` to the current tour step's part of this page.
+    func tourScrolling(_ pages: Set<TourPage>, proxy: ScrollViewProxy) -> some View {
+        modifier(TourScrollModifier(pages: pages, proxy: proxy))
     }
 }
 
-/// Finds a tab's button in the system tab bar (SwiftUI doesn't say where it is).
-@MainActor
-enum TabBarLocator {
-    static func frame(ofTabNamed name: String) -> CGRect? {
-        guard let window = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow),
-              let bar = find(UITabBar.self, in: window), !bar.isHidden else { return nil }
-        if let element = element(named: name, in: bar) {
-            let frame = element.accessibilityFrame
-            if frame.width > 1, frame.height > 1 { return frame }
+private struct TourTargetModifier: ViewModifier {
+    let target: TourTarget
+    @State private var owner = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                GuidedTour.shared.report(target, frame: frame, owner: owner)
+            }
+            .onDisappear { GuidedTour.shared.remove(target, owner: owner) }
+    }
+}
+
+private struct TourScrollModifier: ViewModifier {
+    let pages: Set<TourPage>
+    let proxy: ScrollViewProxy
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.onChange(of: GuidedTour.shared.current?.id) { _, _ in scroll() }
+            .onAppear { scroll() }
+    }
+
+    private func scroll() {
+        guard let step = GuidedTour.shared.current, pages.contains(step.page), let target = step.scrollTo else { return }
+        // After a tab switch or a card opening has had a moment to lay out.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.45)) {
+                proxy.scrollTo(target, anchor: step.scrollAnchor)
+            }
         }
-        // Fallback: the tabs share the bar evenly.
-        guard let items = bar.items, let i = items.firstIndex(where: { $0.title == name || $0.accessibilityLabel == name }) else { return nil }
-        let barFrame = bar.convert(bar.bounds, to: nil)
-        let width = barFrame.width / CGFloat(max(items.count, 1))
-        return CGRect(x: barFrame.minX + width * CGFloat(i), y: barFrame.minY, width: width, height: min(barFrame.height, 60))
-    }
-
-    private static func find<T: UIView>(_ type: T.Type, in view: UIView) -> T? {
-        if let match = view as? T { return match }
-        for sub in view.subviews { if let match = find(type, in: sub) { return match } }
-        return nil
-    }
-
-    private static func element(named name: String, in view: UIView) -> NSObject? {
-        if view.isAccessibilityElement, view.accessibilityLabel == name { return view }
-        for case let element as NSObject in view.accessibilityElements ?? []
-        where element.isAccessibilityElement && element.accessibilityLabel == name { return element }
-        for sub in view.subviews { if let hit = element(named: name, in: sub) { return hit } }
-        return nil
     }
 }
 
 // MARK: - Overlay
 
-/// The dimmed screen with the lit target and the step's card. Lives above every tab.
+/// The dimmed screen with the lit part and Nourlo's speech bubble. Lives above every tab.
 struct GuidedTourOverlay: View {
     @State private var tour = GuidedTour.shared
+    @State private var rig = MascotRig()
+    /// The lit rectangle in the overlay's coordinates (`nil`: nothing to light).
+    @State private var hole: CGRect?
+    /// Measured height of the bubble, to place it above the lit part.
+    @State private var bubbleHeight: CGFloat = 190
+    /// True from a step change until its part has been found and lit.
+    @State private var moving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.scenePhase) private var scenePhase
     @AccessibilityFocusState private var titleFocused: Bool
-    /// Read again shortly after a step changes, once a tab switch or scroll has settled.
-    @State private var refresh = 0
 
     var body: some View {
         if let step = tour.current, let index = tour.index {
             GeometryReader { geometry in
+                let size = geometry.size
                 let origin = geometry.frame(in: .global).origin
-                let hole = spotlight(for: step, origin: origin, size: geometry.size)
-                ZStack {
-                    SpotlightShape(hole: hole, radius: cornerRadius(step, hole))
-                        .fill(Color.black.opacity(0.62), style: FillStyle(eoFill: true))
+                let insets = Self.windowInsets
+                let layout = BubbleLayout(hole: hole, size: size, bubbleHeight: bubbleHeight,
+                                          safeTop: insets.top, safeBottom: insets.bottom)
+                ZStack(alignment: .topLeading) {
+                    SpotlightShape(hole: hole ?? CGRect(x: size.width / 2, y: size.height / 2, width: 0, height: 0), radius: radius(for: step, hole))
+                        .fill(Color.black.opacity(0.6), style: FillStyle(eoFill: true))
                         .contentShape(Rectangle())
                         .onTapGesture {}
                         .accessibilityHidden(true)
-                    RoundedRectangle(cornerRadius: cornerRadius(step, hole), style: .continuous)
-                        .strokeBorder(Color.dullPink, lineWidth: 3)
-                        .frame(width: hole.width, height: hole.height)
-                        .position(x: hole.midX, y: hole.midY)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                    callout(step, index: index)
-                        .padding(.horizontal, Spacing.lg)
-                        .frame(maxWidth: 440)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity,
-                               alignment: calloutBelow(hole, size: geometry.size) ? .top : .bottom)
-                        .padding(.top, calloutBelow(hole, size: geometry.size) ? min(hole.maxY + 16, geometry.size.height - 260) : 0)
-                        .padding(.bottom, calloutBelow(hole, size: geometry.size) ? 0 : max(geometry.size.height - hole.minY + 16, 40))
+                    if let hole {
+                        RoundedRectangle(cornerRadius: radius(for: step, hole), style: .continuous)
+                            .strokeBorder(Color.dullPink, lineWidth: 2.5)
+                            .shadow(color: Color.dullPink.opacity(0.6), radius: 8)
+                            .frame(width: hole.width, height: hole.height)
+                            .position(x: hole.midX, y: hole.midY)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+                    bubble(step, index: index, layout: layout)
+                        .frame(width: layout.width)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bubbleHeight = $0 }
+                        .offset(x: layout.x, y: layout.y)
+                        .id(reduceMotion ? step.id : "bubble")
+                        .transition(.opacity)
                 }
-                .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85), value: index)
-                .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85), value: refresh)
+                .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.82), value: hole)
+                .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.82), value: bubbleHeight)
+                .animation(reduceMotion ? .easeInOut(duration: 0.25) : nil, value: step.id)
+                .task(id: step.id) { await follow(step, origin: origin, size: size) }
+                .onChange(of: tour.framesRevision) { _, _ in
+                    guard !moving else { return }
+                    hole = lit(step, origin: origin, size: size)
+                }
             }
             .ignoresSafeArea()
             .transition(.opacity)
             .accessibilityAddTraits(.isModal)
-            .task(id: index) {
-                titleFocused = true
-                AccessibilityNotification.Announcement("\(step.title). \(step.detail)").post()
-                // A tab's button can move as the bar settles; look again.
-                for _ in 0..<3 {
-                    try? await Task.sleep(for: .milliseconds(250))
-                    refresh &+= 1
-                }
+            .onAppear {
+                rig.reduceMotion = reduceMotion
+                rig.setActive(true)
             }
+            .onDisappear { rig.setActive(false); hole = nil }
+            .onChange(of: scenePhase) { _, phase in rig.setActive(phase == .active) }
         }
     }
 
-    /// The lit rectangle in the overlay's coordinates, a little larger than the target.
-    private func spotlight(for step: GuidedTourStep, origin: CGPoint, size: CGSize) -> CGRect {
-        _ = refresh
-        guard var frame = tour.frame(for: step.target) else {
-            // Nothing to light (the target isn't on screen): a thin band at the centre.
-            return CGRect(x: size.width / 2, y: size.height / 2, width: 0, height: 0)
+    // MARK: Following the steps
+
+    /// Waits for the step's part to be laid out (a tab switch, a scroll, a card
+    /// opening), then moves the light and Nourlo there.
+    private func follow(_ step: GuidedTourStep, origin: CGPoint, size: CGSize) async {
+        moving = true
+        if !reduceMotion { rig.walk(speed: 1) }
+        // Read the part's frame until it holds still.
+        var last: CGRect?
+        var steady = 0
+        for _ in 0..<16 {
+            try? await Task.sleep(for: .milliseconds(110))
+            if Task.isCancelled { return }
+            let now = lit(step, origin: origin, size: size)
+            if let now, let last, abs(now.minY - last.minY) < 0.5, abs(now.height - last.height) < 0.5 {
+                steady += 1
+                if steady >= 2 { break }
+            } else {
+                steady = 0
+            }
+            last = now
         }
+        hole = lit(step, origin: origin, size: size)
+        moving = false
+        try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 420))
+        rig.walk(speed: 0)
+        rig.set(mood: step.mood)
+        if !reduceMotion, step.mood == .happy || step.mood == .idle { rig.react(.tap) }
+        titleFocused = true
+        AccessibilityNotification.Announcement(
+            "Step \((tour.index ?? 0) + 1) of \(tour.steps.count). \(step.title). \(step.detail)").post()
+    }
+
+    /// The lit rectangle for a step, in the overlay's coordinates, a little larger than its part.
+    private func lit(_ step: GuidedTourStep, origin: CGPoint, size: CGSize) -> CGRect? {
+        guard var frame = tour.frame(for: step.target) else { return nil }
         frame = frame.offsetBy(dx: -origin.x, dy: -origin.y)
-        let pad: CGFloat = step.target == .calories ? 6 : 8
+        let pad: CGFloat = step.target == .nourlo ? 2 : 6
         frame = frame.insetBy(dx: -pad, dy: -pad)
-        // The calorie card is taller than half the screen: light its top (title,
-        // ring and figures) and leave room under it for the card that explains it.
-        if step.target == .calories { frame.size.height = min(frame.height, size.height * 0.56) }
-        // The calorie card can reach under the tab bar; light only what's on screen.
-        return frame.intersection(CGRect(origin: .zero, size: size).insetBy(dx: 4, dy: 4))
+        // A tall card: light its top and leave room for Nourlo's bubble.
+        frame.size.height = min(frame.height, size.height * 0.42)
+        let screen = CGRect(origin: .zero, size: size).insetBy(dx: 4, dy: 4)
+        let visible = frame.intersection(screen)
+        guard !visible.isNull, visible.width > 8, visible.height > 8 else { return nil }
+        return visible
     }
 
-    private func cornerRadius(_ step: GuidedTourStep, _ hole: CGRect) -> CGFloat {
+    private func radius(for step: GuidedTourStep, _ hole: CGRect?) -> CGFloat {
+        guard let hole else { return 0 }
         switch step.target {
-        case .quickActions: return hole.width / 2
-        case .calories: return Radius.card + 6
-        default: return min(hole.height / 2, 28)
+        case .nourlo, .voice: return min(hole.width, hole.height) / 2
+        case .calories, .quests, .todaysMeals, .groceries, .training, .mealCard, .budget,
+             .weeklyGroceries, .aboutPrices, .buildWorkout, .programmes, .exercises:
+            return Radius.card + 4
+        default: return min(hole.height / 2, 22)
         }
     }
 
-    /// Under the lit part when there is more room there than above it.
-    private func calloutBelow(_ hole: CGRect, size: CGSize) -> Bool {
-        size.height - hole.maxY >= hole.minY
+    private static var windowInsets: UIEdgeInsets {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?.safeAreaInsets ?? UIEdgeInsets(top: 59, left: 0, bottom: 34, right: 0)
     }
 
-    private func callout(_ step: GuidedTourStep, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: step.symbol)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.onAccent)
-                    .frame(width: 36, height: 36)
-                    .background(Color.dullPink, in: Circle())
-                    .accessibilityHidden(true)
+    // MARK: Bubble
+
+    private func bubble(_ step: GuidedTourStep, index: Int, layout: BubbleLayout) -> some View {
+        let stacked = typeSize.isAccessibilitySize
+        let speaker = MascotFigure(pose: rig.pose, size: stacked ? 48 : 58)
+            .frame(width: stacked ? 56 : 64, height: stacked ? 56 : 64)
+            .accessibilityHidden(true)
+        let text = VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
                 Text(step.title)
-                    .font(.title3.weight(.bold))
+                    .font(.headline)
                     .foregroundStyle(Color.labelPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
@@ -291,47 +479,153 @@ struct GuidedTourOverlay: View {
                     .accessibilityIdentifier("tour.title")
                 Spacer(minLength: 0)
                 Text("\(index + 1) of \(tour.steps.count)" as String)
-                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .font(.caption.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Color.labelSecondary)
                     .accessibilityLabel("Step \(index + 1) of \(tour.steps.count)" as String)
+                    .accessibilityIdentifier("tour.progress")
             }
-            Text(step.detail)
+            Text(step.what)
+                .font(.subheadline)
+                .foregroundStyle(Color.labelPrimary.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(step.how)
                 .font(.subheadline)
                 .foregroundStyle(Color.labelSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: Spacing.md) {
-                Button("Skip tour") { tour.finish() }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.labelSecondary)
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("tour.skip")
-                Spacer(minLength: 0)
-                if index > 0 {
-                    Button("Back") { tour.back() }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.labelPrimary)
-                        .frame(minHeight: 44)
-                        .accessibilityIdentifier("tour.back")
+        }
+        return VStack(alignment: .leading, spacing: Spacing.md) {
+            if stacked {
+                speaker
+                text
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    speaker.padding(.top, -6).padding(.leading, -6)
+                    text
                 }
-                Button { tour.next() } label: {
-                    Text(index + 1 == tour.steps.count ? "Done" : "Next")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Color.onAccent)
-                        .padding(.horizontal, Spacing.lg)
-                        .frame(minHeight: 44)
-                        .background(Color.dullPink, in: Capsule())
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(ScalePressStyle())
-                .accessibilityIdentifier("tour.next")
             }
+            controls(index: index)
+            progressDots(index: index)
         }
         .padding(Spacing.lg)
-        .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 8)
+        .background {
+            BubbleShape(tailX: layout.tailX, tailUp: layout.tailUp, showsTail: layout.showsTail)
+                .fill(Color.surfaceElevated)
+                .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 8)
+        }
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("tour.callout")
+    }
+
+    private func controls(index: Int) -> some View {
+        HStack(spacing: Spacing.md) {
+            Button("Skip") { tour.finish() }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.labelSecondary)
+                .frame(minHeight: 44)
+                .accessibilityLabel("Skip tour")
+                .accessibilityIdentifier("tour.skip")
+            Spacer(minLength: 0)
+            if index > 0 {
+                Button("Back") { tour.back() }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.labelPrimary)
+                    .padding(.horizontal, Spacing.sm)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("tour.back")
+            }
+            Button { tour.next() } label: {
+                Text(index + 1 == tour.steps.count ? "Done" : "Next")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Color.onAccent)
+                    .padding(.horizontal, Spacing.xl)
+                    .frame(minHeight: 44)
+                    .background(Color.dullPink, in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(ScalePressStyle())
+            .accessibilityIdentifier("tour.next")
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A slim progress bar along the bottom of the bubble.
+    private func progressDots(index: Int) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.labelPrimary.opacity(0.08))
+                Capsule().fill(Color.dullPink)
+                    .frame(width: max(6, geo.size.width * CGFloat(index + 1) / CGFloat(max(tour.steps.count, 1))))
+            }
+        }
+        .frame(height: 4)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.4), value: index)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Where Nourlo's bubble goes: under the lit part when there's more room there,
+/// else over it, with its tail pointing at it; centred when nothing is lit.
+private struct BubbleLayout {
+    let width: CGFloat
+    let x: CGFloat
+    let y: CGFloat
+    let tailX: CGFloat
+    let tailUp: Bool
+    let showsTail: Bool
+
+    init(hole: CGRect?, size: CGSize, bubbleHeight: CGFloat, safeTop: CGFloat, safeBottom: CGFloat) {
+        let width = min(size.width - 24, 440)
+        let x = (size.width - width) / 2
+        self.width = width
+        self.x = x
+        let minY = safeTop + 8
+        let maxY = size.height - safeBottom - 8 - bubbleHeight
+        guard let hole else {
+            y = max(minY, (size.height - bubbleHeight) / 2)
+            tailX = width / 2; tailUp = true; showsTail = false
+            return
+        }
+        let below = size.height - hole.maxY >= hole.minY
+        let gap: CGFloat = 16
+        let wanted = below ? hole.maxY + gap : hole.minY - gap - bubbleHeight
+        let clamped = min(max(wanted, minY), max(minY, maxY))
+        y = clamped
+        tailUp = below
+        showsTail = abs(clamped - wanted) < 1
+        tailX = min(max(hole.midX - x, 30), width - 30)
+    }
+}
+
+/// A rounded bubble with a small tail on its top or bottom edge.
+private struct BubbleShape: Shape {
+    var tailX: CGFloat
+    var tailUp: Bool
+    var showsTail: Bool
+
+    var animatableData: CGFloat {
+        get { tailX }
+        set { tailX = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path(roundedRect: rect, cornerRadius: 26, style: .continuous)
+        guard showsTail else { return path }
+        let w: CGFloat = 22, h: CGFloat = 10
+        var tail = Path()
+        if tailUp {
+            tail.move(to: CGPoint(x: tailX - w / 2, y: rect.minY + 1))
+            tail.addQuadCurve(to: CGPoint(x: tailX, y: rect.minY - h), control: CGPoint(x: tailX - 3, y: rect.minY - 2))
+            tail.addQuadCurve(to: CGPoint(x: tailX + w / 2, y: rect.minY + 1), control: CGPoint(x: tailX + 3, y: rect.minY - 2))
+        } else {
+            tail.move(to: CGPoint(x: tailX - w / 2, y: rect.maxY - 1))
+            tail.addQuadCurve(to: CGPoint(x: tailX, y: rect.maxY + h), control: CGPoint(x: tailX - 3, y: rect.maxY + 2))
+            tail.addQuadCurve(to: CGPoint(x: tailX + w / 2, y: rect.maxY - 1), control: CGPoint(x: tailX + 3, y: rect.maxY + 2))
+        }
+        tail.closeSubpath()
+        path.addPath(tail)
+        return path
     }
 }
 

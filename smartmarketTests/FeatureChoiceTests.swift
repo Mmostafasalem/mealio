@@ -254,13 +254,14 @@ final class FeatureChoiceTests: XCTestCase {
         XCTAssertTrue(DailyLoop.quests(for: day, inputs).allSatisfy { FeatureLayout.allows($0.id, [.tracking]) })
     }
 
-    func testGuideFollowsTheChoice() {
-        XCTAssertEqual(BowlTourStep.steps(for: AppFeature.all).map(\.title),
-                       ["Start with one meal", "Build your grocery list", "Make room for a plan"])
-        XCTAssertEqual(BowlTourStep.pathways(for: AppFeature.all), [.logFood, .groceries, .meals])
-        XCTAssertEqual(BowlTourStep.steps(for: [.workouts]).map(\.action), [.train])
-        XCTAssertEqual(BowlTourStep.pathways(for: [.workouts]), [.train])
-        XCTAssertEqual(BowlTourStep.pathways(for: [.meals, .tracking]), [.logFood, .meals])
+    func testQuickActionPillsFollowTheChoice() {
+        let all = QuickActionsMenu.items(for: AppFeature.all, offersChat: true).map(\.id)
+        XCTAssertEqual(all, ["chat", "voice", "logFood", "mealPhoto", "addRecipe", "stock", "cart", "groceries",
+                             "meals", "train", "profile", "tour"])
+        XCTAssertEqual(QuickActionsMenu.items(for: AppFeature.all, offersChat: false).first?.id, "voice",
+                       "no chat pill while online AI isn't offered")
+        XCTAssertEqual(QuickActionsMenu.items(for: [.workouts], offersChat: false).map(\.id), ["voice", "train", "profile", "tour"])
+        XCTAssertEqual(QuickActionsMenu.items(for: [.meals], offersChat: false).map(\.id), ["stock", "meals", "profile", "tour"])
     }
 }
 

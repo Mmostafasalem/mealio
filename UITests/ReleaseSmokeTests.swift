@@ -9,8 +9,8 @@ final class ReleaseSmokeTests: XCTestCase {
     }
 
     /// The system tab bar's buttons carry their names, not identifiers: "tab.home"
-    /// → "Home", …. Quick actions ("navigation.quickActions") is the bowl button
-    /// beside the bar, an ordinary button with that identifier.
+    /// → "Home", …. Quick actions ("navigation.quickActions") is Nourlo at the top
+    /// of each tab, an ordinary button with that identifier.
     private static let tabNames = ["tab.home": "Home", "tab.meals": "Meals", "tab.shop": "Shop",
                                    "tab.train": "Train"]
 
@@ -112,22 +112,25 @@ final class ReleaseSmokeTests: XCTestCase {
                        "\(element) is still on screen", file: file, line: line)
     }
 
-    /// Opens the quick-actions sheet from the tab bar's "+" and picks a row. A tap
-    /// on "+" can be swallowed while another sheet is still animating away, so
-    /// this re-taps "+" if the sheet didn't open, and waits for the row to take a tap.
+    /// Opens the quick actions from Nourlo and picks a pill (behind "More" if it's
+    /// one of the later ones). A tap on Nourlo can be swallowed while a sheet is still
+    /// animating away, so this re-taps Nourlo if the pills didn't open.
     private func chooseQuickAction(_ action: String, in app: XCUIApplication,
                                    file: StaticString = #filePath, line: UInt = #line) {
         let plus = control("navigation.quickActions", in: app)
         let row = app.buttons["quickActions." + action].firstMatch
+        let more = app.buttons["quickActions.more"].firstMatch
+        let close = app.buttons["quickActions.done"].firstMatch
         XCTAssertTrue(plus.waitForExistence(timeout: 5), file: file, line: line)
         for _ in 0..<3 {
-            if !row.exists { tap("navigation.quickActions", in: app, file: file, line: line) }
+            if !row.exists && !close.exists { tap("navigation.quickActions", in: app, file: file, line: line) }
             let deadline = Date().addingTimeInterval(3)
             while Date() < deadline {
                 if row.exists && row.isHittable {
                     row.tap()
                     return
                 }
+                if !row.exists, more.exists, more.isHittable { more.tap() }
                 RunLoop.current.run(until: Date().addingTimeInterval(0.2))
             }
         }
@@ -441,8 +444,7 @@ final class ReleaseSmokeTests: XCTestCase {
         }
         XCTAssertTrue(isOn(), "AI sharing switched on (value: \(consent.value ?? "nil"))")
         tap("tab.home", in: app)
-        tap("mascot.guide", in: app)
-        tap("guide.chat", in: app)
+        chooseQuickAction("chat", in: app)
         // The composer grows to several lines, so it may be a text view.
         let field = app.descendants(matching: .any)["Ask about meals or groceries…"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
@@ -473,54 +475,66 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("live-guest-account-deleted")
     }
 
-    func testMascotGuideExpressionsAndLoggingShortcut() {
+    func testNourloOpensQuickActionsAndLoggingShortcut() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-ownerAISharingConsent_v1", "NO"]
         launchForTesting(app)
-        XCTAssertTrue(app.buttons["mascot.guide"].waitForExistence(timeout: 10))
-        capture("floating-bowl-home")
-        // As in the large-text test below: a tap in the first moments after a
-        // cold launch can be lost while Home finishes its first layout. Retry once.
-        tap("mascot.guide", in: app)
-        if !app.buttons["guide.path.logFood"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
-        XCTAssertTrue(app.buttons["guide.path.logFood"].waitForExistence(timeout: 5))
-        capture("floating-bowl-pathways")
-        tap("guide.path.logFood", in: app)
+        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["mascot.guide"].exists, "Nourlo at the top is the quick-actions button")
+        capture("nourlo-home")
+        // A tap in the first moments after a cold launch can be lost while Home
+        // finishes its first layout. Retry once.
+        tap("navigation.quickActions", in: app)
+        if !app.buttons["quickActions.logFood"].waitForExistence(timeout: 4) { tap("navigation.quickActions", in: app) }
+        XCTAssertTrue(app.buttons["quickActions.logFood"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["quickActions.done"].exists, "a close badge on Nourlo")
+        capture("nourlo-pills")
+        tap("quickActions.logFood", in: app)
         XCTAssertTrue(app.textFields["Search foods"].waitForExistence(timeout: 8))
-        capture("mascot-log-shortcut")
+        capture("nourlo-log-shortcut")
     }
 
-    func testFloatingBowlGuideTourAndTabNavigation() {
+    func testTourFromQuickActionsVisitsEveryTab() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-enabledFeatures_v1", "tracking,meals,groceries,workouts"]
         launchForTesting(app)
-        tap("mascot.guide", in: app)
-        tap("guide.tour", in: app)
-        XCTAssertTrue(app.staticTexts["Start with one meal"].waitForExistence(timeout: 5))
-        capture("floating-bowl-tour-home")
-        tap("guide.next", in: app)
-        XCTAssertTrue(app.staticTexts["Build your grocery list"].waitForExistence(timeout: 5))
-        XCTAssertTrue(control("tab.shop", in: app).isSelected)
-        tap("guide.next", in: app)
-        XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
-        tap("guide.next", in: app)
-        XCTAssertFalse(app.buttons["guide.next"].exists)
+        chooseQuickAction("tour", in: app)
+        let title = app.staticTexts["tour.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        XCTAssertEqual(title.label, "Hi, I'm Nourlo!")
+        capture("tour-hello")
+        var selected: Set<String> = []
+        for _ in 0..<45 {
+            guard title.waitForExistence(timeout: 5) else { break }
+            for name in ["Home", "Meals", "Shop", "Train"] where app.tabBars.buttons[name].isSelected { selected.insert(name) }
+            if title.label == "Your profile" { XCTAssertTrue(app.navigationBars["Profile"].exists, "the tour opens Profile") }
+            if title.label == "That's everything!" { break }
+            let label = title.label
+            tap("tour.next", in: app)
+            let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false OR label != %@", label), object: title)
+            XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 8), .completed)
+        }
+        XCTAssertEqual(title.label, "That's everything!")
+        XCTAssertEqual(selected, ["Home", "Meals", "Shop", "Train"], "the tour switches tabs itself")
+        tap("tour.next", in: app)
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Done ends the tour")
         openProfile(in: app)
         XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
         capture("profile-from-avatar")
     }
 
-    func testFloatingBowlGuideLargeText() {
+    func testQuickActionsLargeText() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launchForTesting(app)
         // At the largest text size a cold simulator can still be finishing its
-        // first layout when the bowl appears; a tap then is lost. Retry once.
-        tap("mascot.guide", in: app)
-        if !app.buttons["guide.close"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
-        XCTAssertTrue(app.buttons["guide.close"].waitForExistence(timeout: 5))
-        capture("floating-bowl-large-text")
-        tap("guide.path.logFood", in: app)
+        // first layout when Nourlo appears; a tap then is lost. Retry once.
+        tap("navigation.quickActions", in: app)
+        if !app.buttons["quickActions.done"].waitForExistence(timeout: 4) { tap("navigation.quickActions", in: app) }
+        XCTAssertTrue(app.buttons["quickActions.done"].waitForExistence(timeout: 5))
+        capture("quick-actions-large-text")
+        tap("quickActions.logFood", in: app)
         XCTAssertTrue(app.textFields["Search foods"].waitForExistence(timeout: 8))
     }
 
@@ -619,12 +633,13 @@ final class ReleaseSmokeTests: XCTestCase {
             XCTAssertTrue(bar.buttons[name].exists, "\(name) is named for VoiceOver")
         }
         XCTAssertEqual(bar.staticTexts.count, 0, "icons only: no visible tab titles")
-        // Quick actions is the round bowl button at the bar's right, not one of its tabs.
-        let bowl = control("navigation.quickActions", in: app)
-        XCTAssertTrue(bowl.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(bowl.frame.minX, bar.buttons["Train"].frame.maxX - 0.5, "beside the tabs, not over them")
-        XCTAssertEqual(bowl.frame.width, bowl.frame.height, accuracy: 0.5, "a round button")
-        // The bowl opens the quick actions without leaving the current tab.
+        // Quick actions is Nourlo at the top of the screen, not a tab or a button by the bar.
+        XCTAssertEqual(bar.buttons.count, 4, "just Home, Meals, Shop and Train")
+        let nourlo = control("navigation.quickActions", in: app)
+        XCTAssertTrue(nourlo.waitForExistence(timeout: 5))
+        XCTAssertLessThan(nourlo.frame.maxY, app.frame.height * 0.25, "at the top")
+        XCTAssertGreaterThan(nourlo.frame.midX, app.frame.width * 0.5, "on the right")
+        // Nourlo opens the quick actions without leaving the current tab.
         tap("navigation.quickActions", in: app)
         XCTAssertTrue(app.buttons["quickActions.logFood"].waitForExistence(timeout: 5))
         XCTAssertTrue(bar.buttons["Home"].isSelected)
