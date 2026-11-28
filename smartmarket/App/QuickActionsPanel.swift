@@ -128,7 +128,7 @@ struct QuickActionsPanel: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.horizontalSizeClass) private var sizeClass
 
-    private static let catalog: [Item] = [
+    static let catalog: [Item] = [
         Item(id: "chat", title: "Ask Nourlo", detail: "Ideas, swaps and answers",
              symbol: "bubble.left.and.text.bubble.right.fill", choice: .chat),
         Item(id: "voice", title: "Speak a command", detail: "Log food, fill the cart, start a workout",
@@ -154,7 +154,9 @@ struct QuickActionsPanel: View {
     ]
 
     /// The tiles this person can use now, most useful first.
-    private var items: [Item] {
+    private var items: [Item] { Self.items(for: features) }
+
+    static func items(for features: Set<AppFeature>) -> [Item] {
         let offered = FeatureLayout.quickActionIDs(for: features)
         return offered.compactMap { id in Self.catalog.first { $0.id == id } }.filter { item in
             switch item.choice {

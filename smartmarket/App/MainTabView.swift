@@ -46,6 +46,8 @@ struct MainTabView: View {
 
     /// Pressed each time the bowl button opens the quick actions (haptic).
     @State private var quickActionsOpened = 0
+    /// The floating quick actions menu that grows out of the bowl button.
+    @State private var quickMenuOpen = false
 
     /// What the person uses Nourlo for; decides tabs, quick actions and where links may go.
     private var features: Set<AppFeature> { AppState.shared.enabledFeatures }
@@ -116,7 +118,21 @@ struct MainTabView: View {
 
     private func openQuickActions() {
         quickActionsOpened &+= 1
-        present(.quickActions)
+        // Not a sheet: close any sheet first, then the menu grows out of the button.
+        if sheet != nil { present(nil) }
+        quickMenuOpen = true
+    }
+
+    /// What a quick action does; shared by the floating menu and the old panel.
+    private func handleQuickChoice(_ choice: QuickActionsPanel.Choice) {
+        switch choice {
+        case .chat: present(.chat)
+        case .voice: present(.voice)
+        case .mealPhoto: present(.mealPhoto)
+        case .stock: present(.stock)
+        case .addRecipe: present(.addRecipe)
+        case .action(let action): chooseQuickAction(action)
+        }
     }
 
     var body: some View {
@@ -152,6 +168,17 @@ struct MainTabView: View {
                     .padding(.bottom, QuickActionsDock.bottom(barInset: tabBarHeight))
             }
             .ignoresSafeArea(.container, edges: .bottom)
+        }
+        // The quick actions menu, over everything (the bar and the bowl too).
+        .overlay {
+            if quickMenuOpen {
+                QuickActionsMenu(features: features,
+                                 buttonBottom: QuickActionsDock.bottom(barInset: tabBarHeight),
+                                 buttonTrailing: QuickActionsDock.trailing,
+                                 buttonDiameter: QuickActionsDock.diameter,
+                                 close: { quickMenuOpen = false },
+                                 choose: { handleQuickChoice($0) })
+            }
         }
         // The guided tour (once after onboarding, again from Profile › Help) dims everything, the bar and bowl too.
         .overlay { GuidedTourOverlay() }
@@ -213,16 +240,7 @@ struct MainTabView: View {
             case .mealPhoto:
                 VoiceCommandSheet(photoMode: true, close: { self.sheet = nil }, navigate: openFromVoice)
             case .quickActions:
-                QuickActionsPanel(features: features, close: { self.sheet = nil }) { choice in
-                    switch choice {
-                    case .chat: present(.chat)
-                    case .voice: present(.voice)
-                    case .mealPhoto: present(.mealPhoto)
-                    case .stock: present(.stock)
-                    case .addRecipe: present(.addRecipe)
-                    case .action(let action): chooseQuickAction(action)
-                    }
-                }
+                QuickActionsPanel(features: features, close: { self.sheet = nil }) { handleQuickChoice($0) }
             case .stock:
                 NavigationStack {
                     StockView()

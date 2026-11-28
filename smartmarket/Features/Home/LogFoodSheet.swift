@@ -658,6 +658,9 @@ struct ServingDetailView: View {
     @State private var kcalOverride: Int?
     @State private var showEntry = false
     @State private var typingField = PortionField.amount
+    /// The amount as typed in the portion box; read when typing stops or the box loses focus.
+    @State private var amountText = ""
+    @FocusState private var amountFocused: Bool
     /// Going to stock: how many pieces the package holds, and what a piece is called.
     @State private var piecesInPackage: Double?
     @State private var pieceWord: String
@@ -716,6 +719,12 @@ struct ServingDetailView: View {
     private var gramsBinding: Binding<Double> {
         Binding(get: { grams }, set: { setAmount($0) })
     }
+    /// Reads the typed amount; anything unreadable goes back to the current amount.
+    private func commitTypedAmount() {
+        if let amount = PortionInput.amount(amountText, for: food) { setAmount(amount) }
+        amountText = formatAmount(grams)
+    }
+
     private func setAmount(_ amount: Double) {
         kcalOverride = PortionInput.rescaled(kcalOverride, from: grams, to: amount)
         grams = amount
@@ -818,12 +827,33 @@ struct ServingDetailView: View {
                         )
                         .accessibilityIdentifier("logFood.amount")
                     }
-                    RulerPicker(value: gramsBinding, range: food.minimumAmount...food.maximumAmount, step: amountStep,
-                                majorEvery: food.basis == .serving ? 4 : 10,
-                                midEvery: food.basis == .serving ? 2 : 5,
-                                spacing: food.basis == .serving ? 16 : 8,
-                                accessibilityName: "Amount", spokenValue: { formatAmount($0) })
-                        .frame(height: 96)
+                    // Type the amount straight in (no ruler).
+                    HStack(spacing: 10) {
+                        TextField(formatAmount(grams), text: $amountText)
+                            .keyboardType(.decimalPad)
+                            .focused($amountFocused)
+                            .font(.system(.title2, design: .rounded).weight(.bold))
+                            .monospacedDigit()
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .background(Color.surfaceElevated, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                                .strokeBorder(amountFocused ? Color.progress : Color.clear, lineWidth: 2))
+                            .accessibilityLabel("Amount in " + (food.basis == .serving ? "servings" : food.basis.rawValue))
+                            .accessibilityIdentifier("logFood.amount.field")
+                            .onSubmit { commitTypedAmount() }
+                            .onChange(of: amountFocused) { _, focused in if !focused { commitTypedAmount() } }
+                        Text(food.basis == .serving ? "servings" : food.basis.rawValue)
+                            .font(.headline).foregroundStyle(Color.labelSecondary)
+                    }
+                    .onAppear { amountText = formatAmount(grams) }
+                    .onChange(of: grams) { _, new in if !amountFocused { amountText = formatAmount(new) } }
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") { amountFocused = false }
+                        }
+                    }
                     if !labelPresets.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
@@ -852,10 +882,6 @@ struct ServingDetailView: View {
                                 .contentShape(Rectangle())
                         }
                         Spacer(minLength: 0)
-                        TypeNumberButton(title: "Amount", unit: food.basis.rawValue,
-                                         current: formatAmount(grams), identifier: "logFood.amount.type") { text in
-                            if let amount = PortionInput.amount(text, for: food) { setAmount(amount) }
-                        }
                     }
                 }
                 .padding(16)
