@@ -15,8 +15,10 @@ enum KeychainHelper {
         ]
         // Update in place so a failed write (for example while locked) cannot
         // erase the prior credential or retained-account deletion record.
+        // Readable after the first unlock, so a launch from the lock screen (a Live
+        // Activity button, Siri) still finds the profile. Still this device only.
         let updates: [String: Any] = [kSecValueData as String: data,
-                                     kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly]
+                                     kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
         var status = SecItemUpdate(query as CFDictionary, updates as CFDictionary)
         if status == errSecItemNotFound {
             var attrs = query

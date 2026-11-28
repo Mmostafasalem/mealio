@@ -159,12 +159,17 @@ struct ExpandCard<Header: View, Detail: View>: View {
     var showActionName: String = "Show ingredients"
     var hideActionName: String = "Hide ingredients"
     var hint: String? = nil
+    /// The header button's accessibility identifier (UI tests).
+    var identifier: String = ""
     /// Header, given the open progress (0…1, may overshoot slightly).
     @ViewBuilder let header: (Double) -> Header
     @ViewBuilder let detail: () -> Detail
 
     @State private var detailHeight: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// How far the open card's surface reaches past the row's content on each side.
+    static var surfaceInset: CGFloat { Spacing.sm + 2 }
 
     var body: some View {
         let v = group.values(for: id)
@@ -182,6 +187,7 @@ struct ExpandCard<Header: View, Detail: View>: View {
             .accessibilityValue(open ? "Expanded" : "Collapsed")
             .accessibilityHint(hint ?? "")
             .accessibilityAction(named: open ? hideActionName : showActionName) { group.toggle(id) }
+            .accessibilityIdentifier(identifier)
 
             detail()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,14 +206,17 @@ struct ExpandCard<Header: View, Detail: View>: View {
                 .allowsHitTesting(open)
                 .accessibilityHidden(!open)
         }
-        .padding(.horizontal, Spacing.md * q)
         .padding(.vertical, Spacing.sm * q)
+        // The card's surface grows out around the row as it opens. The content keeps
+        // its width the whole time, so no title, ingredient or chip re-wraps (and
+        // jumps) while the height animates; only the height and the surface move.
         .background {
             RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                 .fill(Color.surface)
                 .shadow(color: .black.opacity(0.08 * q), radius: 10 * q, y: 4 * q)
                 .overlay(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
                     .strokeBorder(Color.hairline, lineWidth: 0.5))
+                .padding(.horizontal, -Self.surfaceInset * q)
                 .opacity(q)
         }
         .scaleEffect(reduceMotion ? 1 : v.scale)
@@ -238,7 +247,7 @@ struct ExpandCard<Header: View, Detail: View>: View {
                             Text(meal.1).font(.caption).foregroundStyle(Color.labelSecondary)
                         }
                         Spacer()
-                        Text("\(meal.2) kcal").font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
+                        Text("\(meal.2) kcal" as String).font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
                         Image(systemName: "chevron.right").font(.caption2)
                             .foregroundStyle(Color.labelTertiary)
                             .rotationEffect(.degrees(90 * p))

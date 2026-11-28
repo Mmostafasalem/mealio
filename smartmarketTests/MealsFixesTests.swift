@@ -8,6 +8,7 @@ final class MealsFixesTests: XCTestCase {
     private let domain = Bundle.main.bundleIdentifier ?? "com.mostafa.mealio"
 
     override func setUp() async throws {
+        StockStore.shared.clearItems()   // the plan reads My Stock; start each test with an empty shelf
         savedDomain = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
     }
 
@@ -254,6 +255,8 @@ final class MealsFixesTests: XCTestCase {
     // MARK: - Plan messages
 
     func testBudgetIsOnlyClaimedWhenTheCartFits() {
+        let oldCurrency = CurrencyStore.shared.code; CurrencyStore.shared.code = "EUR"
+        defer { CurrencyStore.shared.code = oldCurrency }
         let within = FallbackData.cartMessage(itemCount: 3, total: 42.5, budget: 60)
         XCTAssertTrue(within.contains("within your €60.00 budget"), within)
         let over = FallbackData.cartMessage(itemCount: 3, total: 75, budget: 60)
@@ -263,6 +266,8 @@ final class MealsFixesTests: XCTestCase {
     }
 
     func testOverBudgetCartPlanSaysSo() throws {
+        let oldCurrency = CurrencyStore.shared.code; CurrencyStore.shared.code = "EUR"
+        defer { CurrencyStore.shared.code = oldCurrency }
         UserDefaults.standard.set(20.0, forKey: "weeklyBudget")
         try setCart([("chicken-breast", "meat", 15), ("white-rice", "grains", 10)])
         let message = FallbackData.mealPlan(targetKcal: 2000, pantry: [], preferences: []).agentMessage ?? ""

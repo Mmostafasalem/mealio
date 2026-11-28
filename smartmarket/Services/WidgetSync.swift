@@ -79,7 +79,8 @@ final class WidgetSync {
 
     /// Today's snapshot from the app's live data.
     static func liveSnapshot(now: Date = Date()) -> NourloSnapshot {
-        let goal = AppState.shared.userProfile.dailyCalorieGoal
+        // Before onboarding the profile holds placeholder numbers: no goal yet.
+        let goal = AppState.shared.isOnboarded ? AppState.shared.userProfile.dailyCalorieGoal : 0
         let isKeto = Set<DietaryPreference>.load().contains(.keto)
         let weekly = AppState.shared.weeklyMealPlan
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now

@@ -126,6 +126,7 @@ final class ReminderStore {
     /// Today's loop, for the streak nudge. Set by the app at launch.
     @ObservationIgnored var streakState: (() -> LoopState)?
 
+    @ObservationIgnored private var rescheduleTask: Task<Void, Never>?
     @ObservationIgnored private let scheduler: any ReminderScheduling
     @ObservationIgnored private let defaults: UserDefaults
     private let key = "reminders_v1", enabledKey = "remindersEnabled_v1", dismissedKey = "remindersDismissed_v1",
@@ -135,6 +136,10 @@ final class ReminderStore {
         self.scheduler = scheduler
         self.defaults = defaults
         reload()
+        // Turning a feature off cancels its reminders; turning it on brings them back.
+        NotificationCenter.default.addObserver(forName: .enabledFeaturesDidChange, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.reschedule() }
+        }
     }
 
     func reload() {
@@ -200,7 +205,8 @@ final class ReminderStore {
     func scheduleStreakNudges(_ loop: LoopState, now: Date = Date(), calendar: Calendar = .current) {
         scheduler.remove(StreakNudge.candidateIDs(now: now, calendar: calendar))
         guard isEnabled, streakNudgeOn else { return }
-        for item in StreakNudge.plan(now: now, todayKept: loop.todayKept, streak: loop.streak, calendar: calendar) {
+        for item in StreakNudge.plan(now: now, todayKept: loop.todayKept, streak: loop.streak, calendar: calendar,
+                                     saversHeld: loop.saversHeld) {
             scheduler.add(StreakNudge.request(item, calendar: calendar))
         }
     }
@@ -210,17 +216,35 @@ final class ReminderStore {
         if permissionDenied && isEnabled {
             isEnabled = false
             defaults.set(false, forKey: enabledKey)
+            // Clears what was scheduled, so nothing fires if permission comes back.
+            await reschedule()
         }
     }
 
     // MARK: Scheduling
 
-    /// Replaces every pending reminder with the current set.
+    /// Replaces every pending reminder with the current set. One run at a
+    /// time: a newer call cancels the one still waiting, so two can't interleave.
     func reschedule() async {
-        scheduler.remove(await scheduler.pendingReminderIdentifiers())
+        rescheduleTask?.cancel()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.replacePending()
+        }
+        rescheduleTask = task
+        await task.value
+    }
+
+    private func replacePending() async {
+        let pending = await scheduler.pendingReminderIdentifiers()
+        // Nothing below waits, so a run that gets past here finishes whole.
+        guard !Task.isCancelled else { return }
+        scheduler.remove(pending)
         replanStreakNudges()
         guard isEnabled else { return }
-        for reminder in reminders where reminder.isOn {
+        // Only reminders for the features the person chose (no workout nudges without Workouts).
+        let features = AppFeature.load(from: defaults)
+        for reminder in reminders where reminder.isOn && FeatureLayout.offersReminder(reminder.kind, features) {
             for request in Self.requests(for: reminder) { scheduler.add(request) }
         }
     }
@@ -263,7 +287,7 @@ final class ReminderStore {
         let minutes = calendar.component(.hour, from: now) * 60 + calendar.component(.minute, from: now)
         let dismissed = dismissed(on: now)
         return reminders
-            .filter { $0.isOn && $0.isScheduled(on: weekday) && $0.hour * 60 + $0.minute <= minutes
+            .filter { $0.isOn && FeatureLayout.offersReminder($0.kind, AppFeature.load(from: defaults)) && $0.isScheduled(on: weekday) && $0.hour * 60 + $0.minute <= minutes
                       && !dismissed.contains($0.id)
                       && !($0.mealSlot.map(loggedSlots.contains) ?? false) }
             .sorted { $0.hour * 60 + $0.minute > $1.hour * 60 + $1.minute }

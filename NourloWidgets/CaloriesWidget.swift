@@ -21,10 +21,60 @@ struct CaloriesWidgetView: View {
 
     var body: some View {
         content
-            .widgetURL(NourloLink.logFood.url)
+            .widgetURL(snapshot.needsSetup ? NourloLink.home.url : NourloLink.logFood.url)
     }
 
     @ViewBuilder private var content: some View {
+        if snapshot.needsSetup {
+            setup
+        } else {
+            numbers
+        }
+    }
+
+    /// Before Nourlo is set up there is no goal, so no numbers to show.
+    @ViewBuilder private var setup: some View {
+        switch family {
+        case .accessoryCircular:
+            Image(systemName: "flame")
+                .font(.title2)
+                .widgetAccentable()
+                .accessibilityLabel(NourloSnapshot.setupPrompt)
+                .containerBackground(for: .widget) { AccessoryWidgetBackground() }
+        case .accessoryInline:
+            Label(NourloSnapshot.setupPrompt, systemImage: "flame")
+                .containerBackground(for: .widget) { Color.clear }
+        case .accessoryRectangular:
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill").widgetAccentable()
+                    Text("Calories").font(.headline).widgetAccentable()
+                }
+                Text(NourloSnapshot.setupPrompt)
+                    .font(.body)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .containerBackground(for: .widget) { Color.clear }
+        default:
+            VStack(spacing: 8) {
+                Image(systemName: "flame.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.nourloPink)
+                    .widgetAccentable()
+                    .accessibilityHidden(true)
+                Text(NourloSnapshot.setupPrompt)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.7)
+            }
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
+            .containerBackground(.fill.tertiary, for: .widget)
+        }
+    }
+
+    @ViewBuilder private var numbers: some View {
         switch family {
         case .accessoryCircular:
             CaloriesCircular(snapshot: snapshot)
@@ -53,7 +103,7 @@ private struct CaloriesHeadline: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("\(NourloWidgetFormat.headlineNumber(snapshot))")
+            Text("\(NourloWidgetFormat.headlineNumber(snapshot))" as String)
                 .font(numberFont)
                 .monospacedDigit()
                 .lineLimit(1)
@@ -119,7 +169,7 @@ private struct CaloriesCircular: View {
         Gauge(value: snapshot.progress) {
             Image(systemName: "flame")
         } currentValueLabel: {
-            Text("\(NourloWidgetFormat.headlineNumber(snapshot))")
+            Text("\(NourloWidgetFormat.headlineNumber(snapshot))" as String)
                 .monospacedDigit()
                 .minimumScaleFactor(0.5)
         }

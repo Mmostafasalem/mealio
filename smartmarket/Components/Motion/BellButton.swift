@@ -127,7 +127,7 @@ struct BellButton: View {
                 .fixedSize()
                 .animation(.easeOut(duration: 0.2), value: isOn)
                 if let count {
-                    Text("\(count)")
+                    Text("\(count)" as String)
                         .font(.footnote.weight(.semibold))
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(count)))

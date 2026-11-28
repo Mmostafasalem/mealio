@@ -5,6 +5,9 @@ extension Notification.Name {
     static let mealPlanDidUpdate    = Notification.Name("mealPlanDidUpdate")
     static let groceryListDidChange = Notification.Name("groceryListDidChange")
     static let cartDidChange        = Notification.Name("cartDidChange")
+    /// Something the meal plan is built from changed that isn't a cart edit (My Stock, the
+    /// budget, the meal split): the plan rebuilds, but it doesn't count as shopping.
+    static let planInputsDidChange  = Notification.Name("planInputsDidChange")
     /// Ask Home to show Profile (it lives behind the avatar, not in the tab bar).
     static let openProfile          = Notification.Name("openProfile")
     /// Ask the tab bar to show Train (from a workout reminder).
@@ -13,15 +16,18 @@ extension Notification.Name {
     static let openHome             = Notification.Name("openHome")
     static let openShop             = Notification.Name("openShop")
     /// The bowl in Home's header was tapped: open or close its guide.
-    static let toggleBowlGuide      = Notification.Name("toggleBowlGuide")
     /// Home's microphone button: `MainTabView` shows the voice sheet.
     static let openVoice            = Notification.Name("openVoice")
+    /// The food logger's "From a photo" button: `MainTabView` shows the photo sheet.
+    static let openMealPhoto        = Notification.Name("openMealPhoto")
     static let personalDataDidChange = Notification.Name("personalDataDidChange")
     /// Logged food changed (added, removed, cleared, or logged from stock). Listeners
     /// (Apple Health, widgets) re-read `FoodLogStore.allEntries` and sync the difference.
     static let foodLogDidChange     = Notification.Name("foodLogDidChange")
     /// Completed workouts changed. Listeners re-read `WorkoutStore.completed`.
     static let workoutsDidChange    = Notification.Name("workoutsDidChange")
+    /// The person turned a feature on or off (`AppState.enabledFeatures`).
+    static let enabledFeaturesDidChange = Notification.Name("enabledFeaturesDidChange")
 }
 
 // MARK: - Grocery list persistence (used by AppDelegate, ViewModels, and Views)
@@ -90,6 +96,7 @@ enum Constants {
             static let shoppingAdvice   = "/api/shopping-advice"
             static let agentChat        = "/api/agent-chat"
             static let recipe           = "/api/recipe"
+            static let foodPhoto        = "/api/food-photo"
             static let workout          = "/api/workout"
         }
     }
@@ -110,12 +117,17 @@ enum Constants {
         static let lang                     = "lang"
         /// "" follows the iPhone setting, otherwise "light" or "dark" (set by the pull cord in Profile).
         static let appearanceOverride       = "appearanceOverride_v1"
+        /// The colour theme's `AppTheme` raw value (missing = Nourlo Pink); mirrored into the App Group.
+        static let appTheme                 = AppTheme.storageKey
         /// "kg" or "lb" — display only; weight is always stored in kg.
         static let weightUnit               = "weightUnit_v1"
         /// "cm" or "ft" — display only; height is always stored in cm.
         static let heightUnit               = "heightUnit_v1"
         /// Version of the calorie-target maths the saved profile was computed with.
         static let targetsVersion           = "targetsVersion"
+        /// Comma-separated `AppFeature` raw values chosen in onboarding or Profile.
+        /// Missing means every feature (people onboarded before the choice existed).
+        static let enabledFeatures          = "enabledFeatures_v1"
     }
 
     // MARK: - BMR safety floors

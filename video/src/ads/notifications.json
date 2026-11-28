@@ -1,0 +1,150 @@
+{
+  "dur": 26.9,
+  "before": [
+    {
+      "at": 0.35,
+      "title": "Mom",
+      "body": "Did you eat today?",
+      "color": "#F2A65A",
+      "initial": "M",
+      "time": "9:12"
+    },
+    {
+      "at": 1.25,
+      "title": "Bank",
+      "body": "Card payment · Takeaway · €14.90",
+      "color": "#3B4A6B",
+      "initial": "€",
+      "time": "9:20"
+    },
+    {
+      "at": 2.0,
+      "title": "Mom",
+      "body": "Answer me",
+      "color": "#F2A65A",
+      "initial": "M",
+      "time": "9:31"
+    },
+    {
+      "at": 2.6,
+      "title": "Gym buddy",
+      "body": "Leg day tomorrow? 🦵",
+      "color": "#4FB286",
+      "initial": "G",
+      "time": "9:33"
+    },
+    {
+      "at": 3.1,
+      "title": "Bank",
+      "body": "Card payment · Takeaway · €11.20",
+      "color": "#3B4A6B",
+      "initial": "€",
+      "time": "9:36"
+    },
+    {
+      "at": 3.5,
+      "title": "Mom",
+      "body": "Are you eating noodles AGAIN?",
+      "color": "#F2A65A",
+      "initial": "M",
+      "time": "9:39"
+    },
+    {
+      "at": 3.85,
+      "title": "Bank",
+      "body": "Your balance is low",
+      "color": "#3B4A6B",
+      "initial": "€",
+      "time": "9:40"
+    }
+  ],
+  "earlier": 5.4,
+  "ask": {
+    "at": 6.7,
+    "cps": 24,
+    "text": "Plan my meals for the week. Under €40, high protein.",
+    "sent": 9.6
+  },
+  "plan": {
+    "at": 11.0,
+    "days": [
+      [
+        "Mon",
+        "🥣",
+        "Oats, banana & greek yogurt",
+        "520"
+      ],
+      [
+        "Tue",
+        "🍗",
+        "Chicken rice bowl",
+        "640"
+      ],
+      [
+        "Wed",
+        "🥚",
+        "Veggie omelette & toast",
+        "480"
+      ],
+      [
+        "Thu",
+        "🐟",
+        "Salmon, potatoes & greens",
+        "610"
+      ],
+      [
+        "Fri",
+        "🌯",
+        "Turkey wrap & apple",
+        "560"
+      ],
+      [
+        "Sat",
+        "🍝",
+        "Lentil bolognese",
+        "590"
+      ],
+      [
+        "Sun",
+        "🥗",
+        "Tuna & chickpea salad",
+        "500"
+      ]
+    ],
+    "button": 13.3,
+    "click": 14.4,
+    "toast": 14.65
+  },
+  "after": 16.4,
+  "afterList": [
+    {
+      "at": 16.75,
+      "title": "Mom",
+      "body": "Wait… you meal prepped?? 🥹",
+      "color": "#F2A65A",
+      "initial": "M",
+      "time": "now"
+    },
+    {
+      "at": 17.6,
+      "title": "Nourlo",
+      "body": "Lunch: chicken rice bowl is ready to log",
+      "icon": "icon.png",
+      "time": "now"
+    },
+    {
+      "at": 18.35,
+      "title": "Nourlo",
+      "body": "€1.40 under budget this week 🎉",
+      "icon": "icon.png",
+      "time": "now"
+    }
+  ],
+  "mascot": 18.6,
+  "punch": {
+    "at": 20.6,
+    "cps": 20,
+    "text": "Help me reply to my mom"
+  },
+  "end": 22.1
+}

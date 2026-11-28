@@ -3,7 +3,7 @@ import SwiftUI
 /// The card shown when the person taps a grocery estimate on Home (it lives inside
 /// Home's MorphIsland). Catalog prices have no retailer verification, so this is
 /// never an unsolicited alert: it shows one "est. price", no savings, no countdown,
-/// and "Add to list" only adds the item to the grocery list.
+/// and "Add to checklist" only adds the item to the checklist.
 struct DealNotificationBanner: View {
     let deal: MarketDeal
     let onBuy: () -> Void
@@ -30,7 +30,7 @@ struct DealNotificationBanner: View {
                 }
                 Spacer(minLength: 0)
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text(String(format: "€%.2f", deal.discountPrice))
+                    Text(Money.format(eur: deal.discountPrice))
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(Color.labelPrimary)
                     Text("est. price")
@@ -49,7 +49,7 @@ struct DealNotificationBanner: View {
                         .contentShape(Capsule())
                 }
                 Button(action: onBuy) {
-                    Label("Add to list", systemImage: "plus")
+                    Label("Add to checklist", systemImage: "plus")
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .foregroundStyle(Color.surface)
                         .background(Color.labelPrimary, in: Capsule())

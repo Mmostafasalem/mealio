@@ -354,12 +354,12 @@ final class RangeSliderEngine {
 #Preview("Range Slider") {
     @Previewable @State var low: Double = 1.2
     @Previewable @State var high: Double = 3.4
-    let euro: (Double) -> String = { String(format: "€%.2f", $0) }
+    let euro: (Double) -> String = { Money.format(eur: $0) }
     VStack(alignment: .leading, spacing: 16) {
         Text("Price").font(.headline)
         RangeSlider(lower: $low, upper: $high, in: 0.3...12, step: 0.1,
                     lowerLabel: "Minimum price", upperLabel: "Maximum price", format: euro)
-        Text("\(euro(low)) – \(euro(high))").font(.subheadline).monospacedDigit()
+        Text("\(euro(low)) – \(euro(high))" as String).font(.subheadline).monospacedDigit()
         Button("Clear filter") { low = 0.3; high = 12 }
     }
     .padding(24)

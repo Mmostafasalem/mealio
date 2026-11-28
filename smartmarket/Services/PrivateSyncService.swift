@@ -21,6 +21,9 @@ final class PrivateSyncService {
         var enabled = false
         var pendingReset = false
         var localErasurePending: Bool?
+        /// This device has completed a sync with the bound account. nil in
+        /// journals saved before this was tracked.
+        var hasSynced: Bool?
     }
 
     @ObservationIgnored private var journal: Journal
@@ -76,10 +79,15 @@ final class PrivateSyncService {
         }
         session = UUID()
         let previous = journal.enabled
+        let previousAccount = journal.account, previousSynced = journal.hasSynced
         journal.enabled = enabled
+        // The Apple Account stays bound while sync is off, so Delete All Data can still
+        // remove the iCloud copy. ("Stop trying" lets go of an account that can't be reached.)
         do { try persist() }
         catch {
             journal.enabled = previous
+            journal.account = previousAccount
+            journal.hasSynced = previousSynced
             status = "Could not save sync settings. Your data remains on this iPhone."
             return
         }
@@ -125,6 +133,27 @@ final class PrivateSyncService {
         Task { await sync() }
     }
 
+    /// Stops trying to delete the iCloud copy (the account changed, or iCloud
+    /// can't be reached) and lets go of the bound Apple Account. Data on this
+    /// iPhone is untouched; whatever is still in that iCloud account stays there.
+    func abandonPendingDeletion() {
+        guard journal.pendingReset else { return }
+        let previous = journal
+        session = UUID()
+        scheduled?.cancel()
+        journal.pendingReset = false
+        journal.account = nil
+        journal.hasSynced = false
+        do { try persist() }
+        catch {
+            journal = previous
+            status = "Could not save sync settings. Please try again."
+            return
+        }
+        status = journal.enabled ? "Sync on. iCloud deletion was not completed." : "Stored on this iPhone. iCloud deletion was not completed."
+        if journal.enabled { Task { await sync() } }
+    }
+
     private func captureLocalChanges() throws {
         let snapshot = try SyncStorageAdapter.snapshot()
         journal.document.captureChanges(snapshot, since: journal.baseline, device: journal.device)
@@ -152,6 +181,9 @@ final class PrivateSyncService {
                 status = "Apple Account changed. Return to the original account to sync or delete its data."
                 return
             }
+            // Journals from before `hasSynced`: a bound account means it has synced.
+            if journal.hasSynced == nil { journal.hasSynced = journal.account != nil }
+            let joining = journal.hasSynced != true
             journal.account = account
             try persist()
             let db = container.privateCloudDatabase
@@ -170,9 +202,18 @@ final class PrivateSyncService {
                 if let payload = record.encryptedValues["payload"] as? Data {
                     let remote = try JSONDecoder().decode(SyncDocument.self, from: payload).shoppingDataOnly()
                     if !journal.pendingReset {
-                        // A fresh installation imports local data only into an
-                        // initial cloud generation. An existing reset wins.
-                        merged = merged.reconciled(with: remote)
+                        if joining, remote.generation != merged.generation, remote.values.isEmpty {
+                            // This device is joining after a past reset left the cloud
+                            // empty: there is nothing to take, so its own data is kept
+                            // and carried into the cloud's generation.
+                            var kept = SyncDocument(generation: remote.generation)
+                            kept.capture(merged.values, device: journal.device)
+                            merged = kept
+                        } else {
+                            // A device that has synced before obeys a reset: the
+                            // other generation replaces its data.
+                            merged = merged.reconciled(with: remote)
+                        }
                     }
                 }
                 merged = merged.shoppingDataOnly()
@@ -213,6 +254,12 @@ final class PrivateSyncService {
                 }
                 let needsAnotherPass = journal.document != uploaded
                 journal.pendingReset = false
+                journal.hasSynced = true
+                // Sync is off and the deletion is done: nothing ties this device to the account now.
+                if !journal.enabled {
+                    journal.account = nil
+                    journal.hasSynced = false
+                }
                 try persist()
                 lastSync = Date()
                 status = journal.enabled ? "Synced with your private iCloud" : "iCloud data deleted"

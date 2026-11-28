@@ -7,9 +7,9 @@ Guest AI is active on the existing Render service with persistent Neon Postgres 
 - Backend: https://mealio-backend-d7aa.onrender.com
 - Render service: `srv-dbnh60rrjlhs738q8fn0`, Free compute, auto-deploying `codex/stock-and-goals`.
 - Neon: `nourlo-accounts`, project `dawn-river-72271199`, `free_v3`, pdx1. Its Vercel connection is development-only; Render receives its private connection through server environment settings.
-- Guest access is enabled. Apple access remains disabled until the Apple capabilities and server signing credentials are configured.
+- Guest access and Sign in with Apple are both enabled (Apple since 26 Nov 2026: `AI_APPLE_ENABLED=1` with `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_APP_ID` and `APPLE_PRIVATE_KEY` set on Render; a real-device sign-in was confirmed by the owner). Still to do before release: Apple's server notification URL, and the revocation, cross-device and deletion checks below.
 - Provider model: existing Groq `openai/gpt-oss-120b`; existing provider and legacy app keys were preserved.
-- Default personal allowance: 30 credits/device/day. Weekly plans cost 5; chat, recipes and other suggestions cost 1. Failed/fallback responses do not spend personal credits.
+- Personal allowance on the live service: 30 credits a day (`AI_DAILY_CREDITS`); `AI_GLOBAL_DAILY_ATTEMPTS` is 300 and `TRUSTED_PROXY_COUNT` is 1. Weekly plans cost 5; chat, recipes and other suggestions cost 1. Failed/fallback responses do not spend personal credits.
 - Current overall limit: 30 provider attempts/day across the service. This is a conservative request cap, not a dollar budget or a public capacity guarantee.
 - Free hosting can sleep; account and AI requests allow additional wake time. Free database/provider allowances remain limited. No automatic paid upgrade was selected.
 
@@ -22,7 +22,7 @@ AI_APPLE_ENABLED=0
 AI_DATABASE_URL=<private Postgres connection>
 AI_SUBJECT_SECRET=<stable private secret>
 AI_TOKEN_ENCRYPTION_KEY=<stable private Fernet key>
-AI_DAILY_CREDITS=30
+AI_DAILY_CREDITS=15
 AI_GLOBAL_DAILY_ATTEMPTS=30
 ```
 

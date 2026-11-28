@@ -29,6 +29,8 @@ struct MascotPose: Equatable {
         var lift: Double = 0
         /// Shift toward the body's centre line.
         var reach: Double = 0
+        /// 0 a plain arm, 1 a flexed biceps (upper arm out, forearm up); above 1 the biceps pumps.
+        var flex: Double = 0
     }
 
     struct Foot: Equatable {
@@ -189,7 +191,7 @@ final class MascotRig {
             switch newMood {
             case .celebrate: hop()
             case .help: wave()
-            case .love: hop()
+            case .love, .flex: hop()
             case .thinking, .happy, .cheeky:
                 springs[S.sq.rawValue].v += -1.2
             case .idle, .sleepy, .worried: break
@@ -365,6 +367,7 @@ final class MascotRig {
         static let surprised = Expression(ooh: 1, wide: 1, brows: 0.8, blush: 0.5)
         static let whee = Expression(grin: 1, wide: 0.6, brows: 0.6, blush: 0.6)
         static let landed = Expression(grin: 1, squint: 1, blush: 0.7)
+        static let flex = Expression(grin: 1, squint: 1, brows: 0.8, blush: 0.8)
     }
 
     /// A passing face (a tap's flash, a landing, being held) keeps the mood's
@@ -395,6 +398,7 @@ final class MascotRig {
         case .cheeky: return .cheeky
         case .worried: return .worried
         case .love: return .love
+        case .flex: return .flex
         }
     }
 
@@ -409,7 +413,7 @@ final class MascotRig {
         case smile, ooh, wavy, grin, squint, wide, sleepy, brows, blush
         case wink, smirk, hearts, asleep, worry
         case confetti, zzz, thought, sweat, floatHearts
-        case armLRaise, armLLift, armLReach, armRRaise, armRLift, armRReach
+        case armLRaise, armLLift, armLReach, armRRaise, armRLift, armRReach, armLFlex, armRFlex
         case footLLift, footLRot, footRLift, footRRot
 
         var rest: Double {
@@ -435,7 +439,7 @@ final class MascotRig {
             case .smile, .ooh, .wavy, .grin, .squint, .wide, .sleepy, .brows,
                  .wink, .smirk, .hearts, .asleep, .worry: return .init(k: 900, c: 60)
             case .blush, .confetti, .zzz, .thought, .sweat, .floatHearts: return MotionTokens.fade
-            case .armLRaise, .armLLift, .armLReach, .armRRaise, .armRLift, .armRReach: return .init(k: 300, c: 19)
+            case .armLRaise, .armLLift, .armLReach, .armRRaise, .armRLift, .armRReach, .armLFlex, .armRFlex: return .init(k: 300, c: 19)
             case .footLLift, .footLRot, .footRLift, .footRRot: return .init(k: 380, c: 22)
             }
         }
@@ -646,6 +650,10 @@ final class MascotRig {
             l = .init(raise: 1.0, reach: 40); r = .init(raise: 1.0, reach: 40)
         case .love:
             l = .init(raise: 0.9); r = .init(raise: 0.9)
+        case .flex:
+            // Both biceps up; the bulge pumps while the mascot is lively.
+            let pump = loops ? 0.25 * max(0, sin(time * 2 * .pi * 1.3)) : 0
+            l = .init(lift: -10, flex: 1 + pump); r = .init(lift: -10, flex: 1 + pump)
         }
         if motion, time < waveUntil {
             r = .init(raise: 1.5 + sin((waveUntil - time) * 2 * .pi * 2.2) * 0.4, lift: -6, reach: -8)
@@ -659,6 +667,7 @@ final class MascotRig {
         }
         target(.armLRaise, l.raise); target(.armLLift, l.lift); target(.armLReach, l.reach)
         target(.armRRaise, r.raise); target(.armRLift, r.lift); target(.armRReach, r.reach)
+        target(.armLFlex, l.flex); target(.armRFlex, r.flex)
 
         // Feet
         var fl = MascotPose.Foot(), fr = MascotPose.Foot()
@@ -837,8 +846,8 @@ final class MascotRig {
         p.floatHearts = x(.floatHearts)
         p.time = loops ? t : pose.time
 
-        p.armL = .init(raise: x(.armLRaise), lift: x(.armLLift), reach: x(.armLReach))
-        p.armR = .init(raise: x(.armRRaise), lift: x(.armRLift), reach: x(.armRReach))
+        p.armL = .init(raise: x(.armLRaise), lift: x(.armLLift), reach: x(.armLReach), flex: x(.armLFlex))
+        p.armR = .init(raise: x(.armRRaise), lift: x(.armRLift), reach: x(.armRReach), flex: x(.armRFlex))
         p.footL = .init(lift: x(.footLLift), rotation: x(.footLRot))
         p.footR = .init(lift: x(.footRLift), rotation: x(.footRRot))
         if p != pose { pose = p }

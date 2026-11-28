@@ -13,18 +13,28 @@ struct StoreBrowserView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 VStack(spacing: Spacing.xl) {
                     budgetCard
+                        .id(TourTarget.budget).tourTarget(.budget)
                     // Inline under the card, so it never covers the Edit button.
                     TipView(budgetTip, arrowEdge: .top)
+                    // Right under the budget: what these prices are and which currency.
+                    aboutPrices
+                        .id(TourTarget.aboutPrices).tourTarget(.aboutPrices)
+                    WeeklyGroceryCard()
+                        .id(TourTarget.weeklyGroceries).tourTarget(.weeklyGroceries)
                     storeGrid
+                        .id(TourTarget.catalogue).tourTarget(.catalogue)
                     if cart.itemCount > 0 { cartPreview }
                 }
                 .padding(.horizontal, Spacing.lg)
                 .padding(.top, Spacing.sm)
                 .padding(.bottom, Spacing.xxl)
-                .animation(.snappyValue, value: cart.itemCount)
+                .animation(reduceMotion ? nil : .snappyValue, value: cart.itemCount)
+            }
+            .tourScrolling([.shop], proxy: proxy)
             }
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Shop")
@@ -36,7 +46,9 @@ struct StoreBrowserView: View {
                     } label: {
                         CartBadge(count: cart.itemCount)
                     }
+                    .tourTarget(.cart)
                 }
+                NourloToolbarItem()
             }
         }
         .sheet(isPresented: $showBudgetEditor) { budgetSheet }
@@ -54,21 +66,21 @@ struct StoreBrowserView: View {
                 : AnyLayout(HStackLayout())
             headerLayout {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Weekly Budget")
+                    Text("Weekly budget")
                         .font(.subheadline).fontWeight(.semibold)
                         .foregroundStyle(Color.labelSecondary)
                     let amountsLayout = dynamicTypeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
                         : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
                     amountsLayout {
-                        Text(String(format: "€%.2f", cart.total))
+                        Text(Money.format(eur: cart.total))
                             .font(.system(.title, design: .rounded).bold())
                             .foregroundStyle(cart.budgetColor)
                             .monospacedDigit()
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                             .contentTransition(.numericText())
-                        Text("/ \(String(format: "€%.2f", cart.weeklyBudget))")
+                        Text("/ \(Money.format(eur: cart.weeklyBudget))")
                             .font(.subheadline).foregroundStyle(Color.labelSecondary)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
@@ -76,8 +88,7 @@ struct StoreBrowserView: View {
                 }
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                 Button {
-                    budgetInput = cart.weeklyBudget == cart.weeklyBudget.rounded()
-                        ? String(format: "%.0f", cart.weeklyBudget) : String(format: "%.2f", cart.weeklyBudget)
+                    budgetInput = Money.inputText(eur: cart.weeklyBudget)
                     budgetError = nil
                     showBudgetEditor = true
                 } label: {
@@ -87,7 +98,12 @@ struct StoreBrowserView: View {
                         .padding(.horizontal, 12).padding(.vertical, 7)
                         .background(Color.brandLight, in: Capsule())
                         .foregroundStyle(Color.brandPrimary)
+                        // The pill stays small; the tap area is 44 pt.
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Edit weekly budget")
+                .accessibilityIdentifier("shop.editBudget")
             }
 
             // Progress bar
@@ -95,7 +111,8 @@ struct StoreBrowserView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color(.systemFill)).frame(height: 8)
                     Capsule()
-                        .fill(Color.dullPink)
+                        // Red from 90% of the budget, as the budget sheet says.
+                        .fill(cart.budgetFraction >= 0.9 ? Color.brandDanger : Color.dullPink)
                         .frame(width: geo.size.width * cart.budgetFraction, height: 8)
                         .animation(reduceMotion ? .none : .snappyValue, value: cart.budgetFraction)
                 }
@@ -103,16 +120,44 @@ struct StoreBrowserView: View {
             .frame(height: 8)
             .accessibilityElement()
             .accessibilityLabel("Weekly budget")
-            .accessibilityValue(String(format: "€%.2f of €%.2f spent", cart.total, cart.weeklyBudget))
+            .accessibilityValue(Money.spoken(eur: cart.total) + " of " + Money.spoken(eur: cart.weeklyBudget) + " spent")
 
             HStack {
                 Spacer()
-                Text("\(String(format: "€%.2f", max(cart.budgetRemaining, 0))) left")
+                Text(cart.budgetRemaining < 0 ? "\(Money.format(eur: -cart.budgetRemaining)) over" : "\(Money.format(eur: cart.budgetRemaining)) left")
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
         .padding(Spacing.lg)
         .premiumCard()
+    }
+
+    // MARK: - About prices
+
+    /// What the prices are (estimates, not live) and the currency they are in.
+    private var aboutPrices: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            AboutPricesNote(compact: true)
+            NavigationLink {
+                CurrencySettingsView()
+            } label: {
+                HStack {
+                    Text("Prices in \(Money.current.name) (\(Money.current.code))" as String)
+                        .font(.footnote.weight(.semibold))
+                    Spacer(minLength: Spacing.sm)
+                    Text("Change").font(.footnote.weight(.semibold))
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold))
+                }
+                .foregroundStyle(Color.brandPrimary)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("shop.currency")
+        }
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .premiumCard(radius: Radius.tile)
     }
 
     // MARK: - Catalogue and stock
@@ -131,7 +176,7 @@ struct StoreBrowserView: View {
             NavigationLink {
                 StockView()
             } label: {
-                ShopLinkCard(symbol: "cabinet.fill", title: "My stock",
+                ShopLinkCard(symbol: "cabinet.fill", title: "My Stock",
                              detail: "Food you have at home · add your own")
             }
             .buttonStyle(.plain)
@@ -147,8 +192,14 @@ struct StoreBrowserView: View {
                 Text("In Cart")
                     .font(.headline)
                 Spacer()
-                NavigationLink("View all", destination: CartView())
-                    .font(.subheadline).foregroundStyle(Color.brandPrimary)
+                NavigationLink {
+                    CartView()
+                } label: {
+                    Text("View all")
+                        .font(.subheadline).foregroundStyle(Color.brandPrimary)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
             }
 
             ForEach(cart.cartItems.prefix(3)) { item in
@@ -163,15 +214,15 @@ struct StoreBrowserView: View {
                         )
                     Text(item.name).font(.subheadline).fontWeight(.medium).lineLimit(1)
                     Spacer()
-                    Text("×\(item.quantity)")
+                    Text("×\(item.quantity)" as String)
                         .font(.caption).foregroundStyle(Color.labelSecondary)
-                    Text(String(format: "€%.2f", item.lineTotal))
+                    Text(Money.format(eur: item.lineTotal))
                         .font(.subheadline).fontWeight(.semibold).monospacedDigit()
                 }
             }
 
             if cart.cartItems.count > 3 {
-                Text("+ \(cart.cartItems.count - 3) more items")
+                Text("+ \(cart.cartItems.count - 3) more items" as String)
                     .font(.caption).foregroundStyle(Color.labelSecondary)
             }
         }
@@ -185,12 +236,24 @@ struct StoreBrowserView: View {
     /// a valid typed amount glides the ruler there. The ruler covers the whole
     /// allowed budget range, and only a drag to another tick writes, so opening
     /// or touching it never changes a typed amount like €7 or €500.
+    /// The ruler works in the chosen currency (in steps of 5, or 500 for yen);
+    /// the budget is kept in euros like every price.
+    private var budgetRulerStep: Double { Money.niceStep() }
+
+    private var budgetRulerRange: ClosedRange<Double> {
+        let local = Money.localRange(ShoppingCartService.budgetRange)
+        let step = budgetRulerStep
+        let lo = max((local.lowerBound / step).rounded(.up) * step, step)
+        let hi = max((local.upperBound / step).rounded(.down) * step, lo + step)
+        return lo...hi
+    }
+
     private var budgetSliderValue: Binding<Double> {
         Binding(
             get: {
-                let range = ShoppingCartService.budgetRange
-                let typed = EuroInput.parse(budgetInput)
-                return min(max(typed ?? cart.weeklyBudget, range.lowerBound), range.upperBound)
+                let range = budgetRulerRange
+                let typed = Money.parseLocal(budgetInput)
+                return min(max(typed ?? Money.local(fromEUR: cart.weeklyBudget), range.lowerBound), range.upperBound)
             },
             set: { budgetInput = String(format: "%.0f", $0) }
         )
@@ -199,18 +262,19 @@ struct StoreBrowserView: View {
     private var budgetSheet: some View {
         NavigationStack {
             Form {
-                Section("Weekly grocery budget") {
-                    RulerPicker(value: budgetSliderValue, range: ShoppingCartService.budgetRange, step: 5,
+                Section("Weekly grocery budget in \(Money.current.code)" as String) {
+                    RulerPicker(value: budgetSliderValue, range: budgetRulerRange, step: budgetRulerStep,
                                 majorEvery: 10, midEvery: 2, spacing: 12,
-                                tickLabel: { "€\(Int($0))" },
-                                accessibilityName: "Weekly budget")
+                                tickLabel: { Money.formatLocalWhole($0) },
+                                accessibilityName: "Weekly budget",
+                                spokenValue: { "\(Int($0)) \(Money.current.code)" })
                         .frame(height: 96)
                         .padding(.vertical, Spacing.xs)
                     HStack {
-                        Text("€")
-                        TextField("60", text: $budgetInput)
+                        Text(Money.symbol())
+                        TextField(Money.inputText(eur: 60), text: $budgetInput)
                             .keyboardType(.decimalPad)
-                            .accessibilityLabel("Weekly budget in euros")
+                            .accessibilityLabel("Weekly budget in \(Money.current.name)")
                             .accessibilityIdentifier("shop.budgetInput")
                             .onChange(of: budgetInput) { _, _ in budgetError = nil }
                     }
@@ -221,22 +285,25 @@ struct StoreBrowserView: View {
                     }
                 }
                 Section {
-                    Text("We'll warn you as you approach your limit while shopping.")
+                    Text("The budget bar fills as your cart grows and turns red once you have used 90% of the budget. Under it you see how much is left.")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
+                    AboutPricesNote(compact: true)
                 }
             }
-            .navigationTitle("Set Budget")
+            .navigationTitle("Set budget")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        switch EuroInput.validate(budgetInput, in: ShoppingCartService.budgetRange) {
-                        case .success(let value):
-                            cart.weeklyBudget = value
+                        // Typed in the chosen currency, kept in euros like every price.
+                        let range = ShoppingCartService.budgetRange
+                        switch Money.validateLocal(budgetInput, eurRange: range) {
+                        case .success(let eur):
+                            cart.weeklyBudget = min(max(eur, range.lowerBound), range.upperBound)
                             budgetTip.invalidate(reason: .actionPerformed)
                             showBudgetEditor = false
                         case .failure(let problem):
-                            budgetError = EuroInput.message(for: problem, example: "60")
+                            budgetError = Money.message(for: problem, example: Money.inputText(eur: 60))
                             UIAccessibility.post(notification: .announcement, argument: budgetError)
                         }
                     }
@@ -262,9 +329,9 @@ private struct ShopLinkCard: View {
         HStack(spacing: Spacing.md) {
             Image(systemName: symbol)
                 .font(.title3)
-                .foregroundStyle(Color.almond)
+                .foregroundStyle(Color.labelPrimary)
                 .frame(width: 44, height: 44)
-                .background(Color.rhino, in: RoundedRectangle(cornerRadius: Radius.chip))
+                .background(Color.surfaceSecondary, in: RoundedRectangle(cornerRadius: Radius.chip))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(title).font(.headline).foregroundStyle(Color.labelPrimary)
@@ -294,7 +361,7 @@ struct CartBadge: View {
                 .font(.system(size: 18))
                 .foregroundStyle(Color.brandPrimary)
             if count > 0 {
-                Text("\(min(count, 99))")
+                Text("\(min(count, 99))" as String)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.onAccent)
                     .padding(3)
@@ -334,12 +401,14 @@ struct CartView: View {
                         HStack {
                             Text("Subtotal")
                             Spacer()
-                            Text(String(format: "€%.2f", cart.total)).fontWeight(.semibold).monospacedDigit()
+                            Text(Money.format(eur: cart.total)).fontWeight(.semibold).monospacedDigit()
                         }
                         HStack {
-                            Text("Budget remaining")
+                            Text(cart.budgetRemaining < 0 ? "Over budget" : "Budget remaining")
                             Spacer()
-                            Text(String(format: "€%.2f", max(cart.budgetRemaining, 0)))
+                            Text(cart.budgetRemaining < 0
+                                 ? (Money.format(eur: -cart.budgetRemaining) + " over budget")
+                                 : Money.format(eur: cart.budgetRemaining))
                                 .foregroundStyle(cart.budgetColor).monospacedDigit()
                         }
                     }
@@ -385,16 +454,17 @@ private struct CartItemRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.subheadline).fontWeight(.medium)
-                Text(String(format: cart.isEstimated(item.catalogId, store: item.store) ? "est. €%.2f" : "your price €%.2f", item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
+                Text((cart.isEstimated(item.catalogId, store: item.store) ? "est. " : "your price ") + Money.format(eur: item.price)).font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
             QuantityStepper(quantity: item.quantity, name: item.name,
                             onAdd:    { cart.add(CatalogItem(id: item.catalogId, name: item.name, category: CatalogCategory(rawValue: item.category) ?? .snacks),
                                                  store: .catalog) },
                             onRemove: { cart.remove(item.catalogId, store: item.store) })
-            Text(String(format: "€%.2f", item.lineTotal))
+            Text(Money.format(eur: item.lineTotal))
                 .font(.subheadline).fontWeight(.semibold).monospacedDigit()
-                .frame(width: 52, alignment: .trailing)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 }

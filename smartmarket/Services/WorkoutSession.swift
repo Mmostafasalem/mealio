@@ -92,11 +92,21 @@ final class WorkoutSession {
         pushActivity(s)
     }
 
+    /// Shows `index` as the current exercise (workout mode moves forwards and back).
+    func syncStep(to index: Int) {
+        guard var s = state, !s.isFinished, s.steps.indices.contains(index), s.index != index else { return }
+        s.index = index
+        state = s
+        persist()
+        pushActivity(s)
+    }
+
     /// Finishes and logs the workout (once per day), and ends the Live Activity.
-    func finish(now: Date = Date()) {
+    /// `logID` is the workout-mode log saved for it, so the two can be deleted together.
+    func finish(now: Date = Date(), logID: UUID? = nil) {
         guard var s = state, s.finish(at: now) else { return }
         pushActivity(s)
-        complete(s)
+        complete(s, logID: logID)
     }
 
     /// Stops without logging anything.
@@ -119,7 +129,19 @@ final class WorkoutSession {
             self.workout = workout
             var finished = saved
             if finished.finishedAt == nil { finished.finish(at: now) }
-            complete(finished)
+            let end = finished.finishedAt ?? now
+            // Finish with nothing done (no set ticked in workout mode, or under a minute
+            // without it) is a stop, not a workout: nothing is logged.
+            let setsDone = WorkoutModeModel.draftSetsDone(for: workout, defaults: defaults)
+            if setsDone == 0 || (setsDone == nil && end.timeIntervalSince(finished.startDate) < 60) {
+                if setsDone != nil { defaults.removeObject(forKey: WorkoutModeModel.draftKey) }
+                endActivity(finished.id)
+                clear()
+                return
+            }
+            // The sets logged in workout mode go to Progress too.
+            let logged = WorkoutModeModel.saveFinishedDraft(for: workout, finishedAt: end, defaults: defaults)
+            complete(finished, logID: logged?.id)
             // Finished from the lock screen: the app may be about to be suspended again.
             onFinishedOutsideApp()
         } else if saved.isStale(now: now) {
@@ -132,11 +154,13 @@ final class WorkoutSession {
     }
 
     /// Logs the finished session with its real start and finish times.
-    private func complete(_ finished: WorkoutSessionState) {
+    /// A session stopped early counts its real minutes (see `WorkoutStore.complete`).
+    private func complete(_ finished: WorkoutSessionState, logID: UUID? = nil) {
         let end = finished.finishedAt ?? Date()
         if let workout {
             store.complete(workout, weightKg: weightKg(), now: end,
-                           tracked: DateInterval(start: finished.startDate, end: max(end, finished.startDate)))
+                           tracked: DateInterval(start: finished.startDate, end: max(end, finished.startDate)),
+                           logID: logID)
         }
         finishCount &+= 1
         clear()

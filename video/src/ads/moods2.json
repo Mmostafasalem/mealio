@@ -1,0 +1,15 @@
+{
+  "dur": 21.4,
+  "beat": 2.15,
+  "beats": [
+    ["say \"just one more slice\"", "cheeky", "🍕", "Slice 4 of 4 · 1 140 kcal", "#FFF4E8"],
+    ["meal prep on Sunday", "celebrate", "🍱", "5 lunches ready", "#E9F8F2"],
+    ["forget lunch again", "worried", "⏰", "3:40 pm · nothing logged", "#EEF2FA"],
+    ["hit a 30-day streak", "love", "🔥", "30 days in a row", "#FDEDF1"],
+    ["stay up scrolling", "sleepy", "📱", "1:12 am", "#EFEDF8"],
+    ["choose the salad", "happy", "🥗", "Lunch · 430 kcal", "#E7F6DA"],
+    ["come back after a week", "hello", "👋", "Welcome back!", "#FFF7E0"]
+  ],
+  "outro": 15.1,
+  "end": 16.6
+}

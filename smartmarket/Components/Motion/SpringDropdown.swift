@@ -408,7 +408,7 @@ final class SpringDropdownModel {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Meal").font(.headline).foregroundStyle(Color.labelPrimary)
-                Text("Logged to \(slot.title)").font(.caption).foregroundStyle(Color.labelSecondary)
+                Text("Logged to \(slot.title)" as String).font(.caption).foregroundStyle(Color.labelSecondary)
             }
             Spacer()
             SpringDropdown(title: "Meal", selection: $slot, options: MealSlot.allCases,
@@ -418,7 +418,7 @@ final class SpringDropdownModel {
         .padding(Spacing.lg)
         .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .zIndex(1)
-        Text("Add to \(slot.title)").font(.footnote).foregroundStyle(Color.labelSecondary)
+        Text("Add to \(slot.title)" as String).font(.footnote).foregroundStyle(Color.labelSecondary)
         Spacer()
     }
     .padding(Spacing.lg)

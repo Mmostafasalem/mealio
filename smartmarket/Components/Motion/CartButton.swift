@@ -27,8 +27,9 @@ struct CartButton: View {
     @State private var limitTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private static let widthClosed: CGFloat = 88
-    private static let widthOpen: CGFloat = 124
+    // The pill widens with the text size (capped below), so "Add" and "12" never clip.
+    @ScaledMetric(relativeTo: .subheadline) private var widthClosed: CGFloat = 88
+    @ScaledMetric(relativeTo: .subheadline) private var widthOpen: CGFloat = 124
     private static let side: CGFloat = 44
     private static let fade = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.2)
     private static let resize = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.32)
@@ -46,13 +47,13 @@ struct CartButton: View {
                 HStack(spacing: 0) {
                     control(systemImage: quantity == 1 ? "trash" : "minus", delta: -1,
                             label: quantity == 1 ? "Remove \(name) from cart" : "Decrease quantity")
-                    Text("\(quantity)")
+                    Text("\(quantity)" as String)
                         .font(.system(.callout, design: .rounded).weight(.bold))
                         .monospacedDigit()
                         .contentTransition(.numericText(value: Double(quantity)))
                         .frame(maxWidth: .infinity)
                         .offset(x: shake)
-                        .accessibilityLabel("\(quantity) \(name) in cart")
+                        .accessibilityLabel("\(quantity) \(name) in cart" as String)
                     Color.clear.frame(width: Self.side)
                 }
                 .foregroundStyle(Color.onAccent)
@@ -71,14 +72,15 @@ struct CartButton: View {
             control(systemImage: "plus", delta: 1, label: isOpen ? "Increase quantity" : "Add to cart")
                 .foregroundStyle(isOpen ? Color.onAccent.opacity(quantity >= max ? 0.4 : 1) : Color.labelPrimary)
         }
-        .frame(width: isOpen ? Self.widthOpen : Self.widthClosed, height: Self.side)
+        .frame(width: isOpen ? widthOpen : widthClosed, height: Self.side)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .clipShape(Capsule())
         .contentShape(Capsule())
         // Closed, the whole pill adds one.
         .onTapGesture { if !isOpen { step(1) } }
         .overlay(alignment: .topTrailing) {
             if showLimit {
-                Text("Limit \(max)")
+                Text("Limit \(max)" as String)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(Color.surface)
                     .padding(.horizontal, 8).padding(.vertical, 4)
@@ -167,7 +169,7 @@ struct CartButton: View {
     @Previewable @State var count = 0
     VStack(spacing: 24) {
         CartButton(quantity: count, max: 5, name: "Oats", onAdd: { count += 1 }, onRemove: { count -= 1 })
-        Text("In cart: \(count)")
+        Text("In cart: \(count)" as String)
     }
     .padding(40)
 }

@@ -6,6 +6,7 @@ struct RemindersView: View {
 
     @State private var store = ReminderStore.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     private var bell: Binding<Bool> {
         Binding(get: { store.isEnabled }, set: { on in Task { await store.setEnabled(on) } })
@@ -75,12 +76,17 @@ struct RemindersView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarHidden(false)
         .task { await store.refreshPermission() }
+        // Back from Settings: the permission may have changed there.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await store.refreshPermission() } }
+        }
     }
 }
 
 private struct ReminderRow: View {
     let reminder: Reminder
     let store: ReminderStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static let weekdayOrder = [2, 3, 4, 5, 6, 7, 1]      // Monday first
     private static let weekdayLetters = [1: "S", 2: "M", 3: "T", 4: "W", 5: "T", 6: "F", 7: "S"]
@@ -109,22 +115,21 @@ private struct ReminderRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: reminder.symbol)
-                    .foregroundStyle(Color.labelPrimary)
-                    .frame(width: 26)
-                    .accessibilityHidden(true)
-                Text(reminder.title)
-                Spacer(minLength: Spacing.sm)
-                DatePicker(reminder.title + " time", selection: time, displayedComponents: .hourAndMinute)
-                    .labelsHidden()
-                    .disabled(!reminder.isOn)
-                // The spring style draws its label, so the row's own title is the only text.
-                Toggle(isOn: isOn) { EmptyView() }
-                    .toggleStyle(.spring)
-                    .fixedSize()
-                    .accessibilityLabel(reminder.title + " reminder")
-                    .accessibilityIdentifier("reminders.toggle." + reminder.id)
+            if dynamicTypeSize.isAccessibilitySize {
+                // Large text: the title gets its own line, the controls sit under it.
+                title
+                HStack(spacing: Spacing.sm) {
+                    timePicker
+                    Spacer(minLength: Spacing.sm)
+                    toggle
+                }
+            } else {
+                HStack(spacing: Spacing.sm) {
+                    title
+                    Spacer(minLength: Spacing.sm)
+                    timePicker
+                    toggle
+                }
             }
             if reminder.kind == .workout && reminder.isOn {
                 HStack(spacing: 6) {
@@ -137,9 +142,12 @@ private struct ReminderRow: View {
                         } label: {
                             Text(Self.weekdayLetters[day] ?? "")
                                 .font(.footnote.weight(.semibold))
-                                .frame(maxWidth: .infinity, minHeight: 36)
+                                .frame(width: 36, height: 36)
                                 .background(chosen ? Color.dullPink : Color.surfaceSecondary, in: Circle())
                                 .foregroundStyle(chosen ? Color.onAccent : Color.labelPrimary)
+                                // The circle stays small; the touch target is 44 pt.
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel(Self.weekdayNames[day] ?? "")
@@ -152,6 +160,32 @@ private struct ReminderRow: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var title: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: reminder.symbol)
+                .foregroundStyle(Color.labelPrimary)
+                .frame(width: 26)
+                .accessibilityHidden(true)
+            Text(reminder.title)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var timePicker: some View {
+        DatePicker(reminder.title + " time", selection: time, displayedComponents: .hourAndMinute)
+            .labelsHidden()
+            .disabled(!reminder.isOn)
+    }
+
+    // The spring style draws its label, so the row's own title is the only text.
+    private var toggle: some View {
+        Toggle(isOn: isOn) { EmptyView() }
+            .toggleStyle(.spring)
+            .fixedSize()
+            .accessibilityLabel(reminder.title + " reminder")
+            .accessibilityIdentifier("reminders.toggle." + reminder.id)
     }
 }
 

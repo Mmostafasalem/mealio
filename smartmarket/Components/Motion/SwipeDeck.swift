@@ -156,7 +156,7 @@ struct SwipeDeck<Item: Identifiable, Card: View, Empty: View>: View {
             .simultaneousGesture(dragGesture(item, key: key), including: isTop ? .all : .subviews)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(label(item))
-            .accessibilityHint("Swipe right or use actions to \(acceptLabel.lowercased()), left to \(skipLabel.lowercased())")
+            .accessibilityHint("Swipe right or use actions to \(acceptLabel.lowercased()), left to \(skipLabel.lowercased())" as String)
             .accessibilityAction(named: acceptLabel) { decide(item, accepted: true) }
             .accessibilityAction(named: skipLabel) { decide(item, accepted: false) }
             .accessibilityHidden(!isTop)

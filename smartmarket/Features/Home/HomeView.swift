@@ -4,7 +4,6 @@ struct HomeView: View {
 
     /// Profile opens from the avatar in the header (and from quick actions).
     @State private var showProfile = false
-    @State private var showReminders = false
     @State private var reminders = ReminderStore.shared
     @State private var loop = DailyLoopStore.shared
     @State private var showStock = false
@@ -19,7 +18,9 @@ struct HomeView: View {
     @ViewBuilder
     private var dueReminders: some View {
         let loggedSlots = vm.loggedSlots
+        // Only reminders for features the person uses: workouts, or meals to log.
         let due = reminders.due(now: vm.now, loggedSlots: loggedSlots)
+            .filter { FeatureLayout.offersReminder($0.kind, AppState.shared.enabledFeatures) }
         if !due.isEmpty {
             NotificationStack(
                 notices: due.map { StackNotice(id: $0.id, symbol: $0.symbol, title: $0.title, body: $0.message, detail: $0.timeText) },
@@ -41,6 +42,12 @@ struct HomeView: View {
         }
     }
 
+    /// What the person uses Nourlo for (onboarding, Profile › Features).
+    private func has(_ feature: AppFeature) -> Bool { AppState.shared.isEnabled(feature) }
+    private var showsStock: Bool { FeatureLayout.showsStock(AppState.shared.enabledFeatures) }
+    /// The microphone sits beside Log food on the calorie card.
+    private var showsVoice: Bool { FeatureLayout.showsVoice(AppState.shared.enabledFeatures) }
+
     private func openQuest(_ destination: QuestDestination) {
         switch destination {
         case .logFood: vm.openLog()
@@ -50,19 +57,6 @@ struct HomeView: View {
         }
     }
 
-    private func shortcut(_ title: String, symbol: String) -> some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: symbol)
-            Text(title).lineLimit(1).minimumScaleFactor(0.8)
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(Color.labelPrimary)
-        .frame(maxWidth: .infinity, minHeight: 44)
-        .background(Color.surface, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: 1))
-        .contentShape(Capsule())
-    }
-
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
@@ -70,51 +64,58 @@ struct HomeView: View {
 
                 // Custom goo pull-to-refresh (replaces the system `.refreshable`);
                 // the island floats above the list for Home's transient notices.
+                ScrollViewReader { proxy in
                 GooPullRefresh(action: { await vm.refresh() }) {
                     MorphIsland(item: notice, style: \.islandStyle) { notice in
                         noticeView(notice)
                     }
                 } content: {
                     VStack(spacing: Spacing.md) {
-                        HomeHeaderView(vm: vm, onProfile: { showProfile = true }, onReminders: { showReminders = true })
+                        HomeHeaderView(vm: vm, onProfile: { showProfile = true })
+                            .id(TourTarget.nourlo)
+                        // One hero (calories today, or the first thing the person chose), then
+                        // sections that each have their own colour, icon and call to action.
                         VStack(spacing: Spacing.lg) {
                             dueReminders
-                            // Two matching pills with the microphone between them.
-                            HStack(spacing: Spacing.md) {
-                                NavigationLink { StockView() } label: { shortcut("My Stock", symbol: "cabinet") }
-                                    .accessibilityIdentifier("home.stock")
-                                // One tap to speak a command (the same sheet as "+" › Speak a command).
-                                Button { NotificationCenter.default.post(name: .openVoice, object: nil) } label: {
-                                    Image(systemName: "mic.fill")
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(Color.onAccent)
-                                        .frame(width: 44, height: 44)
-                                        .background(Color.dullPink, in: Circle())
-                                        .contentShape(Circle())
-                                }
-                                .accessibilityLabel("Speak a command")
-                                .accessibilityIdentifier("home.voice")
-                                // The same small "i" as the macros, centred just above the microphone,
-                                // in the gap under the header, so the row stays symmetrical.
-                                .overlay {
-                                    InfoTooltip(text: "Tap the microphone and say what you ate or want, like \u{201C}two eggs for breakfast\u{201D}, \u{201C}add milk to my cart\u{201D} or \u{201C}start a 30 minute workout\u{201D}. It listens on this iPhone and shows what it understood before saving.")
-                                        .offset(y: -34)
-                                }
-                                NavigationLink { FoodHistoryView() } label: { shortcut("History", symbol: "clock") }
+                            if has(.tracking) {
+                                CalorieSummaryCard(vm: vm, showsVoice: showsVoice, onLog: { vm.openLog() })
+                                    .id(TourTarget.calories)
+                                PendingMealsCard()
                             }
-                            .buttonStyle(ScalePressStyle())
-                            CalorieSummaryCard(vm: vm, onLog: { vm.openLog() })
-                            DailyQuestCard(state: loop.state, onOpen: openQuest)
+                            if !loop.state.quests.isEmpty {
+                                DailyQuestCard(state: loop.state, onOpen: openQuest)
+                                    .id(TourTarget.quests)
+                                    .tourTarget(.quests)
+                            }
+                            if has(.tracking) {
+                                // Above the cards below it: its goo menu pours out over them.
+                                TodaysLogCard(vm: vm).zIndex(1)
+                            }
+                            if has(.meals) {
+                                MealPlanPreviewCard(vm: vm).id(TourTarget.todaysMeals).tourTarget(.todaysMeals)
+                            }
+                            if has(.groceries) {
+                                GrocerySummaryCard(showsStock: showsStock).id(TourTarget.groceries).tourTarget(.groceries)
+                            }
+                            if has(.workouts) {
+                                WorkoutSummaryCard().id(TourTarget.training).tourTarget(.training)
+                            }
                             // Only while Apple Health is on; refreshes itself when shown.
                             ActivityCard()
-                            // Above the cards below it: its goo menu pours out over them.
-                            TodaysLogCard(vm: vm).zIndex(1)
-                            HomeDealsSection(vm: vm)
-                            MealPlanPreviewCard(vm: vm)
+                            // My Stock without Shop (meals only): its own way in.
+                            if showsStock && !has(.groceries) {
+                                NavigationLink { StockView() } label: {
+                                    HomeSectionButtonLabel(title: "My Stock", symbol: "cabinet.fill", section: .meals, prominent: false)
+                                }
+                                .buttonStyle(ScalePressStyle())
+                                .accessibilityIdentifier("home.stock")
+                            }
                         }
                         .padding(.horizontal, Spacing.lg)
                         .padding(.bottom, Spacing.xxl)
                     }
+                }
+                .tourScrolling([.home, .quickActions], proxy: proxy)
                 }
             }
             // Content scrolling up no longer shows through the clock and battery.
@@ -124,12 +125,17 @@ struct HomeView: View {
                     .allowsHitTesting(false)
             }
             .navigationBarHidden(true)
-            .navigationDestination(isPresented: $showReminders) { RemindersView() }
             .navigationDestination(isPresented: $showProfile) {
                 ProfileView().navigationBarHidden(false)
             }
             .navigationDestination(isPresented: $showStock) { StockView() }
             .onReceive(NotificationCenter.default.publisher(for: .openProfile)) { _ in showProfile = true }
+            // The guided tour shows Profile itself, and starts on Home's first screen.
+            .onChange(of: GuidedTour.shared.current?.page) { _, page in
+                guard let page else { return }
+                showStock = false
+                showProfile = page == .profile
+            }
         }
         .sheet(isPresented: $vm.showLogSheet) { LogFoodSheet(vm: vm) }
         .sheet(isPresented: $vm.showAgentChat) { AgentChatSheet(vm: vm) }
@@ -156,6 +162,8 @@ struct HomeView: View {
         .onChange(of: WorkoutStore.shared.completed.first?.id) { _, _ in loop.refresh() }
         .onChange(of: WorkoutStore.shared.completed.count) { _, _ in loop.refresh() }
         .onChange(of: AppState.shared.userProfile.dailyCalorieGoal) { _, _ in loop.refresh() }
+        // Turning a feature on or off changes which quests make sense.
+        .onChange(of: AppState.shared.enabledFeatures) { _, _ in loop.refresh() }
         .task(id: loop.pendingMilestone) {
             guard loop.pendingMilestone != nil else { return }
             try? await Task.sleep(for: .seconds(3.5))
@@ -208,7 +216,10 @@ struct HomeView: View {
         }
         .font(.footnote.weight(.semibold))
         .foregroundStyle(Color.labelPrimary)
-        .lineLimit(1)
+        // The streak sentence needs room at larger text sizes.
+        .lineLimit(2)
+        .minimumScaleFactor(0.85)
+        .multilineTextAlignment(.leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .accessibilityElement(children: .combine)

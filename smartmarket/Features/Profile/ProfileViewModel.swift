@@ -39,7 +39,9 @@ final class ProfileViewModel {
 
     func load() {
         guard !didLoad else { return }
-        load(profile: .load(), preferences: .load(),
+        // The app's current profile (read from the Keychain at launch and updated on
+        // every save), so Profile always shows what Home shows.
+        load(profile: AppState.shared.isOnboarded ? AppState.shared.userProfile : .load(), preferences: .load(),
              favorites: Set(UserDefaults.standard.stringArray(forKey: Constants.Storage.favoriteFoodIDs) ?? []))
     }
 
@@ -86,6 +88,47 @@ final class ProfileViewModel {
         save()
     }
 
+    // MARK: - Daily targets (Profile › Goals & targets)
+
+    var targetOverrides: TargetOverrides { TargetOverrides.load() }
+
+    /// The daily goal Nourlo recommends for the body stats, goal and pace.
+    var recommendedCalories: Int { targets().dailyGoal }
+
+    /// The usual macro split of `calories`.
+    func recommendedMacros(calories: Int) -> BMRCalculator.MacroTargets {
+        BMRCalculator.recommendedMacroTargets(calories: calories, isKeto: selectedPreferences.contains(.keto))
+    }
+
+    /// The macros in use now (typed ones, else the split of today's goal).
+    var currentMacros: BMRCalculator.MacroTargets {
+        BMRCalculator.macroTargets(calories: profile.dailyCalorieGoal, isKeto: selectedPreferences.contains(.keto))
+    }
+
+    /// Saves typed targets (nil = follow the recommendation) and passes them to
+    /// Home, the planner, widgets and the agent the same way a profile save does.
+    func setTargets(_ overrides: TargetOverrides) {
+        overrides.save()
+        propagateTargets()
+    }
+
+    /// "Use recommended": forgets every typed target.
+    func useRecommendedTargets() {
+        TargetOverrides.clear()
+        propagateTargets()
+    }
+
+    private func propagateTargets() {
+        profile = Self.prepared(profile)
+        profile.save()
+        UserProfile.markTargetsCurrent()
+        AppState.shared.userProfile = profile
+        AppState.shared.saveBMR(BMRCalculator.response(for: profile,
+                                                       isKeto: selectedPreferences.contains(.keto)))
+        NotificationCenter.default.post(name: .personalDataDidChange, object: nil)
+        lastSaved = current
+    }
+
     // MARK: - Save
 
     /// Recomputes targets (the same path as onboarding) and saves. Does nothing,
@@ -115,7 +158,7 @@ final class ProfileViewModel {
 
     /// The profile `save()` stores: goal moved to what the age allows and
     /// targets recomputed. Pure, so tests can check it without the Keychain.
-    nonisolated static func prepared(_ profile: UserProfile) -> UserProfile {
+    static func prepared(_ profile: UserProfile) -> UserProfile {
         var profile = profile
         BMRCalculator.populate(profile: &profile)
         return profile
@@ -138,6 +181,12 @@ final class ProfileViewModel {
         }
     }
 
+    /// Picks or clears a whole group at once ("Select all" in a category or subgroup).
+    func setFavorites(_ items: [CatalogItem], selected: Bool) {
+        let ids = Set(items.map(\.id))
+        if selected { favoriteFoodIDs.formUnion(ids) } else { favoriteFoodIDs.subtract(ids) }
+    }
+
     func toggleFavorite(_ item: CatalogItem) {
         if favoriteFoodIDs.contains(item.id) {
             favoriteFoodIDs.remove(item.id)
@@ -157,7 +206,7 @@ final class ProfileViewModel {
         if !localOnly {
             do { try await AIAccountService.shared.deleteAccountIfPresent() }
             catch {
-                serverDeletionFailure = "The online AI account on Nourlo's server could not be deleted (\(error.localizedDescription)). You can erase this iPhone's data anyway, but the server account and its AI usage record will remain. To delete it later, finish setup, sign in with the same Apple Account in Profile, then use Delete All Data again. Guest access can't be restored after erasing, so for a guest account ask the person who provided your build to delete it. Or cancel, connect to the internet, sign in again and retry."
+                serverDeletionFailure = "The online AI account on Nourlo's server could not be deleted (\(error.localizedDescription)). You can erase this iPhone's data anyway, but the server account and its AI usage record will remain. To delete it later, finish setup, sign in with the same Apple Account in Profile, then use Delete All Data again. Guest access can't be restored after erasing, so for a guest account write to \(Constants.Support.email) and we'll delete it. Or cancel, connect to the internet, sign in again and retry."
                 return
             }
         }
@@ -170,7 +219,8 @@ final class ProfileViewModel {
             deletionError = "Could not erase secure storage. Unlock your iPhone and retry deletion."
             return
         }
-        AIAccountService.shared.clearLocalSession()
+        // Guest accounts can't be signed into again once their secret is erased: don't keep a marker for one.
+        AIAccountService.shared.clearLocalSessionForLocalErase()
         // Stops Apple Health syncing and forgets what was written; data
         // already in the Health app stays there for the person to manage.
         HealthService.shared.resetForDataDeletion()
@@ -216,8 +266,14 @@ final class ProfileViewModel {
     static func reloadErasedStores() {
         FoodLogStore.shared.clearAll()          // also StockStore and NutritionCatalogService
         WorkoutStore.shared.reload()
+        TrainingLogStore.shared.reload()
+        CustomExerciseStore.shared.reload()
+        WorkoutSession.shared.cancel()
         ReminderStore.shared.reload()
+        VoiceAIKeyStore.shared.remove()
         RecipeRatingStore.shared.reload()
         DailyLoopStore.shared.reset()
+        ProfilePhotoStore.shared.remove()
+        CurrencyStore.shared.reload()
     }
 }

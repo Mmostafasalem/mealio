@@ -215,6 +215,7 @@ def test_recipe_cache_survives_concurrent_eviction(monkeypatch):
     monkeypatch.setattr(app, "_recipe_cache", type(app._recipe_cache)())
 
     def hit(n):
+        ai_usage.account.set("account-under-test")   # recipes are cached per account
         for i in range(200):
             result = app.handle_recipe({"mealName": f"dish {(n + i) % 7}"})
             assert result["mealName"].startswith("dish")
@@ -222,7 +223,52 @@ def test_recipe_cache_survives_concurrent_eviction(monkeypatch):
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
         assert all(pool.map(hit, range(8)))
-    assert len(app._recipe_cache) <= 3
+    assert 0 < len(app._recipe_cache) <= 3
+
+
+def test_recipe_cache_is_per_account_and_off_without_one(monkeypatch):
+    calls = []
+    def online(messages, fallback=None, **kw):
+        calls.append(True)
+        ai_usage.succeeded.set(True)
+        return dict(fallback)
+    monkeypatch.setattr(app, "groq_json", online)
+    monkeypatch.setattr(app, "_recipe_cache", type(app._recipe_cache)())
+    body = {"mealName": "Grandma's secret soup"}
+    ai_usage.account.set("account-a")
+    app.handle_recipe(body); app.handle_recipe(body)
+    assert len(calls) == 1                      # the same account reuses its own recipe
+    ai_usage.account.set("account-b")
+    app.handle_recipe(body)
+    assert len(calls) == 2                      # another account never gets account A's entry
+    ai_usage.account.set(None)
+    app.handle_recipe(body); app.handle_recipe(body)
+    assert len(calls) == 4 and len(app._recipe_cache) == 2   # unknown account: no caching
+
+
+def test_curated_catalog_never_searches_open_food_facts_by_name(monkeypatch):
+    lookups = []
+    monkeypatch.setattr(app, "nutrition_for", lambda **kw: lookups.append(kw))
+    monkeypatch.setattr(app, "_CATALOG_CACHE", {"data": None, "ts": 0.0})
+    catalog = {p["name"]: p for p in app.get_product_catalog()}
+    assert lookups == []                        # every curated item carries its own nutrition
+    assert all(p["nutritionSource"] == "curated" for p in catalog.values())
+    assert (catalog["Banana"]["kcalPer100g"], catalog["Banana"]["carbsPer100g"]) == (89, 22.8)
+    assert (catalog["Chicken breast"]["kcalPer100g"], catalog["Chicken breast"]["proteinPer100g"]) == (120, 22.5)
+    assert (catalog["Oats"]["kcalPer100g"], catalog["Oats"]["fatPer100g"]) == (379, 6.5)
+    # An item with neither nutrition nor barcode gets the category average, not a name search.
+    assert app._resolve_nutrition({"name": "Banana", "category": "fruit"})[-1] == "estimated"
+    assert not hasattr(openfoodfacts, "_by_name")
+
+
+def test_rate_limit_counts_an_ipv6_network_not_one_address():
+    assert app.network_key("2001:db8:1:2:aaaa::1") == app.network_key("2001:db8:1:2:bbbb::2") == "2001:db8:1:2::/64"
+    assert app.network_key("2001:db8:1:3::1") != app.network_key("2001:db8:1:2::1")
+    assert app.network_key("198.51.100.7") == "198.51.100.7"
+    assert app.network_key("::ffff:198.51.100.7") == "198.51.100.7"
+    assert app.network_key("not an address") == "not an address"
+    limited = [app._is_rate_limited(f"2001:db8:77:1::{n:x}") for n in range(app._RATE_MAX + 5)]
+    assert limited.count(False) == app._RATE_MAX
 
 
 def test_rate_limiter_is_exact_under_threads():
@@ -245,26 +291,26 @@ def off_cache(tmp_path, monkeypatch):
 
 
 def test_off_cache_write_is_atomic(off_cache, monkeypatch):
-    openfoodfacts._cache["n:milk"] = {"kcal": 60}
+    openfoodfacts._cache["b:milk"] = {"kcal": 60}
     openfoodfacts._save_cache()
-    assert json.loads(off_cache.read_text()) == {"n:milk": {"kcal": 60}}
+    assert json.loads(off_cache.read_text()) == {"b:milk": {"kcal": 60}}
 
     # A write that fails half-way leaves the old file intact and no temp files.
-    openfoodfacts._cache["n:bread"] = {"kcal": 250}
+    openfoodfacts._cache["b:bread"] = {"kcal": 250}
     def broken_dump(obj, f):
-        f.write('{"n:milk": {"kc')
+        f.write('{"b:milk": {"kc')
         raise OSError("disk full")
     monkeypatch.setattr(openfoodfacts.json, "dump", broken_dump)
     openfoodfacts._save_cache()
-    assert json.loads(off_cache.read_text()) == {"n:milk": {"kcal": 60}}
+    assert json.loads(off_cache.read_text()) == {"b:milk": {"kcal": 60}}
     assert [p.name for p in off_cache.parent.iterdir()] == ["off_cache.json"]
 
 
 def test_off_cache_concurrent_lookups_keep_a_valid_file(off_cache, monkeypatch):
-    monkeypatch.setattr(openfoodfacts, "_by_name", lambda name: {"kcal": len(name), "protein": 1.0,
+    monkeypatch.setattr(openfoodfacts, "_by_barcode", lambda barcode: {"kcal": len(barcode), "protein": 1.0,
                                                                   "carbs": 0.0, "fat": 0.0})
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-        list(pool.map(lambda n: openfoodfacts.nutrition_for(name=f"food {n}"), range(210)))
+        list(pool.map(lambda n: openfoodfacts.nutrition_for(barcode=f"food {n}"), range(210)))
     openfoodfacts.flush()
     stored = json.loads(off_cache.read_text())
     assert len(stored) == 210
@@ -272,18 +318,18 @@ def test_off_cache_concurrent_lookups_keep_a_valid_file(off_cache, monkeypatch):
 
 
 def test_off_cache_is_saved_in_batches(off_cache, monkeypatch):
-    monkeypatch.setattr(openfoodfacts, "_by_name", lambda name: {"kcal": 1, "protein": 1.0,
+    monkeypatch.setattr(openfoodfacts, "_by_barcode", lambda barcode: {"kcal": 1, "protein": 1.0,
                                                                   "carbs": 0.0, "fat": 0.0})
     writes = []
     real_write = openfoodfacts._write_file
     monkeypatch.setattr(openfoodfacts, "_write_file", lambda snap: writes.append(len(snap)) or real_write(snap))
     every = openfoodfacts._SAVE_EVERY
     for n in range(every * 2 + 3):
-        openfoodfacts.nutrition_for(name=f"food {n}")
+        openfoodfacts.nutrition_for(barcode=f"food {n}")
     assert writes == [every, every * 2], "one write per batch, not per lookup"
     assert len(json.loads(off_cache.read_text())) == every * 2
     # A repeat lookup is served from memory and adds nothing to save.
-    openfoodfacts.nutrition_for(name="food 0")
+    openfoodfacts.nutrition_for(barcode="food 0")
     openfoodfacts.flush()
     assert writes[-1] == every * 2 + 3
     assert len(json.loads(off_cache.read_text())) == every * 2 + 3
@@ -292,35 +338,35 @@ def test_off_cache_is_saved_in_batches(off_cache, monkeypatch):
 
 
 def test_off_cache_saves_a_stale_batch_early(off_cache, monkeypatch):
-    monkeypatch.setattr(openfoodfacts, "_by_name", lambda name: {"kcal": 1, "protein": 1.0,
+    monkeypatch.setattr(openfoodfacts, "_by_barcode", lambda barcode: {"kcal": 1, "protein": 1.0,
                                                                   "carbs": 0.0, "fat": 0.0})
     clock = [1000.0]
     monkeypatch.setattr(openfoodfacts, "time", types.SimpleNamespace(monotonic=lambda: clock[0]))
-    openfoodfacts.nutrition_for(name="first")
+    openfoodfacts.nutrition_for(barcode="first")
     assert not off_cache.exists()
     clock[0] += openfoodfacts._SAVE_AFTER_SECONDS + 1
-    openfoodfacts.nutrition_for(name="second")
-    assert set(json.loads(off_cache.read_text())) == {"n:first", "n:second"}
+    openfoodfacts.nutrition_for(barcode="second")
+    assert set(json.loads(off_cache.read_text())) == {"b:first", "b:second"}
 
 
 def test_off_cache_failed_write_is_retried(off_cache, monkeypatch):
-    monkeypatch.setattr(openfoodfacts, "_by_name", lambda name: {"kcal": 1, "protein": 1.0,
+    monkeypatch.setattr(openfoodfacts, "_by_barcode", lambda barcode: {"kcal": 1, "protein": 1.0,
                                                                   "carbs": 0.0, "fat": 0.0})
     real_write = openfoodfacts._write_file
     monkeypatch.setattr(openfoodfacts, "_write_file", lambda snap: False)
-    openfoodfacts.nutrition_for(name="kept")
+    openfoodfacts.nutrition_for(barcode="kept")
     openfoodfacts.flush()
     assert not off_cache.exists()
     monkeypatch.setattr(openfoodfacts, "_write_file", real_write)
     openfoodfacts.flush()
-    assert set(json.loads(off_cache.read_text())) == {"n:kept"}
+    assert set(json.loads(off_cache.read_text())) == {"b:kept"}
 
 
 def test_unread_off_cache_is_never_written(off_cache, monkeypatch):
     monkeypatch.setattr(openfoodfacts, "_loaded", False)
-    off_cache.write_text('{"n:old": {"kcal": 1}}')
+    off_cache.write_text('{"b:old": {"kcal": 1}}')
     openfoodfacts._save_cache()
-    assert json.loads(off_cache.read_text()) == {"n:old": {"kcal": 1}}
+    assert json.loads(off_cache.read_text()) == {"b:old": {"kcal": 1}}
 
 
 def test_bmr_loss_floor_never_exceeds_maintenance():

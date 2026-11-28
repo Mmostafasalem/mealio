@@ -5,6 +5,9 @@ import Observation
 @MainActor @Observable
 final class NutritionCatalogService {
     static let shared = NutritionCatalogService()
+    /// Whether the shared catalogue has been read (the meal plan only matches foods once it has,
+    /// so building a plan never forces the read on the main thread).
+    private(set) static var isLoaded = false
     static let cacheKey = "nutritionProducts_v1"
     static let customKey = "nutritionCustomFoods_v1"
     enum Market: String, CaseIterable, Identifiable {
@@ -27,8 +30,39 @@ final class NutritionCatalogService {
     private(set) var loadError: String?
     private(set) var savedProducts: [NutritionFood] = []
     private(set) var customFoods: [NutritionFood] = []
-    private var index = NutritionSearchIndex(foods: [])
-    private var ingredientIndex = NutritionSearchIndex(foods: [])
+    /// The bundled foods' indexes are built once (they never change); the person's own
+    /// dishes and saved products are small and re-indexed when they change.
+    private var staticIndex = NutritionSearchIndex(foods: [])
+    private var foodsIndex = NutritionSearchIndex(foods: [])
+    private var ownIndex = NutritionSearchIndex(foods: [])
+    private var savedIndex = NutritionSearchIndex(foods: [])
+
+    /// The bundled catalogue, decoded and indexed off the main thread by `warmUp()`.
+    nonisolated struct Preloaded: Sendable {
+        let foods: [NutritionFood]
+        let regional: [NutritionFood]
+        let staticIndex: NutritionSearchIndex
+        let foodsIndex: NutritionSearchIndex
+        let failed: Bool
+    }
+    private static var preloaded: Preloaded?
+
+    nonisolated static func buildPreloaded() -> Preloaded {
+        let loaded = try? NutritionDatabase.load()
+        let foods = loaded ?? []
+        let regional = NutritionDatabase.loadRegional()
+        return Preloaded(foods: foods, regional: regional, staticIndex: NutritionSearchIndex(foods: regional + foods),
+                         foodsIndex: NutritionSearchIndex(foods: foods), failed: loaded == nil)
+    }
+
+    /// Reads the catalogue in the background and then creates the shared service, so the
+    /// first Log Food or cart tap doesn't wait for a few megabytes of JSON on the main thread.
+    static func warmUp() async {
+        guard !isLoaded, preloaded == nil else { return }
+        let built = await Task.detached(priority: .utility) { buildPreloaded() }.value
+        if !isLoaded { preloaded = built }
+        _ = shared
+    }
     private let defaults: UserDefaults
     private let session: URLSession
     private let now: () -> Date
@@ -46,10 +80,15 @@ final class NutritionCatalogService {
         configuration.urlCredentialStorage = nil
         configuration.httpShouldSetCookies = false
         self.session = session ?? URLSession(configuration: configuration)
-        do { foods = try NutritionDatabase.load() }
-        catch { loadError = "The offline food database could not be opened. Product search is still available." }
-        regionalDishes = NutritionDatabase.loadRegional()
+        let data = (defaults === UserDefaults.standard ? Self.preloaded : nil) ?? Self.buildPreloaded()
+        Self.preloaded = nil
+        foods = data.foods
+        regionalDishes = data.regional
+        staticIndex = data.staticIndex
+        foodsIndex = data.foodsIndex
+        if data.failed { loadError = "The offline food database could not be opened. Product search is still available." }
         reloadSaved()
+        if defaults === UserDefaults.standard { Self.isLoaded = true }
     }
     func reloadSaved() {
         savedProducts = (defaults.data(forKey: Self.cacheKey)
@@ -61,10 +100,14 @@ final class NutritionCatalogService {
         rebuildIndex()
     }
     private func rebuildIndex() {
-        index = NutritionSearchIndex(foods: customFoods + savedProducts + regionalDishes + foods)
-        ingredientIndex = NutritionSearchIndex(foods: savedProducts + foods)
+        ownIndex = NutritionSearchIndex(foods: customFoods + savedProducts)
+        savedIndex = NutritionSearchIndex(foods: savedProducts)
     }
-    func searchIngredients(_ query: String) -> [NutritionFood] { ingredientIndex.search(query) }
+    /// The person's own matches first, then the catalogue's, up to `limit`.
+    private static func merged(_ own: [NutritionFood], _ rest: [NutritionFood], limit: Int = 60) -> [NutritionFood] {
+        Array((own + rest).prefix(limit))
+    }
+    func searchIngredients(_ query: String) -> [NutritionFood] { Self.merged(savedIndex.search(query), foodsIndex.search(query)) }
     func saveCustom(_ food: NutritionFood) throws {
         guard food.isValid, food.source == .recipe || food.source == .menu else { throw NutritionEntryError.invalidMenu }
         guard customFoods.count < 200 || customFoods.contains(where: { $0.id == food.id }) else { throw NutritionEntryError.tooMany }
@@ -99,10 +142,11 @@ final class NutritionCatalogService {
         if let data = try? JSONEncoder().encode(savedProducts) { defaults.set(data, forKey: Self.cacheKey) }
     }
     func find(_ id: String) -> NutritionFood? {
-        customFoods.first { $0.id == id } ?? savedProducts.first { $0.id == id }
+        if id.hasPrefix("cookbook:") { return CookbookLibrary.recipe(id: String(id.dropFirst("cookbook:".count)))?.servingFood }
+        return customFoods.first { $0.id == id } ?? savedProducts.first { $0.id == id }
             ?? regionalDishes.first { $0.id == id } ?? foods.first { $0.id == id }
     }
-    func searchLocal(_ query: String) -> [NutritionFood] { index.search(query) }
+    func searchLocal(_ query: String) -> [NutritionFood] { Self.merged(ownIndex.search(query), staticIndex.search(query)) }
 
     enum LookupError: LocalizedError {
         case invalidQuery, rateLimited, unavailable, invalidResponse
@@ -143,7 +187,7 @@ final class NutritionCatalogService {
         let timestamp = now()
         if let lastSearch, timestamp.timeIntervalSince(lastSearch) < Self.searchSpacing { throw LookupError.rateLimited }
         lastSearch = timestamp
-        let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,nutriments,product_quantity_unit,serving_quantity_unit,nutrition_data_per,stores_tags,countries_tags"
+        let fields = "code,product_name,product_name_en,product_name_lt,product_name_ar,generic_name,brands,quantity,product_quantity,nutriments,product_quantity_unit,serving_size,serving_quantity,serving_quantity_unit,number_of_units,nutrition_data_per,stores_tags,countries_tags"
         var parts = URLComponents(string: "https://world.openfoodfacts.org")!
         parts.path = isBarcode ? "/api/v2/product/\(query).json" : (structured ? "/api/v2/search" : "/cgi/search.pl")
         parts.queryItems = [URLQueryItem(name: "fields", value: fields)]
@@ -183,7 +227,7 @@ final class NutritionCatalogService {
                                                                          "langs": Array(Set([market.language, "en"])).sorted(),
                                                                          "fields": fields.components(separatedBy: ",")])
         }
-        request.setValue("Nourlo/1.0 (https://github.com/Mmostafasalem/mealio)", forHTTPHeaderField: "User-Agent")
+        request.setValue("Nourlo/1.0 (nourlo.app.support@gmail.com)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let requestGeneration = generation
         let (data, response) = try await session.data(for: request)

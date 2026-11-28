@@ -26,7 +26,6 @@ struct StoreProductsView: View {
             categoryStrip
             priceFilter
             productList
-            cartBar
         }
         .background(Color.surfaceGrouped.ignoresSafeArea())
         .navigationTitle("Catalogue")
@@ -85,7 +84,7 @@ struct StoreProductsView: View {
 
     private var isPriceFiltered: Bool { minPrice != nil || maxPrice != nil }
 
-    private func euro(_ v: Double) -> String { String(format: "€%.2f", v) }
+    private func euro(_ v: Double) -> String { Money.format(eur: v) }
 
     private var priceSummary: String {
         let b = priceBounds
@@ -108,7 +107,7 @@ struct StoreProductsView: View {
                 showPriceFilter.toggle()
             } label: {
                 HStack(spacing: Spacing.sm) {
-                    Image(systemName: "eurosign.circle")
+                    Image(systemName: "tag")
                         .foregroundStyle(Color.labelSecondary)
                     Text("Price")
                         .font(.subheadline.weight(.medium))
@@ -139,7 +138,7 @@ struct StoreProductsView: View {
                                 lowerLabel: "Minimum price", upperLabel: "Maximum price", format: euro)
                         .padding(.horizontal, Spacing.xs)
                     HStack {
-                        Text("\(displayItems.count) of \(matchingCount) products")
+                        Text("\(displayItems.count) of \(matchingCount) products" as String)
                             .font(.caption)
                             .monospacedDigit()
                             .foregroundStyle(Color.labelSecondary)
@@ -175,7 +174,7 @@ struct StoreProductsView: View {
                     .listRowBackground(Color.clear)
             } else if displayItems.isEmpty && isPriceFiltered {
                 ContentUnavailableView {
-                    Label("No products in this price range", systemImage: "eurosign.circle")
+                    Label("No products in this price range", systemImage: "tag")
                 } description: {
                     Text("Widen the range or clear the price filter.")
                 } actions: {
@@ -190,62 +189,8 @@ struct StoreProductsView: View {
         }
         .listStyle(.plain)
         .scrollDismissesKeyboard(.immediately)
-    }
-
-    // MARK: - Sticky cart bar
-
-    private var cartBar: some View {
-        // Own container so the implicit animation scopes to the bar's insert/remove only.
-        VStack(spacing: 0) {
-            if cart.itemCount > 0 {
-                cartBarContent
-            }
-        }
-        .animation(reduceMotion ? .none : .snappyValue, value: cart.itemCount > 0)
-    }
-
-    private var cartBarContent: some View {
-        Group {
-            NavigationLink(destination: CartView()) {
-                HStack(spacing: 14) {
-                    // Item count badge
-                    Text("\(cart.itemCount)")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.almond)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.25), in: Circle())
-
-                    Text("View cart")
-                        .font(.headline)
-                        .foregroundStyle(Color.almond)
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(String(format: "€%.2f", cart.total))
-                            .font(.headline).fontWeight(.bold)
-                            .foregroundStyle(Color.almond)
-                            .monospacedDigit()
-                        if cart.budgetFraction > 0.01 {
-                            Text("\(Int(cart.budgetFraction * 100))% of budget")
-                                .font(.caption2)
-                                .foregroundStyle(Color.almond.opacity(0.75))
-                        }
-                    }
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption).fontWeight(.semibold)
-                        .foregroundStyle(Color.almond.opacity(0.8))
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
-                .background(
-                    Color.rhino
-                )
-            }
-            .buttonStyle(.plain)
-        }
-        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        // Floats over the list; the inset lets the last rows scroll clear of it.
+        .safeAreaInset(edge: .bottom, spacing: 0) { CartToast() }
     }
 
     // MARK: - Filtering
@@ -341,12 +286,12 @@ struct ProductShopRow: View {
 
                 // Price row — tap to enter the real price you paid
                 Button {
-                    priceInput = String(format: "%.2f", price)
+                    priceInput = Money.inputText(eur: price)
                     priceError = nil
                     showPriceEditor = true
                 } label: {
                     HStack(spacing: 5) {
-                        Text(String(format: "€%.2f", price)).monospacedDigit()
+                        Text(Money.format(eur: price)).monospacedDigit()
                             .foregroundStyle(Color.labelPrimary)
                         Text(isEstimated ? "est." : "your price")
                             .foregroundStyle(isEstimated ? Color.brandAmber : Color.labelSecondary)
@@ -356,8 +301,8 @@ struct ProductShopRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Edit price for \(item.name)")
-                .accessibilityValue((isEstimated ? "Estimate " : "Your price ") + String(format: "€%.2f", price))
+                .accessibilityLabel("Edit price for \(item.name)" as String)
+                .accessibilityValue((isEstimated ? "Estimate " : "Your price ") + Money.format(eur: price))
             }
 
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
@@ -381,10 +326,10 @@ struct ProductShopRow: View {
             Form {
                 Section {
                     HStack {
-                        Text("€")
+                        Text(Money.symbol())
                         TextField("0.00", text: $priceInput)
                             .keyboardType(.decimalPad)
-                            .accessibilityLabel("Price in euros")
+                            .accessibilityLabel("Price in \(Money.current.name)")
                             .accessibilityIdentifier("shop.priceInput")
                             .onChange(of: priceInput) { _, _ in priceError = nil }
                     }
@@ -400,17 +345,19 @@ struct ProductShopRow: View {
                         .font(.caption)
                 }
             }
-            .navigationTitle("Set Real Price")
+            .navigationTitle("Set real price")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        switch EuroInput.validate(priceInput, in: ShoppingCartService.priceRange) {
-                        case .success(let value):
-                            cart.setRealPrice(value, for: item.id, store: store.name)
+                        // Typed in the chosen currency, kept in euros like every price.
+                        let range = ShoppingCartService.priceRange
+                        switch Money.validateLocal(priceInput, eurRange: range) {
+                        case .success(let eur):
+                            cart.setRealPrice(min(max(eur, range.lowerBound), range.upperBound), for: item.id, store: store.name)
                             showPriceEditor = false
                         case .failure(let problem):
-                            priceError = EuroInput.message(for: problem, example: "2.50")
+                            priceError = Money.message(for: problem, example: Money.inputText(eur: 2.5))
                             UIAccessibility.post(notification: .announcement, argument: priceError)
                         }
                     }

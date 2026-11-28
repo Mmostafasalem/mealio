@@ -20,23 +20,37 @@ struct SmartMarketAgentApp: App {
     }
 
     /// One curve for every root swap; a short fade under Reduce Motion.
-    private var rootTransition: Animation? {
-        UIAccessibility.isReduceMotionEnabled ? .reducedFade : .smoothCard
+    static var rootTransition: Animation { UIAccessibility.isReduceMotionEnabled ? .reducedFade : .rootSwap }
+    private var rootTransition: Animation? { Self.rootTransition }
+
+    /// How a whole screen leaves and arrives: the old one grows a touch as it fades
+    /// (as if we pass through it), the new one settles in from slightly smaller.
+    private func rootSwap(leavingScale: CGFloat) -> AnyTransition {
+        guard !UIAccessibility.isReduceMotionEnabled else { return .opacity }
+        return .asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.96)),
+                           removal: .opacity.combined(with: .scale(scale: leavingScale)))
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
+            ZStack {
+                // A shared floor, so a cross-fade never shows the window behind it.
+                Color.surfaceGrouped.ignoresSafeArea()
                 if !appState.hasSeenWelcome {
                     WelcomeView {
-                        // The Group's implicit animation drives this transition.
-                        appState.hasSeenWelcome = true
+                        withAnimation(Self.rootTransition) { appState.hasSeenWelcome = true }
                         UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
                     }
+                    .transition(rootSwap(leavingScale: 1.08))
+                    .zIndex(2)
                 } else if appState.isOnboarded {
                     MainTabView()
+                        .transition(rootSwap(leavingScale: 1.04))
+                        .zIndex(1)
                 } else {
                     OnboardingFlow()
+                        .transition(rootSwap(leavingScale: 1.04))
+                        .zIndex(appState.isOnboarded ? 0 : 1.5)
                 }
             }
             .animation(rootTransition, value: appState.isOnboarded)
@@ -45,6 +59,9 @@ struct SmartMarketAgentApp: App {
             .foregroundStyle(Color.labelPrimary)
             .environment(appState)
             .tint(Color.brandPrimary)
+            // The colour theme (Profile › Appearance): SwiftUI views follow it through the
+            // observed Color tokens; UIKit's window tint is set here.
+            .onChange(of: ThemeStore.shared.theme, initial: true) { ThemeStore.shared.applyWindowTint() }
             // nourlo:// links (widgets) and Spotlight results open screens through the router.
             .onOpenURL { AppRouter.shared.open($0) }
             .onContinueUserActivity(CSSearchableItemActionType) { AppRouter.shared.handle($0) }
@@ -52,8 +69,12 @@ struct SmartMarketAgentApp: App {
                 if PrivateSyncService.shared.deletionPending {
                     VStack(spacing: 6) {
                         Text(PrivateSyncService.shared.status).font(.footnote)
-                        Button("Retry iCloud Deletion") { Task { await PrivateSyncService.shared.sync() } }
-                            .disabled(PrivateSyncService.shared.isSyncing)
+                        HStack(spacing: 24) {
+                            Button("Retry iCloud Deletion") { Task { await PrivateSyncService.shared.sync() } }
+                                .disabled(PrivateSyncService.shared.isSyncing)
+                            // For someone who changed Apple Account or left iCloud: the copy can't be reached from here.
+                            Button("Stop trying", role: .destructive) { PrivateSyncService.shared.abandonPendingDeletion() }
+                        }
                     }
                     .padding().frame(maxWidth: .infinity).background(.regularMaterial)
                 }
@@ -62,10 +83,12 @@ struct SmartMarketAgentApp: App {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await PrivateSyncService.shared.sync() } }
                 // The daily loop: apply savers on open, line up tonight's nudge on leaving.
-                if phase == .active { DailyLoopStore.shared.refresh() }
+                if phase == .active { DailyLoopStore.shared.refresh(); appState.recoverProfileIfNeeded() }
                 if phase == .background { ReminderStore.shared.scheduleStreakNudges(DailyLoopStore.shared.stateForNudge()) }
             }
             .task(id: appState.isOnboarded) {
+                // Let the screen swap finish before the start-up work begins, so it stays smooth.
+                try? await Task.sleep(for: .milliseconds(800))
                 // Reads Train's exercise drawings on a background queue so they're ready when Train opens.
                 ExerciseDrawings.preload()
                 SpotlightIndexer.shared.indexIfNeeded()
@@ -74,9 +97,17 @@ struct SmartMarketAgentApp: App {
                 Task { await ReminderStore.shared.reschedule() }
                 DailyLoopStore.shared.startObservingCart()
                 DailyLoopStore.shared.onTodayKeptChange = { ReminderStore.shared.scheduleStreakNudges($0) }
+                // Whether online AI is switched on, so its entries show only when it can work.
+                Task { await AIAccountService.shared.prepare() }
                 await PrivateSyncService.shared.start()
                 await NotificationService.shared.checkPermission()
                 appState.agentLoop.start(appState: appState)
+                // Read the offline food catalogue while nothing is happening, instead of on
+                // the first Log Food or cart tap (it is a few megabytes of JSON).
+                try? await Task.sleep(for: .milliseconds(600))
+                await NutritionCatalogService.warmUp()
+                // The plan can now carry each meal's foods (macros, "Review and log").
+                NotificationCenter.default.post(name: .planInputsDidChange, object: nil)
             }
         }
     }
@@ -89,6 +120,32 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         MotionSettings.prepare()
+        // The Keychain outlives the app: a fresh install starts clean, not signed in as
+        // whoever used it before. (An update of an existing install is left alone.)
+        let launchedKey = "hasLaunchedBefore_v1"
+        if !UserDefaults.standard.bool(forKey: launchedKey) {
+            if !UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding),
+               UserDefaults.standard.object(forKey: "hasSeenWelcome") == nil,
+               UIApplication.shared.isProtectedDataAvailable {
+                _ = KeychainHelper.deleteAll()
+            }
+            UserDefaults.standard.set(true, forKey: launchedKey)
+        }
+        // UI tests only: start with an empty cart, stock and plan (a launch argument
+        // can't do this itself, because it would hide everything the app saves later).
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-NourloUITesting"), args.contains("-NourloEmptyKitchen") {
+            for key in ["shoppingCart_v1", "nourloStock_v1", "cartStockLinks_v1", Constants.Storage.currentMealPlan] {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+            // The shared stores may already have read the old values: read again.
+            ShoppingCartService.shared.reloadFromStorage()
+            StockStore.shared.reload()
+            AppState.shared.weeklyMealPlan = nil
+        }
+        UITestSeeds.apply()
+        #endif
         // Native navigation titles follow the same adaptive palette as content.
         UINavigationBar.appearance().titleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
         UINavigationBar.appearance().largeTitleTextAttributes = [.foregroundColor: UIColor(Color.labelPrimary)]
@@ -108,7 +165,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                                 didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
         if info["streakNudge"] != nil {
-            await MainActor.run { NotificationCenter.default.post(name: .openHome, object: nil) }
+            await MainActor.run { AppRouter.shared.open(.home) }
+            return
+        }
+        // A reminder opens what it reminds about: training, or the food logger.
+        if let kind = info["reminder"] as? String {
+            await MainActor.run { AppRouter.shared.open(kind == "workout" ? .train : .logFood) }
             return
         }
         guard let foodIdStr  = info["food_id"]       as? String,
@@ -146,6 +208,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     // Show notification even when app is foreground
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        // The rest timer is on screen with its own haptic: its notice is for a locked phone only.
+        if [WorkoutModeModel.restNoticeID, WorkoutModeModel.timerNoticeID].contains(notification.request.identifier) { return [] }
+        return [.banner, .sound, .badge]
     }
 }

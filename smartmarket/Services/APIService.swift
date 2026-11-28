@@ -176,6 +176,17 @@ final class APIService {
         return try decoder.decode(Recipe.self, from: data)
     }
 
+    /// Names the foods in a meal photo, with grams (`base64` is a JPEG, no `data:` prefix).
+    /// The names are looked up in the on-device food data; nutrition never comes from here.
+    func readFoodPhoto(base64: String) async throws -> FoodPhotoResponse {
+        guard UserDefaults.standard.bool(forKey: sharingConsentKey) else { throw APIError.aiConsentRequired }
+        let req = try post(Constants.API.Endpoint.foodPhoto,
+                           body: FoodPhotoRequest(image: base64), timeout: 75)
+        let (data, response) = try await ownerSession.data(for: req)
+        try validateResponse(response, requireAI: true)
+        return try decoder.decode(FoodPhotoResponse.self, from: data)
+    }
+
     // MARK: - Workout (AI)
 
     /// A session written by the online service for this person and request.

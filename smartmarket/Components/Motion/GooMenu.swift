@@ -267,7 +267,7 @@ final class GooMenuEngine {
     static let bubbleSize: Double = 44
     static let mainSize: Double = 40
     static let maxItems = 6
-    static let fill = Color.surfaceSecondary
+    static var fill: Color { .surfaceSecondary }
     private static let out = (k: 230.0, c: 19.0)
     private static let back = (k: 520.0, c: 34.0)
 
@@ -413,7 +413,7 @@ final class GooMenuEngine {
     @Previewable @State var picked = "Nothing yet"
     VStack(alignment: .leading, spacing: Spacing.lg) {
         HStack {
-            Label("Today's Log", systemImage: "list.bullet.clipboard.fill").font(.sectionTitle)
+            Label("Today's log", systemImage: "list.bullet.clipboard.fill").font(.sectionTitle)
             Spacer()
             GooMenu(items: [
                 GooMenuItem(id: "breakfast", title: "Breakfast", systemImage: "sunrise"),
@@ -423,7 +423,7 @@ final class GooMenuEngine {
             ]) { picked = $0.title }
         }
         .zIndex(1)
-        Text("Picked: \(picked)").foregroundStyle(Color.labelSecondary)
+        Text("Picked: \(picked)" as String).foregroundStyle(Color.labelSecondary)
         Spacer().frame(height: 160)
     }
     .padding(Spacing.lg)

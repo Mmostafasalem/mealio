@@ -11,7 +11,7 @@ extension VoiceLexicon {
             #" (?:bitte|danke|danke schön)$"#,
         ],
         calorieWords: ["kalorie", "kcal"],
-        calorieCues: ["übrig", "noch", "wie viele", "wie viel", "verbleib", "darf ich"],
+        calorieCues: ["übrig", "noch", "verbleib", "darf ich"],
         exercisePatterns: [
             #"^(?:zeig mir |zeige mir |erklär mir |erkläre mir )?wie (?:mache ich|macht man|mach ich|geht|gehen|funktioniert|funktionieren) (?:einen |eine |ein |den |die |das )?(.+)$"#,
             #"^(?:zeig|zeige|öffne)(?: mir)? (?:die )?übung (.+)$"#,
@@ -126,7 +126,7 @@ extension VoiceLexicon {
             VoiceTranslation("bread roll", "brötchen", "semmel", "semmeln"),
             VoiceTranslation("egg", "ei", "eier", "eiern"), VoiceTranslation("bread", "brot", "brote"),
             VoiceTranslation("milk", "milch"), VoiceTranslation("butter", "butter"), VoiceTranslation("cheese", "käse"),
-            VoiceTranslation("yogurt", "joghurt", "jogurt", "naturjoghurt"), VoiceTranslation("quark", "quark", "magerquark"),
+            VoiceTranslation("yogurt", "joghurt", "jogurt", "naturjoghurt"), VoiceTranslation("cottage cheese", "quark", "magerquark"),
             VoiceTranslation("chicken breast", "hähnchen", "hühnchen", "huhn", "hähnchenfleisch"), VoiceTranslation("turkey breast", "pute", "putenbrust", "truthahn"),
             VoiceTranslation("beef", "rindfleisch", "rind"), VoiceTranslation("pork", "schweinefleisch", "schwein"),
             VoiceTranslation("beef steak", "steak", "rindersteak"), VoiceTranslation("ham", "schinken"), VoiceTranslation("bacon", "speck", "bacon"),
@@ -148,7 +148,7 @@ extension VoiceLexicon {
             VoiceTranslation("soup", "suppe"), VoiceTranslation("coffee", "kaffee"), VoiceTranslation("tea hot leaf black", "tee"),
             VoiceTranslation("water", "wasser", "mineralwasser"), VoiceTranslation("juice", "saft"), VoiceTranslation("beer", "bier"), VoiceTranslation("wine", "wein"),
             VoiceTranslation("cola", "cola", "coke"), VoiceTranslation("oil", "öl"), VoiceTranslation("cream", "sahne"), VoiceTranslation("flour", "mehl"),
-            VoiceTranslation("muesli", "müsli"), VoiceTranslation("pancake", "pfannkuchen", "pancakes"), VoiceTranslation("croissant", "croissant", "croissants"),
+            VoiceTranslation("cereal ready-to-eat", "müsli"), VoiceTranslation("pancake", "pfannkuchen", "pancakes"), VoiceTranslation("croissant", "croissant", "croissants"),
         ]
     )
 

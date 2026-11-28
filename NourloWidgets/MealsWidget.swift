@@ -34,7 +34,7 @@ struct MealsWidgetView: View {
                 }
                 let hidden = snapshot.meals.count - (isLarge ? 6 : 3)
                 if hidden > 0 {
-                    Text("+\(hidden) more")
+                    Text("+\(hidden) more" as String)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .padding(.leading, 32)
@@ -54,11 +54,11 @@ struct MealsWidgetView: View {
                 .widgetAccentable()
             Spacer(minLength: 4)
             if !snapshot.meals.isEmpty {
-                Text("\(NourloWidgetFormat.plannedTotal(snapshot.meals)) kcal")
+                Text("\(NourloWidgetFormat.plannedTotal(snapshot.meals)) kcal" as String)
                     .font(.caption.weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel("\(NourloWidgetFormat.plannedTotal(snapshot.meals)) calories planned")
+                    .accessibilityLabel("\(NourloWidgetFormat.plannedTotal(snapshot.meals)) calories planned" as String)
             }
         }
         .lineLimit(1)
@@ -99,7 +99,7 @@ private struct MealRow: View {
                     .lineLimit(isLarge ? 2 : 1)
             }
             Spacer(minLength: 4)
-            Text("\(meal.kcal) kcal")
+            Text("\(meal.kcal) kcal" as String)
                 .font(.caption.weight(.medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)

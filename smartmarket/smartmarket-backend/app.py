@@ -1,3 +1,5 @@
+import binascii
+import base64
 import collections
 import json
 import math
@@ -7,6 +9,7 @@ import threading
 import time
 from groq import Groq
 import ai_usage
+from ai_accounts import network_key
 
 from openfoodfacts import nutrition_for, flush as flush_nutrition_cache
 
@@ -20,6 +23,8 @@ APP_API_KEY = os.environ.get("APP_API_KEY")  # Shared secret between iOS app and
 # so meal plans / recipes are higher quality and emit valid JSON consistently.
 # Override with the GROQ_MODEL env var (e.g. to swap models without a deploy).
 GROQ_MODEL  = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+# Reads food photos; the chat model above has no image input.
+GROQ_VISION_MODEL = os.environ.get("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
 
 # Bounded timeout + one retry so a slow/transient Groq call fails fast (the app
 # then uses its on-device fallback) instead of hanging. Kept comfortably under
@@ -27,7 +32,9 @@ GROQ_MODEL  = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 groq_client = Groq(api_key=GROQ_API_KEY, timeout=25.0, max_retries=1) if GROQ_API_KEY else None
 
 # ---------------------------------------------------------------------------
-# Rate limiting — 60 requests per IP per minute
+# Rate limiting — 60 requests per network per minute. A network is one IPv4
+# address or one IPv6 /64 (a single connection usually owns a whole /64, so
+# counting single IPv6 addresses would be trivial to step around).
 # ---------------------------------------------------------------------------
 
 _rate_buckets: dict = collections.defaultdict(list)
@@ -38,6 +45,7 @@ _last_sweep  = 0.0
 _rate_lock   = threading.Lock()
 
 def _is_rate_limited(ip: str) -> bool:
+    ip = network_key(ip)
     with _rate_lock:
         now    = time.time()
         cutoff = now - _RATE_WINDOW
@@ -275,8 +283,10 @@ def _resolve_nutrition(raw: dict):
         return (n.get("kcal", fb[0]), n.get("protein", fb[1]),
                 n.get("carbs", fb[2]), n.get("fat", fb[3]), allergens, "curated")
 
-    # 2. Open Food Facts (by barcode, then name)
-    off = nutrition_for(name=raw.get("name"), barcode=raw.get("barcode"))
+    # 2. Open Food Facts, by barcode only. A name search returns whatever
+    #    product happens to rank first, so items without a barcode must carry
+    #    explicit nutrition in the feed or they get the category average.
+    off = nutrition_for(barcode=raw.get("barcode")) if raw.get("barcode") else None
     if off:
         return (off["kcal"], off["protein"], off["carbs"], off["fat"],
                 allergens, "openfoodfacts")
@@ -420,7 +430,7 @@ def _completion_text(response):
     return choice.message.content or ""
 
 
-def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=None):
+def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=None, model=None, temperature=0.7):
     """Call Groq and parse the first JSON object/array from the response.
 
     Set json_object=True for endpoints that return a single JSON *object* to use
@@ -429,10 +439,10 @@ def groq_json(messages, fallback, max_tokens=2048, json_object=False, validator=
     """
     try:
         kwargs = dict(
-            model=GROQ_MODEL,
+            model=model or GROQ_MODEL,
             messages=messages,
-            temperature=0.7,
-            **_completion_options(max_tokens),
+            temperature=temperature,
+            **(_completion_options(max_tokens) if model is None else {"max_tokens": max_tokens}),
         )
         if json_object:
             kwargs["response_format"] = {"type": "json_object"}
@@ -593,7 +603,6 @@ def handle_health():
     return {
         "status":         "ok",
         "aiConfigured":   bool(GROQ_API_KEY),
-        "model":          GROQ_MODEL,
         "catalogSize":    len(catalog),
         "deals":          sum(1 for p in catalog if p.get("isOnSale")),
         "catalogSources": sorted(set(p["store"] for p in catalog)),
@@ -943,10 +952,21 @@ def handle_shopping_advice(body):
 # Simple in-memory LRU recipe cache — avoids re-generating the same meal while
 # staying bounded so a caller sending many distinct mealNames can't grow it without
 # limit (memory-exhaustion). Oldest entry is evicted once the cap is reached.
+# Entries are keyed by (account, meal name): the meal name is free text typed by
+# one person, so a recipe is only ever served back to the account that asked
+# for it. Without a known account nothing is read from or written to the cache.
 _RECIPE_CACHE_MAX = 500
-_recipe_cache: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
+_recipe_cache: "collections.OrderedDict[tuple, dict]" = collections.OrderedDict()
 # gunicorn threads share the cache: every read/write holds this lock.
 _recipe_cache_lock = threading.Lock()
+
+def _forget_account_recipes(account):
+    """Drop an account's cached recipes when that account is deleted."""
+    with _recipe_cache_lock:
+        for key in [k for k in _recipe_cache if isinstance(k, tuple) and k[0] == account]:
+            del _recipe_cache[key]
+
+ai_usage.on_account_deleted.append(_forget_account_recipes)
 
 class _VerifiedRecipe(dict):
     """Internal provenance; callers cannot create this marker through JSON."""
@@ -957,11 +977,14 @@ def handle_recipe(body):
     if not meal_name:
         return {"error": "mealName required"}
 
-    cache_key = meal_name.lower()
-    with _recipe_cache_lock:
-        cached = _recipe_cache.get(cache_key)
-        if cached is not None:
-            _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
+    account = ai_usage.account.get()
+    cache_key = (account, meal_name.lower()) if account else None
+    cached = None
+    if cache_key is not None:
+        with _recipe_cache_lock:
+            cached = _recipe_cache.get(cache_key)
+            if cached is not None:
+                _recipe_cache.move_to_end(cache_key)   # mark as most-recently used
     if cached is not None:
         ai_usage.verified_cache.set(isinstance(cached, _VerifiedRecipe))
         return cached
@@ -990,13 +1013,67 @@ def handle_recipe(body):
         json_object=True, validator=_usable_recipe, # reject unusable output without charging
     )
     result["mealName"] = meal_name
-    if ai_usage.succeeded.get():
+    if cache_key is not None and ai_usage.succeeded.get():
         with _recipe_cache_lock:
             _recipe_cache[cache_key] = _VerifiedRecipe(result)
             _recipe_cache.move_to_end(cache_key)
             while len(_recipe_cache) > _RECIPE_CACHE_MAX:
                 _recipe_cache.popitem(last=False)      # evict least-recently used
     return result
+
+
+# ---------------------------------------------------------------------------
+# Food photo: names and rough grams only. The app looks every name up in its own
+# food database, so no nutrition value ever comes from the model.
+# ---------------------------------------------------------------------------
+
+_PHOTO_MAX_BASE64 = 180_000          # a 768 px JPEG is about 60–120 KB in base64
+_PHOTO_MAX_FOODS = 8
+
+def _usable_photo(raw):
+    return isinstance(raw, dict) and isinstance(raw.get("foods"), list)
+
+def _clean_photo_foods(raw):
+    foods = []
+    for item in (raw.get("foods") or [])[:_PHOTO_MAX_FOODS]:
+        if not isinstance(item, dict):
+            continue
+        name = re.sub(r"\s+", " ", str(item.get("name", ""))).strip()[:60]
+        try:
+            grams = float(item.get("grams", 0))
+        except (TypeError, ValueError):
+            grams = 0
+        if not name or not math.isfinite(grams):
+            continue
+        foods.append({"name": name, "grams": int(min(max(grams, 1), 1500))})
+    return foods
+
+def handle_food_photo(body):
+    image = body.get("image")
+    if not isinstance(image, str) or not 100 <= len(image) <= _PHOTO_MAX_BASE64:
+        return {"error": "image required", "foods": []}
+    try:
+        data = base64.b64decode(image, validate=True)
+    except (binascii.Error, ValueError):
+        return {"error": "image must be base64 JPEG", "foods": []}
+    if not data.startswith(b"\xff\xd8"):
+        return {"error": "image must be base64 JPEG", "foods": []}
+    prompt = (
+        "List each food and drink you can see in this photo of a meal, with a realistic "
+        "estimate of its weight in grams as served. Use plain, common food names "
+        '(for example "white rice, cooked", "chicken breast", "banana"). Ignore plates, '
+        "cutlery and anything that is not food. If there is no food, return an empty list. "
+        'Reply with JSON only: {"foods":[{"name":string,"grams":number}]}'
+    )
+    result = groq_json(
+        [{"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + image}},
+        ]}],
+        fallback={"foods": []}, max_tokens=400, json_object=True,
+        validator=_usable_photo, model=GROQ_VISION_MODEL, temperature=0.2,
+    )
+    return {"foods": _clean_photo_foods(result) if isinstance(result, dict) else []}
 
 
 # ---------------------------------------------------------------------------

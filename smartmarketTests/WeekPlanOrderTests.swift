@@ -44,6 +44,7 @@ final class MealPlanTargetCheckTests: XCTestCase {
     }
 }
 
+@MainActor
 final class SavedPlanCheckTests: XCTestCase {
     func testSavedOffTargetPlanNeedsReplacing() {
         func meal(_ v: Int) -> MealItem { MealItem(pavadinimas: "Meal", ingredientai: [], kcal: v) }

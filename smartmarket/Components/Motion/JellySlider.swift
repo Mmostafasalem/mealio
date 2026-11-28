@@ -458,9 +458,9 @@ final class JellySliderEngine {
 
 private extension Color {
     /// Text on the liquid: almond on rhino in light mode, rhino on almond in dark mode.
-    static let jellyOnLiquid = Color(UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor(Color.rhino) : UIColor(Color.almond)
-    })
+    static var jellyOnLiquid: Color {
+        Color(ThemeHex(ThemeStore.shared.theme.palette.soft.light, 0x1C1C1E)) // dark: Rhino
+    }
 }
 
 // MARK: - Preview
@@ -471,7 +471,7 @@ private extension Color {
         JellySlider(value: $budget, in: 10...300, step: 5,
                     format: { "€\(Int($0))" }, tickLabels: [10, 50, 100, 200, 300])
             .accessibilityLabel("Weekly budget")
-        Text("€\(Int(budget))").font(.title2.weight(.semibold)).monospacedDigit()
+        Text("€\(Int(budget))" as String).font(.title2.weight(.semibold)).monospacedDigit()
         Button("Set to 150") { budget = 150 }
     }
     .padding(32)

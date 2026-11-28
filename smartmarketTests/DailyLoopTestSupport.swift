@@ -19,8 +19,9 @@ enum LoopFixture {
     static func day(_ days: Int = 0) -> DayKey { DayKey(date(days), calendar: calendar) }
 
     static func food(_ days: Int = 0, hour: Int = 12, minute: Int = 0, slot: MealSlot = .lunch,
-                     kcal: Int = 500, protein: Double = 20, foodId: String? = "food-x", id: String = UUID().uuidString) -> FoodLogEntry {
-        FoodLogEntry(id: id, foodId: foodId, name: "Food", slot: slot, servingG: 100, calories: kcal,
+                     kcal: Int = 500, protein: Double = 20, foodId: String? = "food-x", id: String = UUID().uuidString,
+                     name: String = "Food") -> FoodLogEntry {
+        FoodLogEntry(id: id, foodId: foodId, name: name, slot: slot, servingG: 100, calories: kcal,
                      proteinG: protein, carbsG: 50, fatG: 10, loggedAt: date(days, hour: hour, minute: minute))
     }
 

@@ -1,0 +1,217 @@
+{
+ "id": "challenge",
+ "dur": 17.2,
+ "bpm": 120,
+ "music": {
+  "style": "pop",
+  "bars": [
+   "Bb",
+   "F",
+   "Gm7",
+   "Eb",
+   "Bb",
+   "F",
+   "Gm7",
+   "Eb",
+   "Bb"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 8
+ },
+ "scenes": [
+  {
+   "kind": "kinetic",
+   "at": 0,
+   "cut": "dissolve",
+   "words": [
+    "€40",
+    "7 days",
+    "21 meals",
+    "Challenge?"
+   ],
+   "every": 1.0,
+   "colors": [
+    "#FFFFFF",
+    "#FFFFFF",
+    "#FFFFFF",
+    "#111114"
+   ]
+  },
+  {
+   "kind": "groceries",
+   "at": 4.0,
+   "cut": "zoom",
+   "label": "Accepted.",
+   "mark": [
+    "accepted"
+   ]
+  },
+  {
+   "kind": "budget",
+   "at": 8.0,
+   "cut": "slide",
+   "label": "€1.40 to spare",
+   "mark": [
+    "spare"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 12.0,
+   "cut": "zoom",
+   "label": "Challenge complete",
+   "mark": [
+    "complete"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 14.6,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1500,
+   "size": 540
+  },
+  {
+   "t": 3.9,
+   "x": 540,
+   "y": 1500,
+   "size": 540
+  },
+  {
+   "t": 4.5,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 240
+  },
+  {
+   "t": 7.6,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 8.6,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "walk"
+  },
+  {
+   "t": 11.8,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 12.5,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood worried"
+  ],
+  [
+   0.05,
+   "resize 0.4"
+  ],
+  [
+   1.05,
+   "resize 0.4"
+  ],
+  [
+   2.05,
+   "resize 0.4"
+  ],
+  [
+   3.05,
+   "resize 0.4"
+  ],
+  [
+   3.2,
+   "mood cheeky"
+  ],
+  [
+   9.3,
+   "mood love"
+  ],
+  [
+   12.5,
+   "mood celebrate"
+  ],
+  [
+   14.2,
+   "mood flex"
+  ]
+ ],
+ "sfx": [
+  [
+   0.0,
+   "pop"
+  ],
+  [
+   1.0,
+   "pop"
+  ],
+  [
+   2.0,
+   "pop"
+  ],
+  [
+   3.0,
+   "pop"
+  ],
+  [
+   3.2,
+   "pop"
+  ],
+  [
+   4.35,
+   "coin"
+  ],
+  [
+   4.57,
+   "coin"
+  ],
+  [
+   4.79,
+   "coin"
+  ],
+  [
+   5.01,
+   "coin"
+  ],
+  [
+   5.23,
+   "coin"
+  ],
+  [
+   9.3,
+   "sparkle"
+  ]
+ ],
+ "theme": "sunset",
+ "overlays": [
+  {
+   "kind": "bubble",
+   "at": 3.2,
+   "until": 4.3,
+   "text": "Easy 😎",
+   "side": "right"
+  }
+ ]
+}

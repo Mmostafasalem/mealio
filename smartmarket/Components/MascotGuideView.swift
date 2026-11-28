@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 enum MascotMood: String, CaseIterable {
-    case idle, thinking, celebrate, help, happy, sleepy, cheeky, worried, love
+    case idle, thinking, celebrate, help, happy, sleepy, cheeky, worried, love, flex
 
     var description: String {
         switch self {
@@ -15,6 +15,7 @@ enum MascotMood: String, CaseIterable {
         case .cheeky: return "Has an idea"
         case .worried: return "Something went wrong"
         case .love: return "Loves this"
+        case .flex: return "Strong"
         }
     }
 }
@@ -32,6 +33,9 @@ struct MascotGuideView: View {
     var trigger: Int = 0
     var hint: String? = nil
     var rig: MascotRig? = nil
+    /// VoiceOver name and UI-test identifier (the quick-actions Nourlo overrides both).
+    var label: String = "Nourlo bowl guide"
+    var identifier: String = "mascot.guide"
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -54,10 +58,10 @@ struct MascotGuideView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(MascotPressStyle())
-        .accessibilityLabel("Nourlo bowl guide")
+        .accessibilityLabel(label)
         .accessibilityValue(mood.description)
-        .accessibilityHint(hint ?? (onTap == nil ? "Plays a short greeting. No AI request is sent." : "Opens local next steps and a short tour. No AI request is sent."))
-        .accessibilityIdentifier("mascot.guide")
+        .accessibilityHint(hint ?? (onTap == nil ? "Plays a short greeting. No AI request is sent." : "Opens quick actions. No AI request is sent."))
+        .accessibilityIdentifier(identifier)
         .onAppear {
             visible = true
             model.reduceMotion = reduceMotion

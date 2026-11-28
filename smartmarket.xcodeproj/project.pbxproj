@@ -315,16 +315,17 @@
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = "$(MEALIO_APP_ENTITLEMENTS)";
 				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+				INFOPLIST_KEY_CFBundleName = Nourlo;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food, to read a photo of your meal when you ask it to, and to take your profile photo.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -359,16 +360,17 @@
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = "$(MEALIO_APP_ENTITLEMENTS)";
 				EXCLUDED_SOURCE_FILE_NAMES = ("*.py", "*.pyc", "*.xcconfig", ".env", ".env.*");
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = P36US5XNJ5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = smartmarket/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Nourlo;
+				INFOPLIST_KEY_CFBundleName = Nourlo;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Nourlo reads your weight to keep your calorie targets current, and today's steps and active energy to show on Home.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Nourlo saves the foods you log and the workouts you finish to Apple Health.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nourlo uses the camera to scan food barcodes when you log food, to read a photo of your meal when you ask it to, and to take your profile photo.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nourlo listens when you tap the microphone, so you can log food and give commands by voice. Speech is turned into text on your iPhone.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Nourlo turns what you say into text on your iPhone, so you can log food and give commands by voice.";
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -573,7 +575,7 @@
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID).widgets"; PRODUCT_NAME = "$(TARGET_NAME)";
                 SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES;
                 SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0;
+                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 4; MARKETING_VERSION = 1.0;
                 LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
             }; name = Debug; };
 		C10000000000000000000009 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
@@ -582,7 +584,7 @@
                 IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = "$(MEALIO_BUNDLE_ID).widgets"; PRODUCT_NAME = "$(TARGET_NAME)";
                 SKIP_INSTALL = YES; APPLICATION_EXTENSION_API_ONLY = YES; SWIFT_VERSION = 5.0; SWIFT_EMIT_LOC_STRINGS = YES;
                 SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 1.0;
+                TARGETED_DEVICE_FAMILY = "1,2"; CURRENT_PROJECT_VERSION = 4; MARKETING_VERSION = 1.0;
                 LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
             }; name = Release; };
 /* End XCBuildConfiguration section */

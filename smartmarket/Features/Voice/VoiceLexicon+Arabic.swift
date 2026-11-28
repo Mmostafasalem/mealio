@@ -30,7 +30,7 @@ extension VoiceLexicon {
             #" (?:من فضلك|لو سمحت|شكرا|شكرا لك)$"#,
         ],
         calorieWords: ["سعر", "كالوري", "سعرات"],
-        calorieCues: ["باقي", "متبقي", "بقي", "كم", "تبقي", "المتبقيه", "اقدر اكل"],
+        calorieCues: ["باقي", "متبقي", "بقي", "تبقي", "المتبقيه", "اقدر اكل"],
         exercisePatterns: [
             #"^(?:كيف|كيفيه|طريقه) (?:اعمل|اسوي|العب|امارس|اودي|اداء|عمل|تمرين) (?:تمرين )?(?:ال)?(.+)$"#,
             #"^(?:ورني|اعرض|اظهر|افتح)(?: لي)? تمرين (?:ال)?(.+)$"#,
@@ -151,7 +151,7 @@ extension VoiceLexicon {
             VoiceTranslation("lentil soup", "شوربه عدس", "شوربه العدس"), VoiceTranslation("pita bread", "خبز عربي", "خبز لبناني", "خبز بلدي"),
             VoiceTranslation("egg", "بيضه", "بيض", "بيضات"), VoiceTranslation("bread", "خبز", "عيش", "رغيف"), VoiceTranslation("bread white toasted", "توست"),
             VoiceTranslation("milk", "حليب", "لبن"), VoiceTranslation("butter", "زبده"), VoiceTranslation("cheese", "جبن", "جبنه", "اجبان"),
-            VoiceTranslation("yogurt", "زبادي", "روب", "لبن زبادي"), VoiceTranslation("labneh", "لبنه"),
+            VoiceTranslation("yogurt", "زبادي", "روب", "لبن زبادي"), VoiceTranslation("greek yogurt", "لبنه"),
             VoiceTranslation("chicken breast", "دجاج", "فراخ", "دجاجه"), VoiceTranslation("turkey breast", "ديك رومي", "حبش"),
             VoiceTranslation("beef", "لحم بقري", "لحم بقر", "لحم", "لحمه"), VoiceTranslation("lamb", "لحم ضان", "لحم خروف", "خروف"),
             VoiceTranslation("beef steak", "ستيك", "شريحه لحم"), VoiceTranslation("salmon", "سلمون"), VoiceTranslation("tuna", "تونه", "تونا"),

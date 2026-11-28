@@ -35,6 +35,7 @@ struct WelcomeView: View {
                     WordRoll(
                         lead: "Helps you",
                         words: ["plan meals", "track calories", "shop on budget", "train smarter"],
+                        interval: 1.5,
                         font: .title3.weight(.semibold),
                         leadColor: .almond.opacity(0.7),
                         wordColor: .almond,
@@ -72,7 +73,7 @@ struct WelcomeView: View {
             // A fresh hello every few seconds; the bowl rests in between.
             guard !reduceMotion else { return }
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(3.5))
                 guard !Task.isCancelled else { return }
                 greeting += 1
             }
@@ -84,12 +85,12 @@ struct WelcomeView: View {
             mascotVisible = true; textVisible = true; ctaVisible = true
             return
         }
-        withAnimation(.spring(duration: 0.7, bounce: 0.45)) { mascotVisible = true }
-        withAnimation(.spring(duration: 0.5, bounce: 0.2).delay(0.25)) { textVisible = true }
-        withAnimation(.spring(duration: 0.5, bounce: 0.15).delay(0.45)) { ctaVisible = true }
+        withAnimation(.spring(duration: 0.45, bounce: 0.4)) { mascotVisible = true }
+        withAnimation(.spring(duration: 0.35, bounce: 0.2).delay(0.12)) { textVisible = true }
+        withAnimation(.spring(duration: 0.35, bounce: 0.15).delay(0.22)) { ctaVisible = true }
         // The first hello, once it has landed.
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.6))
+            try? await Task.sleep(for: .seconds(0.35))
             greeting += 1
         }
     }

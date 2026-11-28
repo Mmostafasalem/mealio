@@ -408,6 +408,34 @@ struct Exercise: Identifiable, Hashable {
         .init(id: "leg-swings-stretch", name: "Leg swings", kind: .mobility, focus: nil, muscles: "Hip flexors, hamstrings", equipment: "Wall or rail", level: .beginner, prescription: "2 × 10 each side", howTo: "Hold a rail for balance and swing one straight leg forward and back, letting the swing grow a little each time. Keep your torso tall and the movement controlled rather than kicking."),
         .init(id: "seated-forward-fold-stretch", name: "Seated forward fold", kind: .mobility, focus: nil, muscles: "Hamstrings, lower back, calves", equipment: "Mat", level: .beginner, prescription: "3 × 30 sec", howTo: "Sit with your legs straight and hinge forward from the hips, reaching toward your feet. Keep your back long and stop at a gentle stretch; bend your knees slightly if you need to."),
         .init(id: "wall-calf-stretch", name: "Wall calf stretch", kind: .mobility, focus: nil, muscles: "Calves", equipment: "Wall", level: .beginner, prescription: "30 sec each side", howTo: "Lean your hands on a wall with one foot stepped back, back leg straight and heel pressed into the floor. Bend the front knee until you feel the stretch in the back calf, and keep the back toes pointing forward."),
+        // Mat Pilates (the classical mat order), for the Pilates programmes
+        .init(id: "pilates-hundred", name: "The hundred", kind: .home, focus: .core, muscles: "Abs, hip flexors", equipment: "Mat", level: .beginner, prescription: "100 arm beats", howTo: "Lie on your back, curl your head and shoulders up and lift your legs to tabletop or a long diagonal. Pump straight arms up and down by your sides, breathing in for five beats and out for five, ten times."),
+        .init(id: "pilates-roll-up", name: "Roll-up", kind: .home, focus: .core, muscles: "Abs, spine", equipment: "Mat", level: .beginner, prescription: "6 slow reps", howTo: "Lie with legs long and arms overhead. Bring your arms up, curl your chin to your chest and roll up one vertebra at a time to reach toward your toes, then roll back down just as slowly. Bend your knees if you need to."),
+        .init(id: "pilates-single-leg-circles", name: "Single-leg circles", kind: .home, focus: .core, muscles: "Abs, hip flexors, quads", equipment: "Mat", level: .beginner, prescription: "5 each way, each leg", howTo: "Lie on your back with one leg pointing to the ceiling and the other long on the mat. Draw small circles with the raised leg, keeping your hips and pelvis still. Reverse, then change legs."),
+        .init(id: "pilates-rolling-like-a-ball", name: "Rolling like a ball", kind: .home, focus: .core, muscles: "Abs, spine", equipment: "Mat", level: .beginner, prescription: "8 reps", howTo: "Sit balanced just behind your sit bones, knees hugged in and spine rounded like a ball. Roll back to your shoulder blades, never onto your neck, and roll up to balance again without your feet touching down."),
+        .init(id: "pilates-single-leg-stretch", name: "Single-leg stretch", kind: .home, focus: .core, muscles: "Abs, hip flexors", equipment: "Mat", level: .beginner, prescription: "8 each side", howTo: "Curl your head and shoulders up, hug one knee in and stretch the other leg out at a diagonal. Switch legs smoothly, keeping your lower back still on the mat."),
+        .init(id: "pilates-double-leg-stretch", name: "Double-leg stretch", kind: .home, focus: .core, muscles: "Abs, hip flexors, shoulders", equipment: "Mat", level: .intermediate, prescription: "8 reps", howTo: "Curl up and hug both knees in. Breathe in as you reach your arms overhead and your legs long at a diagonal, then circle the arms round and hug the knees back in as you breathe out. Keep your head and shoulders lifted."),
+        .init(id: "pilates-criss-cross", name: "Criss-cross", kind: .home, focus: .core, muscles: "Obliques, abs", equipment: "Mat", level: .intermediate, prescription: "8 each side", howTo: "Hands behind your head, curl up and bring one knee in as you turn your ribs, not your elbow, toward it, the other leg long. Switch sides with control and keep your hips still."),
+        .init(id: "pilates-spine-stretch-forward", name: "Spine stretch forward", kind: .mobility, focus: nil, muscles: "Lower back, hamstrings", equipment: "Mat", level: .beginner, prescription: "5 slow reps", howTo: "Sit tall with legs a little wider than your hips and feet flexed. Breathe out as you curl forward from the top of your head, reaching your arms past your feet, then stack your spine back up to sitting."),
+        .init(id: "pilates-saw", name: "Saw", kind: .mobility, focus: nil, muscles: "Obliques, hamstrings, upper back", equipment: "Mat", level: .beginner, prescription: "5 each side", howTo: "Sit tall with legs wide and arms out to the sides. Turn toward one leg and reach the opposite hand past your little toe as if sawing it off, then sit back up and turn to the other side."),
+        .init(id: "pilates-swan", name: "Swan", kind: .home, focus: .core, muscles: "Lower back, glutes, upper back", equipment: "Mat", level: .beginner, prescription: "6 reps", howTo: "Lie face down with hands under your shoulders. Press gently through your hands to lift your head and chest into a long, low arch, keeping your hips on the mat, then lower with control."),
+        .init(id: "pilates-swimming", name: "Pilates swimming", kind: .home, focus: .core, muscles: "Lower back, glutes, shoulders", equipment: "Mat", level: .intermediate, prescription: "3 × 30 sec", howTo: "Lie face down with arms and legs long, lift them just off the mat and flutter opposite arm and leg quickly, as if swimming. Keep your neck long and breathe steadily."),
+        .init(id: "pilates-side-kick-series", name: "Side kick series", kind: .home, focus: .lower, muscles: "Glutes, outer hips, core", equipment: "Mat", level: .beginner, prescription: "10 each side", howTo: "Lie on your side in one long line, head propped on your hand. Swing the top leg forward twice and back once without rocking your hips, then lift and lower it, and draw small circles. Change sides."),
+        .init(id: "pilates-teaser", name: "Teaser", kind: .home, focus: .core, muscles: "Abs, hip flexors", equipment: "Mat", level: .advanced, prescription: "4 slow reps", howTo: "From lying, lift your legs to a diagonal and roll up to balance on your sit bones in a V, reaching your arms toward your toes. Roll back down one vertebra at a time. Keep the knees bent if the back strains."),
+        .init(id: "pilates-shoulder-bridge", name: "Shoulder bridge", kind: .home, focus: .lower, muscles: "Glutes, hamstrings, core", equipment: "Mat", level: .beginner, prescription: "8 reps", howTo: "Lie with knees bent and feet hip-width apart. Peel your spine off the mat into a bridge from the tailbone up, hold, then roll down bone by bone. Harder: lift one leg to the ceiling at the top."),
+        .init(id: "pilates-leg-pull-front", name: "Leg pull front", kind: .home, focus: .core, muscles: "Abs, shoulders, glutes", equipment: "Mat", level: .intermediate, prescription: "6 each leg", howTo: "Hold a straight-arm plank in one long line. Lift one straight leg a little, point and flex the foot, lower it and change legs, keeping your hips level and still."),
+        .init(id: "pilates-leg-pull-back", name: "Leg pull back", kind: .home, focus: .core, muscles: "Hamstrings, glutes, shoulders", equipment: "Mat", level: .advanced, prescription: "4 each leg", howTo: "Sit with legs long and hands behind you, fingers toward your hips, then lift your hips into a reverse plank. Kick one straight leg up and lower it without letting the hips drop. Change legs."),
+        .init(id: "pilates-open-leg-rocker", name: "Open-leg rocker", kind: .home, focus: .core, muscles: "Abs, hamstrings", equipment: "Mat", level: .intermediate, prescription: "6 reps", howTo: "Balance on your sit bones holding your ankles, legs straight in a wide V. Round your back to roll back to your shoulder blades, then roll up to balance again without the feet touching down."),
+        .init(id: "pilates-spine-twist", name: "Spine twist", kind: .mobility, focus: nil, muscles: "Obliques, upper back", equipment: "Mat", level: .beginner, prescription: "5 each side", howTo: "Sit tall with legs together and feet flexed, arms out wide. Breathe out as you turn your ribs to one side in two small pulses, growing taller, then come back to the middle and turn the other way. Keep the hips still."),
+        .init(id: "pilates-scissors", name: "Pilates scissors", kind: .home, focus: .core, muscles: "Abs, hamstrings, hip flexors", equipment: "Mat", level: .intermediate, prescription: "8 each side", howTo: "Curl your head and shoulders up and lift both legs to the ceiling. Lower one leg toward the mat as you draw the other in with two small pulses, then switch like scissors. Keep your lower back still."),
+        .init(id: "pilates-mermaid", name: "Mermaid stretch", kind: .mobility, focus: nil, muscles: "Obliques, lats", equipment: "Mat", level: .beginner, prescription: "4 each side", howTo: "Sit with both knees bent to one side. Lift the opposite arm and lean over in a long side bend, breathing into your ribs, then come back up and reach the other way."),
+        // HYROX stations and running
+        .init(id: "sled-push", name: "Sled push", kind: .gym, focus: .lower, muscles: "Quads, glutes, calves", equipment: "Sled, weight plates", level: .intermediate, prescription: "4 × 25 m", howTo: "Hold the sled's poles with straight or slightly bent arms and lean in at about 45 degrees. Drive with short, powerful steps from the balls of your feet, keeping your back flat and your hips low."),
+        .init(id: "sled-pull", name: "Sled pull", kind: .gym, focus: .upper, muscles: "Back, biceps, hamstrings", equipment: "Sled, rope, weight plates", level: .intermediate, prescription: "4 × 25 m", howTo: "Stand facing the sled with the rope in both hands. Sit your hips back, brace and pull hand over hand, stepping back to keep the rope moving. Lay the rope to one side so you don't trip on it."),
+        .init(id: "burpee-broad-jump", name: "Burpee broad jump", kind: .cardio, focus: nil, muscles: "Heart, legs, chest, core", equipment: "None", level: .intermediate, prescription: "4 × 10", howTo: "Do a burpee with your chest to the floor, then jump forward as far as you comfortably can, landing softly on both feet with bent knees. Step or jump straight into the next burpee."),
+        .init(id: "wall-ball", name: "Wall ball", kind: .gym, focus: .fullBody, muscles: "Quads, glutes, shoulders", equipment: "Medicine ball, wall", level: .intermediate, prescription: "4 × 15", howTo: "Hold the ball at your chest facing a wall, squat until your hips are below your knees, then drive up and throw the ball to a target about 3 m high. Catch it and go straight into the next squat."),
+        .init(id: "sandbag-lunge", name: "Sandbag lunge", kind: .gym, focus: .lower, muscles: "Quads, glutes, core", equipment: "Sandbag", level: .intermediate, prescription: "3 × 20 m", howTo: "Rest the sandbag across your upper back and shoulders. Walk forward in lunges, touching the back knee down lightly each step, keeping your chest up and the front knee over the foot."),
+        .init(id: "long-run", name: "Long run", kind: .cardio, focus: nil, muscles: "Heart, legs", equipment: "Running shoes", level: .beginner, prescription: "40 min", howTo: "Run at an easy pace you could talk at for the whole time; walking breaks are fine. It's about time on your feet, not speed."),
     ]
 }
 
@@ -486,6 +514,99 @@ extension Exercise {
     }
 }
 
+// MARK: - Muscle groups
+
+/// Where an exercise mainly works, for browsing the catalogue by muscle. Each exercise
+/// sits in exactly one group: cardio and mobility (with mat Pilates) by their type, a
+/// whole-body lift in Full body, anything else by the first muscle it lists.
+enum MuscleGroup: String, CaseIterable, Identifiable {
+    case chest, back, shoulders, biceps, triceps, forearms, core, glutes, quads, hamstrings, calves
+    case fullBody, cardio, mobility
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .chest:      return "Chest"
+        case .back:       return "Back"
+        case .shoulders:  return "Shoulders"
+        case .biceps:     return "Biceps"
+        case .triceps:    return "Triceps"
+        case .forearms:   return "Forearms"
+        case .core:       return "Core and abs"
+        case .glutes:     return "Glutes"
+        case .quads:      return "Quads"
+        case .hamstrings: return "Hamstrings"
+        case .calves:     return "Calves"
+        case .fullBody:   return "Full body"
+        case .cardio:     return "Cardio"
+        case .mobility:   return "Mobility and Pilates"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .chest:      return "figure.strengthtraining.traditional"
+        case .back:       return "figure.rower"
+        case .shoulders:  return "figure.arms.open"
+        case .biceps:     return "dumbbell.fill"
+        case .triceps:    return "figure.strengthtraining.functional"
+        case .forearms:   return "hand.raised.fill"
+        case .core:       return "figure.core.training"
+        case .glutes:     return "figure.step.training"
+        case .quads:      return "figure.cross.training"
+        case .hamstrings: return "figure.flexibility"
+        case .calves:     return "figure.walk"
+        case .fullBody:   return "figure.mixed.cardio"
+        case .cardio:     return "figure.run"
+        case .mobility:   return "figure.pilates"
+        }
+    }
+
+    /// The group a muscle named in `Exercise.muscles` belongs to; nil for ones that
+    /// don't settle it ("Heart", "Inner thighs", "Spine").
+    static func forMuscle(_ name: String) -> MuscleGroup? {
+        let muscle = name.trimmingCharacters(in: .whitespaces).lowercased()
+        let table: [(MuscleGroup, [String])] = [
+            (.chest, ["chest", "upper chest", "lower chest"]),
+            (.back, ["back", "lats", "mid-back", "upper back", "lower back", "traps"]),
+            (.shoulders, ["shoulders", "rear shoulders", "front shoulders", "side delts", "rear delts", "front delts"]),
+            (.biceps, ["biceps"]),
+            (.triceps, ["triceps"]),
+            (.forearms, ["forearms"]),
+            (.core, ["abs", "deep abs", "lower abs", "obliques", "core"]),
+            (.glutes, ["glutes", "outer hips", "adductors"]),
+            (.quads, ["quads"]),
+            (.hamstrings, ["hamstrings"]),
+            (.calves, ["calves"]),
+            (.fullBody, ["whole body"]),
+        ]
+        return table.first { $0.1.contains(muscle) }?.0
+    }
+}
+
+extension Exercise {
+    /// Mat Pilates exercises: browsed with mobility, and used by the Pilates programmes.
+    var isPilates: Bool { id.hasPrefix("pilates-") }
+
+    /// The first listed muscle that names a group, or nil when none does.
+    var groupFromMuscles: MuscleGroup? {
+        muscles.split(separator: ",").lazy.compactMap { MuscleGroup.forMuscle(String($0)) }.first
+    }
+
+    /// The one group this exercise is browsed under.
+    var muscleGroup: MuscleGroup {
+        if kind == .cardio { return .cardio }
+        if kind == .mobility || isPilates { return .mobility }
+        if focus == .fullBody { return .fullBody }
+        if let group = groupFromMuscles { return group }
+        switch focus {
+        case .lower: return .quads
+        case .core:  return .core
+        default:     return .fullBody
+        }
+    }
+}
+
 /// Word-level text matching for exercise names, so "row" doesn't match "narrow".
 enum ExerciseText {
     /// Lowercased words, split on anything that isn't a letter, digit or apostrophe
@@ -520,12 +641,32 @@ struct WorkoutExercise: Codable, Hashable, Identifiable {
     let minutes: Int
     let restSeconds: Int
     let note: String
+    /// How it's measured when the person chose it (workouts they build); nil to guess.
+    var tracking: ExerciseTracking? = nil
+    /// The weight to start from in a workout someone built, in kg.
+    var weightKg: Double? = nil
 
     /// "3 × 10", "12 min", or "3 × 30 sec".
     var prescription: String {
         if minutes > 0 { return reps.isEmpty ? "\(minutes) min" : "\(minutes) min · \(reps)" }
         if sets > 1 { return "\(sets) × \(reps)" }
         return reps
+    }
+
+    /// One set's working time: the set's own time, or about 3 s a rep (both sides when "each side").
+    var secondsPerSet: Int {
+        let each = WorkoutModeModel.prescription(self).each.lowercased()
+        guard minutes == 0, !each.contains("sec"), !each.contains("min") else { return WorkoutModeModel.seconds(in: self) }
+        let count = Int(each.components(separatedBy: CharacterSet.decimalDigits.inverted).first { !$0.isEmpty } ?? "") ?? 10
+        return count * 3 * (each.contains("each") ? 2 : 1)
+    }
+
+    /// Rough time for the whole step: a timed block's minutes, or the sets, the rests
+    /// between them and 45 s to set up and move on.
+    var estimatedSeconds: Int {
+        if minutes > 0 { return minutes * 60 }
+        let count = max(WorkoutModeModel.prescription(self).sets, 1)
+        return count * secondsPerSet + (count - 1) * max(restSeconds, 0) + 45
     }
 }
 
@@ -558,6 +699,12 @@ struct Workout: Codable, Hashable, Identifiable {
     /// Rough energy use for someone of this weight (MET × kg × hours).
     func estimatedCalories(weightKg: Double) -> Int {
         Int((kind.met * max(weightKg, 30) * Double(durationMinutes) / 60).rounded())
+    }
+
+    /// About how long these steps take, with `extraSeconds` of warm-up and cool-down.
+    static func estimatedMinutes(of exercises: [WorkoutExercise], extraSeconds: Int = 0) -> Int {
+        let seconds = exercises.reduce(extraSeconds) { $0 + $1.estimatedSeconds }
+        return max(1, Int((Double(seconds) / 60).rounded()))
     }
 }
 
@@ -633,4 +780,7 @@ struct CompletedWorkout: Codable, Hashable, Identifiable {
     /// `nil` for "Mark as done" and older entries: those aren't written to Apple Health.
     var trackedStart: Date? = nil
     var trackedEnd: Date? = nil
+    /// The `LoggedWorkout` (Progress) saved for the same session in workout mode, so
+    /// deleting one deletes the other. `nil` for "Mark as done" and older entries.
+    var logID: UUID? = nil
 }

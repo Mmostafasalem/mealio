@@ -21,7 +21,7 @@ final class StreakNudgeTests: XCTestCase {
     func testPlanSkipsTodayWhenKept() {
         let plan = StreakNudge.plan(now: F.date(0, hour: 12), todayKept: true, streak: 5, calendar: F.calendar)
         XCTAssertEqual(plan.map(\.id), ["streak_\(F.day(1))", "streak_\(F.day(2))"])
-        XCTAssertTrue(plan[0].body.contains("6-day"))
+        XCTAssertTrue(plan[0].body.contains("5-day"))
     }
 
     func testPlanTodayNamesStreak() {

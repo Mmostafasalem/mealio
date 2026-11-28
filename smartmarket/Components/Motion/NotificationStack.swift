@@ -54,14 +54,14 @@ struct NotificationStack: View {
                     .font(.headline)
                     .foregroundStyle(Color.labelPrimary)
                 if notices.count > 1 {
-                    Text("\(notices.count)")
+                    Text("\(notices.count)" as String)
                         .font(.caption.weight(.bold))
                         .monospacedDigit()
                         .foregroundStyle(Color.onAccent)
                         .padding(.horizontal, 8).padding(.vertical, 2)
                         .background(Color.dullPink, in: Capsule())
                         .contentTransition(.numericText())
-                        .accessibilityLabel("\(notices.count) items")
+                        .accessibilityLabel("\(notices.count) items" as String)
                 }
                 Spacer(minLength: Spacing.sm)
                 if isOpen {

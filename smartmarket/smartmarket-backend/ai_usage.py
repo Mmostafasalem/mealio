@@ -7,3 +7,9 @@ verified_cache = ContextVar('ai_verified_cache', default=False)
 # The provider returned a response (even an unusable one). Distinguishes a
 # validation failure, which keeps a small charge, from a transport/provider error.
 responded = ContextVar('ai_provider_responded', default=False)
+# The signed-in account for this request (None outside an AI request). Lets
+# per-account caches stay separate without passing identity through handlers.
+account = ContextVar('ai_account', default=None)
+# Called with the account id after an account is deleted, so in-memory caches
+# can drop what they hold for it.
+on_account_deleted = []

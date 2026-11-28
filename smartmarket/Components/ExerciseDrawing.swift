@@ -336,14 +336,21 @@ final class ExerciseDrawingsStatus {
 struct ExerciseDrawingCredit: View {
     var body: some View {
         if let credit = ExerciseDrawingsStatus.shared.credit {
-            Link(destination: credit.link) {
-                Label(credit.text, systemImage: "info.circle")
+            // CC BY-SA 4.0: who made them, that Nourlo changed them, and the licence.
+            VStack(alignment: .leading, spacing: 2) {
+                Link(destination: credit.link) {
+                    Label(credit.text.replacingOccurrences(of: " · CC BY-SA 4.0", with: "") + " · adapted by Nourlo (muscle areas added)", systemImage: "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(Color.labelSecondary)
+                        .multilineTextAlignment(.leading)
+                }
+                .accessibilityHint("Opens the drawings' source")
+                .accessibilityIdentifier("exerciseDrawing.credit")
+                Link("Licence: CC BY-SA 4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!)
                     .font(.caption2)
                     .foregroundStyle(Color.labelSecondary)
-                    .multilineTextAlignment(.leading)
+                    .padding(.leading, 22)
             }
-            .accessibilityHint("Opens the drawings' source and licence")
-            .accessibilityIdentifier("exerciseDrawing.credit")
         }
     }
 }

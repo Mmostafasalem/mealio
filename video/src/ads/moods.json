@@ -1,0 +1,15 @@
+{
+  "dur": 21.4,
+  "beat": 2.15,
+  "beats": [
+    ["log breakfast", "happy", "🥣", "Breakfast logged · 420 kcal", "#FFF4E8"],
+    ["hit your protein goal", "celebrate", "💪", "Protein 130 / 130 g", "#E9F8F2"],
+    ["skip leg day", "worried", "🦵", "Leg day · skipped", "#EEF2FA"],
+    ["stay under budget", "love", "💶", "€38.60 of €40 this week", "#FDEDF1"],
+    ["open the fridge at 2am", "sleepy", "🌙", "2:07 am", "#EFEDF8"],
+    ["finally drink some water", "cheeky", "💧", "8 / 8 glasses", "#EAF4FD"],
+    ["open the app", "hello", "👋", "Good morning!", "#FFF7E0"]
+  ],
+  "outro": 15.1,
+  "end": 16.6
+}

@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct MealPlanView: View {
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var vm = MealPlanViewModel()
     /// One meal open at a time, across every section.
     @State private var expandGroup = ExpandCardGroup()
     /// Last title shown per meal slot, so only titles a new plan changed decode.
     @State private var titleMemory = ScrambleMemory()
+    /// Which way the last day change went, so the day slides in from that side.
+    @State private var movingForward = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
     @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
@@ -15,28 +18,31 @@ struct MealPlanView: View {
         OwnerAITestConfiguration.current == nil ? aiSharingConsent : ownerAISharingConsent
     }
 
+    /// Today and the next six days.
+    private var days: [Date] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    private func plan(forDay offset: Int) -> MealPlan? {
+        if offset == 0, let today = vm.todaysPlan { return today }
+        guard days.indices.contains(offset) else { return nil }
+        return vm.weekPlans.first { Calendar.current.isDate($0.date, inSameDayAs: days[offset]) }
+    }
+
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
-            VStack(spacing: Spacing.xl) {
-                if !sharingEnabled {
-                    Label("Online AI sharing is off. Local suggestions are shown. You can enable online AI in Profile.", systemImage: "iphone")
-                        .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        .padding(.horizontal, Spacing.lg)
-                } else if AppState.shared.weeklyMealPlan?.generationSource != "online" {
-                    Label("Local meal suggestions. A verified AI-generated plan is not currently shown.", systemImage: "iphone")
-                        .font(.footnote).foregroundStyle(Color.labelSecondary)
-                        .padding(.horizontal, Spacing.lg)
-                }
+            VStack(spacing: Spacing.lg) {
                 if let message = vm.errorMessage, vm.todaysPlan != nil {
                     Text(message).font(.footnote).foregroundStyle(Color.brandDanger)
                         .padding(.horizontal, Spacing.lg)
                 }
-                SpringSegmentedControl(
-                    selection: $vm.selectedTab,
-                    options: MealPlanTab.allCases,
-                    label: \.displayName
-                )
-                .padding(.horizontal, Spacing.lg)
+                DayStrip(days: days, selected: Binding(get: { vm.selectedDay }, set: select),
+                         marker: marker(forDay:))
+                    .padding(.horizontal, Spacing.lg)
+                    .id(TourTarget.dayStrip)
+                    .tourTarget(.dayStrip)
 
                 if vm.isGenerating && vm.todaysPlan != nil {
                     HStack(spacing: Spacing.sm) {
@@ -46,82 +52,178 @@ struct MealPlanView: View {
                     .foregroundStyle(Color.labelSecondary)
                     .transition(.opacity)
                 }
-                switch vm.selectedTab {
-                case .today: todayContent
-                case .week:  weekContent
+                MissingFoodsBanner()
+                    .padding(.horizontal, Spacing.lg)
+
+                // Old and new day share one slot, so changing day cross-fades in place
+                // instead of stacking both and jumping.
+                ZStack(alignment: .top) {
+                    dayContent(vm.selectedDay)
+                        .id(vm.selectedDay)
+                        .transition(dayTransition)
                 }
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .simultaneousGesture(daySwipe)
             }
-            .padding(.vertical, Spacing.lg)
-            .animation(reduceMotion ? .none : .snappyValue, value: vm.selectedTab)
+            .padding(.top, Spacing.sm)
+            .padding(.bottom, Spacing.xl)
             .animation(reduceMotion ? .reducedFade : .snappyValue, value: vm.isGenerating)
         }
+        .tourScrolling([.meals], proxy: proxy)
+        }
         .background { GrainyGradient().ignoresSafeArea() }
-        .navigationTitle("Meal Plan")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { NavigationLink("My Stock") { StockView() } } }
+        .navigationTitle("Meal plan")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink("My Stock") { StockView() }
+                    .tourTarget(.mealsStock)
+            }
+            NourloToolbarItem()
+        }
+        // The tour shows today's first meal opened on its "Review recipe and log" button.
+        .onChange(of: GuidedTour.shared.current?.id) { _, _ in followTour() }
+        .onAppear { followTour() }
         .task {
             if vm.todaysPlan == nil { await vm.loadTodaysPlan() }
+            await vm.loadWeekPlans()
         }
-        .task(id: vm.selectedTab) {
-            if vm.selectedTab == .week { await vm.loadWeekPlans() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .mealPlanDidUpdate)) { _ in
-            Task {
-                await vm.loadTodaysPlan()
-                if vm.selectedTab == .week { await vm.loadWeekPlans() }
-            }
+        .onReceive(NotificationCenter.default.publisher(for: .mealPlanDidUpdate)) { _ in refreshDay() }
+        // A new day (midnight, a time-zone change, or the app opened the next morning):
+        // "Today" moves on and the strip starts from the new day.
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refreshDay() }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in refreshDay() }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refreshDay() } }
+    }
+
+    /// On Meals, the tour starts from today; at "Review recipe and log" it opens
+    /// today's first meal so the button is there to point at.
+    private func followTour() {
+        guard let step = GuidedTour.shared.current, step.page == .meals else { return }
+        if vm.selectedDay != 0 { select(0) }
+        if step.target == .reviewRecipe,
+           let meal = plan(forDay: 0)?.allMeals.first, let entry = meal.entries.first {
+            expandGroup.show("d0|\(meal.title)#0|\(entry.id)", animated: !reduceMotion)
+        } else if step.target == .mealCard || step.target == .dayStrip {
+            expandGroup.show(nil, animated: !reduceMotion)
         }
     }
 
-    // MARK: - Today
+    private func refreshDay() {
+        Task {
+            await vm.loadTodaysPlan()
+            await vm.loadWeekPlans()
+        }
+    }
+
+    // MARK: - Changing day
+
+    private func select(_ day: Int) {
+        guard day != vm.selectedDay, (0..<7).contains(day) else { return }
+        movingForward = day > vm.selectedDay
+        // Each day's meals start folded; the open one belonged to the old day.
+        expandGroup.show(nil, animated: false)
+        withAnimation(reduceMotion ? .reducedFade : .smooth(duration: 0.32)) { vm.selectedDay = day }
+    }
+
+    /// A short slide toward the new day with a cross-fade; Reduce Motion: a fade.
+    private var dayTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let shift: CGFloat = 36
+        return .asymmetric(
+            insertion: .offset(x: movingForward ? shift : -shift).combined(with: .opacity),
+            removal: .offset(x: movingForward ? -shift : shift).combined(with: .opacity))
+    }
+
+    /// A clearly sideways swipe on the meals moves to the next or previous day.
+    private var daySwipe: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                let dx = value.translation.width, dy = value.translation.height
+                guard abs(dx) > 70, abs(dx) > abs(dy) * 2 else { return }
+                select(vm.selectedDay + (dx < 0 ? 1 : -1))
+            }
+    }
+
+    private func marker(forDay offset: Int) -> DayStrip.Marker {
+        var marker = DayStrip.Marker()
+        guard let plan = plan(forDay: offset) else { return marker }
+        marker.missing = plan.allMeals.contains { $0.entries.contains { !($0.missing ?? []).isEmpty } }
+        marker.logged = offset == 0 && !FoodLogStore.shared.entries.isEmpty
+        return marker
+    }
+
+    // MARK: - One day
 
     @ViewBuilder
-    private var todayContent: some View {
+    private func dayContent(_ offset: Int) -> some View {
         if vm.isGenerating && vm.todaysPlan == nil {
             SkeletonMealPlanContent()
         } else if let errorMessage = vm.errorMessage, vm.todaysPlan == nil {
             ErrorStateView(message: errorMessage) { Task { await vm.loadTodaysPlan() } }
                 .padding(.top, Spacing.xxl)
-        } else if let plan = vm.todaysPlan {
-            VStack(spacing: Spacing.lg) {
-                // New identity per plan content, so a regenerated plan cross-fades in.
-                VStack(spacing: Spacing.lg) {
-                    ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { _, meal in
-                        MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries,
-                                        expandGroup: expandGroup, titleMemory: titleMemory)
-                    }
+        } else if let plan = plan(forDay: offset) {
+            dayPlan(plan, offset: offset)
+        } else if vm.todaysPlan != nil {
+            EmptyStateView(icon: "calendar", title: "Nothing planned for this day",
+                           message: "Regenerate to plan the whole week from your cart and stock.",
+                           actionTitle: "Regenerate plan") { Task { await vm.regenerate() } }
+                .padding(.top, Spacing.xl)
+        } else {
+            EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
+                           message: "Generate a plan tailored to your goals and favourite foods.",
+                           actionTitle: "Generate plan") { Task { await vm.loadTodaysPlan() } }
+                .padding(.top, Spacing.xxl)
+        }
+    }
+
+    private func dayPlan(_ plan: MealPlan, offset: Int) -> some View {
+        VStack(spacing: Spacing.md) {
+            DaySummary(plan: plan, isToday: offset == 0)
+            // New identity per plan content, so a regenerated plan cross-fades in.
+            VStack(spacing: Spacing.md) {
+                ForEach(Array(plan.allMeals.enumerated()), id: \.offset) { index, meal in
+                    MealSectionCard(title: meal.title, sfSymbol: meal.sfSymbol, entries: meal.entries,
+                                    dayKey: "d\(offset)", isToday: offset == 0,
+                                    expandGroup: expandGroup, titleMemory: titleMemory)
+                        .modifier(FirstMealTarget(isFirst: index == 0))
                 }
-                .id(planGenerationToken(plan))
-                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
+            }
+            .id(planGenerationToken(plan))
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: 6)))
 
+            if offset == 0 {
                 WhyThisPlanCard(notes: plan.agentNotes)
-
                 if !vm.recommendations.isEmpty {
                     RecommendationsSection(items: vm.recommendations,
                                            onAdd: { vm.addToGroceryList([$0]) },
                                            onAddAll: { vm.addToGroceryList($0) })
                 }
-
-                RegenerateButton(isGenerating: vm.isGenerating) {
-                    Task { await vm.regenerate() }
-                }
-
-                Text("Calorie & macro values are estimates and may vary by product and preparation.")
-                    .font(.caption2)
-                    .foregroundStyle(Color.labelTertiary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 2)
             }
-            .padding(.horizontal, Spacing.lg)
-            .animation(.smoothCard, value: planGenerationToken(plan))
-            // A new plan starts with every meal folded.
-            .onChange(of: planGenerationToken(plan)) { _, _ in expandGroup.show(nil, animated: false) }
-        } else {
-            EmptyStateView(icon: "fork.knife", title: "No meal plan yet",
-                           message: "Generate a plan tailored to your goals and favourite foods.",
-                           actionTitle: "Generate Plan") { Task { await vm.loadTodaysPlan() } }
-                .padding(.top, Spacing.xxl)
+
+            // One plan covers the whole week, so this rebuilds every day.
+            RegenerateButton(isGenerating: vm.isGenerating) {
+                Task { await vm.regenerate() }
+            }
+            .id(TourTarget.regenerate)
+            .tourTarget(.regenerate)
+            .padding(.top, Spacing.xs)
+            if let notice = vm.notice {
+                Text(notice).font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("meals.regenerateNotice")
+            }
+
+            Text("Calorie & macro values are estimates and may vary by product and preparation.")
+                .font(.caption2)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
+        .padding(.horizontal, Spacing.lg)
+        .animation(.smoothCard, value: planGenerationToken(plan))
+        // A new plan starts with every meal folded.
+        .onChange(of: planGenerationToken(plan)) { _, _ in expandGroup.show(nil, animated: false) }
     }
 
     /// Changes only when the plan's meals change (not on a reload of the same plan).
@@ -130,32 +232,128 @@ struct MealPlanView: View {
             .flatMap { meal in meal.entries.map { "\(meal.title):\($0.foodName):\($0.portionG)" } }
             .joined(separator: "|")
     }
+}
 
-    // MARK: - Week
+// MARK: - Day strip
 
-    @ViewBuilder
-    private var weekContent: some View {
-        if vm.weekPlans.isEmpty {
-            if vm.isGenerating {
-                SkeletonWeekContent().padding(.horizontal, Spacing.lg)
+/// Today and the next six days as compact date chips; the chosen day is filled,
+/// today is outlined. A pink dot: a meal uses food you don't have yet; a green dot:
+/// something is logged today.
+private struct DayStrip: View {
+    struct Marker { var missing = false; var logged = false }
+
+    let days: [Date]
+    @Binding var selected: Int
+    let marker: (Int) -> Marker
+
+    @Namespace private var highlight
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    chips.padding(.vertical, 2)
+                }
             } else {
-                EmptyStateView(icon: "calendar", title: "No week plan yet",
-                               message: "Generate seven days of meals built around your goals and favourite foods.",
-                               actionTitle: "Generate week") { Task { await vm.regenerate() } }
-                    .padding(.top, Spacing.xxl)
+                chips
             }
-        } else {
-            VStack(spacing: Spacing.lg) {
-                ForEach(vm.weekPlans) { plan in
-                    WeekDayCard(plan: plan)
-                }
-                // One request writes all seven days.
-                RegenerateButton(isGenerating: vm.isGenerating, idleTitle: "Regenerate week") {
-                    Task { await vm.regenerate() }
-                }
-            }
-            .padding(.horizontal, Spacing.lg)
         }
+        .sensoryFeedback(.selection, trigger: selected)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Days")
+    }
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(days.enumerated()), id: \.offset) { index, day in
+                chip(index, day)
+            }
+        }
+    }
+
+    private func chip(_ index: Int, _ day: Date) -> some View {
+        let isSelected = index == selected
+        let isToday = index == 0
+        let mark = marker(index)
+        return Button { selected = index } label: {
+            VStack(spacing: 3) {
+                Text(day, format: .dateTime.weekday(.narrow))
+                    .font(.caption2.weight(.semibold))
+                    .opacity(isSelected ? 0.8 : 1)
+                    .foregroundStyle(isSelected ? Color.surface : Color.labelSecondary)
+                Text(day, format: .dateTime.day())
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(isSelected ? Color.surface : Color.labelPrimary)
+                HStack(spacing: 3) {
+                    Circle().fill(Color.ringProtein).frame(width: 5, height: 5).opacity(mark.logged ? 1 : 0)
+                    Circle().fill(Color.progress).frame(width: 5, height: 5).opacity(mark.missing ? 1 : 0)
+                }
+                .frame(height: 5)
+            }
+            .frame(maxWidth: typeSize.isAccessibilitySize ? nil : .infinity)
+            .frame(minWidth: typeSize.isAccessibilitySize ? 72 : 44, minHeight: 62)
+            .padding(.vertical, 4)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.brandPrimary)
+                        .matchedGeometryEffect(id: "selectedDay", in: highlight)
+                } else {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.surface.opacity(0.85))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(isToday ? Color.brandPrimary : Color.hairline, lineWidth: isToday ? 1.5 : 1)
+                        }
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(ScalePressStyle())
+        .animation(reduceMotion ? nil : .snappyValue, value: selected)
+        .accessibilityLabel(Text(isToday ? "Today, " : "") + Text(day, format: .dateTime.weekday(.wide).day().month(.wide)))
+        .accessibilityValue([mark.logged ? "Food logged" : nil, mark.missing ? "Uses food you don't have yet" : nil]
+            .compactMap { $0 }.joined(separator: ", "))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint("Shows this day's meals")
+        .accessibilityIdentifier("meals.day.\(index)")
+    }
+}
+
+// MARK: - Day summary
+
+/// The chosen day in one line: its name and date, and its planned calories and macros.
+private struct DaySummary: View {
+    let plan: MealPlan
+    let isToday: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isToday ? "Today" : plan.date.formatted(.dateTime.weekday(.wide)))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Color.labelPrimary)
+                Text(plan.date, format: .dateTime.day().month(.wide))
+                    .font(.subheadline)
+                    .foregroundStyle(Color.labelSecondary)
+            }
+            Spacer(minLength: Spacing.sm)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(plan.totalCalories) kcal" as String)
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Color.labelPrimary)
+                    .contentTransition(.numericText(value: Double(plan.totalCalories)))
+                Text("P \(Int(plan.totalProteinG)) · C \(Int(plan.totalCarbsG)) · F \(Int(plan.totalFatG)) g" as String)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .padding(.horizontal, Spacing.xs)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("meals.daySummary")
     }
 }
 
@@ -165,6 +363,9 @@ private struct MealSectionCard: View {
     let title: String
     let sfSymbol: String
     let entries: [MealEntry]
+    /// The day's place in the strip ("d0" today), so each day keeps its own titles.
+    let dayKey: String
+    let isToday: Bool
     let expandGroup: ExpandCardGroup
     let titleMemory: ScrambleMemory
     @State private var expanded = true
@@ -190,7 +391,9 @@ private struct MealSectionCard: View {
                 }
                 ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                     MealEntryRow(entry: entry, slot: title == "Breakfast" ? .breakfast : title == "Lunch" ? .lunch : title == "Dinner" ? .dinner : .snack,
-                                 slotKey: "\(title)#\(index)", expandGroup: expandGroup, titleMemory: titleMemory)
+                                 slotKey: "\(dayKey)|\(title)#\(index)", isToday: isToday,
+                                 expandGroup: expandGroup, titleMemory: titleMemory,
+                                 showsCalories: entries.count > 1)
                 }
             }
             .padding(.top, 8)
@@ -207,7 +410,7 @@ private struct MealSectionCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                 Text(title).font(.headline)
                 if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-                Text("\(entries.reduce(0) { $0 + $1.calories }) kcal")
+                Text("\(entries.reduce(0) { $0 + $1.calories }) kcal" as String)
                     .font(.subheadline).foregroundStyle(Color.labelSecondary)
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -224,15 +427,14 @@ private struct MealEntryRow: View {
     let slot: MealSlot
     /// Stable per slot position ("Lunch#0"), so a new plan's title can decode in.
     let slotKey: String
+    /// A later day's meal opens on its recipe; logging is for what you eat today.
+    let isToday: Bool
     let expandGroup: ExpandCardGroup
     let titleMemory: ScrambleMemory
+    /// False when the meal is its section's only one: the section header shows its kcal.
+    var showsCalories = true
 
-    private enum RowSheet: String, Identifiable {
-        case recipe, stock
-        var id: String { rawValue }
-    }
-
-    @State private var sheet: RowSheet?
+    @State private var showReview = false
     @State private var stock = StockStore.shared
     @State private var addedNotice: String?
     @State private var addedTrigger = false
@@ -248,17 +450,12 @@ private struct MealEntryRow: View {
     var body: some View {
         ExpandCard(id: cardID, group: expandGroup,
                    accessibilityLabel: "\(entry.foodName), \(subtitle), \(entry.calories) kcal",
-                   hint: "Shows ingredients, portions and macros") { p in
+                   hint: "Shows ingredients, portions and macros", identifier: "mealPlan.meal") { p in
             header(p)
         } detail: {
             detail
         }
-        .sheet(item: $sheet) { which in
-            switch which {
-            case .stock: PlannedMealStockSheet(entry: entry, slot: slot)
-            case .recipe: RecipeSheet(mealName: entry.foodName)
-            }
-        }
+        .sheet(isPresented: $showReview) { MealReviewSheet(entry: entry, slot: slot, startOn: isToday ? nil : .recipe) }
     }
 
     // MARK: Header
@@ -273,28 +470,41 @@ private struct MealEntryRow: View {
                 ScrambleText(text: entry.foodName, key: slotKey, memory: titleMemory,
                              font: .subheadline.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(subtitle)
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                // The summary: while open, the ingredients list below says it once instead.
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(subtitle)
+                        .font(.caption).foregroundStyle(Color.labelSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let missing = entry.missing, !missing.isEmpty {
+                        Label("Not in your stock: \(missing.joined(separator: ", "))" as String, systemImage: "cart.badge.plus")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.brandAmber)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .modifier(FoldsAway(progress: ingredients.isEmpty ? 0 : q))
             }
             // The title rides up a little as the card opens.
             .offset(y: -2 * q)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
-                Text("\(entry.calories) kcal")
-                    .font(.caption).fontWeight(.semibold)
-                    .foregroundStyle(Color.labelSecondary).monospacedDigit()
-                // The macro summary moves into the details while open.
-                Group {
-                    // Nothing extra when a meal has only an estimated calorie figure.
-                    if entry.macrosAvailable {
+                // The section's header already shows a lone meal's kcal.
+                if showsCalories {
+                    Text("\(entry.calories) kcal" as String)
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(Color.labelSecondary).monospacedDigit()
+                }
+                // The macro summary moves into the details while open (shown there once).
+                // Nothing extra when a meal has only an estimated calorie figure.
+                if entry.macrosAvailable {
+                    VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
                         Text("Calculated from ingredient portions")
                             .font(.caption2).foregroundStyle(Color.labelSecondary)
-                        Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))")
+                        Text("P\(Int(entry.proteinG))  C\(Int(entry.carbsG))  F\(Int(entry.fatG))" as String)
                             .font(.caption2).foregroundStyle(Color.labelTertiary).monospacedDigit()
                     }
+                    .modifier(FoldsAway(progress: q))
                 }
-                .opacity(1 - q)
             }
             if !dynamicTypeSize.isAccessibilitySize {
                 Image(systemName: "chevron.right")
@@ -312,15 +522,27 @@ private struct MealEntryRow: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             Divider().overlay(Color.hairline)
             if !ingredients.isEmpty {
+                // Each ingredient once, with its amount; a missing one is marked on its own row.
+                let short = shortfall
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("Ingredients").font(.caption.weight(.semibold)).foregroundStyle(Color.labelSecondary)
                     ForEach(ingredients) { ingredient in
                         HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                            Text(ingredient.food.name)
-                                .font(.subheadline).foregroundStyle(Color.labelPrimary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(ingredient.food.name)
+                                    .font(.subheadline).foregroundStyle(Color.labelPrimary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let need = short[ingredient.food.id] {
+                                    Label(need >= ingredient.amount - 0.000001
+                                          ? "Not in your stock"
+                                          : "Need \(need.rounded().formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue) more",
+                                          systemImage: "cart.badge.plus")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Color.brandAmber)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                             Spacer(minLength: Spacing.sm)
-                            Text("\(ingredient.amount.formatted()) \(ingredient.food.basis.rawValue)")
+                            Text("\(ingredient.amount.formatted(.number.grouping(.never))) \(ingredient.food.basis.rawValue)" as String)
                                 .font(.caption.weight(.medium)).foregroundStyle(Color.labelSecondary)
                                 .monospacedDigit()
                         }
@@ -344,7 +566,7 @@ private struct MealEntryRow: View {
             let chips = [("Protein", entry.proteinG), ("Carbs", entry.carbsG), ("Fat", entry.fatG)]
             FlowLayout(spacing: 6) {
                 ForEach(chips, id: \.0) { chip in
-                    Text("\(chip.0) \(chip.1.formatted(.number.precision(.fractionLength(0...1)))) g")
+                    Text("\(chip.0) \(chip.1.formatted(.number.precision(.fractionLength(0...1)))) g" as String)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.labelPrimary)
                         .monospacedDigit()
@@ -361,23 +583,40 @@ private struct MealEntryRow: View {
         return try? stock.missingIngredients(for: ingredients)
     }
 
-    private var actions: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
-            : AnyLayout(HStackLayout(spacing: Spacing.sm))
-        return VStack(alignment: .leading, spacing: Spacing.sm) {
-            layout {
-                actionButton("Recipe", systemImage: "book", prominent: !entry.macrosAvailable) { sheet = .recipe }
-                    .accessibilityHint("Opens the recipe")
-                if entry.macrosAvailable {
-                    actionButton("Review and log", systemImage: "checklist", prominent: true) { sheet = .stock }
-                        .accessibilityHint("Review ingredient portions and log from stock")
-                }
+    /// How much of each ingredient (by food id) is still to buy. Without a stock check,
+    /// the plan's own "missing" names mark the ingredients they name.
+    private var shortfall: [String: Double] {
+        if let missing {
+            return Dictionary(missing.map { ($0.food.id, $0.amount) }, uniquingKeysWith: +)
+        }
+        let names = (entry.missing ?? []).map { $0.lowercased() }
+        guard !names.isEmpty else { return [:] }
+        var out: [String: Double] = [:]
+        for ingredient in ingredients {
+            let food = ingredient.food.name.lowercased()
+            if names.contains(where: { name in
+                let first = name.split(separator: " ").first.map(String.init) ?? name
+                return food.contains(name) || name.contains(food) || food.hasPrefix(first)
+            }) {
+                out[ingredient.food.id] = ingredient.amount
             }
+        }
+        return out
+    }
+
+    private var actions: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            // One button: the recipe and the review-and-log flow share one sheet.
+            actionButton(isToday ? "Review recipe and log" : "View recipe", systemImage: "fork.knife", prominent: true) { showReview = true }
+                .accessibilityHint(entry.macrosAvailable ? "Shows how to make it, and reviews the portions to log from stock"
+                                                         : "Shows how to make it")
+                .accessibilityIdentifier("mealPlan.reviewRecipeLog")
+                .id(TourTarget.reviewRecipe)
+                .tourTarget(.reviewRecipe)
             if let missing, !missing.isEmpty, entry.stockOperationID != nil {
-                actionButton("Add missing ingredients to groceries", systemImage: "cart.badge.plus", prominent: false) {
-                    if PlannedMealStockSheet.addMissingToGroceries(entry: entry, missing: missing) {
-                        addedNotice = "Missing quantities added to Groceries."
+                actionButton("Add missing ingredients to checklist", systemImage: "cart.badge.plus", prominent: false) {
+                    if MealReviewSheet.addMissingToGroceries(entry: entry, missing: missing) {
+                        addedNotice = "Missing quantities added to your checklist."
                         addedTrigger.toggle()
                     }
                 }
@@ -394,12 +633,36 @@ private struct MealEntryRow: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(prominent ? Color.onAccent : Color.labelPrimary)
                 .padding(.horizontal, Spacing.md)
-                .frame(minHeight: 40)
+                .frame(minHeight: 44)
                 .background(prominent ? Color.progress : Color.surfaceSecondary,
                             in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
         }
         .buttonStyle(ScalePressStyle())
+    }
+}
+
+/// Folds a header line away as its card opens (height and opacity follow `progress`),
+/// so what the details say isn't also said above them.
+private struct FoldsAway: ViewModifier {
+    let progress: Double
+    @State private var height: CGFloat?
+
+    func body(content: Content) -> some View {
+        let q = motionClamp(progress, 0, 1)
+        content
+            .fixedSize(horizontal: false, vertical: true)
+            .background {
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { height = g.size.height }
+                        .onChange(of: g.size.height) { _, h in height = h }
+                }
+            }
+            .opacity(1 - q)
+            .frame(height: height.map { $0 * (1 - q) }, alignment: .top)
+            .clipped()
+            .accessibilityHidden(q > 0.5)
     }
 }
 
@@ -441,16 +704,16 @@ private struct RecommendationsSection: View {
                     .font(.headline)
                 Spacer()
                 if !remaining.isEmpty {
-                    Text("\(remaining.count) left")
+                    Text("\(remaining.count) left" as String)
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                         .monospacedDigit()
                         .contentTransition(.numericText())
                 }
             }
 
-            SwipeDeck(items: remaining, acceptLabel: "Add to groceries", skipLabel: "Skip",
+            SwipeDeck(items: remaining, acceptLabel: "Add to checklist", skipLabel: "Skip",
                       label: { item in
-                          "\(item.foodName). \(item.reason). €\(String(format: "%.2f", item.estimatedPrice)). \(PriorityBadge.label(item.priority)) priority"
+                          "\(item.foodName). \(item.reason). \(Money.format(eur: item.estimatedPrice)). \(PriorityBadge.label(item.priority)) priority"
                       },
                       onDecide: { item, accepted in
                           if accepted { onAdd(item); addedTrigger.toggle() }
@@ -462,7 +725,7 @@ private struct RecommendationsSection: View {
                     Label("All done", systemImage: "checkmark.circle")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Color.labelPrimary)
-                    Text("Added items are in Groceries.")
+                    Text("Added items are in your checklist.")
                         .font(.caption).foregroundStyle(Color.labelSecondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -475,7 +738,7 @@ private struct RecommendationsSection: View {
                     onAddAll(remaining)
                     remaining = []
                 } label: {
-                    Label("Add all to grocery list", systemImage: "cart.badge.plus")
+                    Label("Add all to checklist", systemImage: "cart.badge.plus")
                         .font(.subheadline).fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -502,7 +765,7 @@ private struct RecommendationsSection: View {
                 .font(.subheadline).foregroundStyle(Color.labelSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
-            Text("est. €\(item.estimatedPrice, specifier: "%.2f")")
+            Text("est. " + Money.format(eur: item.estimatedPrice))
                 .font(.caption).foregroundStyle(Color.labelSecondary)
         }
         .padding(Spacing.lg)
@@ -548,7 +811,7 @@ private struct RegenerateButton: View {
 
     var body: some View {
         PrimaryButton(
-            title: isGenerating ? "Agent is thinking…" : idleTitle,
+            title: isGenerating ? "Building your plan…" : idleTitle,
             systemImage: isGenerating ? nil : "arrow.clockwise",
             isLoading: isGenerating,
             action: onTap
@@ -568,9 +831,11 @@ private struct SkeletonMealPlanContent: View {
             RoundedRectangle(cornerRadius: 16)
                 .fill(Color(.systemFill))
                 .frame(height: 54)
-                .shimmer()
         }
         .padding(.horizontal, 16)
+        // One band across the whole placeholder, not one animation per bar.
+        .shimmer()
+        .accessibilityHidden(true)
     }
 }
 
@@ -581,28 +846,23 @@ private struct SkeletonMealSection: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color(.systemFill))
                     .frame(width: 34, height: 34)
-                    .shimmer()
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.systemFill))
                     .frame(width: 110, height: 15)
-                    .shimmer()
                 Spacer()
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color(.systemFill))
                     .frame(width: 55, height: 13)
-                    .shimmer()
             }
             ForEach(0..<2, id: \.self) { i in
                 HStack(spacing: 10) {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemFill))
                         .frame(width: i == 0 ? 160 : 120, height: 13)
-                        .shimmer()
                     Spacer()
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemFill))
                         .frame(width: 48, height: 13)
-                        .shimmer()
                 }
                 .padding(.leading, 46)
             }
@@ -614,123 +874,68 @@ private struct SkeletonMealSection: View {
     }
 }
 
-private struct SkeletonWeekContent: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            ForEach(0..<7, id: \.self) { _ in SkeletonWeekDayCard() }
-        }
-    }
-}
-
-private struct SkeletonWeekDayCard: View {
-    var body: some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 4) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 24, height: 10).shimmer()
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(.systemFill)).frame(width: 20, height: 18).shimmer()
-            }
-            .frame(width: 36)
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 90, height: 14).shimmer()
-                    Spacer()
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemFill)).frame(width: 32, height: 12).shimmer()
-                }
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.systemFill)).frame(height: 6).shimmer()
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .background(Color.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 1)
-    }
-}
-
-/// One day of the week: its date, total and every planned meal. Tap a meal for its recipe.
-private struct WeekDayCard: View {
-    let plan: MealPlan
-    @State private var recipe: RecipeTarget?
-
-    private struct RecipeTarget: Identifiable {
-        let name: String
-        var id: String { name }
-    }
-
-    private var isToday: Bool { Calendar.current.isDateInToday(plan.date) }
-    private var meals: [(title: String, sfSymbol: String, entries: [MealEntry])] {
-        plan.allMeals.filter { !$0.entries.isEmpty }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                Text(plan.date, format: .dateTime.weekday(.wide))
-                    .font(.headline).foregroundStyle(Color.labelPrimary)
-                Text(plan.date, format: .dateTime.day().month(.abbreviated))
-                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
-                if isToday {
-                    Text("Today")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(Color.onAccent)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Color.progress, in: Capsule())
-                }
-                Spacer(minLength: Spacing.sm)
-                Text("\(plan.totalCalories) kcal")
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(Color.labelSecondary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-
-            if meals.isEmpty {
-                Text("Nothing planned")
-                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
-            }
-            ForEach(Array(meals.enumerated()), id: \.offset) { index, meal in
-                if index > 0 { Divider().overlay(Color.hairline) }
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Label(meal.title, systemImage: meal.sfSymbol)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.labelSecondary)
-                    ForEach(meal.entries) { entry in
-                        Button { recipe = RecipeTarget(name: entry.foodName) } label: {
-                            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
-                                Text(entry.foodName)
-                                    .font(.subheadline).foregroundStyle(Color.labelPrimary)
-                                    .multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Spacer(minLength: Spacing.sm)
-                                Text("\(entry.calories) kcal")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(Color.labelSecondary)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.labelTertiary)
-                                    .accessibilityHidden(true)
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("Opens the recipe")
-                    }
-                }
-            }
-        }
-        .padding(Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .premiumCard(radius: Radius.tile)
-        .sheet(item: $recipe) { RecipeSheet(mealName: $0.name) }
-        .accessibilityIdentifier("mealPlan.weekDay")
-    }
-}
-
 #Preview {
     NavigationStack { MealPlanView() }
+}
+
+/// Shown when the plan uses foods that aren't in the cart or My Stock: what they
+/// are, and one tap to add them (the cart fills My Stock, and the plan is rebuilt).
+private struct MissingFoodsBanner: View {
+    @State private var appState = AppState.shared
+    @State private var added = 0
+
+    private var missing: [(id: String, name: String)] {
+        guard let plan = appState.weeklyMealPlan else { return [] }
+        var seen = Set<String>(), out: [(String, String)] = []
+        for day in plan.allDays.map(\.plan) {
+            for meal in [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].compactMap({ $0 }) {
+                for (i, id) in (meal.missingCatalogIds ?? []).enumerated() where seen.insert(id).inserted {
+                    out.append((id, meal.missing?.indices.contains(i) == true ? meal.missing![i] : id))
+                }
+            }
+        }
+        return out
+    }
+
+    var body: some View {
+        let missing = missing
+        if !missing.isEmpty {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                Label("Some meals use food you don't have yet", systemImage: "cart.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                Text("Not in your cart or stock: \(missing.map(\.name).joined(separator: ", ")). Add them so the plan is made from your own kitchen." as String)
+                    .font(.footnote).foregroundStyle(Color.labelSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    for m in missing {
+                        if let item = CatalogItem.all.first(where: { $0.id == m.id }) { ShoppingCartService.shared.add(item, store: .catalog) }
+                    }
+                    AgentLoop.rebuildPlanNow()
+                    added &+= 1
+                } label: {
+                    Label("Add \(missing.count) to cart and stock" as String, systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, Spacing.lg).frame(minHeight: 44)
+                        .background(Color.dullPink, in: Capsule())
+                        .foregroundStyle(Color.onAccent)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(ScalePressStyle())
+                .accessibilityIdentifier("meals.addMissing")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Spacing.lg)
+            .premiumCard(radius: Radius.tile)
+            .sensoryFeedback(.success, trigger: added)
+            .accessibilityElement(children: .contain)
+        }
+    }
+}
+
+/// The first meal of the day is the one the tour points at.
+private struct FirstMealTarget: ViewModifier {
+    let isFirst: Bool
+    func body(content: Content) -> some View {
+        if isFirst { content.id(TourTarget.mealCard).tourTarget(.mealCard) } else { content }
+    }
 }

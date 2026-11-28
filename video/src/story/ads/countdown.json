@@ -1,0 +1,216 @@
+{
+ "id": "countdown",
+ "dur": 17.1,
+ "bpm": 120,
+ "music": {
+  "style": "disco",
+  "bars": [
+   "Am9",
+   "Am9",
+   "Dm9",
+   "G9",
+   "Cmaj7",
+   "Fmaj7",
+   "Dm9",
+   "E7",
+   "Am9"
+  ],
+  "drumsFrom": 2,
+  "drumsTo": 8
+ },
+ "scenes": [
+  {
+   "kind": "countdown",
+   "at": 0,
+   "cut": "dissolve",
+   "every": 1.0,
+   "then": "FLEX!"
+  },
+  {
+   "kind": "workout",
+   "at": 4.0,
+   "cut": "slide",
+   "label": "Log the sets",
+   "mark": [
+    "sets"
+   ]
+  },
+  {
+   "kind": "progress",
+   "at": 8.0,
+   "cut": "slide",
+   "label": "See the gains",
+   "mark": [
+    "gains"
+   ]
+  },
+  {
+   "kind": "title",
+   "at": 12.0,
+   "cut": "zoom",
+   "label": "Nourlo spots you",
+   "mark": [
+    "spots"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 14.5,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1450,
+   "size": 640
+  },
+  {
+   "t": 3.8,
+   "x": 540,
+   "y": 1450,
+   "size": 640
+  },
+  {
+   "t": 4.4,
+   "x": 810,
+   "y": 1470,
+   "size": 500,
+   "move": "jump",
+   "arc": 260
+  },
+  {
+   "t": 5.45,
+   "x": 810,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 5.85,
+   "x": 800,
+   "y": 1300,
+   "size": 440,
+   "move": "jump",
+   "arc": 200
+  },
+  {
+   "t": 7.6,
+   "x": 800,
+   "y": 1300,
+   "size": 440
+  },
+  {
+   "t": 8.6,
+   "x": 270,
+   "y": 1470,
+   "size": 500,
+   "move": "walk"
+  },
+  {
+   "t": 11.8,
+   "x": 270,
+   "y": 1470,
+   "size": 500
+  },
+  {
+   "t": 12.5,
+   "x": 540,
+   "y": 1150,
+   "size": 780,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood happy"
+  ],
+  [
+   0.05,
+   "resize -0.6"
+  ],
+  [
+   1.05,
+   "resize -0.6"
+  ],
+  [
+   2.05,
+   "resize -0.6"
+  ],
+  [
+   3.0,
+   "mood flex"
+  ],
+  [
+   3.6,
+   "resize 0.9"
+  ],
+  [
+   5.75,
+   "mood celebrate"
+  ],
+  [
+   9.4,
+   "mood flex"
+  ],
+  [
+   12.5,
+   "mood flex"
+  ],
+  [
+   13.4,
+   "resize 0.8"
+  ],
+  [
+   14.2,
+   "mood love"
+  ],
+  [
+   14.2,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   0,
+   "beep"
+  ],
+  [
+   1,
+   "beep"
+  ],
+  [
+   2,
+   "beep"
+  ],
+  [
+   3.0,
+   "sparkle"
+  ],
+  [
+   4.55,
+   "tap"
+  ],
+  [
+   4.95,
+   "tap"
+  ],
+  [
+   5.35,
+   "tap"
+  ],
+  [
+   5.75,
+   "sparkle"
+  ],
+  [
+   9.25,
+   "success"
+  ]
+ ],
+ "theme": "sticker",
+ "overlays": []
+}

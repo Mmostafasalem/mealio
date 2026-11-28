@@ -1,0 +1,175 @@
+{
+ "id": "reasons",
+ "dur": 17.437,
+ "bpm": 118,
+ "music": {
+  "style": "pop",
+  "bars": [
+   "F",
+   "C",
+   "Dm7",
+   "Bbmaj7",
+   "F",
+   "C",
+   "Dm7",
+   "Bbmaj7",
+   "F"
+  ],
+  "drumsFrom": 1,
+  "drumsTo": 8
+ },
+ "scenes": [
+  {
+   "kind": "title",
+   "at": 0,
+   "cut": "dissolve",
+   "label": "3 reasons Nourlo beats your notes app",
+   "mark": [
+    "nourlo"
+   ],
+   "titleSize": 110,
+   "titleTop": 260
+  },
+  {
+   "kind": "listicle",
+   "at": 3.051,
+   "cut": "slide",
+   "items": [
+    [
+     "🗓️",
+     "It plans your whole week"
+    ],
+    [
+     "🛒",
+     "It shops to your budget"
+    ],
+    [
+     "💪",
+     "It cheers every PR"
+    ]
+   ],
+   "every": 2.034
+  },
+  {
+   "kind": "title",
+   "at": 11.186,
+   "cut": "zoom",
+   "label": "Your notes app could never",
+   "mark": [
+    "never"
+   ],
+   "titleTop": 300
+  },
+  {
+   "kind": "end",
+   "at": 14.837,
+   "cut": "dissolve"
+  }
+ ],
+ "path": [
+  {
+   "t": 0,
+   "x": 540,
+   "y": 1300,
+   "size": 700
+  },
+  {
+   "t": 2.851,
+   "x": 540,
+   "y": 1300,
+   "size": 700
+  },
+  {
+   "t": 3.451,
+   "x": 850,
+   "y": 1560,
+   "size": 400,
+   "move": "jump",
+   "arc": 260
+  },
+  {
+   "t": 10.986,
+   "x": 850,
+   "y": 1560,
+   "size": 400
+  },
+  {
+   "t": 11.686,
+   "x": 540,
+   "y": 1360,
+   "size": 640,
+   "move": "jump",
+   "arc": 240
+  }
+ ],
+ "rig": [
+  [
+   0,
+   "mood cheeky"
+  ],
+  [
+   1.0,
+   "hop"
+  ],
+  [
+   3.351,
+   "hop"
+  ],
+  [
+   5.385,
+   "hop"
+  ],
+  [
+   7.419,
+   "hop"
+  ],
+  [
+   7.419,
+   "mood flex"
+  ],
+  [
+   11.686,
+   "mood cheeky"
+  ],
+  [
+   14.237,
+   "mood love"
+  ],
+  [
+   14.237,
+   "wave"
+  ]
+ ],
+ "sfx": [
+  [
+   3.251,
+   "pop"
+  ],
+  [
+   5.285,
+   "pop"
+  ],
+  [
+   7.319,
+   "pop"
+  ],
+  [
+   7.519,
+   "sparkle"
+  ],
+  [
+   12.086,
+   "pop"
+  ]
+ ],
+ "theme": "sticker",
+ "overlays": [
+  {
+   "kind": "bubble",
+   "at": 12.086,
+   "until": 13.82,
+   "text": "Told you 😌",
+   "side": "right"
+  }
+ ]
+}

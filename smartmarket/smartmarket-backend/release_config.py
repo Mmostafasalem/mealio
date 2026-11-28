@@ -15,6 +15,11 @@ def production_errors(config, accounts_ready=False):
     if enabled not in {'0','1'}: errors.append('AI_ACCOUNTS_ENABLED')
     if config.get('GROQ_MODEL',DEFAULT_MODEL) in RETIRED_CONSUMER_MODELS:
         errors.append('GROQ_MODEL')
+    # Per-IP limits read the client address from X-Forwarded-For, counted from
+    # the right by this many proxies. It must be stated, not assumed (DEPLOY.md).
+    proxies=config.get('TRUSTED_PROXY_COUNT')
+    if not isinstance(proxies,str) or not proxies.isascii() or not proxies.isdigit() or not 1 <= int(proxies) <= 10:
+        errors.append('TRUSTED_PROXY_COUNT')
     if enabled == '1':
         provider=config.get('GROQ_API_KEY','')
         if not isinstance(provider,str) or not provider.startswith('gsk_') or len(provider)<24:

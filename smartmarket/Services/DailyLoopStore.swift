@@ -10,6 +10,8 @@ struct LoopSource {
     var cartHasItems: Bool
     var cartWithinBudget: Bool
     var hasStock: Bool
+    /// What the person uses Nourlo for; quests for other features are left out.
+    var features: Set<AppFeature> = AppFeature.all
 
     @MainActor static func live() -> LoopSource {
         let cart = ShoppingCartService.shared
@@ -21,7 +23,8 @@ struct LoopSource {
             proteinGoal: AppState.shared.bmrData?.macros.protein ?? 0,
             cartHasItems: !cart.cartItems.isEmpty,
             cartWithinBudget: cart.total <= cart.weeklyBudget,
-            hasStock: !StockStore.shared.items.isEmpty)
+            hasStock: !StockStore.shared.items.isEmpty,
+            features: AppState.shared.enabledFeatures)
     }
 }
 
@@ -80,7 +83,8 @@ final class DailyLoopStore {
         let s = source()
         return LoopInputs(foodEntries: s.foodEntries, stockEntryIDs: s.stockEntryIDs, workouts: s.workouts,
                           calorieGoal: s.calorieGoal, proteinGoal: s.proteinGoal, cartHasItems: s.cartHasItems,
-                          hasStock: s.hasStock, ledger: ledger, now: now, calendar: calendar)
+                          hasStock: s.hasStock, ledger: ledger, now: now, calendar: calendar,
+                          features: s.features)
     }
 
     func refresh(now: Date = Date()) {

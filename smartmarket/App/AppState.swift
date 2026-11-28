@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Combine
 
 @MainActor
@@ -21,6 +22,7 @@ final class AppState {
         isOnboarded = UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
         hasSeenWelcome = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
         lang = UserDefaults.standard.string(forKey: Constants.Storage.lang) ?? "en"
+        enabledFeatures = AppFeature.load()
     }
 
     // MARK: - User
@@ -29,6 +31,28 @@ final class AppState {
     var isOnboarded: Bool = UserDefaults.standard.bool(forKey: Constants.Storage.hasCompletedOnboarding)
     var hasSeenWelcome: Bool = UserDefaults.standard.bool(forKey: "hasSeenWelcome")
     var lang: String = UserDefaults.standard.string(forKey: Constants.Storage.lang) ?? "en"
+
+    // MARK: - Features
+    /// What the person uses Nourlo for (onboarding's first choice, Profile › Features).
+    /// Every feature when nothing was chosen, so earlier users see no change.
+    private(set) var enabledFeatures: Set<AppFeature> = AppFeature.load()
+
+    func isEnabled(_ feature: AppFeature) -> Bool { enabledFeatures.contains(feature) }
+
+    /// Saves a new choice. An empty choice is ignored: one feature is always on.
+    func setEnabledFeatures(_ features: Set<AppFeature>) {
+        guard !features.isEmpty, features != enabledFeatures else { return }
+        enabledFeatures = features
+        AppFeature.save(features)
+        NotificationCenter.default.post(name: .enabledFeaturesDidChange, object: nil)
+    }
+
+    /// Turns one feature on or off; turning off the last one does nothing.
+    func setFeature(_ feature: AppFeature, enabled: Bool) {
+        var features = enabledFeatures
+        if enabled { features.insert(feature) } else { features.remove(feature) }
+        setEnabledFeatures(features)
+    }
 
     // MARK: - Market
     var activeDeals: [Deal] = []
@@ -128,9 +152,30 @@ final class AppState {
     }
 
     func completeOnboarding() {
-        isOnboarded = true
+        // The screen swap to the app uses the same slow, even curve as the rest of the root changes.
+        withAnimation(SmartMarketAgentApp.rootTransition) { isOnboarded = true }
         UserDefaults.standard.set(true, forKey: Constants.Storage.hasCompletedOnboarding)
+        // The first plan is ready at once; it doesn't wait for the first network tick.
+        AgentLoop.rebuildPlanNow(appState: self)
     }
+
+    /// The profile lives in the Keychain. If it couldn't be read at launch (the phone was
+    /// locked, on items saved by older builds), read it again once the phone is unlocked.
+    /// And when it is really gone (a backup restored to a new phone brings the settings
+    /// but not the Keychain), setup runs again instead of using a made-up person.
+    func recoverProfileIfNeeded() {
+        guard isOnboarded, UIApplication.shared.isProtectedDataAvailable else { return }
+        let inKeychain = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) != nil
+        if inKeychain || UserDefaults.standard.data(forKey: Constants.Storage.userProfile) != nil {
+            if !profileWasRead { reloadStoredData(); profileWasRead = true }
+        } else if !NourloTips.isUITesting() {
+            // UI tests start "onboarded" with no stored profile on purpose.
+            UserDefaults.standard.set(false, forKey: Constants.Storage.hasCompletedOnboarding)
+            withAnimation(SmartMarketAgentApp.rootTransition) { isOnboarded = false }
+        }
+    }
+    /// Whether the stored profile was readable when the app state was created.
+    @ObservationIgnored private var profileWasRead = KeychainHelper.load(UserProfile.self, key: Constants.Storage.userProfile) != nil
 
     // MARK: - Static loaders
 

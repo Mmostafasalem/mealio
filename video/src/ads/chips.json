@@ -1,0 +1,14 @@
+{
+  "dur": 24.6,
+  "intro": { "head": 0.35, "out": 3.2 },
+  "prompt": { "at": 3.35 },
+  "days": { "click": 4.5, "menu": 4.6, "pick": 5.3 },
+  "diet": { "click": 6.1, "menu": 6.2, "pick": 7.0 },
+  "cart": { "click": 7.8, "menu": 7.9, "picks": [8.35, 8.6, 8.85, 9.1] },
+  "generate": { "show": 9.4, "click": 9.85 },
+  "dots": [10.0, 11.0],
+  "grid": 10.9,
+  "share": { "head": 14.0, "out": 15.5 },
+  "chat": { "at": 15.6, "them": 15.9, "card": 16.9, "reply": 18.4, "mascot": 18.9 },
+  "end": 19.8
+}

@@ -14,8 +14,10 @@ enum StreakNudge {
     }
 
     /// Nudges for the next three evenings, starting today if today doesn't
-    /// count yet and 20:00 hasn't passed.
-    static func plan(now: Date, todayKept: Bool, streak: Int, calendar: Calendar) -> [Item] {
+    /// count yet and 20:00 hasn't passed. `streak` already counts today when
+    /// today is kept. A held saver covers a missed today, so tomorrow's note
+    /// still speaks of keeping the streak.
+    static func plan(now: Date, todayKept: Bool, streak: Int, calendar: Calendar, saversHeld: Int = 0) -> [Item] {
         guard streak >= 1 else { return [] }
         let today = DayKey(now, calendar: calendar)
         var out: [Item] = []
@@ -29,8 +31,8 @@ enum StreakNudge {
                 guard !todayKept else { continue }
                 body = "Nourlo's getting sleepy… one quest keeps your \(streak)-day streak."
             case 1:
-                body = todayKept ? "Nourlo's getting sleepy… one quest keeps your \(streak + 1)-day streak."
-                                 : "Nourlo misses you. Log one thing to start a new streak."
+                body = todayKept || saversHeld > 0 ? "Nourlo's getting sleepy… one quest keeps your \(streak)-day streak."
+                                                   : "Nourlo misses you. Log one thing to start a new streak."
             default:
                 body = "Nourlo saved you a spot. One quest is all it takes."
             }

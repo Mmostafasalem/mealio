@@ -1,12 +1,27 @@
 import SwiftUI
+import PhotosUI
 
 /// Tap once, speak, done: the sheet that listens, shows what it understood and
-/// saves it. Opened from the "+" quick actions.
+/// saves it. Opened from the "+" quick actions. In photo mode ("Snap a meal")
+/// a photo read by online AI takes the place of speech and ends in the same review card.
 struct VoiceCommandSheet: View {
     let close: () -> Void
     let navigate: (VoiceNavigation) -> Void
 
-    @State private var model = VoiceCommandModel()
+    @State private var model: VoiceCommandModel
+    @State private var showCamera = false
+    @State private var photoItem: PhotosPickerItem?
+    /// The food whose amount, or whose calories, are being typed (kept after the dialog closes).
+    @State private var typingID: UUID?
+    @State private var typingField = PortionField.amount
+    @State private var showEntry = false
+
+    /// `pending`: a saved meal photo to finish (photo mode reads it straight away).
+    init(photoMode: Bool = false, pending: PendingMeal? = nil, close: @escaping () -> Void, navigate: @escaping (VoiceNavigation) -> Void) {
+        self.close = close
+        self.navigate = navigate
+        _model = State(initialValue: VoiceCommandModel(photoMode: photoMode, pending: pending))
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
 
@@ -19,7 +34,7 @@ struct VoiceCommandSheet: View {
             }
             .padding(.horizontal, Spacing.lg)
             .padding(.bottom, Spacing.lg)
-            .navigationTitle("Voice")
+            .navigationTitle(model.photoMode ? "Snap a meal" : "Voice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -27,7 +42,8 @@ struct VoiceCommandSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // On iPad a medium detent makes a short card that hides the review list; use the full form sheet there.
+        .presentationDetents(UIDevice.current.userInterfaceIdiom == .pad ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         // Solid, so the screen behind doesn't show through the review card.
         .presentationBackground(Color.surfaceGrouped)
@@ -37,6 +53,22 @@ struct VoiceCommandSheet: View {
             model.start()
         }
         .onDisappear { model.cancel() }
+        .fullScreenCover(isPresented: $showCamera) {
+            MealCameraPicker { image in
+                showCamera = false
+                if let image { model.readPhoto(image) }
+            }
+            .ignoresSafeArea()
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            photoItem = nil
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else { return }
+                model.readPhoto(image)
+            }
+        }
         .sensoryFeedback(.success, trigger: model.phase == .done)
         .sensoryFeedback(.selection, trigger: model.phase == .listening)
     }
@@ -51,7 +83,101 @@ struct VoiceCommandSheet: View {
             done
         case .failed(let message):
             failed(message)
+        case .choosingPhoto:
+            photoChooser
+        case .readingPhoto:
+            readingPhoto
+        case .savedForLater(let message):
+            savedForLater(message)
         }
+    }
+
+    /// The photo waits under "To clarify".
+    private func savedForLater(_ message: String) -> some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer(minLength: 0)
+            if let pending = model.pending, let image = PendingMealStore.shared.image(for: pending) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 132, height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .accessibilityLabel("Your meal photo")
+            } else {
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(Color.progress)
+                    .accessibilityHidden(true)
+            }
+            Label("Saved to clarify later", systemImage: "clock.badge.checkmark")
+                .font(.headline)
+                .foregroundStyle(Color.labelPrimary)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Color.labelSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("photo.saved")
+            PrimaryButton(title: "Done", systemImage: "checkmark") { close() }
+                .frame(maxWidth: 260)
+                .accessibilityIdentifier("photo.savedDone")
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: Photo
+
+    private var photoChooser: some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer(minLength: 0)
+            Image(systemName: "camera.fill")
+                .font(.system(size: 40, weight: .medium))
+                .foregroundStyle(Color.progress)
+                .accessibilityHidden(true)
+            Text(MealPhotoAccess.isUsable
+                 ? "Take or choose a photo of your meal. Online AI names the foods, and Nourlo's own food data gives the calories. Nothing is logged until you check it. If you don't finish now, the photo waits under To clarify."
+                 : "Take or choose a photo of your meal. It's saved under To clarify, with the time, and you pick the foods and amounts when you have a moment.")
+                .font(.subheadline)
+                .foregroundStyle(Color.labelPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Spacing.sm) {
+                if MealCameraPicker.isAvailable {
+                    PrimaryButton(title: "Take photo", systemImage: "camera.fill") { showCamera = true }
+                        .accessibilityIdentifier("photo.take")
+                }
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Label("Choose photo", systemImage: "photo.on.rectangle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.labelPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityIdentifier("photo.choose")
+            }
+            .frame(maxWidth: 300)
+            if MealPhotoAccess.isUsable {
+                Text("Each photo uses \(MealPhotoAccess.costText).")
+                    .font(.caption)
+                    .foregroundStyle(Color.labelSecondary)
+                    .accessibilityIdentifier("photo.cost")
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var readingPhoto: some View {
+        VStack(spacing: Spacing.lg) {
+            Spacer(minLength: 0)
+            ProgressView()
+                .controlSize(.large)
+            Text("Reading your photo…")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(Color.labelSecondary)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("photo.reading")
     }
 
     // MARK: Listening
@@ -104,8 +230,8 @@ struct VoiceCommandSheet: View {
                 VStack(spacing: Spacing.xs) {
                     Text("Try saying")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.labelTertiary)
-                    ForEach(["\u{201C}Two eggs and toast for breakfast\u{201D}", "\u{201C}Add milk to my cart\u{201D}", "\u{201C}Start a 30 minute leg workout\u{201D}"], id: \.self) { example in
+                        .foregroundStyle(Color.labelSecondary)
+                    ForEach(["\u{201C}Two eggs and toast for breakfast\u{201D}", "\u{201C}Add milk to my cart\u{201D}", "\u{201C}Start a 30 minute cardio workout\u{201D}"], id: \.self) { example in
                         Text(example)
                             .font(.subheadline)
                             .foregroundStyle(Color.labelSecondary)
@@ -153,7 +279,7 @@ struct VoiceCommandSheet: View {
                     .disabled(!model.canConfirm)
                     .opacity(model.canConfirm ? 1 : 0.5)
                     .accessibilityIdentifier("voice.confirm")
-                Button("Try again") { model.start() }
+                Button(model.photoMode ? "Try another photo" : "Try again") { model.start() }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.labelPrimary)
                     .frame(minHeight: 44)
@@ -163,17 +289,29 @@ struct VoiceCommandSheet: View {
         .padding(.top, Spacing.sm)
     }
 
-    /// What was heard, small, above what it was taken to mean.
-    private var heard: some View {
+    /// What was heard (or that it came from a photo), small, above what it was taken to mean.
+    @ViewBuilder private var heard: some View {
+        if model.fromPhoto {
+            Label("From your photo: check the foods and amounts", systemImage: "photo")
+                .font(.footnote)
+                .foregroundStyle(Color.labelSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("photo.source")
+        } else {
+            spoken
+        }
+    }
+
+    private var spoken: some View {
         Label {
-            Text("\u{201C}\(model.transcript)\u{201D}")
+            Text("\u{201C}\(model.transcript)\u{201D}" as String)
                 .font(.footnote)
                 .foregroundStyle(Color.labelSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: "waveform").foregroundStyle(Color.labelSecondary)
         }
-        .accessibilityLabel("You said: \(model.transcript)")
+        .accessibilityLabel("You said: \(model.transcript)" as String)
     }
 
     /// Says so when a model, not the rules, worked the phrase out.
@@ -229,6 +367,73 @@ struct VoiceCommandSheet: View {
             }
             missingNote(missing)
         }
+        // One dialog for both fields (two alerts on one card show only one).
+        .numberEntry(isPresented: $showEntry, title: entryTitle, current: entryCurrent, message: entryMessage,
+                     keyboard: typingField == .kcal ? .numberPad : .decimalPad,
+                     identifier: typingField == .kcal ? "voice.food.kcal" : typingField == .count ? "voice.food.count" : "voice.food.amount",
+                     resetTitle: typingField == .kcal && typingMatch?.kcalOverride != nil ? "Use the estimate" : nil,
+                     onReset: { if let match = typingMatch { model.typeKcal(nil, for: match) } }) { text in
+            guard let match = typingMatch else { return }
+            switch typingField {
+            case .amount: model.typeAmount(text, for: match)
+            case .kcal: model.typeKcal(text, for: match)
+            case .count: model.typeCount(text, for: match)
+            }
+        }
+    }
+
+    /// The food being typed for, as it is on the card now.
+    private var typingMatch: VoiceFoodMatch? {
+        guard let id = typingID, case .food(let matches, _, _) = model.plan else { return nil }
+        return matches.first { $0.id == id }
+    }
+
+    private func type(_ field: PortionField, for match: VoiceFoodMatch) {
+        model.holdCountdown()
+        typingID = match.id
+        typingField = field
+        showEntry = true
+    }
+
+    private var entryTitle: String {
+        guard let match = typingMatch else { return "" }
+        switch typingField {
+        case .kcal: return "Your calories"
+        case .count: return "How many \(PieceWords.plural(match.pieceName ?? "piece"))"
+        case .amount: return "Amount of \(match.food.name)"
+        }
+    }
+
+    private var entryCurrent: String {
+        guard let match = typingMatch else { return "" }
+        switch typingField {
+        case .kcal: return "\(match.kcal)"
+        case .count: return (match.count ?? 1).formatted(.number.precision(.fractionLength(0...2)))
+        case .amount: return LogFoodSheet.amountText(match.amount, basis: match.food.basis)
+        }
+    }
+
+    private var entryMessage: String {
+        guard let match = typingMatch else { return "" }
+        switch typingField {
+        case .amount: return Self.amountHint(match.food)
+        case .count:
+            let piece = LogFoodSheet.amountText(match.pieceAmount ?? 0, basis: match.food.basis)
+            return "One \(match.pieceName ?? "piece") is about \(piece). The grams and calories follow the number."
+        case .kcal: return Self.kcalHint(estimate: match.estimatedKcal, amount: LogFoodSheet.amountText(match.amount, basis: match.food.basis))
+        }
+    }
+
+    static func kcalHint(estimate: Int, amount: String) -> String {
+        "The estimate is \(estimate) kcal for \(amount). Type your own figure if you know it better; protein, carbs and fat follow it."
+    }
+
+    /// "Type an amount in g, from 1 to 5000."
+    static func amountHint(_ food: NutritionFood) -> String {
+        let unit = food.basis == .serving ? "servings" : food.basis.rawValue
+        let low = food.minimumAmount.formatted(.number.precision(.fractionLength(0...2)))
+        let high = food.maximumAmount.formatted(.number.grouping(.never))
+        return "Type an amount in \(unit), from \(low) to \(high)."
     }
 
     private func foodRow(_ match: VoiceFoodMatch) -> some View {
@@ -262,19 +467,67 @@ struct VoiceCommandSheet: View {
                     Image(systemName: "xmark")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(Color.labelSecondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Remove \(match.food.name)")
+                .accessibilityLabel("Remove \(match.food.name)" as String)
             }
+            // "2 × veggie burger · 220 g · 493 kcal": how many, how much, and the calories.
+            Text(match.summary)
+                .font(.footnote.weight(.medium).monospacedDigit())
+                .foregroundStyle(Color.labelPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.numericText())
+                .accessibilityIdentifier("voice.food.summary")
             HStack(spacing: Spacing.sm) {
-                stepButton("minus", name: "Less", disabled: match.amount <= match.food.minimumAmount) { model.nudge(match, up: false) }
-                Text(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
-                    .font(.subheadline.weight(.medium).monospacedDigit())
-                    .frame(minWidth: 76)
-                    .contentTransition(.numericText())
-                stepButton("plus", name: "More", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
+                if let count = match.count, let pieceName = match.pieceName {
+                    stepButton("minus", name: "One fewer", disabled: count <= 0.5) { model.nudge(match, up: false) }
+                    // Tap the count to type it.
+                    Button { type(.count, for: match) } label: {
+                        Text("\(count.formatted(.number.precision(.fractionLength(0...2)))) ×" as String)
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(Color.labelPrimary)
+                            .lineLimit(1)
+                            .padding(.horizontal, 8)
+                            .frame(minWidth: 52, minHeight: 32)
+                            .background(Color.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                            .contentTransition(.numericText())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Number of \(PieceWords.plural(pieceName))" as String)
+                    .accessibilityValue(PieceWords.count(count, pieceName))
+                    .accessibilityHint("Type how many")
+                    .accessibilityIdentifier("voice.food.count")
+                    stepButton("plus", name: "One more", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
+                } else {
+                    stepButton("minus", name: "Less", disabled: match.amount <= match.food.minimumAmount) { model.nudge(match, up: false) }
+                }
+                // Tap the amount to type it.
+                Button { type(.amount, for: match) } label: {
+                    Text(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
+                        .font(.subheadline.weight(.medium).monospacedDigit())
+                        .foregroundStyle(Color.labelPrimary)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .frame(minWidth: 76, minHeight: 32)
+                        .background(Color.surface, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.hairline, lineWidth: 1))
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .contentTransition(.numericText())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Amount")
+                .accessibilityValue(LogFoodSheet.amountText(match.amount, basis: match.food.basis))
+                .accessibilityHint("Type the amount")
+                .accessibilityIdentifier("voice.food.amount")
+                if match.count == nil {
+                    stepButton("plus", name: "More", disabled: match.amount >= match.food.maximumAmount) { model.nudge(match, up: true) }
+                }
                 if match.estimated {
                     // Short and on one line: the full word broke in two beside a long amount.
                     Text("est.")
@@ -287,13 +540,36 @@ struct VoiceCommandSheet: View {
                         .accessibilityLabel("Estimated amount")
                 }
                 Spacer(minLength: 0)
-                Text("\(match.kcal) kcal")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(Color.labelSecondary)
+                // Tap the calories to type your own figure.
+                Button { type(.kcal, for: match) } label: {
+                    VStack(alignment: .trailing, spacing: 0) {
+                        HStack(spacing: 3) {
+                            if match.kcalOverride != nil {
+                                Image(systemName: "pencil").font(.caption2.weight(.bold))
+                            }
+                            Text("\(match.kcal) kcal" as String)
+                                .contentTransition(.numericText())
+                        }
+                        .font(.subheadline.monospacedDigit().weight(match.kcalOverride == nil ? .regular : .semibold))
+                        .foregroundStyle(match.kcalOverride == nil ? Color.labelSecondary : Color.labelPrimary)
+                        .underline(match.kcalOverride == nil, pattern: .dot, color: Color.labelTertiary)
+                        if match.kcalOverride != nil {
+                            Text("your value").font(.caption2.weight(.semibold)).foregroundStyle(Color.brandPrimary)
+                        }
+                    }
                     .lineLimit(1)
                     .fixedSize()
-                    .contentTransition(.numericText())
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Calories")
+                .accessibilityValue(match.kcalOverride == nil ? "\(match.kcal) kcal, estimated" : "\(match.kcal) kcal, your value")
+                .accessibilityHint("Type your own calories")
+                .accessibilityIdentifier("voice.food.kcal")
             }
+            // Which item in My Stock this comes out of (logging takes it out; undo puts it back).
+            StockSummaryLine(summary: StockStore.shared.summary(for: match.food, amount: match.amount))
         }
         .padding(Spacing.md)
         .background(Color.surfaceSecondary.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -367,7 +643,7 @@ struct VoiceCommandSheet: View {
                     .accessibilityIdentifier("voice.undo")
             }
             Button { model.start() } label: {
-                Label("Say another", systemImage: "mic.fill")
+                Label(model.photoMode ? "Snap another" : "Say another", systemImage: model.photoMode ? "camera.fill" : "mic.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.labelPrimary)
                     .frame(minHeight: 44)
@@ -380,12 +656,12 @@ struct VoiceCommandSheet: View {
     private func failed(_ message: String) -> some View {
         VStack(spacing: Spacing.lg) {
             Spacer(minLength: 0)
-            Image(systemName: "mic.slash.fill")
+            Image(systemName: model.photoMode ? "photo" : "mic.slash.fill")
                 .font(.system(size: 40, weight: .medium))
                 .foregroundStyle(Color.labelSecondary)
                 .accessibilityHidden(true)
             if !model.transcript.isEmpty {
-                Text("\u{201C}\(model.transcript)\u{201D}")
+                Text("\u{201C}\(model.transcript)\u{201D}" as String)
                     .font(.footnote)
                     .foregroundStyle(Color.labelSecondary)
                     .multilineTextAlignment(.center)
@@ -402,7 +678,7 @@ struct VoiceCommandSheet: View {
                 }
                 .frame(maxWidth: 260)
             } else {
-                PrimaryButton(title: "Try again", systemImage: "mic.fill") { model.start() }
+                PrimaryButton(title: "Try again", systemImage: model.photoMode ? "camera.fill" : "mic.fill") { model.start() }
                     .frame(maxWidth: 260)
                     .accessibilityIdentifier("voice.retry")
             }

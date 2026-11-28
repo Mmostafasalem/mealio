@@ -72,8 +72,8 @@ final class DailyLoopTests: XCTestCase {
 
     func testMoodLoveOnPerfectDay() {
         // Everything any quest could ask for is done today.
-        let food = [F.food(-2, foodId: "old"), F.food(slot: .breakfast, foodId: "new1", id: "s1"),
-                    F.food(slot: .lunch), F.food(slot: .dinner)]
+        let food = [F.food(-2, foodId: "old"), F.food(slot: .breakfast, foodId: "new1", id: "s1", name: "Banana"),
+                    F.food(slot: .lunch, name: "Broccoli"), F.food(slot: .dinner, name: "Spinach")]
         let i = F.inputs(food: food, stockIDs: ["s1"], workouts: [F.workout(minutes: 30)], calorieGoal: 0, proteinGoal: 0,
                          cartHasItems: true, hasStock: true, ledger: [.budgetCheckIn(F.day())])
         XCTAssertEqual(DailyLoop.mood(i, justCompleted: false, generating: false), .love)

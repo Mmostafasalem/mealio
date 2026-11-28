@@ -220,7 +220,7 @@ struct RollingNumber: View {
         Group {
             if reduceMotion {
                 // Reduce Motion: the number crossfades in place, no vertical roll.
-                Text("\(value)")
+                Text("\(value)" as String)
                     .monospacedDigit()
                     .contentTransition(.opacity)
                     .animation(.easeOut(duration: 0.2), value: value)
@@ -289,7 +289,7 @@ private struct DigitColumn: View {
                 VStack(spacing: 0) {
                     // 0…9 then 0 again, so 9 → 0 rolls on without a jump.
                     ForEach(0..<11, id: \.self) { d in
-                        Text("\(d % 10)")
+                        Text("\(d % 10)" as String)
                             .frame(height: cell.height > 0 ? cell.height : nil)
                     }
                 }
@@ -352,7 +352,7 @@ final class RollingNumberModel {
             Spacer()
             HStack(spacing: 4) {
                 RollingNumber(value: done.count).foregroundStyle(Color.labelPrimary).fontWeight(.semibold)
-                Text("of \(items.count) bought").foregroundStyle(Color.labelSecondary)
+                Text("of \(items.count) bought" as String).foregroundStyle(Color.labelSecondary)
             }
             .font(.footnote)
         }

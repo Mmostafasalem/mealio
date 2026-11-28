@@ -1,0 +1,13 @@
+home 34.07
+voice-open 36.57
+voice-confirm 42.25
+home-logged 49.18
+meals-missing 64.39
+meals-owned 71.71
+stock 76.96
+cook 81.42
+recipe 86.95
+meals 100.06
+shop 111.11
+train 121.98
+end 129.03

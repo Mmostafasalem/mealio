@@ -1,7 +1,7 @@
 """HTTP boundary: never accept a caller-selected account id for an allowance."""
 import json
 import logging
-from flask import g, jsonify, request, make_response
+from flask import g, jsonify, request
 from ai_accounts import AccountError, AccountService, AI_PATHS
 import ai_usage
 
@@ -36,15 +36,9 @@ def register_ai_accounts(app, client_ip=None):
         logging.error('AI account configuration is unavailable; online AI is disabled')
         service = None
     app.config['AI_ACCOUNTS'] = service
-    # Idempotent replays are stored (encrypted, bounded) with the request claim in
-    # the account database, so they survive restarts and are shared by workers.
-    def replayed_response(replay):
-        body, status, content_type, result = replay
-        response=make_response(body,status)
-        response.headers['Content-Type']=content_type
-        response.headers['X-AI-Result']='replayed-online' if result in {'online','cached-online'} else 'replayed'
-        return response
 
+    def caller_address():
+        return client_ip() if client_ip else (request.remote_addr or "unknown")
 
     def accounts():
         active = app.config.get('AI_ACCOUNTS')
@@ -57,12 +51,16 @@ def register_ai_accounts(app, client_ip=None):
             g.ai_user = accounts().authenticate(request.headers.get('Authorization',''))
         return g.ai_user
 
+    def session_owner():
+        # Signing out and deleting one's own account need only a valid session:
+        # they must keep working when Apple is unreachable or Apple sign-in is off.
+        return accounts().authenticate(request.headers.get('Authorization',''),verify_apple=False)
+
     @app.errorhandler(AccountError)
     def account_error(error):
         response = jsonify({'error':error.message,'code':error.code})
         response.status_code = error.status
         response.headers['X-AI-Error'] = error.code
-        if error.code == 'ai_request_repeated': response.headers['Retry-After'] = '2'
         if error.status in (429,503):
             response.headers['Retry-After'] = '60'
         return response
@@ -77,11 +75,10 @@ def register_ai_accounts(app, client_ip=None):
     def guest_login():
         data=request_json()
         if not isinstance(data,dict): raise AccountError('Invalid sign-in request.',400,'invalid_request')
-        network = client_ip() if client_ip else (request.remote_addr or "unknown")
-        return jsonify(accounts().guest_login(data.get('deviceSecret'),network))
+        return jsonify(accounts().guest_login(data.get('deviceSecret'),caller_address()))
 
     @app.get('/api/auth/apple/challenge')
-    def challenge(): return jsonify(accounts().challenge())
+    def challenge(): return jsonify(accounts().challenge(caller_address()))
 
     @app.post('/api/auth/apple')
     def apple_login():
@@ -95,13 +92,12 @@ def register_ai_accounts(app, client_ip=None):
 
     @app.post('/api/auth/logout')
     def logout():
-        accounts().logout(user())
+        accounts().logout(session_owner())
         return ('',204)
 
     @app.delete('/api/auth/account')
     def delete_account():
-        person=user()
-        accounts().delete_account(person)
+        accounts().delete_account(session_owner())
         return ('',204)
 
     @app.post('/api/auth/apple/notifications')
@@ -134,18 +130,16 @@ def register_ai_accounts(app, client_ip=None):
     def ai_allowance():
         if request.method != 'POST' or request.path not in AI_PATHS: return None
         ai_usage.attempted.set(False);ai_usage.succeeded.set(False);ai_usage.verified_cache.set(False)
-        ai_usage.responded.set(False)
+        ai_usage.responded.set(False);ai_usage.account.set(None)
         person=user()
+        ai_usage.account.set(person.account_id)
         key=request.headers.get('Idempotency-Key')
         fingerprint=accounts().request_fingerprint(request.path,request.get_data(cache=True)) if key is not None else None
-        try:
-            g.ai_reservation=accounts().reserve(person,request.path,request_key=key,fingerprint=fingerprint)
-            g.ai_request_key=key
-            g.ai_request_fingerprint=fingerprint
-        except AccountError as error:
-            if error.code == 'ai_request_repeated' and error.replay is not None:
-                return replayed_response(error.replay)
-            raise
+        # A repeated Idempotency-Key is refused here (409 ai_request_repeated):
+        # responses are never stored, so there is nothing to replay.
+        g.ai_reservation=accounts().reserve(person,request.path,request_key=key,fingerprint=fingerprint)
+        g.ai_request_key=key
+        g.ai_request_fingerprint=fingerprint
 
     @app.after_request
     def ai_allowance_result(response):
@@ -153,6 +147,7 @@ def register_ai_accounts(app, client_ip=None):
         reservation = getattr(g, 'ai_reservation', None)
         g.ai_reservation = None
         try:
+            status = None
             if reservation:
                 succeeded=response.status_code < 400 and ai_usage.succeeded.get()
                 key=getattr(g,'ai_request_key',None)
@@ -162,19 +157,15 @@ def register_ai_accounts(app, client_ip=None):
                 released=key is not None and not succeeded and (
                     ai_usage.attempted.get() or response.status_code >= 400)
                 result='online' if ai_usage.succeeded.get() else ('fallback' if ai_usage.attempted.get() else ('cached-online' if ai_usage.verified_cache.get() else 'cached'))
-                # The replay is stored in the same transaction that settles the
-                # reservation. A deleted, expired or replaced reservation settles
-                # nothing, so it can never publish a late body.
-                replay=None
-                if key is not None and not released and response.status_code < 500:
-                    replay=(response.get_data(),response.status_code,response.content_type,result)
-                valid=accounts().finish(reservation,
+                # Settling also returns the account's usage, so the headers below
+                # need no second transaction. A deleted, expired or replaced
+                # reservation settles nothing and its late answer is not delivered.
+                status=accounts().finish_with_usage(reservation,
                     succeeded=succeeded,
                     attempted=ai_usage.attempted.get(),
                     responded=response.status_code < 500 and ai_usage.responded.get(),
-                    release_request_key=key if released else None,
-                    replay=replay)
-                if not valid:
+                    release_request_key=key if released else None)
+                if status is None:
                     response=jsonify({'error':'This request is no longer available. No extra credits were used.',
                                       'code':'ai_request_invalidated'})
                     response.status_code=409
@@ -190,12 +181,11 @@ def register_ai_accounts(app, client_ip=None):
                             else 'provider-error')
                     if released:
                         # The Idempotency-Key was released: retrying with it is a new
-                        # request that calls the provider (and is charged) again,
-                        # not a replay of this response.
+                        # request that calls the provider (and is charged) again.
                         response.headers['X-AI-Request-Key'] = 'released'
             person = getattr(g, 'ai_user', None)
             if person and request.path in AI_PATHS:
-                status = accounts().usage(person)
+                if status is None: status = accounts().usage(person)
                 response.headers['X-AI-Account'] = person.account_id
                 response.headers['X-AI-Limit'] = str(status['limit'])
                 response.headers['X-AI-Remaining'] = str(status['remaining'])

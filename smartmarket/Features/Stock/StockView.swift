@@ -11,7 +11,7 @@ struct StockView: View {
 
     private var filtered: [StockItem] {
         store.items.filter { query.isEmpty || $0.food.name.localizedStandardContains(query) }
-            .sorted(by: StockItem.expiryOrder)
+            .sorted { StockItem.expiryOrder($0, $1) }
     }
 
     var body: some View {
@@ -21,6 +21,12 @@ struct StockView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Button("Add food to stock", systemImage: "plus") { showAdd = true }
                     .accessibilityIdentifier("stock.add")
+                NavigationLink {
+                    CookWithWhatIHaveView()
+                } label: {
+                    Label("Cook with what I have", systemImage: "frying.pan")
+                }
+                .accessibilityIdentifier("stock.cook")
             }
             if store.items.isEmpty {
                 ContentUnavailableView("Your stock starts here", systemImage: "cabinet",
@@ -34,18 +40,19 @@ struct StockView: View {
                 Button { selected = item } label: {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(item.food.name).foregroundStyle(.primary)
-                        Text("\(item.amount.formatted()) \(item.food.basis.rawValue) available")
+                        Text("\(item.amount.formatted(.number.grouping(.never))) \(item.food.basis.rawValue) available" as String)
                             .font(.subheadline).foregroundStyle(.secondary)
                         if let expiry = item.expiryDay() {
                             let expired = item.isExpired()
                             Text((expired ? "Expired · use by " : "Use by ") + expiry.formatted(date: .abbreviated, time: .omitted))
-                                .font(.caption).foregroundStyle(expired ? Color.red : Color.secondary)
+                                .font(.caption).foregroundStyle(expired ? Color.brandDanger : Color.secondary)
                         }
                     }
                 }
                 .accessibilityIdentifier("stock.item." + item.food.id)
                 .swipeActions(allowsFullSwipe: false) {
                     Button("Remove", role: .destructive) { pendingRemoval = item }
+                        .tint(Color.brandDanger)
                 }
                 .contextMenu {
                     Button("Remove from stock", systemImage: "trash", role: .destructive) { pendingRemoval = item }
@@ -100,7 +107,7 @@ private struct StockItemSheet: View {
         NavigationStack {
             Form {
                 Section(item.food.name) {
-                    Text("\(item.amount.formatted()) \(item.food.basis.rawValue) available")
+                    Text("\(item.amount.formatted(.number.grouping(.never))) \(item.food.basis.rawValue) available" as String)
                     TextField("Amount in \(item.food.basis.rawValue)", text: $amount).keyboardType(.decimalPad)
                         .accessibilityIdentifier("stock.amount")
                     Picker("Meal", selection: $slot) { ForEach(MealSlot.allCases) { Text($0.title).tag($0) } }
@@ -118,6 +125,7 @@ private struct StockItemSheet: View {
                     TextField("Total remaining in \(item.food.basis.rawValue)", text: $remainingAmount).keyboardType(.decimalPad)
                         .accessibilityIdentifier("stock.remainingAmount")
                     Toggle("Use-by date", isOn: $hasExpiry)
+                        .toggleStyle(.spring)
                     if hasExpiry { DatePicker("Date", selection: $expiry, displayedComponents: .date) }
                     Button("Save remaining amount") {
                         perform { try store.update(id: item.id, amount: remainingValue ?? 0, expiresAt: hasExpiry ? expiry : nil) }
@@ -136,7 +144,7 @@ private struct StockItemSheet: View {
                     Text(item.food.sourceExplanation).font(.footnote).foregroundStyle(.secondary)
                     if let url = item.food.sourceURL { Link("View source", destination: url) }
                 }
-                if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                if let errorMessage { Text(errorMessage).foregroundStyle(Color.brandDanger) }
             }
             .navigationTitle("Stock details")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
@@ -169,9 +177,9 @@ struct FoodHistoryView: View {
             ForEach(log.allEntries.reversed()) { entry in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.name)
-                    Text("\(entry.loggedAt.formatted(date: .abbreviated, time: .shortened)) · \(entry.slot.title)")
+                    Text("\(entry.loggedAt.formatted(date: .abbreviated, time: .shortened)) · \(entry.slot.title)" as String)
                         .font(.caption).foregroundStyle(.secondary)
-                    Text("\(entry.amount.formatted()) \(entry.amountUnit) · \(entry.calories) kcal")
+                    Text("\(entry.amount.formatted(.number.grouping(.never))) \(entry.amountUnit) · \(entry.calories) kcal" as String)
                         .font(.subheadline)
                 }
                 .swipeActions { Button("Delete", role: .destructive) { log.remove(entry) } }

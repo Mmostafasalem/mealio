@@ -12,6 +12,10 @@ final class GroceryListViewModel {
     private(set) var undoMessage: String?
     private var deletedItems: [GroceryItem] = []
     private var deletedCartLines: [CartItem] = []
+    /// Cart lines whose My Stock packs went with them (not bought): undo puts the packs back.
+    private var deletedRestock: [String: Double] = [:]
+    /// Bought lines whose stock stayed: undo gives the cart line its stock item back.
+    private var deletedLinks: [String: UUID] = [:]
     private var undoGeneration: UUID?
     private var undoID = UUID()
     private let undoDuration: Duration
@@ -79,6 +83,8 @@ final class GroceryListViewModel {
         undoTask?.cancel()
         deletedItems = removed
         deletedCartLines = lines
+        deletedRestock = [:]
+        deletedLinks = [:]
         undoMessage = message
         undoGeneration = AppState.shared.dataGeneration
         let expected = UUID()
@@ -96,6 +102,8 @@ final class GroceryListViewModel {
         undoMessage = nil
         deletedItems = []
         deletedCartLines = []
+        deletedRestock = [:]
+        deletedLinks = [:]
         undoGeneration = nil
         undoID = UUID()
     }
@@ -108,19 +116,34 @@ final class GroceryListViewModel {
             ids.contains(ShoppingCartService.cartRowId(catalogId: $0.catalogId, store: $0.store))
         }
         prepareUndo(removed, lines: lines, message: message)
-        // Update local storage immediately; optional CloudKit sync happens separately.
-        for line in lines { cart.removeLine(catalogId: line.catalogId, store: line.store) }
+        // A bought row's food is in the kitchen: My Stock keeps it. An unbought row was
+        // never bought, so its pack leaves My Stock (and comes back on undo).
+        let bought = Set(removed.filter(\.isBought).map(\.id))
+        remove(lines, bought: bought, from: cart)
         items = GroceryStorage.load().filter { !ids.contains($0.id) }
         saveItems()
+    }
+
+    /// Takes the lines out of the cart, remembering what an undo must put back.
+    private func remove(_ lines: [CartItem], bought: Set<String>, from cart: ShoppingCartService) {
+        for line in lines {
+            let keep = bought.contains(ShoppingCartService.cartRowId(catalogId: line.catalogId, store: line.store))
+            if keep, let link = CartStockLink.forget(line.catalogId) { deletedLinks[line.catalogId] = link }
+            let left = cart.removeLine(catalogId: line.catalogId, store: line.store, keepStock: keep)
+            if left > 0 { deletedRestock[line.catalogId, default: 0] += left }
+        }
     }
 
     func undoDelete() {
         guard undoGeneration == AppState.shared.dataGeneration else { discardUndo(); return }
         let removed = deletedItems
         let lines = deletedCartLines
+        let restock = deletedRestock
+        let relink = deletedLinks
         let existingIDs = Set(GroceryStorage.load().map(\.id))
         discardUndo()
-        ShoppingCartService.shared.restoreRemovedLines(lines)
+        ShoppingCartService.shared.restoreRemovedLines(lines, restock: restock)
+        for (catalogId, id) in relink { CartStockLink.relink(catalogId, to: id) }
         var restored = GroceryStorage.load()
         for item in removed {
             if let index = restored.firstIndex(where: { $0.id == item.id }) {
@@ -150,8 +173,10 @@ final class GroceryListViewModel {
         let cart = ShoppingCartService.shared
         guard !cart.cartItems.isEmpty else { return }
         let rows = GroceryStorage.load().filter { ShoppingCartService.parseCartRowId($0.id) != nil }
-        prepareUndo(rows, lines: cart.cartItems, message: "Cart cleared")
-        cart.clear()
+        let lines = cart.cartItems
+        prepareUndo(rows, lines: lines, message: "Cart cleared")
+        // Bought food stays in My Stock; only what was never bought leaves it.
+        remove(lines, bought: Set(rows.filter(\.isBought).map(\.id)), from: cart)
         loadItems()
     }
 
@@ -166,12 +191,12 @@ final class GroceryListViewModel {
         var lines = ["Nourlo Grocery List", ""]
         for item in items {
             let check = item.isBought ? "[x]" : "[ ]"
-            let price = item.priceKnown == false ? "Price unknown" : String(format: "€%.2f", item.estimatedPrice)
+            let price = item.priceKnown == false ? "Price unknown" : Money.format(eur: item.estimatedPrice)
             lines.append("\(check) \(item.foodName) (\(item.quantity)) — \(price)")
         }
         lines.append("")
         let label = items.contains { $0.priceKnown == false } ? "Known estimates only" : "Estimated total"
-        lines.append(String(format: "\(label): €%.2f", totalEstimatedCost))
+        lines.append("\(label): " + Money.format(eur: totalEstimatedCost))
         return lines.joined(separator: "\n")
     }
 }

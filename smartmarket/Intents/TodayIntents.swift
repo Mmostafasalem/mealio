@@ -15,7 +15,7 @@ nonisolated struct CaloriesLeftSummary: Equatable, Sendable {
     var progress: Double { hasGoal ? min(Double(eaten) / Double(goal), 1) : 0 }
 
     func dialog(locale: Locale = .current) -> String {
-        func n(_ value: Int) -> String { value.formatted(.number.locale(locale)) }
+        func n(_ value: Int) -> String { value.formatted(.number.locale(locale).grouping(.never)) }
         guard hasGoal else {
             let logged = eaten > 0 ? " You've eaten \(n(eaten)) kcal today." : ""
             return "Finish setting up Nourlo so it can work out your daily calorie goal." + logged
@@ -74,11 +74,11 @@ struct CaloriesLeftSnippet: View {
                 if summary.hasGoal {
                     Text(summary.over > 0 ? "\(summary.over) kcal over" : "\(summary.left) kcal left")
                         .font(.title3.weight(.semibold)).monospacedDigit()
-                    Text("\(summary.eaten) of \(summary.goal) kcal eaten")
+                    Text("\(summary.eaten) of \(summary.goal) kcal eaten" as String)
                         .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 } else {
                     Text("No calorie goal yet").font(.headline)
-                    Text("\(summary.eaten) kcal eaten today")
+                    Text("\(summary.eaten) kcal eaten today" as String)
                         .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
@@ -218,7 +218,7 @@ struct TodaysMealsSnippet: View {
                             Text(meal.name).font(.subheadline.weight(.medium)).lineLimit(2)
                         }
                         Spacer(minLength: 0)
-                        Text("\(meal.kcal) kcal").font(.caption.weight(.semibold))
+                        Text("\(meal.kcal) kcal" as String).font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary).monospacedDigit()
                     }
                     .accessibilityElement(children: .combine)

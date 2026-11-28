@@ -6,6 +6,8 @@ struct DealCardView: View {
     let onTap: () -> Void
 
     private var storeColor: Color { Color.labelPrimary }
+    // The card widens and grows taller with the text size instead of clipping it.
+    @ScaledMetric(relativeTo: .callout) private var side: CGFloat = 178
 
     var body: some View {
         Button(action: onTap) {
@@ -47,21 +49,22 @@ struct DealCardView: View {
 
                 // ── Price row (estimated) ─────────────────────────────────
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(String(format: "€%.2f", deal.discountPrice))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text(Money.format(eur: deal.discountPrice))
+                        .font(.system(.title3, design: .rounded).weight(.bold))
                         .foregroundStyle(Color.brandPrimary)
                     Text("est. price")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(Color.labelSecondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 14)
             }
-            .frame(width: 178, height: 178, alignment: .topLeading)
+            .frame(width: min(side, 300), alignment: .topLeading)
+            .frame(minHeight: 178, maxHeight: .infinity, alignment: .topLeading)
             .premiumCard(radius: Radius.tile)
         }
         .buttonStyle(PressableButtonStyle())
-        .accessibilityLabel("\(deal.productName), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
+        .accessibilityLabel("\(deal.productName), estimated \(Money.spoken(eur: deal.discountPrice))")
     }
 }
 

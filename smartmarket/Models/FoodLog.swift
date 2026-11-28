@@ -52,6 +52,9 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
     let loggedAt: Date
     let portionAmount: Double?
     let nutritionFood: NutritionFood? // immutable source snapshot; absent in legacy/estimated entries
+    /// The person typed their own calories for this portion (the macros were scaled to
+    /// match), so `calories` is theirs, not `nutritionFood`'s estimate.
+    var ownCalories: Bool? = nil
 
     var amount: Double { portionAmount ?? Double(servingG) }
     var amountUnit: String { nutritionFood?.basis.rawValue ?? "g" }
@@ -72,11 +75,13 @@ struct FoodLogEntry: Codable, Identifiable, Hashable {
         self.portionAmount = portionAmount
         self.nutritionFood = nutritionFood
     }
-    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double) {
-        let p = food.portion(amount)
+    /// `kcal`: the person's own calories for this portion, replacing the estimate.
+    init(nutritionFood food: NutritionFood, slot: MealSlot, amount: Double, kcal: Int? = nil, loggedAt: Date = Date()) {
+        let p = PortionInput.portion(of: food, amount: amount, kcal: kcal)
         self.init(foodId: food.id, name: food.name, slot: slot, servingG: Int(amount.rounded()),
                   calories: Int(p.kcal.rounded()), proteinG: p.protein, carbsG: p.carbs, fatG: p.fat,
-                  nutritionFood: food, portionAmount: amount)
+                  loggedAt: loggedAt, nutritionFood: food, portionAmount: amount)
+        if kcal != nil { ownCalories = true }
     }
 }
 
@@ -97,7 +102,17 @@ final class FoodLogStore {
     private(set) var revision = 0
     private let defaults: UserDefaults
     private let stock: StockStore
-    var allEntries: [FoodLogEntry] { (history + stock.logs).sorted { $0.loggedAt < $1.loggedAt } }
+    /// Manual and stock logs together, oldest first. Home reads this many times a redraw,
+    /// so the merged list is kept until either log changes.
+    var allEntries: [FoodLogEntry] {
+        let stockLogs = stock.logs
+        let stamp = "\(revision)|\(stockLogs.count)|\(stockLogs.last?.id ?? "")"
+        if let merged, merged.stamp == stamp { return merged.entries }
+        let entries = (history + stockLogs).sorted { $0.loggedAt < $1.loggedAt }
+        merged = (stamp, entries)
+        return entries
+    }
+    @ObservationIgnored private var merged: (stamp: String, entries: [FoodLogEntry])?
     var entries: [FoodLogEntry] { entries(on: Date()) }
     /// The entries logged on `date`'s calendar day. Views that stay on screen
     /// pass their own clock so they move to the new day at midnight.
@@ -133,16 +148,25 @@ final class FoodLogStore {
 
     // MARK: Mutations (optimistic — UI updates instantly)
 
-    func add(_ entry: FoodLogEntry) {
+    /// Logs the entry and, with `takeFromStock`, takes its amount out of matching food in
+    /// My Stock (see `StockStore.takeOut`). Returns what came out of stock.
+    @discardableResult
+    func add(_ entry: FoodLogEntry, takeFromStock: Bool = true) -> [StockUse] {
         history.append(entry)
         history.sort { $0.loggedAt < $1.loggedAt }
         persist()
         if let fid = entry.foodId { noteRecent(foodId: fid) }
+        guard takeFromStock, let food = entry.nutritionFood else { return [] }
+        return stock.takeOut(for: entry.id, food: food, amount: entry.amount)
     }
 
+    /// Removing (or undoing) a logged food puts back what logging it took out of My Stock:
+    /// it wasn't eaten after all. (Food logged on My Stock's own screen is recorded by the
+    /// stock itself and stays eaten, as before.)
     func remove(_ entry: FoodLogEntry) {
         history.removeAll { $0.id == entry.id }
         stock.removeLog(id: entry.id)
+        stock.putBack(for: entry.id)
         persist()
     }
 

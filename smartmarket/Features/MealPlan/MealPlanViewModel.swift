@@ -12,11 +12,14 @@ enum MealPlanTab: String, CaseIterable, Identifiable {
 @Observable
 final class MealPlanViewModel {
 
-    var selectedTab: MealPlanTab = .today
+    /// The day shown, as days from today (0 = today … 6), picked in the day strip.
+    var selectedDay = 0
     var todaysPlan: MealPlan?
     var weekPlans: [MealPlan] = []
     var isGenerating = false
     var errorMessage: String?
+    /// Said under the button when another plan can't differ (one food for each part of the plate).
+    var notice: String?
     var recommendations: [ShoppingRecommendation] = []
     var profile: UserProfile = .load()
     var groceryList: [GroceryItem] = GroceryStorage.load()
@@ -40,9 +43,28 @@ final class MealPlanViewModel {
     func regenerate() async {
         guard !isGenerating else { return }
         errorMessage = nil
+        notice = nil
+        let before = Self.fingerprint(AppState.shared.weeklyMealPlan)
+        // The next pairing of the same foods: a new plan even when the kitchen hasn't changed.
+        let key = FallbackData.variationKey
+        UserDefaults.standard.set(UserDefaults.standard.integer(forKey: key) &+ 1, forKey: key)
         // Preserve the saved plan until its replacement is ready.
         await fetchTodaysPlan()
-        if selectedTab == .week { await loadWeekPlans() }
+        if errorMessage == nil, before != nil, Self.fingerprint(AppState.shared.weeklyMealPlan) == before {
+            notice = "Same plan: there's one food for each part of the plate. Add more foods to your cart or stock for variety."
+        }
+        await loadWeekPlans()
+    }
+
+    /// What a plan shows (each meal's name and portions), to tell whether a new one differs.
+    static func fingerprint(_ plan: WeeklyMealPlan?) -> Data? {
+        guard let plan else { return nil }
+        let text = plan.allDays.map(\.plan).flatMap { day in
+            [day.pusryciai, day.pietus, day.vakariene, day.uzkandziai].map { meal in
+                meal.map { $0.pavadinimas + ":" + $0.ingredientai.joined(separator: ",") } ?? "-"
+            }
+        }.joined(separator: "|")
+        return Data(text.utf8)
     }
 
     static let offlinePlanNotice = "Couldn't reach the planner. Showing an offline plan."
@@ -65,30 +87,27 @@ final class MealPlanViewModel {
         do {
             let builtFor = AgentLoop.PlanInputs.current(appState)
             let request = MealPlanRequest.current(profile: profile, bmr: appState.bmrData)
-            let weekly = try await APIService.shared.generateMealPlan(request)
-            guard !Task.isCancelled, appState.dataGeneration == generation,
-                  appState.ownsMealPlanRequest(ticket) else { return }
+            // Built on the phone from the cart, stock and preferences (no online AI for plans).
+            var weekly = FallbackData.mealPlan(targetKcal: request.bmrData.calories(forGoal: request.goal))
+            weekly.generationSource = "local"
+            try Task.checkCancellation()
+            guard appState.dataGeneration == generation, appState.ownsMealPlanRequest(ticket) else { return }
             todaysPlan = MealPlan.from(weekly: weekly)
             appState.saveMealPlan(weekly)
             AgentLoop.recordPlanInputs(builtFor)
-            if AgentLoop.isAIPlan(weekly) {
-                AgentLoop.markPlanGeneratedToday()
-            } else {
-                // The AI call failed with no saved plan: say so, keep the day
-                // unstamped and back off like a failed background refresh.
-                AgentLoop.noteRefreshFailed()
-                errorMessage = Self.offlinePlanNotice
-            }
         } catch {
             appLog("[MealPlan] load failed:", error)
-            errorMessage = "Could not update your meal plan. Your saved plan is kept. Check the AI connection in Profile, then retry."
+            errorMessage = "Could not update your meal plan. Your saved plan is kept; please try again."
         }
     }
 
     // MARK: - Recommendations
 
+    /// Online shopping advice is off (online AI is only for chat and recipes).
+    static let onlineShoppingAdvice = false
+
     func loadRecommendations() async {
-        guard recommendations.isEmpty else { return }
+        guard recommendations.isEmpty, Self.onlineShoppingAdvice else { return }
         do {
             let gaps = computeNutritionalGaps()
             let adviceRequest = ShoppingAdviceRequest(

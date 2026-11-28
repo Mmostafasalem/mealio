@@ -82,7 +82,7 @@ struct HealthSettingsView: View {
             }
 
             Section {
-                Text("Health data stays on this iPhone and in Apple Health and isn't sent anywhere. If you use your Health weight in your profile, it's used like a weight you type in, including for AI meal plans if you've allowed online AI.")
+                Text("Health data stays on this iPhone and in Apple Health and isn't sent anywhere. If you use your Health weight in your profile, it's used like a weight you type in.")
                     .font(.footnote)
                     .foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -109,15 +109,15 @@ struct HealthSettingsView: View {
     private func weightSection(_ kilograms: Double) -> some View {
         Section {
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("Health says \(WeightRuler.text(kilograms, weightUnit)). Use it?")
+                Text("Health says \(WeightRuler.text(kilograms, weightUnit)). Use it?" as String)
                     .font(.body)
                     .foregroundStyle(Color.labelPrimary)
-                Text("Your profile says \(WeightRuler.text(vm.profile.weight, weightUnit)). Using Health's weight updates your daily targets.")
+                Text("Your profile says \(WeightRuler.text(vm.profile.weight, weightUnit)). Using Health's weight updates your daily targets." as String)
                     .font(.footnote)
                     .foregroundStyle(Color.labelSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let date = health.latestWeightDate {
-                    Text("Measured \(date.formatted(date: .abbreviated, time: .shortened))")
+                    Text("Measured \(date.formatted(date: .abbreviated, time: .shortened))" as String)
                         .font(.caption)
                         .foregroundStyle(Color.labelSecondary)
                 }
@@ -125,7 +125,7 @@ struct HealthSettingsView: View {
             .padding(.vertical, Spacing.xs)
             .accessibilityElement(children: .combine)
 
-            Button("Use \(WeightRuler.text(kilograms, weightUnit))") {
+            Button("Use \(WeightRuler.text(kilograms, weightUnit))" as String) {
                 vm.applyHealthWeight(kilograms)
             }
             .font(.body.weight(.semibold))
@@ -148,7 +148,7 @@ struct HealthSettingsView: View {
                 }
             }
             if let date = health.lastSync {
-                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))")
+                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))" as String)
                     .font(.caption)
                     .foregroundStyle(Color.labelSecondary)
             }

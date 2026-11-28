@@ -35,6 +35,8 @@ struct DietChipView: View {
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: isSelected)
         .animation(.spring(duration: 0.2, bounce: 0.3), value: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("onboarding.diet.\(preference.rawValue)")
     }
 }
 

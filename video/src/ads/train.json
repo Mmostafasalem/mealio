@@ -1,0 +1,10 @@
+{
+  "dur": 20.6,
+  "head": { "at": 0.3, "out": 2.1 },
+  "builder": { "at": 2.2, "home": 3.0, "slide": [3.6, 4.4], "focus": 5.0, "build": 5.8 },
+  "think": { "at": 6.1, "out": 7.3 },
+  "session": { "at": 7.3, "start": 10.6 },
+  "timer": { "at": 10.9, "out": 14.2 },
+  "line": { "at": 14.3 },
+  "end": 15.8
+}

@@ -14,12 +14,16 @@ enum NourloTips {
     /// (`-NourloUITesting YES`) as well as plain arguments.
     static func isUITesting(arguments: [String] = ProcessInfo.processInfo.arguments,
                             defaults: UserDefaults = .standard) -> Bool {
+        #if !DEBUG
+        return false   // test switches never reach App Store builds
+        #else
         if let index = arguments.firstIndex(of: "-" + uiTestingKey) {
             let next = arguments.index(after: index)
             guard next < arguments.endIndex else { return true }
             return ["yes", "true", "1"].contains(arguments[next].lowercased())
         }
         return defaults.bool(forKey: uiTestingKey)
+        #endif
     }
 
     /// Call once at launch, before any view with a tip appears.
@@ -78,7 +82,7 @@ nonisolated struct WeeklyBudgetTip: Tip {
     var id: String { "nourlo.weeklyBudget" }
     var title: Text { Text("Set a weekly budget") }
     var message: Text? { Text("Tap Edit to set what you spend on groceries each week. Meal plans stay within it.") }
-    var image: Image? { Image(systemName: "eurosign.circle") }
+    var image: Image? { Image(systemName: "banknote") }
     var rules: [Rule] {
         #Rule(Self.$hasCustomBudget) { $0 == false }
     }

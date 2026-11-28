@@ -9,12 +9,13 @@ final class ReleaseSmokeTests: XCTestCase {
     }
 
     /// The system tab bar's buttons carry their names, not identifiers: "tab.home"
-    /// → "Home", …, "navigation.quickActions" → the "+" ("Quick actions").
+    /// → "Home", …. Quick actions ("navigation.quickActions") is Nourlo at the top
+    /// of each tab, an ordinary button with that identifier.
     private static let tabNames = ["tab.home": "Home", "tab.meals": "Meals", "tab.shop": "Shop",
-                                   "tab.train": "Train", "navigation.quickActions": "Quick actions"]
+                                   "tab.train": "Train"]
 
     private func control(_ id: String, in app: XCUIApplication) -> XCUIElement {
-        if let name = Self.tabNames[id] { return app.tabBars.buttons[name].firstMatch }
+        if let name = Self.tabNames[id] { return app.tab(name) }
         return app.buttons[id].firstMatch
     }
 
@@ -111,22 +112,25 @@ final class ReleaseSmokeTests: XCTestCase {
                        "\(element) is still on screen", file: file, line: line)
     }
 
-    /// Opens the quick-actions sheet from the tab bar's "+" and picks a row. A tap
-    /// on "+" can be swallowed while another sheet is still animating away, so
-    /// this re-taps "+" if the sheet didn't open, and waits for the row to take a tap.
+    /// Opens the quick actions from Nourlo and picks a pill (behind "More" if it's
+    /// one of the later ones). A tap on Nourlo can be swallowed while a sheet is still
+    /// animating away, so this re-taps Nourlo if the pills didn't open.
     private func chooseQuickAction(_ action: String, in app: XCUIApplication,
                                    file: StaticString = #filePath, line: UInt = #line) {
         let plus = control("navigation.quickActions", in: app)
         let row = app.buttons["quickActions." + action].firstMatch
+        let more = app.buttons["quickActions.more"].firstMatch
+        let close = app.buttons["quickActions.done"].firstMatch
         XCTAssertTrue(plus.waitForExistence(timeout: 5), file: file, line: line)
         for _ in 0..<3 {
-            if !row.exists { tap("navigation.quickActions", in: app, file: file, line: line) }
+            if !row.exists && !close.exists { tap("navigation.quickActions", in: app, file: file, line: line) }
             let deadline = Date().addingTimeInterval(3)
             while Date() < deadline {
                 if row.exists && row.isHittable {
                     row.tap()
                     return
                 }
+                if !row.exists, more.exists, more.isHittable { more.tap() }
                 RunLoop.current.run(until: Date().addingTimeInterval(0.2))
             }
         }
@@ -148,6 +152,12 @@ final class ReleaseSmokeTests: XCTestCase {
             if app.buttons[destination].waitForExistence(timeout: 5) { return }
             if !app.buttons[source].exists { break }
         }
+        // "Chat with Nourlo?" shows only while the server offers online AI: go on without an account.
+        let skip = app.buttons["onboarding.account.skip"]
+        if !app.buttons[destination].exists, skip.exists {
+            skip.tap()
+            _ = app.buttons[destination].waitForExistence(timeout: 5)
+        }
         XCTAssertTrue(app.buttons[destination].exists, "Navigation did not reach \(destination)")
     }
 
@@ -156,10 +166,80 @@ final class ReleaseSmokeTests: XCTestCase {
         if !app.launchArguments.contains("-NourloUITesting") {
             app.launchArguments += ["-NourloUITesting", "YES"]
         }
+        // Every feature at launch, whatever an earlier test chose in onboarding
+        // (the choice it saved stays on the simulator).
+        if !app.launchArguments.contains("-enabledFeatures_v1") {
+            app.launchArguments += ["-enabledFeatures_v1", "tracking,meals,groceries,workouts"]
+        }
         app.launch()
     }
 
-    private func onboard(_ app: XCUIApplication, largeText: Bool = false) {
+    /// Onboarding with only Workouts chosen: no diet or favourite-food screens,
+    /// and the tab bar holds Home, Train and quick actions only.
+    func testOnboardingWithOnlyWorkoutsShowsHomeAndTrain() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
+        launchForTesting(app)
+        advance("onboarding.start", to: "onboarding.name.continue", in: app)
+        advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
+        XCTAssertTrue(app.staticTexts["What do you want Nourlo for?"].exists)
+        // 10 screens, 11 when the server offers online AI (the account step).
+        XCTAssertTrue(app.staticTexts["2 / 10"].exists || app.staticTexts["2 / 11"].exists)
+        capture("onboarding-features-all")
+        for feature in ["tracking", "meals", "groceries"] {
+            let row = app.buttons["onboarding.feature." + feature]
+            // A busy simulator can drop a tap; tap again only while the row is still on.
+            for _ in 0..<2 where row.isSelected {
+                tap("onboarding.feature." + feature, in: app)
+                let off = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == false"), object: row)
+                _ = XCTWaiter.wait(for: [off], timeout: 5)
+            }
+            XCTAssertFalse(row.isSelected, feature)
+        }
+        XCTAssertTrue(app.buttons["onboarding.feature.workouts"].isSelected)
+        XCTAssertTrue(app.staticTexts["2 / 7"].waitForExistence(timeout: 3) || app.staticTexts["2 / 8"].exists)
+        capture("onboarding-features-workouts")
+        advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
+        advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
+        advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
+        advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
+        // No diet, favourite-food or week screens for workouts: the goal leads to reminders and Health.
+        advance("onboarding.goal.continue", to: "onboarding.alerts.finish", in: app)
+        XCTAssertTrue(app.staticTexts["7 / 7"].exists || app.staticTexts["8 / 8"].exists, "7 screens, 8 with the AI account step")
+        // Only the workout reminder is offered.
+        XCTAssertTrue(app.buttons["onboarding.alerts.workout"].exists)
+        XCTAssertFalse(app.buttons["onboarding.alerts.breakfast"].exists)
+        capture("onboarding-alerts-workouts")
+        // Like `advance`: a tap right after a push can be lost, so retry while the screen is unchanged.
+        for _ in 0..<3 {
+            tap("onboarding.alerts.finish", in: app)
+            if control("tab.home", in: app).waitForExistence(timeout: 10) { break }
+            if !app.buttons["onboarding.alerts.finish"].exists { break }
+        }
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(control("tab.train", in: app).exists)
+        XCTAssertTrue(control("navigation.quickActions", in: app).exists)
+        XCTAssertFalse(tabBar.buttons["Meals"].exists)
+        XCTAssertFalse(tabBar.buttons["Shop"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["home.workoutSummary"].firstMatch.waitForExistence(timeout: 5))
+        capture("home-workouts-only")
+        tap("tab.train", in: app)
+        capture("train-workouts-only")
+        // Profile › Features shows the same choice; Workouts is the last one on, so it can't be turned off.
+        openProfile(in: app)
+        tap("profile.category.features", in: app)
+        let workouts = app.descendants(matching: .any)["profile.feature.workouts"].firstMatch
+        for _ in 0..<8 where !(workouts.exists && workouts.isHittable) { app.swipeUp() }
+        XCTAssertTrue(workouts.isHittable)
+        XCTAssertFalse(workouts.isEnabled)
+        capture("profile-features-workouts-only")
+    }
+
+    /// `diets`: the diet chips to pick (`DietaryPreference` raw values). `favourites` runs on "Pick your foods".
+    private func onboard(_ app: XCUIApplication, largeText: Bool = false, diets: [String] = [],
+                         favourites: (() -> Void)? = nil) {
         app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO"]
         if largeText {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
@@ -169,36 +249,149 @@ final class ReleaseSmokeTests: XCTestCase {
         // Name, age and gender share the first page; age is a number with minus and plus.
         XCTAssertTrue(app.textFields["onboarding.age"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["One year older"].exists)
-        advance("onboarding.name.continue", to: "onboarding.height.continue", in: app)
+        // What Nourlo is for: every feature starts on, so the full app (and every other test) stays the same.
+        advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
+        for feature in ["tracking", "meals", "groceries", "workouts"] {
+            XCTAssertTrue(app.buttons["onboarding.feature." + feature].isSelected, feature)
+        }
+        advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
         advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
         advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
         advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
         advance("onboarding.goal.continue", to: "onboarding.diet.continue", in: app)
-        advance("onboarding.diet.continue", to: "onboarding.favorites.finish", in: app)
-        // Narrow the ~340 chips to a handful first: on a slow machine, reading the
-        // whole chip grid for every query can time out.
-        let search = app.textFields.element(matching: NSPredicate(format: "placeholderValue BEGINSWITH 'Search'"))
-        XCTAssertTrue(search.waitForExistence(timeout: 5), "favourites search field")
-        search.tap()
-        search.typeText("chicken\n")
-        // The short filtered list can rest a row under the category strip; start from its top.
-        let list = app.scrollViews["favorites.list"]
-        if list.exists { list.swipeDown(velocity: .slow) }
-        for id in ["chicken-breast", "chicken-thighs", "chicken-wings", "whole-chicken", "ground-chicken"] {
-            let chip = app.buttons["favorite.item." + id].firstMatch
-            XCTAssertTrue(chip.waitForExistence(timeout: 5), id)
-            if !chip.isHittable, list.exists { list.swipeDown(velocity: .slow) }
-            XCTAssertTrue(chip.isHittable, "Unreachable control: favorite.item." + id)
-            XCTAssertGreaterThanOrEqual(chip.frame.width, 44 - 0.001, id)
-            XCTAssertGreaterThanOrEqual(chip.frame.height, 44 - 0.001, id)
-            XCTAssertTrue(app.frame.insetBy(dx: 0, dy: 40).contains(CGPoint(x: chip.frame.midX, y: chip.frame.midY)),
-                          "Control outside safe tap area: favorite.item." + id)
+        for diet in diets {
+            let chip = app.buttons["onboarding.diet." + diet].firstMatch
+            XCTAssertTrue(chip.waitForExistence(timeout: 5), diet)
             chip.tap()
-            let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: app.buttons["favorite.item." + id])
-            XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 5), .completed)
+            let on = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: chip)
+            XCTAssertEqual(XCTWaiter.wait(for: [on], timeout: 5), .completed, diet)
         }
-        tap("onboarding.favorites.finish", in: app)
+        // The foods screen builds its ready list as it opens; give a slow machine time.
+        tap("onboarding.diet.continue", in: app)
+        if !app.buttons["onboarding.favorites.finish"].waitForExistence(timeout: 20),
+           app.buttons["onboarding.diet.continue"].exists {
+            tap("onboarding.diet.continue", in: app)
+        }
+        XCTAssertTrue(app.buttons["onboarding.favorites.finish"].waitForExistence(timeout: 20), "Navigation did not reach the foods screen")
+        // "Pick your foods" opens with a ready list from the diet and goal, already
+        // past the minimum, so Next works straight away.
+        let finish = app.buttons["onboarding.favorites.finish"]
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true AND label BEGINSWITH 'Next'"), object: finish)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed, "the ready list meets the minimum")
+        XCTAssertTrue(app.descendants(matching: .any)["favorites.yourList"].firstMatch.waitForExistence(timeout: 5))
+        favourites?()
+        advance("onboarding.favorites.finish", to: "onboarding.week.continue", in: app)
+        advance("onboarding.week.continue", to: "onboarding.alerts.finish", in: app)
+        tap("onboarding.alerts.finish", in: app)
         XCTAssertTrue(control("tab.home", in: app).waitForExistence(timeout: 15))
+    }
+
+    /// Opens onboarding straight on "Pick your foods" with these diets (comma-separated
+    /// raw values), runs `check`, then goes on to the next screen. (The full walk through
+    /// onboarding, with the ready list, is `onboard`.)
+    private func openFoodsScreen(_ app: XCUIApplication, diets: String, check: () -> Void) {
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO",
+                               "-NourloOnboardingJump", "favorites", "-NourloOnboardingDiets", diets]
+        launchForTesting(app)
+        let finish = app.buttons["onboarding.favorites.finish"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 30), "the foods screen")
+        let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true AND label BEGINSWITH 'Next'"), object: finish)
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 30), .completed, "the ready list meets the minimum")
+        XCTAssertTrue(app.descendants(matching: .any)["favorites.yourList"].firstMatch.waitForExistence(timeout: 10))
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        check()
+        // The list is saved only at the end of onboarding; Next moves on to the week.
+        for _ in 0..<2 where !app.buttons["onboarding.week.continue"].exists {
+            tap("onboarding.favorites.finish", in: app)
+            if app.buttons["onboarding.week.continue"].waitForExistence(timeout: 30) { break }
+        }
+        XCTAssertTrue(app.buttons["onboarding.week.continue"].exists, "Next goes on to the week")
+    }
+
+    /// Also writes the screenshot to /tmp/r2-onb (review proof for the tester feedback).
+    private func proof(_ name: String) {
+        capture(name)
+        let dir = URL(fileURLWithPath: "/tmp/r2-onb")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent(name + ".png"))
+    }
+
+    /// "Select more foods" in an open section goes back to the list and every section
+    /// (tapped again if a busy simulator dropped the tap).
+    private func backToSections(_ app: XCUIApplication) {
+        let yourList = app.descendants(matching: .any)["favorites.yourList"].firstMatch
+        for _ in 0..<2 where app.buttons["favorites.selectMore"].exists {
+            tap("favorites.selectMore", in: app)
+            if yourList.waitForExistence(timeout: 15) { break }
+        }
+        XCTAssertTrue(yourList.exists, "back to the list and the sections")
+    }
+
+    /// Tester feedback H1 and H2, vegan: the foods screen opens with a ready list made
+    /// from the diet (no Dairy, Meat, Fish or Eggs section; Plant milk instead), foods can
+    /// be taken off, starred and added, and an open section has Select all per kind and
+    /// "Select more foods".
+    func testPickYourFoodsStartsFromAVeganDiet() {
+        let app = XCUIApplication()
+        openFoodsScreen(app, diets: "vegan") {
+            self.proof("vegan-1-ready-list")
+            XCTAssertTrue(app.buttons["favorite.item.oat-milk"].isSelected, "plant milk is on the list")
+            XCTAssertFalse(app.buttons["favorite.item.greek-yogurt"].exists)
+            // Star one, take one off: it stays shown, unpicked, to put back.
+            let star = app.buttons["favorite.star.oats"]
+            for _ in 0..<2 where star.label != "Remove star from Oats" {
+                self.tap("favorite.star.oats", in: app)
+                _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Remove star from Oats'"), object: star)], timeout: 15)
+            }
+            XCTAssertEqual(star.label, "Remove star from Oats", "Oats is starred")
+            let banana = app.buttons["favorite.item.banana"]
+            // A busy simulator can drop a tap; tap again only while it is still picked.
+            for _ in 0..<2 where banana.isSelected {
+                self.tap("favorite.item.banana", in: app)
+                _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == false"), object: banana)], timeout: 15)
+            }
+            XCTAssertFalse(banana.isSelected, "taken off the list")
+            XCTAssertTrue(banana.exists, "and still shown, to put back")
+            self.proof("vegan-2-starred-and-removed")
+            for gone in ["dairy", "meat", "seafood", "eggs"] {
+                XCTAssertFalse(app.buttons["favorites.section." + gone].exists, gone + " is not offered")
+            }
+            self.tap("favorites.section.plantMilk", in: app)
+            XCTAssertTrue(app.buttons["favorites.selectMore"].waitForExistence(timeout: 15))
+            self.proof("vegan-3-sections-grid-plant-milk-open")
+            self.backToSections(app)
+            self.tap("favorites.section.vegetables", in: app)
+            let leafy = app.buttons["favorites.selectAll.Leafy greens"]
+            XCTAssertTrue(leafy.waitForExistence(timeout: 15))
+            self.proof("vegan-4-vegetables-select-all")
+            self.tap("favorites.selectAll.Leafy greens", in: app)
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Clear Leafy greens'"),
+                                                                          object: leafy)], timeout: 15), .completed)
+            self.backToSections(app)
+            XCTAssertTrue(app.descendants(matching: .any)["favorites.yourList"].firstMatch.waitForExistence(timeout: 15))
+            let list = app.scrollViews["favorites.list"]
+            list.swipeUp(velocity: .slow)
+            self.proof("vegan-5-sections-grid")
+        }
+    }
+
+    /// Tester feedback H1, no diet: the ready list covers every part of the plan and
+    /// every section is offered.
+    func testPickYourFoodsStartsFromAnOmnivoreDiet() {
+        let app = XCUIApplication()
+        openFoodsScreen(app, diets: "") {
+            self.proof("omnivore-1-ready-list")
+            for id in ["oats", "chicken-breast", "eggs-10", "greek-yogurt", "broccoli", "banana", "brown-rice"] {
+                XCTAssertTrue(app.buttons["favorite.item." + id].isSelected, id)
+            }
+            let list = app.scrollViews["favorites.list"]
+            list.swipeUp(velocity: .slow)
+            self.proof("omnivore-2-sections-grid")
+            self.tap("favorites.section.meat", in: app)
+            XCTAssertTrue(app.buttons["favorites.selectAll.Chicken"].waitForExistence(timeout: 5))
+            self.proof("omnivore-3-meat-select-all")
+            self.backToSections(app)
+        }
     }
 
     func testAppStoreScreenshotCandidates() {
@@ -219,13 +412,16 @@ final class ReleaseSmokeTests: XCTestCase {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] == "Nourlo Guest AI Verification",
                           "This test may delete only its dedicated disposable simulator's app data.")
         let app = XCUIApplication()
+        // No "-aiSharingConsent_v1" argument here: a launch argument would override the
+        // switch the test turns on (the dedicated simulator is erased before each run).
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES",
-                               "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+                               "-bowlGuideVisible_v2", "YES"]
         launchForTesting(app)
         openProfile(in: app)
         capture("live-guest-profile-navigation")
+        tap("profile.category.ai", in: app)
         let guest = app.buttons["profile.guestSignIn"]
-        for _ in 0..<8 {
+        for _ in 0..<16 {
             if guest.exists && guest.isHittable { break }
             app.swipeUp()
         }
@@ -239,22 +435,33 @@ final class ReleaseSmokeTests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(consent.isHittable)
-        if consent.value as? String == "0" { consent.tap() }
+        // The switch's value reads "0"/"1" on older systems and may differ on newer ones; tap until it is on.
+        func isOn() -> Bool { ["1", "on", "true"].contains((consent.value as? String ?? "").lowercased()) }
+        for _ in 0..<3 where !isOn() {
+            // The custom switch reacts on its knob at the right edge of the row.
+            consent.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        XCTAssertTrue(isOn(), "AI sharing switched on (value: \(consent.value ?? "nil"))")
         tap("tab.home", in: app)
-        tap("mascot.guide", in: app)
-        tap("guide.chat", in: app)
+        chooseQuickAction("chat", in: app)
         // The composer grows to several lines, so it may be a text view.
         let field = app.descendants(matching: .any)["Ask about meals or groceries…"].firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText("Synthetic connection test: briefly confirm you can help plan a meal.")
         tap("chat.send", in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["chat.assistantReply"].firstMatch.waitForExistence(timeout: 120),
-                      "The live authenticated AI must return a response.")
+        // The reply bubble appears empty while it streams; wait for real words in it.
+        let reply = app.descendants(matching: .any)["chat.assistantReply"].firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 120), "The live authenticated AI must return a response.")
+        let hasWords = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label MATCHES %@", ".*[A-Za-z]{3,}.*[A-Za-z]{3,}.*"), object: reply)
+        XCTAssertEqual(XCTWaiter.wait(for: [hasWords], timeout: 120), .completed, "The reply has text: \(reply.label)")
+        RunLoop.current.run(until: Date().addingTimeInterval(2))
         XCTAssertFalse(app.otherElements["chat.notice"].exists)
         capture("live-guest-online-chat")
         app.buttons["Done"].tap()
         openProfile(in: app)
+        tap("profile.category.data", in: app)
         let delete = app.buttons["Delete All Data"]
         for _ in 0..<10 {
             if delete.exists && delete.isHittable { break }
@@ -268,54 +475,69 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("live-guest-account-deleted")
     }
 
-    func testMascotGuideExpressionsAndLoggingShortcut() {
+    func testNourloOpensQuickActionsAndLoggingShortcut() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-ownerAISharingConsent_v1", "NO"]
         launchForTesting(app)
-        XCTAssertTrue(app.buttons["mascot.guide"].waitForExistence(timeout: 10))
-        capture("floating-bowl-home")
-        // As in the large-text test below: a tap in the first moments after a
-        // cold launch can be lost while Home finishes its first layout. Retry once.
-        tap("mascot.guide", in: app)
-        if !app.buttons["guide.path.logFood"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
-        XCTAssertTrue(app.buttons["guide.path.logFood"].waitForExistence(timeout: 5))
-        capture("floating-bowl-pathways")
-        tap("guide.path.logFood", in: app)
+        XCTAssertTrue(app.buttons["navigation.quickActions"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["mascot.guide"].exists, "Nourlo at the top is the quick-actions button")
+        capture("nourlo-home")
+        // A tap in the first moments after a cold launch can be lost while Home
+        // finishes its first layout. Retry once.
+        tap("navigation.quickActions", in: app)
+        if !app.buttons["quickActions.logFood"].waitForExistence(timeout: 4) { tap("navigation.quickActions", in: app) }
+        XCTAssertTrue(app.buttons["quickActions.logFood"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["quickActions.done"].exists, "a close badge on Nourlo")
+        capture("nourlo-pills")
+        tap("quickActions.logFood", in: app)
         XCTAssertTrue(app.textFields["Search foods"].waitForExistence(timeout: 8))
-        capture("mascot-log-shortcut")
+        capture("nourlo-log-shortcut")
     }
 
-    func testFloatingBowlGuideTourAndTabNavigation() {
+    func testTourFromQuickActionsVisitsEveryTab() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES"]
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-enabledFeatures_v1", "tracking,meals,groceries,workouts"]
         launchForTesting(app)
-        tap("mascot.guide", in: app)
-        tap("guide.tour", in: app)
-        XCTAssertTrue(app.staticTexts["Start with one meal"].waitForExistence(timeout: 5))
-        capture("floating-bowl-tour-home")
-        tap("guide.next", in: app)
-        XCTAssertTrue(app.staticTexts["Build your grocery list"].waitForExistence(timeout: 5))
-        XCTAssertTrue(control("tab.shop", in: app).isSelected)
-        tap("guide.next", in: app)
-        XCTAssertTrue(app.staticTexts["Make room for a plan"].waitForExistence(timeout: 5))
-        tap("guide.next", in: app)
-        XCTAssertFalse(app.buttons["guide.next"].exists)
+        chooseQuickAction("tour", in: app)
+        let title = app.staticTexts["tour.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 8))
+        XCTAssertEqual(title.label, "Hi, I'm Nourlo!")
+        capture("tour-hello")
+        var selected: Set<String> = []
+        for _ in 0..<45 {
+            guard title.waitForExistence(timeout: 5) else { break }
+            for name in ["Home", "Meals", "Shop", "Train"] where app.tabBars.buttons[name].isSelected { selected.insert(name) }
+            if title.label == "Your profile" { XCTAssertTrue(app.navigationBars["Profile"].exists, "the tour opens Profile") }
+            if title.label == "That's everything!" { break }
+            let label = title.label
+            // Nourlo's bubble springs to each part; tap Next once it has settled.
+            RunLoop.current.run(until: Date().addingTimeInterval(1.2))
+            app.buttons["tour.next"].tap()
+            let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false OR label != %@", label), object: title)
+            XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 8), .completed)
+        }
+        XCTAssertEqual(title.label, "That's everything!")
+        XCTAssertEqual(selected, ["Home", "Meals", "Shop", "Train"], "the tour switches tabs itself")
+        RunLoop.current.run(until: Date().addingTimeInterval(1.2))
+        app.buttons["tour.next"].tap()
+        XCTAssertTrue(title.waitForNonExistence(timeout: 5), "Done ends the tour")
         openProfile(in: app)
         XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5))
         capture("profile-from-avatar")
     }
 
-    func testFloatingBowlGuideLargeText() {
+    func testQuickActionsLargeText() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "YES", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launchForTesting(app)
         // At the largest text size a cold simulator can still be finishing its
-        // first layout when the bowl appears; a tap then is lost. Retry once.
-        tap("mascot.guide", in: app)
-        if !app.buttons["guide.close"].waitForExistence(timeout: 4) { tap("mascot.guide", in: app) }
-        XCTAssertTrue(app.buttons["guide.close"].waitForExistence(timeout: 5))
-        capture("floating-bowl-large-text")
-        tap("guide.path.logFood", in: app)
+        // first layout when Nourlo appears; a tap then is lost. Retry once.
+        tap("navigation.quickActions", in: app)
+        if !app.buttons["quickActions.done"].waitForExistence(timeout: 4) { tap("navigation.quickActions", in: app) }
+        XCTAssertTrue(app.buttons["quickActions.done"].waitForExistence(timeout: 5))
+        capture("quick-actions-large-text")
+        tap("quickActions.logFood", in: app)
         XCTAssertTrue(app.textFields["Search foods"].waitForExistence(timeout: 8))
     }
 
@@ -341,18 +563,86 @@ final class ReleaseSmokeTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(info.frame.height, 44 - geometryTolerance)
     }
 
-    func testSystemTabBarShowsIconsOnly() {
+    /// "N selected" on Favourite foods lists only the chosen foods; tapping again shows all.
+    func testFavouriteFoodsSelectedCountShowsOnlyThoseFoods() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-favoriteFoodIDs", "(chicken-breast)"]
+        launchForTesting(app)
+        chooseQuickAction("profile", in: app)
+        // Favourite foods lives under Profile › Food & diet.
+        let food = app.buttons["profile.category.food"].firstMatch
+        XCTAssertTrue(food.waitForExistence(timeout: 10))
+        food.tap()
+        let row = app.buttons["profile.favourites"].firstMatch
+        for _ in 0..<8 where !row.isHittable { app.swipeUp() }
+        row.tap()
+        let toggle = app.buttons["favorites.selectedOnly"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Chicken Thighs"].waitForExistence(timeout: 5), "the full list first")
+        toggle.tap()
+        XCTAssertTrue(app.staticTexts["Chicken Breast"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Chicken Thighs"].exists, "only the picked foods")
+        capture("favourites-selected-only")
+        app.buttons["favorites.selectedOnly"].tap()
+        XCTAssertTrue(app.staticTexts["Chicken Thighs"].waitForExistence(timeout: 5), "all again")
+        // A subgroup's "Select all" picks every chicken; then it offers "Clear".
+        let chicken = app.buttons["favorites.selectAll.Chicken"]
+        XCTAssertTrue(chicken.waitForExistence(timeout: 5))
+        capture("favourites-grouped")
+        chicken.tap()
+        let cleared = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Clear Chicken'"), object: chicken)
+        XCTAssertEqual(XCTWaiter.wait(for: [cleared], timeout: 5), .completed, "all six chicken foods picked")
+        let count = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == '6 selected'"), object: toggle)
+        XCTAssertEqual(XCTWaiter.wait(for: [count], timeout: 5), .completed, "six selected")
+        chicken.tap()
+        let selectAgain = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == 'Select Chicken'"), object: chicken)
+        XCTAssertEqual(XCTWaiter.wait(for: [selectAgain], timeout: 5), .completed)
+    }
+
+    /// With online AI offered, onboarding asks "Chat with Nourlo?" before reminders; "Not now" goes on.
+    func testOnboardingOffersAnAIAccountStep() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "NO", "-hasCompletedOnboarding", "NO", "-aiSharingConsent_v1", "NO",
+                               "-onlineAIOffered_v1", "YES"]
+        launchForTesting(app)
+        advance("onboarding.start", to: "onboarding.name.continue", in: app)
+        advance("onboarding.name.continue", to: "onboarding.features.continue", in: app)
+        // Workouts only, the shortest path to the account step.
+        for id in ["tracking", "meals", "groceries"] {
+            let row = app.buttons["onboarding.feature.\(id)"]
+            if row.waitForExistence(timeout: 5) { row.tap() }
+        }
+        advance("onboarding.features.continue", to: "onboarding.height.continue", in: app)
+        advance("onboarding.height.continue", to: "onboarding.weight.continue", in: app)
+        advance("onboarding.weight.continue", to: "onboarding.activity.continue", in: app)
+        advance("onboarding.activity.continue", to: "onboarding.goal.continue", in: app)
+        tap("onboarding.goal.continue", in: app)
+        XCTAssertTrue(app.staticTexts["Chat with Nourlo?"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["onboarding.account.skip"].exists)
+        capture("onboarding-account-step")
+        tap("onboarding.account.skip", in: app)
+        XCTAssertTrue(app.buttons["onboarding.alerts.finish"].waitForExistence(timeout: 5))
+    }
+
+    func testSystemTabBarShowsIconsOnly() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "iPad shows the tabs in a floating bar at the top, not a tab bar")
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         launchForTesting(app)
         let bar = app.tabBars.firstMatch
         XCTAssertTrue(bar.waitForExistence(timeout: 15), "the native tab bar")
-        XCTAssertEqual(bar.buttons.count, 5)
-        for name in ["Home", "Meals", "Quick actions", "Shop", "Train"] {
+        for name in ["Home", "Meals", "Shop", "Train"] {
             XCTAssertTrue(bar.buttons[name].exists, "\(name) is named for VoiceOver")
         }
         XCTAssertEqual(bar.staticTexts.count, 0, "icons only: no visible tab titles")
-        // The "+" opens the quick actions without leaving the current tab.
+        // Quick actions is Nourlo at the top of the screen, not a tab or a button by the bar.
+        XCTAssertEqual(bar.buttons.count, 4, "just Home, Meals, Shop and Train")
+        let nourlo = control("navigation.quickActions", in: app)
+        XCTAssertTrue(nourlo.waitForExistence(timeout: 5))
+        XCTAssertLessThan(nourlo.frame.maxY, app.frame.height * 0.25, "at the top")
+        XCTAssertGreaterThan(nourlo.frame.midX, app.frame.width * 0.5, "on the right")
+        // Nourlo opens the quick actions without leaving the current tab.
         tap("navigation.quickActions", in: app)
         XCTAssertTrue(app.buttons["quickActions.logFood"].waitForExistence(timeout: 5))
         XCTAssertTrue(bar.buttons["Home"].isSelected)
@@ -396,9 +686,11 @@ final class ReleaseSmokeTests: XCTestCase {
 
     func testOptionalAppleAccountDoesNotBlockLocalTabs() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
+        // The AI section shows only when online AI is offered; this checks its layout.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-onlineAIOffered_v1", "YES"]
         launchForTesting(app)
         openProfile(in: app)
+        tap("profile.category.ai", in: app)
         let signIn = app.buttons["profile.appleSignIn"]
         for _ in 0..<8 {
             if signIn.exists && signIn.isHittable { break }
@@ -443,7 +735,7 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("nutrition-source-detail")
         tap("logFood.addServing", in: app)
         // The Add button plays a short "Added" success moment before the sheet closes.
-        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["logFood.addServing"].waitForNonExistence(timeout: 15))
         XCTAssertTrue(control("navigation.quickActions", in: app).exists)
     }
 
@@ -452,9 +744,12 @@ final class ReleaseSmokeTests: XCTestCase {
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO"]
         launchForTesting(app)
         chooseQuickAction("logFood", in: app)
-        tap("logFood.createDishToolbar", in: app)
-        // A tap while the sheet is still sliding in can miss; retry until the menu-only field shows.
+        // A tap while the sheet is still sliding in can miss; retry until the dish editor shows.
         let menuMode = app.segmentedControls["customFood.mode"].buttons["Restaurant menu"]
+        for _ in 0..<3 where !menuMode.exists {
+            tap("logFood.createDishToolbar", in: app)
+            if menuMode.waitForExistence(timeout: 8) { break }
+        }
         XCTAssertTrue(menuMode.waitForExistence(timeout: 10))
         for _ in 0..<4 {
             menuMode.tap()
@@ -477,7 +772,8 @@ final class ReleaseSmokeTests: XCTestCase {
         }
         tap("customFood.save", in: app)
         XCTAssertTrue(app.staticTexts["Menu nutrition · entered by you"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["650"].exists)
+        // The kcal figure is a button now (tap it to type your own value); match it whatever it is.
+        XCTAssertTrue((app.buttons["logFood.kcal"].value as? String ?? "").hasPrefix("650 kcal"), "kcal")
         capture("restaurant-menu-serving")
         tap("logFood.addServing", in: app)
         XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
@@ -488,7 +784,7 @@ final class ReleaseSmokeTests: XCTestCase {
     func testVoiceCommandLogsFoodAfterConfirming() {
         let app = XCUIApplication()
         app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
-                               "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
+                               "-voiceLanguage_v1", "en", "-NourloVoiceTestPhrase", "log two eggs for breakfast"]
         launchForTesting(app)
         // The microphone between My Stock and History opens the same sheet as "+" › Speak a command.
         tap("home.voice", in: app)
@@ -505,9 +801,46 @@ final class ReleaseSmokeTests: XCTestCase {
         capture("voice-done")
     }
 
+    /// TestFlight: "Pridėk sausus pusryčius su pienu prie pusryčių" (add cereal with milk
+    /// to breakfast) showed "Couldn't find". It is two foods for breakfast.
+    func testVoiceCommandInLithuanianFindsCerealAndMilk() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-voiceLanguage_v1", "lt", "-NourloVoiceTestPhrase", "Pridėk sausus pusryčius su pienu prie pusryčių"]
+        launchForTesting(app)
+        tap("home.voice", in: app)
+        XCTAssertTrue(app.buttons["voice.confirm"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["voice.missing"].exists, "nothing is missing")
+        capture("voice-review-lithuanian")
+    }
+
+    /// Profile › Voice offers all nine languages, each in its own name.
+    func testVoiceSettingsOffersEveryLanguage() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO",
+                               "-voiceLanguage_v1", "ja"]
+        launchForTesting(app)
+        openProfile(in: app)
+        tap("profile.voice", in: app)
+        XCTAssertTrue(app.navigationBars["Voice"].waitForExistence(timeout: 5))
+        capture("voice-settings-japanese")
+        let picker = app.buttons["voice.language"].firstMatch
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        picker.tap()
+        for name in ["English", "Deutsch", "Español", "Français", "Русский", "Lietuvių", "العربية", "中文", "日本語"] {
+            XCTAssertTrue(app.buttons[name].firstMatch.waitForExistence(timeout: 3), "\(name) is offered")
+        }
+        capture("voice-languages")
+        app.buttons["Español"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Voice"].waitForExistence(timeout: 5))
+        capture("voice-settings-spanish")
+    }
+
     func testStockSearchAddConsumeAndHistory() {
         let app = XCUIApplication()
-        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO"]
+        // Starts from an empty kitchen: food other tests leave in stock would stay on the shelf.
+        app.launchArguments = ["-hasSeenWelcome", "YES", "-hasCompletedOnboarding", "YES", "-aiSharingConsent_v1", "NO", "-bowlGuideVisible_v2", "NO",
+                               "-NourloEmptyKitchen"]
         launchForTesting(app)
         tap("home.stock", in: app)
         tap("stock.add", in: app)
@@ -547,7 +880,8 @@ final class ReleaseSmokeTests: XCTestCase {
         yield.tap(); yield.typeText("200")
         tap("customFood.save", in: app)
         XCTAssertTrue(app.staticTexts["Your recipe · calculated estimate"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["45"].exists)
+        // The kcal figure is a button now (tap it to type your own value); match it whatever it is.
+        XCTAssertTrue((app.buttons["logFood.kcal"].value as? String ?? "").hasPrefix("45 kcal"), "kcal")
         capture("recipe-source-and-yield")
         tap("logFood.addServing", in: app)
         XCTAssertTrue(control("navigation.quickActions", in: app).waitForExistence(timeout: 5))
@@ -575,6 +909,7 @@ final class ReleaseSmokeTests: XCTestCase {
         let app = XCUIApplication()
         onboard(app)
         openProfile(in: app)
+        tap("profile.category.help", in: app)
         tap("profile.privacy", in: app)
         XCTAssertTrue(app.staticTexts["Nourlo — Privacy Policy"].waitForExistence(timeout: 5))
         capture("privacy-policy")
@@ -591,5 +926,22 @@ final class ReleaseSmokeTests: XCTestCase {
             tap("tab." + name, in: app)
             capture("largest-text-" + name)
         }
+    }
+}
+
+extension XCUIApplication {
+    /// A tab by its name: in the bottom tab bar on iPhone, in the floating bar at the top on iPad
+    /// (iPadOS 18 and later put the tabs there, outside any tab bar element).
+    /// Waits (up to 20 s) for the tab to appear, so a tap right after launch doesn't miss
+    /// the bar while the launch screen is still up.
+    func tab(_ name: String) -> XCUIElement {
+        let element: XCUIElement
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            element = buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+        } else {
+            element = tabBars.buttons[name].firstMatch
+        }
+        _ = element.waitForExistence(timeout: 20)
+        return element
     }
 }

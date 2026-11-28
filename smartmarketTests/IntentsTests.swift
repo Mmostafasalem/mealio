@@ -152,13 +152,13 @@ final class IntentsTests: XCTestCase {
 
     func testCaloriesLeftDialog() {
         XCTAssertEqual(CaloriesLeftSummary(eaten: 1480, goal: 2100).dialog(locale: en),
-                       "You have 620 kcal left today: 1,480 of 2,100 eaten.")
+                       "You have 620 kcal left today: 1480 of 2100 eaten.")
         XCTAssertEqual(CaloriesLeftSummary(eaten: 2250, goal: 2100).dialog(locale: en),
-                       "You're 150 kcal over today: 2,250 of 2,100 eaten.")
+                       "You're 150 kcal over today: 2250 of 2100 eaten.")
         XCTAssertEqual(CaloriesLeftSummary(eaten: 2100, goal: 2100).dialog(locale: en),
-                       "You've reached your goal today: 2,100 of 2,100 eaten.")
+                       "You've reached your goal today: 2100 of 2100 eaten.")
         XCTAssertEqual(CaloriesLeftSummary(eaten: 0, goal: 2100).dialog(locale: en),
-                       "You have 2,100 kcal left today: 0 of 2,100 eaten.")
+                       "You have 2100 kcal left today: 0 of 2100 eaten.")
     }
 
     func testCaloriesLeftWithoutGoalIsHonest() {
