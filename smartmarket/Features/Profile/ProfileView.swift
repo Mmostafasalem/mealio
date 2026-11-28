@@ -1,371 +1,183 @@
 import SwiftUI
 
+/// Profile's first screen: the person's card (tap to edit name and photo) and
+/// a short list of categories. Every setting lives on its category's own page
+/// (`ProfileCategoryPages.swift`), so this screen fits on one screen.
 struct ProfileView: View {
 
     @State private var vm = ProfileViewModel()
-    @State private var sync = PrivateSyncService.shared
     @State private var health = HealthService.shared
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
-    @AppStorage("dealAlertsEnabled") private var dealAlertsEnabled = true
-    @AppStorage("mealDigestEnabled") private var mealDigestEnabled = true
-    @AppStorage("aiSharingConsent_v1") private var aiSharingConsent = false
-    @AppStorage("ownerAISharingConsent_v1") private var ownerAISharingConsent = false
-    @AppStorage("bowlGuideVisible_v2") private var bowlGuideVisible = true
-    @AppStorage(Constants.Storage.appearanceOverride) private var appearanceOverride = ""
-    @AppStorage(Constants.Storage.weightUnit) private var weightUnit: WeightUnit = .kg
-    @AppStorage(WeeklyReset.startDayKey) private var weekStartDay = 2
-    /// Watched so the split's name updates when it changes in its own screen.
-    @AppStorage(MealSplit.storageKey) private var mealSplitData = Data()
-    @AppStorage(WeeklyReset.askKey) private var weeklyResetAsk = true
-    @Environment(\.colorScheme) private var colorScheme
+    @State private var sync = PrivateSyncService.shared
+    @State private var themes = ThemeStore.shared
+    @State private var reminders = ReminderStore.shared
+    @State private var currency = CurrencyStore.shared
 
     var body: some View {
         NavigationStack {
-            Form {
-                headerSection
-                statsSection
-                editSection
-                FeaturesSection()
-                if FeatureLayout.asksWeek(AppState.shared.enabledFeatures) { weekSection }
-                appearanceSection
+            List {
                 Section {
-                    Toggle("Bowl guide", isOn: $bowlGuideVisible)
-                        .toggleStyle(.spring)
-                        .accessibilityIdentifier("profile.bowlGuide")
-                } header: {
-                    Text("Your companion")
-                } footer: {
-                    Text("Nourlo sits at the top of Home. Tap it for local tips and a quick tour.")
+                    NavigationLink {
+                        EditProfileView(vm: vm)
+                    } label: {
+                        ProfileCard(vm: vm)
+                    }
+                    .accessibilityIdentifier("profile.card")
+                    .accessibilityHint("Change your name and photo")
                 }
-                if AIAccountService.shared.offersOnlineAI { AIAccountSection() }
-                voiceSection
-                healthSection
-                syncSection
-                privacySection
-                dangerSection
+
+                Section {
+                    category(.goals, value: "\(vm.profile.dailyCalorieGoal.formatted(.number.grouping(.never))) kcal") {
+                        GoalsTargetsPage(vm: vm)
+                    }
+                    category(.food, value: nil) { FoodDietPage(vm: vm) }
+                    category(.currency, value: Money.current.code) { CurrencySettingsView() }
+                    category(.features, value: "\(AppState.shared.enabledFeatures.count) of \(AppFeature.allCases.count)") {
+                        FeaturesPage()
+                    }
+                }
+
+                Section {
+                    category(.appearance, value: themes.theme.name) { AppearancePage() }
+                    category(.voice, value: VoiceLanguage.current.name) { VoiceSettingsView() }
+                    category(.notifications, value: reminders.isEnabled ? "On" : "Off") { RemindersView() }
+                    if AIAccountService.shared.offersOnlineAI {
+                        category(.ai, value: nil) { AIAccountPage() }
+                    }
+                    category(.data, value: sync.isEnabled ? "iCloud on" : nil) { DataICloudPage(vm: vm) }
+                    category(.help, value: nil) { HelpLegalPage() }
+                }
             }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
+            .environment(\.defaultMinListRowHeight, 44)
+            .contentMargins(.top, Spacing.xs, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .background { GrainyGradient().ignoresSafeArea() }
             .navigationTitle("Profile")
-            .alert("Delete all Nourlo data?", isPresented: $vm.showResetAlert) {
-                Button("Delete Data", role: .destructive) {
-                    deleteAllData()
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Deletes your online AI account, profile, food log, cart, budget and meal plans from this iPhone, and your synced shopping data from iCloud. Deleting an AI account requires a connection and valid sign-in; if that fails you can still erase this iPhone. If offline, iCloud deletion will finish when you reconnect to the same Apple Account. Apple Health syncing is turned off; data already in Apple Health stays there and can be deleted in the Health app.")
-            }
-            .alert("Online AI account not deleted", isPresented: Binding(get: { vm.serverDeletionFailure != nil }, set: { if !$0 { vm.serverDeletionFailure = nil } })) {
-                Button("Erase This iPhone Only", role: .destructive) {
-                    vm.serverDeletionFailure = nil
-                    Task { await vm.resetOnboarding(localOnly: true) }
-                }
-                Button("Cancel", role: .cancel) { vm.serverDeletionFailure = nil }
-            } message: { Text(vm.serverDeletionFailure ?? "") }
-            .alert("Deletion could not start", isPresented: Binding(get: { vm.deletionError != nil }, set: { if !$0 { vm.deletionError = nil } })) {
-                Button("OK", role: .cancel) { vm.deletionError = nil }
-            } message: { Text(vm.deletionError ?? "Please try again.") }
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .onAppear {
-            vm.load()
-        }
+        .onAppear { vm.load() }
         .task { await health.refreshReads() }
     }
 
-    private var headerSection: some View {
-        Section {
-            HStack(spacing: 16) {
-                ZStack {
-                    Color.dullPink
-                    Text(vm.initials)
-                        .font(.title2).fontWeight(.bold)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.25)
-                        .padding(6)
-                        .foregroundStyle(Color.onAccent)
-                }
-                .frame(width: 60, height: 60)
-                .clipShape(Circle())
+    private func category<Destination: View>(_ kind: ProfileCategory, value: String?,
+                                             @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            ProfileCategoryRow(kind: kind, value: value)
+        }
+        .listRowInsets(EdgeInsets(top: 4, leading: Spacing.lg, bottom: 4, trailing: Spacing.lg))
+        .accessibilityIdentifier(kind.identifier)
+        .accessibilityValue(value ?? "")
+    }
+}
 
+/// The categories on Profile's first screen, in order.
+enum ProfileCategory: String, CaseIterable {
+    case goals, food, currency, features, appearance, voice, notifications, ai, data, help
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(vm.profile.name.isEmpty ? "Nourlo User" : vm.profile.name)
-                        .font(.headline)
-                    Text(vm.profile.email.isEmpty ? vm.profile.weightGoal.displayName : vm.profile.email)
-                        .font(.caption).foregroundStyle(Color.labelSecondary)
-                }
-            }
-            .padding(.vertical, 6)
+    var title: String {
+        switch self {
+        case .goals: return "Goals & targets"
+        case .food: return "Food & diet"
+        case .currency: return "Currency & prices"
+        case .features: return "Features"
+        case .appearance: return "Appearance"
+        case .voice: return "Voice"
+        case .notifications: return "Notifications"
+        case .ai: return "AI & account"
+        case .data: return "Data & iCloud"
+        case .help: return "Help & legal"
         }
     }
 
-    private var statsSection: some View {
-        Section("Daily targets") {
-            metricTiles
+    var symbol: String {
+        switch self {
+        case .goals: return "target"
+        case .food: return "leaf.fill"
+        case .currency: return "banknote.fill"
+        case .features: return "square.grid.2x2.fill"
+        case .appearance: return "paintpalette.fill"
+        case .voice: return "mic.fill"
+        case .notifications: return "bell.badge.fill"
+        case .ai: return "sparkles"
+        case .data: return "icloud.fill"
+        case .help: return "questionmark.circle.fill"
         }
     }
 
-    @ViewBuilder private var metricTiles: some View {
-        MetricTile(title: "BMR", value: "\(Int(vm.profile.bmr))", unit: "kcal", icon: "flame.fill")
-        MetricTile(title: "Daily goal", value: "\(vm.profile.dailyCalorieGoal)", unit: "kcal", icon: "target")
-        MetricTile(title: "Goal", value: vm.profile.weightGoal.displayName, unit: "", icon: "arrow.up.forward")
-    }
-
-    private var editSection: some View {
-        Section("Edit") {
-            NavigationLink {
-                EditBodyStatsView(vm: vm)
-            } label: { Label("Body stats", systemImage: "figure") }
-
-            NavigationLink {
-                EditGoalView(vm: vm)
-            } label: { Label("Goal", systemImage: "target") }
-            .accessibilityIdentifier("profile.goal")
-
-            NavigationLink {
-                EditDietaryPrefsView(vm: vm)
-            } label: { Label("Dietary Preferences", systemImage: "leaf") }
-
-            NavigationLink {
-                EditFavoriteFoodsView(vm: vm)
-            } label: { Label("Favourite foods", systemImage: "heart") }
-
-            NavigationLink {
-                RemindersView()
-            } label: { Label("Reminders", systemImage: "bell") }
-            .accessibilityIdentifier("profile.reminders")
+    /// Settings-style tile colours, so each row is easy to find at a glance.
+    var tint: Color {
+        switch self {
+        case .goals: return .orange
+        case .food: return .green
+        case .currency: return Color(red: 0.13, green: 0.6, blue: 0.45)
+        case .features: return .indigo
+        case .appearance: return .brandPrimary
+        case .voice: return .red
+        case .notifications: return Color(red: 0.95, green: 0.3, blue: 0.3)
+        case .ai: return .purple
+        case .data: return .blue
+        case .help: return .gray
         }
     }
 
-    /// Light when overridden to light, or when following an iPhone that is in light mode.
-    private var lightAppearance: Binding<Bool> {
-        Binding(
-            get: { appearanceOverride == "light" || (appearanceOverride.isEmpty && colorScheme == .light) },
-            set: { appearanceOverride = $0 ? "light" : "dark" }
-        )
-    }
-
-    private var weekSection: some View {
-        Section {
-            Picker("Week starts on", selection: $weekStartDay) {
-                ForEach(WeeklyReset.dayNames, id: \.day) { Text($0.name).tag($0.day) }
-            }
-            .accessibilityIdentifier("profile.weekStart")
-            .onChange(of: weekStartDay) { _, _ in WeeklyReset.startDayChanged() }
-            NavigationLink { MealSplitView() } label: {
-                let split = (try? JSONDecoder().decode(MealSplit.self, from: mealSplitData)).flatMap { $0.isValid ? $0 : nil } ?? .balanced
-                LabeledContent("Daily calorie split", value: MealSplit.presets.first { $0.split == split }?.name ?? "Your own")
-            }
-            .accessibilityIdentifier("profile.mealSplit")
-            Toggle("Ask to empty cart and stock each week", isOn: $weeklyResetAsk)
-                .toggleStyle(.spring)
-                .accessibilityIdentifier("profile.weeklyReset")
-        } header: {
-            Text("Your week and meals")
-        } footer: {
-            Text("Weeks in Progress start on this day. When a new week starts, Nourlo asks whether to start fresh; nothing is cleared without your yes, and your food log always stays.")
-        }
-    }
-
-    private var appearanceSection: some View {
-        Section("Appearance") {
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                PullCordToggle(isOn: lightAppearance)
-                    .frame(height: 240)
-                    .frame(maxWidth: .infinity)
-                    .premiumCard()
-                    .accessibilityIdentifier("profile.appearanceCord")
-                Text("Pull the cord to switch between light and dark. Nourlo follows your iPhone setting until you pull it.")
-                    .font(.footnote).foregroundStyle(Color.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !appearanceOverride.isEmpty {
-                    Button("Follow iPhone setting") { appearanceOverride = "" }
-                        .font(.footnote.weight(.semibold))
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("profile.followSystemAppearance")
-                }
-                Divider().padding(.vertical, Spacing.xs)
-                ThemePickerView()
-            }
-            .padding(.vertical, Spacing.xs)
-        }
-    }
-
-    private var dangerSection: some View {
-        Section {
-            // Hold to delete; a tap, VoiceOver or Switch Control opens the confirmation alert instead.
-            HoldToConfirmButton(
-                title: "Hold to delete all data",
-                holdingTitle: "Keep holding to delete",
-                doneTitle: "Deleting all data",
-                tint: .brandDanger,
-                systemImage: "trash",
-                accessibilityName: "Delete All Data",
-                accessibilityActionName: "Delete all data",
-                fallback: { vm.showResetAlert = true }
-            ) {
-                deleteAllData()
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: Spacing.xs, leading: 0, bottom: Spacing.xs, trailing: 0))
-        } footer: {
-            Text("Deletes your online AI account, clears local data and requests deletion of your Nourlo iCloud data, then restarts setup. Data already saved to Apple Health stays there; manage it in the Health app.")
-        }
-    }
-
-    /// What the "Delete Data" confirmation runs; the hold button calls the same.
-    private func deleteAllData() {
-        Task { await vm.resetOnboarding() }
-    }
-
-    private var voiceSection: some View {
-        Section {
-            NavigationLink {
-                VoiceSettingsView()
-            } label: {
-                HStack {
-                    Label("Voice", systemImage: "mic")
-                    Spacer(minLength: Spacing.sm)
-                    Text(VoiceLanguage.current.name)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.labelSecondary)
-                        .accessibilityHidden(true)
-                }
-            }
-            .accessibilityValue(VoiceLanguage.current.name)
-            .accessibilityIdentifier("profile.voice")
-        }
-    }
-
-    private var healthSection: some View {
-        Section {
-            NavigationLink {
-                HealthSettingsView(vm: vm)
-            } label: {
-                HStack {
-                    Label("Apple Health", systemImage: "heart.text.square")
-                    Spacer(minLength: Spacing.sm)
-                    Text(health.shortStatus)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.labelSecondary)
-                        .accessibilityHidden(true)
-                }
-            }
-            .accessibilityValue(health.shortStatus)
-            .accessibilityIdentifier("profile.appleHealth")
-            if health.isEnabled, let kg = health.weightSuggestion(profileKg: vm.profile.weight) {
-                NavigationLink {
-                    HealthSettingsView(vm: vm)
-                } label: {
-                    Label("Health has a newer weight: \(WeightRuler.text(kg, weightUnit))" as String, systemImage: "scalemass")
-                        .font(.subheadline)
-                }
-                .accessibilityHint("Review it before it replaces your profile weight")
-            }
-        } header: {
-            Text("Apple Health")
-        } footer: {
-            Text("Optional. Saves food and tracked workouts to Apple Health and reads weight, steps and active energy. Health data stays on this iPhone and isn't sent anywhere.")
-        }
-    }
-
-    private var syncSection: some View {
-        Section {
-            Toggle("Sync with iCloud", isOn: Binding(
-                get: { sync.isEnabled },
-                set: { enabled in Task { await sync.setEnabled(enabled) } }
-            ))
-            .toggleStyle(.spring)
-            .disabled(sync.isSyncing || !sync.isAvailable)
-            .accessibilityIdentifier("profile.icloudSync")
-            Text(sync.status).font(.footnote).foregroundStyle(Color.labelSecondary)
-            if let date = sync.lastSync {
-                Text("Last synced \(date.formatted(date: .abbreviated, time: .shortened))" as String)
-                    .font(.caption).foregroundStyle(Color.labelSecondary)
-            }
-            if sync.isEnabled || sync.deletionPending {
-                Button { Task { await sync.sync() } } label: {
-                    HStack {
-                        Text(sync.deletionPending ? "Retry iCloud Deletion" : "Sync Now")
-                        if sync.isSyncing { Spacer(); ProgressView() }
-                    }
-                }
-                .disabled(sync.isSyncing)
-                .accessibilityIdentifier("profile.syncNow")
-            }
-        } header: {
-            Text("Data & iCloud")
-        } footer: {
-            Text("Optional sync uses your private iCloud storage for shopping lists, cart, budget and price corrections. Body measurements, food logs, dietary preferences and nutrition plans stay on this iPhone. No Nourlo account is needed for shopping sync. Turning sync off keeps existing iCloud data; use Delete All Data to erase it. AI requests still use our backend and Groq.")
-        }
-    }
-
-    private var privacySection: some View {
-        Section {
-            if AIAccountService.shared.offersOnlineAI {
-                Toggle("Online AI for chat and recipes", isOn: OwnerAITestConfiguration.current == nil ? $aiSharingConsent : $ownerAISharingConsent)
-                    .toggleStyle(.spring)
-                    .accessibilityIdentifier("profile.aiConsent")
-            }
-            NavigationLink {
-                LegalDocumentView(resource: "Privacy", title: "Privacy Policy")
-            } label: { Label("Privacy Policy", systemImage: "hand.raised") }
-            .accessibilityIdentifier("profile.privacy")
-            NavigationLink {
-                LegalDocumentView(resource: "Support", title: "Help & Support")
-            } label: { Label("Help & Support", systemImage: "questionmark.circle") }
-            .accessibilityIdentifier("profile.support")
-            NavigationLink {
-                LegalDocumentView(resource: "Acknowledgements", title: "Acknowledgements")
-            } label: { Label("Acknowledgements", systemImage: "heart.text.square") }
-            .accessibilityIdentifier("profile.acknowledgements")
-            Link(destination: Constants.Support.mailURL) {
-                Label("Email Support", systemImage: "envelope")
-            }
-            .accessibilityHint("Opens Mail to write to \(Constants.Support.email)" as String)
-            .accessibilityIdentifier("profile.emailSupport")
-            MorphPopover(footnote: "Opens Mail to \(Constants.Support.email). Nothing is sent until you tap Send there.") { message in
-                await SupportMail.send(message)
-            }
-            .listRowInsets(EdgeInsets(top: Spacing.sm, leading: Spacing.md, bottom: Spacing.sm, trailing: Spacing.md))
-        } header: {
-            Text("Privacy & Help")
-        } footer: {
-            if OwnerAITestConfiguration.current != nil {
-                Text("In this private test build, AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages \(OwnerAITestConfiguration.current?.transportDescription ?? "to your Mac") to the AI running on your Mac. Keep the Mac service running. Turn sharing off to stop future requests. No personal daily allowance is provided by this testing connection." as String)
-            } else if AIAccountService.shared.offersOnlineAI {
-                Text("When enabled, online AI requests send relevant body measurements, goals, dietary preferences, shopping items, owned food quantities, remaining daily targets and messages through our backend to Groq. Turn this off to stop future AI requests. Local tracking and local suggestions remain available. Read the Privacy Policy before enabling.")
-            } else {
-                Text("Meal plans, groceries, workouts, recipes and food logging all work on this iPhone. Your food log and body measurements stay on it.")
-            }
+    /// Kept: `profile.voice` and `profile.reminders` are what UI tests always tapped.
+    var identifier: String {
+        switch self {
+        case .voice: return "profile.voice"
+        case .notifications: return "profile.reminders"
+        default: return "profile.category." + rawValue
         }
     }
 }
 
-private struct MetricTile: View {
-    let title: String
-    let value: String
-    let unit: String
-    var icon: String = ""
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+private struct ProfileCategoryRow: View {
+    let kind: ProfileCategory
+    let value: String?
+    @ScaledMetric(relativeTo: .body) private var tile: CGFloat = 28
 
     var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.sm))
-            : AnyLayout(HStackLayout(spacing: Spacing.md))
-        layout {
-            Label(title, systemImage: icon).font(.body)
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: Spacing.sm) }
-            Text(unit.isEmpty ? value : "\(value) \(unit)")
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .foregroundStyle(Color.labelSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: Spacing.md) {
+            Image(systemName: kind.symbol)
+                .font(.system(size: tile * 0.52, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: tile, height: tile)
+                .background(kind.tint.gradient, in: RoundedRectangle(cornerRadius: tile * 0.26, style: .continuous))
+                .accessibilityHidden(true)
+            Text(kind.title)
+                .foregroundStyle(Color.labelPrimary)
+            Spacer(minLength: Spacing.sm)
+            if let value {
+                Text(value)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.labelSecondary)
+                    .lineLimit(1)
+                    .accessibilityHidden(true)
+            }
         }
-        .padding(.vertical, Spacing.xs)
+        .padding(.vertical, 0)
+    }
+}
+
+/// The person's card at the top of Profile: photo or initials, name, goal.
+private struct ProfileCard: View {
+    let vm: ProfileViewModel
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            ProfileAvatar(size: 52, name: vm.profile.name)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(vm.profile.name.isEmpty ? "Add your name" : vm.profile.name)
+                    .font(.headline)
+                    .foregroundStyle(Color.labelPrimary)
+                Text(vm.profile.weightGoal.displayName + " · \(vm.profile.dailyCalorieGoal.formatted(.number.grouping(.never))) kcal a day")
+                    .font(.subheadline).foregroundStyle(Color.labelSecondary)
+            }
+        }
+        .padding(.vertical, 0)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title): \(value) \(unit)" as String)
     }
 }
 

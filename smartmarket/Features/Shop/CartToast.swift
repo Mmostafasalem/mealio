@@ -38,7 +38,7 @@ struct CartToast: View {
     private var budgetHint: String? {
         guard cart.budgetFraction > 0.01 else { return nil }
         return cart.budgetRemaining < 0
-            ? String(format: "€%.2f over budget", -cart.budgetRemaining)
+            ? (Money.format(eur: -cart.budgetRemaining) + " over budget")
             : "\(Int(cart.budgetFraction * 100))% of budget"
     }
 
@@ -67,7 +67,7 @@ struct CartToast: View {
 
                 Spacer(minLength: Spacing.sm)
 
-                Text(String(format: "€%.2f", cart.total))
+                Text(Money.format(eur: cart.total))
                     .font(.headline.weight(.bold).monospacedDigit())
                     .contentTransition(.numericText(value: cart.total))
                     .lineLimit(1)
@@ -101,7 +101,7 @@ struct CartToast: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("View cart")
-        .accessibilityValue("\(cart.itemCount) items, " + String(format: "€%.2f", cart.total)
+        .accessibilityValue("\(cart.itemCount) items, " + Money.format(eur: cart.total)
                             + (budgetHint.map { ", " + $0 } ?? ""))
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("shop.viewCart")

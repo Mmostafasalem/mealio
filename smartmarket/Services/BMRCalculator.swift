@@ -113,7 +113,14 @@ enum BMRCalculator {
         }
     }
 
+    /// The macros Nourlo uses: the recommended split of `calories`, with any
+    /// protein, carbs or fat the person typed in Profile in their place.
     static func macroTargets(calories: Int, isKeto: Bool = false) -> MacroTargets {
+        TargetOverrides.load().applied(to: recommendedMacroTargets(calories: calories, isKeto: isKeto))
+    }
+
+    /// The usual split of `calories` (30/40/30, or keto's 25/5/70), ignoring typed targets.
+    static func recommendedMacroTargets(calories: Int, isKeto: Bool = false) -> MacroTargets {
         if isKeto { return .ketogenic(calories: calories) }
         return MacroTargets(
             calories: calories,
@@ -134,15 +141,19 @@ enum BMRCalculator {
                         goal: profile.weightGoal, pace: profile.lossPace)
         profile.bmr              = t.bmr.rounded()
         profile.tdee             = t.tdee.rounded()
-        profile.dailyCalorieGoal = t.dailyGoal
+        // A daily goal typed in Profile › Goals & targets wins until "Use recommended".
+        profile.dailyCalorieGoal = TargetOverrides.load().calories ?? t.dailyGoal
     }
 
     /// The calorie/macro targets the agent and meal planner read from
     /// `AppState.bmrData`. Call after `populate(profile:)`.
     static func response(for profile: UserProfile, isKeto: Bool) -> BMRResponse {
         let macros = macroTargets(calories: profile.dailyCalorieGoal, isKeto: isKeto)
+        let typed = TargetOverrides.load().calories != nil
         func goal(_ g: WeightGoal) -> Int {
-            dailyGoal(tdee: profile.tdee, goal: g, pace: profile.lossPace, gender: profile.gender, age: profile.age)
+            // A typed daily goal stands for the person's own goal.
+            if typed && g == profile.weightGoal { return profile.dailyCalorieGoal }
+            return dailyGoal(tdee: profile.tdee, goal: g, pace: profile.lossPace, gender: profile.gender, age: profile.age)
         }
         return BMRResponse(
             bmr: Int(profile.bmr), tdee: Int(profile.tdee),

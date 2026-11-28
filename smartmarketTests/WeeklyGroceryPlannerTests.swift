@@ -130,6 +130,8 @@ final class WeeklyGroceryPlannerTests: XCTestCase {
     }
 
     func testACartLeavingUnderFiveEurosGetsNoSuggestionsAndSaysSo() {
+        let oldCurrency = CurrencyStore.shared.code; CurrencyStore.shared.code = "EUR"
+        defer { CurrencyStore.shared.code = oldCurrency }
         let full = [CartItem(id: UUID(), catalogId: "oats", name: "Oats", store: "Catalogue", price: 46, category: "grains", quantity: 1)]
         let plan = WeeklyGroceryPlanner.plan(budget: 50, cart: full, favourites: [], preferences: [], price: price)
         XCTAssertTrue(plan.lines.isEmpty)

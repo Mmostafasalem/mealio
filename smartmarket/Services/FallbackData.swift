@@ -385,9 +385,9 @@ enum FallbackData {
         if budget <= 0 {
             budgetNote = ""
         } else if total <= budget {
-            budgetNote = String(format: " (€%.2f, within your €%.2f budget)", total, budget)
+            budgetNote = " (\(Money.format(eur: total)), within your \(Money.format(eur: budget)) budget)"
         } else {
-            budgetNote = String(format: " (€%.2f, €%.2f over your €%.2f budget)", total, total - budget, budget)
+            budgetNote = " (\(Money.format(eur: total)), \(Money.format(eur: total - budget)) over your \(Money.format(eur: budget)) budget)"
         }
         return "Plan built around your cart — \(items)\(budgetNote)."
     }

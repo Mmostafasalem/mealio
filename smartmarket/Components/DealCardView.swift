@@ -49,7 +49,7 @@ struct DealCardView: View {
 
                 // ── Price row (estimated) ─────────────────────────────────
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(String(format: "€%.2f", deal.discountPrice))
+                    Text(Money.format(eur: deal.discountPrice))
                         .font(.system(.title3, design: .rounded).weight(.bold))
                         .foregroundStyle(Color.brandPrimary)
                     Text("est. price")
@@ -64,7 +64,7 @@ struct DealCardView: View {
             .premiumCard(radius: Radius.tile)
         }
         .buttonStyle(PressableButtonStyle())
-        .accessibilityLabel("\(deal.productName), estimated \(String(format: "%.2f", deal.discountPrice)) euros")
+        .accessibilityLabel("\(deal.productName), estimated \(Money.spoken(eur: deal.discountPrice))")
     }
 }
 

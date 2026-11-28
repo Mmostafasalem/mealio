@@ -30,7 +30,7 @@ struct DealNotificationBanner: View {
                 }
                 Spacer(minLength: 0)
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text(String(format: "€%.2f", deal.discountPrice))
+                    Text(Money.format(eur: deal.discountPrice))
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(Color.labelPrimary)
                     Text("est. price")

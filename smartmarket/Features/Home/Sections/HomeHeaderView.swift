@@ -30,21 +30,9 @@ struct HomeHeaderView: View {
                 // Reminders live in Profile › Notifications, not on Home (TestFlight B5).
                 // The avatar is the way into Profile and settings.
                 Button(action: onProfile) {
-                    Group {
-                        if let initial = AppState.shared.userProfile.name.first {
-                            Text(String(initial).uppercased())
-                                .font(.headline)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.4)
-                        } else {
-                            Image(systemName: "person.fill").font(.headline)
-                        }
-                    }
-                    .padding(8)
-                    .foregroundStyle(Color.onAccent)
-                    .frame(width: 44, height: 44)
-                    .background(Color.dullPink, in: Circle())
-                    .contentShape(Circle())
+                    // The profile photo when there is one, else the initial.
+                    ProfileAvatar(size: 44)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(ScalePressStyle())
                 .accessibilityLabel("Profile and settings")

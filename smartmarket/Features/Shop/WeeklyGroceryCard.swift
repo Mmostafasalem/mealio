@@ -24,7 +24,7 @@ struct WeeklyGroceryCard: View {
     /// Said plainly when there is nothing to suggest.
     static func emptyMessage(_ plan: GroceryPlan, removedAny: Bool) -> String {
         if plan.available < WeeklyGroceryPlanner.fillUntil {
-            return String(format: "Your cart leaves €%.2f of this week's budget, which is too little to plan more groceries.", plan.available)
+            return "Your cart leaves \(Money.format(eur: plan.available)) of this week's budget, which is too little to plan more groceries."
         }
         return removedAny
             ? "You removed every suggestion that fits your diet and what's left. Show them again or raise the budget."
@@ -37,7 +37,7 @@ struct WeeklyGroceryCard: View {
             HStack(alignment: .firstTextBaseline) {
                 Label("This week's groceries", systemImage: "list.bullet.clipboard").font(.headline)
                 Spacer()
-                Text(String(format: "€%.2f of €%.2f", plan.total, plan.available))
+                Text(Money.format(eur: plan.total) + " of " + Money.format(eur: plan.available))
                     .font(.subheadline.weight(.semibold)).monospacedDigit()
                     .foregroundStyle(Color.labelSecondary)
                     .contentTransition(.numericText())
@@ -49,7 +49,7 @@ struct WeeklyGroceryCard: View {
             } else {
                 Text(plan.tight
                      ? "Your budget is tight, so the basics for a balanced week come first, then your foods (two of a kind at most)."
-                     : "The foods you picked, what a balanced week still needs, and more for the week until less than €5 of your budget is left. Your meal plan is made from what you buy.")
+                     : "The foods you picked, what a balanced week still needs, and more for the week until less than \(Money.formatWhole(eur: WeeklyGroceryPlanner.fillUntil)) of your budget is left. Your meal plan is made from what you buy.")
                     .font(.footnote).foregroundStyle(Color.labelSecondary)
                 VStack(spacing: 0) {
                     ForEach(plan.lines) { line in
@@ -60,7 +60,7 @@ struct WeeklyGroceryCard: View {
                                 Text(line.reason.rawValue).font(.caption).foregroundStyle(Color.labelSecondary)
                             }
                             Spacer()
-                            Text(String(format: "€%.2f", line.price)).font(.subheadline).monospacedDigit()
+                            Text(Money.format(eur: line.price)).font(.subheadline).monospacedDigit()
                             Button {
                                 withAnimation(reduceMotion ? .reducedFade : .snappyValue) { _ = removed.insert(line.item.id) }
                             } label: {
